@@ -18,6 +18,7 @@ export type MetaForgeApprovalCardProps = {
   onApprove?: () => void;
   onReject?: () => void;
   className?: string;
+  status?: "pending" | "applied" | "rejected" | "failed" | "rolled_back";
 };
 
 /**
@@ -37,6 +38,7 @@ export function MetaForgeApprovalCard({
   onApprove,
   onReject,
   className,
+  status = "pending",
 }: MetaForgeApprovalCardProps) {
   const [selfOpen, setSelfOpen] = useState(defaultOpen);
   const isOpen = open ?? selfOpen;
@@ -44,6 +46,8 @@ export function MetaForgeApprovalCard({
   const close = () => {
     if (open === undefined) setSelfOpen(false);
   };
+
+  const isResolved = status !== "pending";
 
   return (
     <AnimatePresence initial={false}>
@@ -104,27 +108,40 @@ export function MetaForgeApprovalCard({
           )}
 
           <footer className="mt-6 flex items-center justify-end gap-2.5">
-            <button
-              onClick={() => {
-                onReject?.();
-                close();
-              }}
-              className="h-9 rounded-lg px-4 font-mono text-[11.5px] uppercase tracking-[0.18em] text-muted-foreground/70 transition-colors hover:bg-raised/70 hover:text-foreground"
-            >
-              {rejectLabel}
-            </button>
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              transition={{ duration: 0.16, ease: "easeInOut" }}
-              onClick={() => {
-                onApprove?.();
-                close();
-              }}
-              className="h-9 rounded-lg border border-[color-mix(in_oklab,var(--emerald)_38%,transparent)] bg-[color-mix(in_oklab,var(--emerald)_12%,transparent)] px-5 font-mono text-[11.5px] uppercase tracking-[0.18em] text-emerald shadow-[0_0_26px_-12px_var(--emerald)] transition-shadow hover:shadow-[0_0_34px_-8px_var(--emerald)]"
-            >
-              {approveLabel}
-            </motion.button>
+            {isResolved ? (
+              <div className={cn(
+                "h-9 flex items-center justify-center rounded-lg px-5 font-mono text-[11.5px] uppercase tracking-[0.18em]",
+                status === "applied" ? "border border-emerald/20 text-emerald bg-emerald/5" :
+                status === "rejected" ? "border border-ruby/20 text-ruby bg-ruby/5" :
+                "border border-white/10 text-muted-foreground bg-raised/30"
+              )}>
+                {status}
+              </div>
+            ) : (
+              <>
+                <button
+                  onClick={() => {
+                    onReject?.();
+                    close();
+                  }}
+                  className="h-9 rounded-lg px-4 font-mono text-[11.5px] uppercase tracking-[0.18em] text-muted-foreground/70 transition-colors hover:bg-raised/70 hover:text-foreground"
+                >
+                  {rejectLabel}
+                </button>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  transition={{ duration: 0.16, ease: "easeInOut" }}
+                  onClick={() => {
+                    onApprove?.();
+                    close();
+                  }}
+                  className="h-9 rounded-lg border border-[color-mix(in_oklab,var(--emerald)_38%,transparent)] bg-[color-mix(in_oklab,var(--emerald)_12%,transparent)] px-5 font-mono text-[11.5px] uppercase tracking-[0.18em] text-emerald shadow-[0_0_26px_-12px_var(--emerald)] transition-shadow hover:shadow-[0_0_34px_-8px_var(--emerald)]"
+                >
+                  {approveLabel}
+                </motion.button>
+              </>
+            )}
           </footer>
         </motion.article>
       )}

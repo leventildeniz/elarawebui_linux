@@ -49148,3 +49148,48 @@ Failed to ensure forge_master: column "agent_path" of relation "agents" does not
 [vault_audit] redactDeep is not a function
 [vault_audit] redactDeep is not a function
 [vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[forge:apply] applied_files persist failed column "updated_at" of relation "forge_plans" does not exist
+[forge:apply] applied_files persist failed column "updated_at" of relation "forge_plans" does not exist
+[forge:apply] applied_files persist failed column "updated_at" of relation "forge_plans" does not exist
+[forge:apply] applied_files persist failed column "updated_at" of relation "forge_plans" does not exist
+[forge:apply] applied_files persist failed column "updated_at" of relation "forge_plans" does not exist
+[forge:apply] applied_files persist failed column "updated_at" of relation "forge_plans" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[forge:apply] applied_files persist failed column "updated_at" of relation "forge_plans" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[forge:apply] applied_files persist failed column "updated_at" of relation "forge_plans" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[forge:apply] applied_files persist failed column "updated_at" of relation "forge_plans" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[forge:apply] applied_files persist failed column "updated_at" of relation "forge_plans" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[forge:apply] applied_files persist failed column "updated_at" of relation "forge_plans" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[forge:apply] applied_files persist failed column "updated_at" of relation "forge_plans" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[forge:apply] applied_files persist failed column "updated_at" of relation "forge_plans" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function

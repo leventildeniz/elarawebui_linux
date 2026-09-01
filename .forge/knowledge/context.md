@@ -310,8 +310,12 @@ Bu fazda, yetkilendirme (Role-Based Access Control) ve mülkiyet (Ownership) omu
 - **RBAC:** Fallback mekanizması (`defaultRoles`) temizlendi. Sistemin mülkiyet atamayan (global) "Roller" mantığının DB (app_roles) yapısıyla uyumlu olduğu teyit edildi.
 - **Knowledge Spaces / Vault / Security:** Mock veri kalıntıları, gereksiz importlar (`directoryGroupMail`) temizlendi, DB yapılarının (%100) uyuştuğu doğrulandı.
 
-## 39. UP NEXT (Phase 39) - MetaForge JSON Parser & AST Extraction
-- **Sorun (Bulgu):** LLM'in (Gemini/Gemma vs.) MetaForge ajanındayken ürettiği Plan objesi JSON ve markdown tag'leri arasında dönmektedir (ör. \`\`\`json ... \`\`\`).
-Sistemin stream okuyucusundaki (`extractForgeJson`) global regex kullanımı (`.replace(/```(?:json)?\s*/gi, "")`) sadece dıştaki markdown bloklarını temizlemekle kalmayıp, LLM'in ürettiği Python veya Bash scriptlerinin İÇİNDEKİ docstring ve markdown bloklarını da acımasızca kesip çıkartmaktadır.
-- **Sonuç:** String'in kalbinden eksilen backtick (\`\`\`) veya tırnaklar nedeniyle JSON'un AST (Abstract Syntax Tree) yapısı bozulmakta, `JSON.parse()` fonksiyonu Syntax Error yiyerek patlamaktadır. Bu nedenle UI'a Onay Kartı (Approval Card) gönderilememektedir.
-- **Aksiyon:** Kaba kuvvetle çalışan `.replace()` regex komutları kaldırılacak. Fonksiyon içindeki parantez (brace `{ }`) sayıcı mantık (AST-aware scanner) izole edilecek; dış gürültülere dokunulmadan sadece içteki kusursuz JSON objesi güvenli bir şekilde cımbızlanacak.
+## 39. Completed (Phase 39) - MetaForge JSON Parser, AST Extraction & Orchestration Loop
+- **Sorun Çözüldü (JSON Parser):** LLM'in (Gemini/Gemma vs.) MetaForge ajanındayken ürettiği Plan objesini JSON parse ederken, körlemesine çalışan `.replace()` regex komutları nedeniyle iç içe geçmiş markdown bloklarının sökülüp `JSON.parse()` fonksiyonunun çökmesi engellendi. `extractForgeJson` fonksiyonuna Regex yerine "dıştan içe AST tarama" mantığı eklendi.
+- **Onay Süreci Uyanışı (Approval Loop):** UI'da "Approve" (veya Reject) butonuna basıldığında modelin (LLM) donup kalması sorunu aşıldı. Onay veya red anında `[SYSTEM_NOTE]` mesajı otonom olarak chat akışına `dispatch` edilerek ana modelin uyanıp yeteneği kullanmaya devam etmesi sağlandı.
+- **SQL Şema Uyumsuzluğu (UUID & Slug):** MetaForge apply (uygulama) motoru (`apply.mjs`) içindeki V1 SQL kalıntıları temizlendi. `skills` ve `capability_packs` tablolarına insert edilirken olmayan `slug` gibi kolonların hata verdirmesi sorunu V2'ye (`v2_master_schema.sql`) uygun kolon eşleşmesiyle onarıldı. `forge_artifacts` tablosunun `plan_id` UUID tür uyuşmazlığı, `text` türüne alter edilerek giderildi.
+- **Re-Apply (Conflict 409):** `rolled_back` statüsündeki MetaForge planlarının yeniden uygulanmasına izin verilmesi için backend kontrol mantığı esnetildi.
+- **Halüsinasyon (Honesty Prompt) Önlemi:** Araçlar hata döndüğünde modelin sahte veri üretip sohbeti sonlandırması ihtimaline karşı System Prompt'a kesin bir `[HONESTY DIRECTIVE]` enjekte edildi ve iterasyon (ajan deneme) limiti israf olmasın diye 15'e çıkarıldı.
+
+## 40. UP NEXT (Phase 40) - MetaForge Approval Flow Final Polish
+- MetaForge otonomisini test ederken UI üzerindeki `Approve` akışında hala stabilite sorunları yaşanıyor. Mesaj onaylandığı halde modelin aracı çağırıp kullanamadığı, döngünün tıkandığı senaryolar mevcut. Sonraki aşamada bu iletişim kopukluğu detaylıca izole edilecek.

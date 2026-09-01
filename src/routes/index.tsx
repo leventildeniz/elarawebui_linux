@@ -1300,13 +1300,25 @@ function SovereignChat() {
                             { label: "rollback", value: "instant" },
                             { label: "author", value: m.forge_plan.requestedBy || "metaforge" },
                           ]}
-                          open={m.forge_plan.status === "pending" || !m.forge_plan.status}
+                          open={true}
+                          status={(m.forge_plan.status as any) || "pending"}
                           onApprove={async () => {
                             try {
                               const res = await fetchApi(`/api/meta-forge/plans/${m.forge_plan.id}/apply`, {
                                 method: "POST"
                               });
-                              if (res?.ok) toast.success("MetaForge plan approved and applied!");
+                              if (res?.ok) {
+                                toast.success("MetaForge plan approved and applied!");
+                                // Direct mutation is necessary here because `dispatch` below
+                                // closes over the old `messages` array. Mutating `m` ensures
+                                // that when `dispatch` appends the new message, it carries
+                                // the applied status forward into the new state array.
+                                if (m.forge_plan) m.forge_plan.status = "applied";
+
+                                // Wake up the model with the approval notification
+                                const approvalMsg = `[SYSTEM_NOTE] The MetaForge plan has been APPROVED by the user. The new capability is now available in the directory. Please use 'sys_execute_tool' or 'sys_delegate_to_agent' to complete the user's request.`;
+                                dispatch(approvalMsg, [], [], webSearch);
+                              }
                               else toast.error("MetaForge failed to apply.");
                             } catch(e: any) {
                               toast.error(`Error: ${e.message}`);
@@ -1319,6 +1331,12 @@ function SovereignChat() {
                                 body: JSON.stringify({ reason: "User rejected from chat interface." })
                               });
                               toast("MetaForge plan rejected.");
+                              
+                              if (m.forge_plan) m.forge_plan.status = "rejected";
+
+                              // Wake up the model with the rejection notification
+                              const rejectionMsg = `[SYSTEM_NOTE] The user REJECTED the MetaForge plan. Do not attempt to use the proposed capability. Proceed with existing tools or inform the user.`;
+                              dispatch(rejectionMsg, [], [], webSearch);
                             } catch(e: any) {
                               toast.error(`Error rejecting plan: ${e.message}`);
                             }

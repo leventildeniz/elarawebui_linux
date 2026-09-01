@@ -10,13 +10,32 @@ import { isMetaForgeScriptPath } from "../meta-forge/selection.mjs";
 
 function extractForgeJson(text) {
   if (!text) return null;
-  const cleaned = String(text).replace(/```(?:json)?\s*/gi, "").replace(/```/g, "");
+  const raw = String(text);
+
+  // Try direct parse first (if LLM was a good boy and returned pure JSON)
+  try {
+      const direct = JSON.parse(raw);
+      if (direct && typeof direct === "object" && direct.plan) return direct;
+  } catch {}
+
+  // Try to find markdown block but DON'T blindly replace backticks everywhere
+  let targetArea = raw;
+  const match = raw.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (match && match[1]) {
+      targetArea = match[1];
+      try {
+        const mdParsed = JSON.parse(targetArea);
+        if (mdParsed && typeof mdParsed === "object" && mdParsed.plan) return mdParsed;
+      } catch {}
+  }
+
+  // Fallback to AST scanner on the target area
   const candidates = [];
-  for (let i = 0; i < cleaned.length; i++) {
-    if (cleaned[i] !== "{") continue;
+  for (let i = 0; i < targetArea.length; i++) {
+    if (targetArea[i] !== "{") continue;
     let depth = 0, inStr = false, esc = false;
-    for (let j = i; j < cleaned.length; j++) {
-      const ch = cleaned[j];
+    for (let j = i; j < targetArea.length; j++) {
+      const ch = targetArea[j];
       if (inStr) {
         if (esc) esc = false;
         else if (ch === "\\") esc = true;
@@ -27,10 +46,11 @@ function extractForgeJson(text) {
       if (ch === "{") depth++;
       else if (ch === "}") {
         depth--;
-        if (depth === 0) { candidates.push(cleaned.slice(i, j + 1)); i = j; break; }
+        if (depth === 0) { candidates.push(targetArea.slice(i, j + 1)); i = j; break; }
       }
     }
   }
+  
   candidates.sort((a, b) => b.length - a.length);
   for (const c of candidates) {
     try {
@@ -41,6 +61,7 @@ function extractForgeJson(text) {
   for (const c of candidates) {
     try { return JSON.parse(c); } catch { /* keep scanning */ }
   }
+  
   return null;
 }
 

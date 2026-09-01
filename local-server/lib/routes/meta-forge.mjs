@@ -113,7 +113,7 @@ export function mountMetaForgeRoutes(app, deps) {
     );
     if (!rows.length) return res.status(404).json({ error: "plan not found" });
     const p = rows[0];
-    if (p.status !== "pending" && p.status !== "approved" && p.status !== "failed") {
+    if (p.status !== "pending" && p.status !== "approved" && p.status !== "failed" && p.status !== "rolled_back") {
       return res.status(409).json({ error: `plan status is ${p.status}` });
     }
     try {

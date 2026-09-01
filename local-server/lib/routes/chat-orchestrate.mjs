@@ -1090,7 +1090,7 @@ export async function mountChatOrchestrateRoutes(app, deps) {
       // UNIVERSAL META-FORGE DIRECTIVE: Modelin her zaman güncel veri aramasını ve eksik yeteneklerini kendi kendine üretmesini zorunlu kılar.
       formattedMessages.push({
           role: "system",
-          content: "[UNIVERSAL AUTONOMY DIRECTIVE]: You are a fully autonomous sovereign AI. If the user asks you to perform a task (e.g., network scan, SSL check, API fetch, data processing) and you realize you lack the necessary tool, skill, or agent to do it, YOU MUST NOT APOLOGIZE OR GIVE UP. Instead, you MUST immediately use the 'sys_delegate_to_metaforge' tool to autonomously synthesize and deploy the missing capability into the system. For simple factual lookups, use 'sys_web_search' or delegate to an agent via 'sys_get_directory'."
+          content: "[UNIVERSAL AUTONOMY DIRECTIVE]: You are a fully autonomous sovereign AI. If the user asks you to perform a task (e.g., network scan, SSL check, API fetch, data processing) and you realize you lack the necessary tool, skill, or agent to do it, YOU MUST NOT APOLOGIZE OR GIVE UP. Instead, you MUST immediately use the 'sys_delegate_to_metaforge' tool to autonomously synthesize and deploy the missing capability into the system. For simple factual lookups, use 'sys_web_search' or delegate to an agent via 'sys_get_directory'.\n[HONESTY DIRECTIVE]: NEVER hallucinate, guess, or invent results. If a tool fails to return actual data, or if you are waiting for a tool to be created, DO NOT make up the final answer. Tell the user explicitly that the data is unavailable or the tool failed."
       });
 
       if (useRag) {
@@ -1100,7 +1100,7 @@ export async function mountChatOrchestrateRoutes(app, deps) {
           });
       }
 
-      let maxIterations = 8;
+      let maxIterations = 15;
       let iteration = 0;
       let isDone = false;
       let finalProviderUsed = prov;
@@ -1613,14 +1613,7 @@ export async function mountChatOrchestrateRoutes(app, deps) {
                                   // 3. Parse and Save the Plan
                                   const plannerMod = await import("../meta-forge/planner.mjs");
                                   
-                                  // Fix: try extracting from a standard JSON markdown block first to bypass any noise
-                                  let extractedJsonText = subAnswer;
-                                  const jsonMatch = subAnswer.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-                                  if (jsonMatch && jsonMatch[1]) {
-                                      extractedJsonText = jsonMatch[1];
-                                  }
-
-                                  const obj = plannerMod.extractForgeJson ? plannerMod.extractForgeJson(extractedJsonText) : null;
+                                  const obj = plannerMod.extractForgeJson ? plannerMod.extractForgeJson(subAnswer) : null;
 
                                   if (!obj || !obj.plan) {
                                       toolResultStr = JSON.stringify({ error: `MetaForge failed to generate a valid JSON plan. Raw output was: ${subAnswer}` });

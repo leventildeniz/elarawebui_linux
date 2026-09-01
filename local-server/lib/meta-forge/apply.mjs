@@ -122,13 +122,12 @@ async function applySkillCreate(pool, planId, item, meta) {
   const description = String(item.description || "").slice(0, 500);
   if (!instructions.trim()) throw new Error(`skill ${slug}: body/instructions required`);
   const r = await pool.query(
-    `INSERT INTO skills (id, slug, name, description, instructions, script_kind, script_body, is_system)
-     VALUES ($1, $2, $3, $4, $5, 'prompt', '', false)
+    `INSERT INTO skills (id, name, description, instructions, type, system)
+     VALUES ($1, $2, $3, $4, 'native', false)
      ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name,
-       description=EXCLUDED.description, instructions=EXCLUDED.instructions,
-       updated_at=now()
+       description=EXCLUDED.description, instructions=EXCLUDED.instructions
      RETURNING id`,
-    [slug, slug, name, description, instructions],
+    [slug, name, description, instructions],
   );
   await pool.query(
     `INSERT INTO forge_artifacts (plan_id, kind, slug, db_row_id)
@@ -147,11 +146,11 @@ async function applyPackCreate(pool, planId, item, meta) {
   const skillIds = Array.isArray(item.skills) ? item.skills : [];
   const brandKeywords = Array.isArray(item.brand_keywords) ? item.brand_keywords : [];
   const r = await pool.query(
-    `INSERT INTO capability_packs (id, name, description, action_ids, skill_ids, brand_keywords, is_system)
+    `INSERT INTO capability_packs (id, name, description, tools, skills, brand_keywords, system)
      VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6::jsonb, false)
      ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name, description=EXCLUDED.description,
-       action_ids=EXCLUDED.action_ids, skill_ids=EXCLUDED.skill_ids,
-       brand_keywords=EXCLUDED.brand_keywords
+       tools=EXCLUDED.tools, skills=EXCLUDED.skills,
+       brand_keywords=EXCLUDED.brand_keywords, updated_at=now()
      RETURNING id`,
     [slug, name, description, JSON.stringify(actionIds), JSON.stringify(skillIds), JSON.stringify(brandKeywords)],
   );
@@ -442,7 +441,7 @@ export async function rollbackForgePlan({ pool, planId }) {
         await pool.query(`DELETE FROM skills WHERE id=$1`, [a.db_row_id]);
         removed.push({ kind: "skill", slug: a.slug });
       } else if (a.kind === "pack" && a.db_row_id) {
-        await pool.query(`DELETE FROM capability_packs WHERE id=$1 AND is_system=false`, [a.db_row_id]);
+        await pool.query(`DELETE FROM capability_packs WHERE id=$1 AND system=false`, [a.db_row_id]);
         removed.push({ kind: "pack", slug: a.slug });
       } else if ((a.kind === "tool" || a.kind === "agent") && a.disk_path) {
         const abs = path.resolve(PROJECT_ROOT, a.disk_path);
