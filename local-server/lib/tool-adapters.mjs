@@ -23,6 +23,12 @@
 // =============================================================================
 
 import { randomUUID } from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const PROJECT_ROOT = path.resolve(__dirname, "..", "..");
 
 let _pool = null;
 export function initToolAdapters(pool) { _pool = pool; }
@@ -110,7 +116,43 @@ async function loadTool(toolId) {
        FROM action_library WHERE id=$1`,
     [toolId]
   );
-  return rows[0] || null;
+  let row = rows[0];
+  if (!row) {
+    // Fallback: tools tablosundan sorgula
+    try {
+      const { rows: tRows } = await _pool.query(
+        `SELECT id, label as name, source as adapter, risk as risk_level, requires_approval, params, system_prompt
+           FROM tools WHERE id=$1`,
+        [toolId]
+      );
+      row = tRows[0];
+    } catch { /* tools tablosu opsiyonel */ }
+  }
+  if (!row) {
+    // Fallback 2: disk tools doğrudan kontrol et
+    if (toolId.startsWith("tool.")) {
+      const slug = toolId.slice(5);
+      const filePath = path.resolve(PROJECT_ROOT, "tools", `${slug}.py`);
+      if (fs.existsSync(filePath)) {
+        return {
+          id: toolId,
+          name: slug,
+          adapter: "python",
+          risk_level: "low",
+          requires_approval: false,
+          runtime: { handler: "python", script: filePath },
+          system_prompt: ""
+        };
+      }
+    }
+    return null;
+  }
+
+  let runtime = row.runtime;
+  if (typeof runtime === "string") {
+    try { runtime = JSON.parse(runtime); } catch { runtime = {}; }
+  }
+  return { ...row, runtime };
 }
 
 async function isAgentAllowed(agentId, toolId) {
@@ -218,8 +260,18 @@ const RUNNERS = {
     }
   },
   async python({ tool, params, signal }) {
-    const script = tool.runtime?.script || tool.runtime?.handler;
-    if (!script) throw new ToolPolicyError("config", "python adapter requires runtime.script");
+    let script = tool.runtime?.script || tool.script_path || tool.script;
+    if (!script && tool.id && tool.id.startsWith("tool.")) {
+      const slug = tool.id.slice(5);
+      const candidate = path.resolve(PROJECT_ROOT, "tools", `${slug}.py`);
+      if (fs.existsSync(candidate)) {
+        script = candidate;
+      }
+    }
+    if (!script) throw new ToolPolicyError("config", `python adapter requires runtime.script for tool ${tool.id || "unknown"}`);
+    if (!path.isAbsolute(script)) {
+      script = path.resolve(PROJECT_ROOT, script);
+    }
     const timeoutMs = Number(tool.runtime?.timeout_ms || 60_000);
     const toolSysPrompt = String(tool.system_prompt || "").trim();
     const env = toolSysPrompt ? { ELARA_TOOL_SYSTEM_PROMPT: toolSysPrompt } : {};
@@ -289,8 +341,7 @@ const RUNNERS = {
     return j;
   },
   async builtin({ tool, params }) {
-    // Legacy workflow handlers — yalnızca echo. Gerçek node tipleri Faz 6'da.
-    return { ok: true, builtin: tool.runtime?.handler || "noop", params };
+    return { ok: false, error: `Builtin handler '${tool.runtime?.handler || "noop"}' is not executable as a tool.` };
   },
 };
 
@@ -302,7 +353,15 @@ export async function invokeTool({
   if (!_pool) throw new Error("tool-adapters not initialized");
   const tool = await loadTool(toolId);
   if (!tool) throw new ToolPolicyError("not_found", `tool ${toolId} not found`);
-  const adapter = (tool.adapter || tool.runtime?.handler || "builtin").toLowerCase();
+  let adapter = (tool.adapter || "").toLowerCase();
+  if (tool.runtime?.script || tool.runtime?.handler === "python" || (toolId && toolId.startsWith("tool."))) {
+    adapter = "python";
+  } else if (!adapter && tool.runtime?.handler) {
+    adapter = tool.runtime.handler.toLowerCase();
+  }
+  if (!adapter) {
+    adapter = "builtin";
+  }
   if (!RUNNERS[adapter]) throw new ToolPolicyError("adapter", `unknown adapter "${adapter}"`);
 
   // Agent whitelist (Faz 5 — agent kafasına göre tool çağıramaz)

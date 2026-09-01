@@ -82,6 +82,24 @@ function parseHeader(text, fallbackSlug) {
     const dm = text.match(/"""([^"\n]+)/);
     if (dm) meta.description = dm[1].trim();
   }
+
+  // Args fallback — if no explicit # @args: header, infer from getter patterns in code (e.g. .get('domain'), .get('url'))
+  if (Object.keys(meta.args).length === 0) {
+    const getterMatches = [...text.matchAll(/(?:input_data|params|data|payload|p|args|body|json_data)\.get\(\s*['"]([a-zA-Z0-9_-]+)['"]/g)];
+    if (getterMatches.length > 0) {
+      const inferred = {};
+      for (const gm of getterMatches) {
+        const paramKey = gm[1];
+        if (paramKey && !paramKey.startsWith("_") && !["error", "ok", "status"].includes(paramKey)) {
+          inferred[paramKey] = "string";
+        }
+      }
+      if (Object.keys(inferred).length > 0) {
+        meta.args = inferred;
+      }
+    }
+  }
+
   return meta;
 }
 

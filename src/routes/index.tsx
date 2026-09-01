@@ -103,6 +103,7 @@ export const Route = createFileRoute("/")({
 type Msg = {
   role: "user" | "agent";
   text: string;
+  hidden?: boolean;
   proposals?: Proposal[];
   approval?: boolean | { invocationId: string; toolName: string; reason: string; decided?: "approve" | "reject" };
   forge_plan?: any;
@@ -590,7 +591,9 @@ function SovereignChat() {
         }
         if (e.kind === "forge_plan") {
           forgePlan = e.plan;
-          paint();
+          act.phase = "done";
+          setStreaming(false);
+          paint(false);
           return;
         }
         if (e.kind === "error") {
@@ -1082,8 +1085,9 @@ function SovereignChat() {
             </motion.div>
           ) : (
             <div className="mx-auto w-full max-w-[760px] space-y-14 px-6 pb-14 pt-20">
-              {messages.map((m, i) =>
-                m.compaction ? (
+              {messages.map((m, i) => {
+                if (m.hidden || m.text?.startsWith("[SYSTEM_NOTE]")) return null;
+                return m.compaction ? (
                   <CompactionCard
                     key={i}
                     c={m.compaction}
@@ -1253,7 +1257,9 @@ function SovereignChat() {
                             {...(m.telemetry ? { elapsedMs: m.telemetry.firstTokenMs } : {})}
                           />
                         )}
-                        {m.activity && m.activity.runs && m.activity.runs.length > 0 && <ToolActivityBlock activity={m.activity} />}
+                        {m.activity && m.activity.runs && m.activity.runs.length > 0 && (
+                          <ToolActivityBlock activity={m.streaming ? m.activity : { ...m.activity, phase: "done" }} />
+                        )}
                         {typeof m.approval === "object" && m.approval !== null && !m.approval.decided && (
                           <ToolApprovalCard approval={m.approval as any} onDecision={(d) => decideApproval(i, d)} />
                         )}
@@ -1298,7 +1304,7 @@ function SovereignChat() {
                             { label: "scope", value: "orchestration" },
                             { label: "risk", value: "low" },
                             { label: "rollback", value: "instant" },
-                            { label: "author", value: m.forge_plan.requestedBy || "metaforge" },
+                            { label: "author", value: m.forge_plan.requestedBy || "admin" },
                           ]}
                           open={true}
                           status={(m.forge_plan.status as any) || "pending"}
@@ -1309,15 +1315,23 @@ function SovereignChat() {
                               });
                               if (res?.ok) {
                                 toast.success("MetaForge plan approved and applied!");
-                                // Direct mutation is necessary here because `dispatch` below
-                                // closes over the old `messages` array. Mutating `m` ensures
-                                // that when `dispatch` appends the new message, it carries
-                                // the applied status forward into the new state array.
-                                if (m.forge_plan) m.forge_plan.status = "applied";
+                                
+                                // Direct dismiss: previous messages are marked idle, forge_plan card disappears smoothly
+                                const updatedMessages = messages.map(msg => {
+                                  if (msg === m) {
+                                    return { ...msg, streaming: false, forge_plan: undefined };
+                                  }
+                                  return { ...msg, streaming: false };
+                                });
+                                setMessages(updatedMessages);
 
-                                // Wake up the model with the approval notification
+                                // Wake up the model silently without rendering an ugly user bubble
                                 const approvalMsg = `[SYSTEM_NOTE] The MetaForge plan has been APPROVED by the user. The new capability is now available in the directory. Please use 'sys_execute_tool' or 'sys_delegate_to_agent' to complete the user's request.`;
-                                dispatch(approvalMsg, [], [], webSearch);
+                                const baseForOrch: Msg[] = [
+                                  ...updatedMessages,
+                                  { role: "user", text: approvalMsg, hidden: true }
+                                ];
+                                runOrchestration(baseForOrch, undefined, approvalMsg, { tools: [], skills: [], mcp: [] }, undefined, webSearch);
                               }
                               else toast.error("MetaForge failed to apply.");
                             } catch(e: any) {
@@ -1332,11 +1346,20 @@ function SovereignChat() {
                               });
                               toast("MetaForge plan rejected.");
                               
-                              if (m.forge_plan) m.forge_plan.status = "rejected";
+                              const updatedMessages = messages.map(msg => {
+                                if (msg === m) {
+                                  return { ...msg, streaming: false, forge_plan: undefined };
+                                }
+                                return { ...msg, streaming: false };
+                              });
+                              setMessages(updatedMessages);
 
-                              // Wake up the model with the rejection notification
                               const rejectionMsg = `[SYSTEM_NOTE] The user REJECTED the MetaForge plan. Do not attempt to use the proposed capability. Proceed with existing tools or inform the user.`;
-                              dispatch(rejectionMsg, [], [], webSearch);
+                              const baseForOrch: Msg[] = [
+                                ...updatedMessages,
+                                { role: "user", text: rejectionMsg, hidden: true }
+                              ];
+                              runOrchestration(baseForOrch, undefined, rejectionMsg, { tools: [], skills: [], mcp: [] }, undefined, webSearch);
                             } catch(e: any) {
                               toast.error(`Error rejecting plan: ${e.message}`);
                             }
@@ -1353,8 +1376,8 @@ function SovereignChat() {
                       </div>
                     )}
                   </motion.div>
-                ),
-              )}
+                );
+              })}
               <AnimatePresence>{compacting && <CompactingCard />}</AnimatePresence>
               <div ref={endRef} className="h-px w-full" />
             </div>

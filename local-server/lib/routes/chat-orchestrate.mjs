@@ -430,36 +430,54 @@ export async function mountChatOrchestrateRoutes(app, deps) {
                    
                      let content = deltaObj.content || parsed.message?.content || parsed.content || "";
                      if (content && content !== "null") {
-                       // Google Gemini Parsing: Extract thoughts from regular content
-                       if (isGemini) {
-                           let remainingContent = "";
-                           let searchIndex = 0;
-                           
-                           while (searchIndex < content.length) {
-                               if (!geminiInThought) {
-                                   const startIndex = content.indexOf("<thought>", searchIndex);
-                                   if (startIndex !== -1) {
-                                       remainingContent += content.substring(searchIndex, startIndex);
-                                       geminiInThought = true;
-                                       searchIndex = startIndex + 9; // length of <thought>
-                                   } else {
-                                       remainingContent += content.substring(searchIndex);
-                                       break;
-                                   }
+                       // Thought Parsing: Extract <think> or <thought> from regular content
+                       let remainingContent = "";
+                       let searchIndex = 0;
+                       
+                       while (searchIndex < content.length) {
+                           if (!geminiInThought) {
+                               const thinkIdx = content.indexOf("<think>", searchIndex);
+                               const thoughtIdx = content.indexOf("<thought>", searchIndex);
+                               let startIdx = -1;
+                               let tagLen = 0;
+                               if (thinkIdx !== -1 && (thoughtIdx === -1 || thinkIdx < thoughtIdx)) {
+                                   startIdx = thinkIdx;
+                                   tagLen = 7;
+                               } else if (thoughtIdx !== -1) {
+                                   startIdx = thoughtIdx;
+                                   tagLen = 9;
+                               }
+                               if (startIdx !== -1) {
+                                   remainingContent += content.substring(searchIndex, startIdx);
+                                   geminiInThought = true;
+                                   searchIndex = startIdx + tagLen;
                                } else {
-                                   const endIndex = content.indexOf("</thought>", searchIndex);
-                                   if (endIndex !== -1) {
-                                       yield JSON.stringify({ type: "think", delta: content.substring(searchIndex, endIndex) });
-                                       geminiInThought = false;
-                                       searchIndex = endIndex + 10; // length of </thought>
-                                   } else {
-                                       yield JSON.stringify({ type: "think", delta: content.substring(searchIndex) });
-                                       break;
-                                   }
+                                   remainingContent += content.substring(searchIndex);
+                                   break;
+                               }
+                           } else {
+                               const endThinkIdx = content.indexOf("</think>", searchIndex);
+                               const endThoughtIdx = content.indexOf("</thought>", searchIndex);
+                               let endIdx = -1;
+                               let tagLen = 0;
+                               if (endThinkIdx !== -1 && (endThoughtIdx === -1 || endThinkIdx < endThoughtIdx)) {
+                                   endIdx = endThinkIdx;
+                                   tagLen = 8;
+                               } else if (endThoughtIdx !== -1) {
+                                   endIdx = endThoughtIdx;
+                                   tagLen = 10;
+                               }
+                               if (endIdx !== -1) {
+                                   yield JSON.stringify({ type: "think", delta: content.substring(searchIndex, endIdx) });
+                                   geminiInThought = false;
+                                   searchIndex = endIdx + tagLen;
+                               } else {
+                                   yield JSON.stringify({ type: "think", delta: content.substring(searchIndex) });
+                                   break;
                                }
                            }
-                           content = remainingContent;
                        }
+                       content = remainingContent;
                        
                        if (content) {
                            yield JSON.stringify({ type: "out", delta: content });
@@ -500,36 +518,54 @@ export async function mountChatOrchestrateRoutes(app, deps) {
                    
                      let content = deltaObj.content || parsed.message?.content || parsed.content || "";
                      if (content && content !== "null") {
-                       // Google Gemini Parsing: Extract thoughts from regular content
-                       if (isGemini) {
-                           let remainingContent = "";
-                           let searchIndex = 0;
-                           
-                           while (searchIndex < content.length) {
-                               if (!geminiInThought) {
-                                   const startIndex = content.indexOf("<thought>", searchIndex);
-                                   if (startIndex !== -1) {
-                                       remainingContent += content.substring(searchIndex, startIndex);
-                                       geminiInThought = true;
-                                       searchIndex = startIndex + 9; // length of <thought>
-                                   } else {
-                                       remainingContent += content.substring(searchIndex);
-                                       break;
-                                   }
+                       // Thought Parsing: Extract <think> or <thought> from regular content
+                       let remainingContent = "";
+                       let searchIndex = 0;
+                       
+                       while (searchIndex < content.length) {
+                           if (!geminiInThought) {
+                               const thinkIdx = content.indexOf("<think>", searchIndex);
+                               const thoughtIdx = content.indexOf("<thought>", searchIndex);
+                               let startIdx = -1;
+                               let tagLen = 0;
+                               if (thinkIdx !== -1 && (thoughtIdx === -1 || thinkIdx < thoughtIdx)) {
+                                   startIdx = thinkIdx;
+                                   tagLen = 7;
+                               } else if (thoughtIdx !== -1) {
+                                   startIdx = thoughtIdx;
+                                   tagLen = 9;
+                               }
+                               if (startIdx !== -1) {
+                                   remainingContent += content.substring(searchIndex, startIdx);
+                                   geminiInThought = true;
+                                   searchIndex = startIdx + tagLen;
                                } else {
-                                   const endIndex = content.indexOf("</thought>", searchIndex);
-                                   if (endIndex !== -1) {
-                                       yield JSON.stringify({ type: "think", delta: content.substring(searchIndex, endIndex) });
-                                       geminiInThought = false;
-                                       searchIndex = endIndex + 10; // length of </thought>
-                                   } else {
-                                       yield JSON.stringify({ type: "think", delta: content.substring(searchIndex) });
-                                       break;
-                                   }
+                                   remainingContent += content.substring(searchIndex);
+                                   break;
+                               }
+                           } else {
+                               const endThinkIdx = content.indexOf("</think>", searchIndex);
+                               const endThoughtIdx = content.indexOf("</thought>", searchIndex);
+                               let endIdx = -1;
+                               let tagLen = 0;
+                               if (endThinkIdx !== -1 && (endThoughtIdx === -1 || endThinkIdx < endThoughtIdx)) {
+                                   endIdx = endThinkIdx;
+                                   tagLen = 8;
+                               } else if (endThoughtIdx !== -1) {
+                                   endIdx = endThoughtIdx;
+                                   tagLen = 10;
+                               }
+                               if (endIdx !== -1) {
+                                   yield JSON.stringify({ type: "think", delta: content.substring(searchIndex, endIdx) });
+                                   geminiInThought = false;
+                                   searchIndex = endIdx + tagLen;
+                               } else {
+                                   yield JSON.stringify({ type: "think", delta: content.substring(searchIndex) });
+                                   break;
                                }
                            }
-                           content = remainingContent;
                        }
+                       content = remainingContent;
                        
                        if (content) {
                            yield JSON.stringify({ type: "out", delta: content });
@@ -630,7 +666,7 @@ export async function mountChatOrchestrateRoutes(app, deps) {
     if (deps.resolveActorContext) {
        try {
           actorCtx = await deps.resolveActorContext(req);
-          actorId = actorCtx?.userId || req.actor || null;
+          actorId = actorCtx?.username || actorCtx?.user?.name || req.session?.username || actorCtx?.userId || req.actor || null;
        } catch(e) {
           console.warn("[Orchestrate] Security context could not be resolved:", e.message);
        }
@@ -824,50 +860,57 @@ export async function mountChatOrchestrateRoutes(app, deps) {
         };
       });
 
-      // 3.1. Thread-Level Pinned Context (Kullanıcının yazdığı özel kurallar)
-      if (threadContext) {
-          formattedMessages.unshift({
-              role: "system",
-              content: `[THREAD CONTEXT (STANDING INSTRUCTIONS)]: ${threadContext}`
-          });
+      // 3.1. Master System Directives (Sovereignty, Tri-Tier Autonomy, MetaForge, Search & Honesty)
+      const masterDirectives = [
+        `[SOVEREIGN CORE DIRECTIVE]: You are ELARA, an enterprise-grade autonomous AI engine. You operate with absolute technical accuracy, intelligence, zero guessing, and adaptive execution.`,
+        `[DECISION HIERARCHY & TASK ROUTING]:
+When the user asks you a question or assigns a task, intelligently apply the following 3-tier decision framework:
+
+1. TIER 1 — NATIVE REASONING & COMPUTATION (Solve Instantly in <think>):
+   - For algorithmic logic, subnetting / IP CIDR calculations, mathematical equations, data structure transformations, text/code refactoring, regex synthesis, and RFC standard derivations:
+   - YOU DO NOT NEED AN EXTERNAL TOOL OR METAFORGE.
+   - Use your internal deep reasoning (<think>) to solve the problem with 100% mathematical precision and answer immediately.
+
+2. TIER 2 — LIVE INFORMATION & WEB SEARCH (Use 'sys_web_search'):
+   - For current events, public news, documentation lookup, general web queries, or factual real-time search:
+   - Use 'sys_web_search' to query the live internet via search engines (Tavily / SearXNG / DuckDuckGo).
+
+3. TIER 3 — SPECIALIZED CAPABILITIES & METAFORGE (External Infrastructure & Custom APIs):
+   - For live network socket checks (SSL, DNS probe), private/public API interactions (Docker Hub, CoinGecko, GitHub, Jira), device integrations, or custom system actions:
+   - First, inspect your catalog via 'sys_get_directory' to see if an existing tool (e.g. 'tool.api_json_fetcher', 'tool.http_probe') can handle the task. If available, call 'sys_execute_tool'.
+   - If NO suitable tool or agent exists in the system to connect to the external endpoint or perform the specialized action, call 'sys_delegate_to_metaforge' with a clear 'intent' so MetaForge can autonomously synthesize and deploy the missing capability.
+
+[HONESTY & ANTI-HALLUCINATION MANDATE]:
+- NEVER invent, simulate, or hallucinate dynamic external state (such as live trading prices, live API responses, live socket certificates, or remote hardware states) without executing a tool.
+- If a tool or web search execution fails or returns an error, report the failure honestly. NEVER pretend a failed tool succeeded.`,
+      ];
+
+      if (useRag) {
+        masterDirectives.push(`[ENTERPRISE RAG DIRECTIVE]: The Knowledge Hub (RAG) is active. You MUST use 'sys_get_directory' to discover expert 'Librarian' agents with access to internal documents, and use 'sys_delegate_to_agent' before answering questions requiring internal organizational knowledge. Do not hallucinate internal company data.`);
       }
 
-      // 3.1.5 HONESTY DIRECTIVE: Tool Halüsinasyonlarını Önleme
-      formattedMessages.unshift({
-          role: "system",
-          content: "[HONESTY DIRECTIVE]: If you use a tool, web search, or delegate to an agent and the result is empty, fails, or returns an error, YOU MUST explicitly tell the user: 'I tried to use the tool/agent but it failed/returned nothing. Based on my internal knowledge (which may be outdated), here is what I know...' NEVER pretend a tool succeeded if it didn't."
-      });
+      if (threadContext) {
+        masterDirectives.push(`[THREAD CONTEXT (STANDING INSTRUCTIONS)]: ${threadContext}`);
+      }
 
-      // 3.2. Thinking Effort Injection (Sistem Prompt Müdahalesi)
       if (prov && prov.think_enabled && prov.think_statement) {
-          // Modelin kendi özel Thinking ayarı (Settings -> Models) varsa önceliklidir.
-          formattedMessages.unshift({
-              role: "system",
-              content: prov.think_statement
-          });
+        masterDirectives.push(prov.think_statement);
       }
 
       if (effort === "high") {
-          formattedMessages.unshift({
-              role: "system",
-              content: "[THINKING EFFORT: HIGH] You MUST engage in deep, multi-step deliberation before answering. Break down the problem, explore edge cases, verify your assumptions, and provide a highly detailed, comprehensive response. ALL your internal thoughts, brainstorming, and step-by-step logic MUST be strictly enclosed within <think> and </think> XML tags. Only output the final response to the user outside of these tags."
-          });
+        masterDirectives.push(`[THINKING EFFORT: HIGH] You MUST engage in deep, multi-step deliberation before answering. Break down the problem, explore edge cases, verify your assumptions, and provide a highly detailed, comprehensive response. ALL your internal thoughts, brainstorming, and step-by-step logic MUST be strictly enclosed within <think> and </think> XML tags. Only output the final response to the user outside of these tags.`);
       } else if (effort === "medium") {
-          formattedMessages.unshift({
-              role: "system",
-              content: "[THINKING EFFORT: MEDIUM] Provide a balanced response. Think carefully but avoid unnecessary over-analysis. Deliver a well-reasoned and structured answer. Enclose any internal reasoning or scratchpad notes within <think> and </think> XML tags."
-          });
+        masterDirectives.push(`[THINKING EFFORT: MEDIUM] Provide a balanced response. Think carefully but avoid unnecessary over-analysis. Deliver a well-reasoned and structured answer. Enclose any internal reasoning or scratchpad notes within <think> and </think> XML tags.`);
       } else if (effort === "low") {
-          formattedMessages.unshift({
-              role: "system",
-              content: "[THINKING EFFORT: LOW] Perform only a light reasoning pass. Keep your internal deliberation brief and provide a fast, concise answer. If you need to think, use <think> and </think> tags briefly."
-          });
+        masterDirectives.push(`[THINKING EFFORT: LOW] Perform only a light reasoning pass. Keep your internal deliberation brief and provide a fast, concise answer. If you need to think, use <think> and </think> tags briefly.`);
       } else if (effort === "none") {
-          formattedMessages.unshift({
-              role: "system",
-              content: "[THINKING EFFORT: NONE] DO NOT perform any step-by-step reasoning or deliberation. DO NOT output any <think> tags. Provide your final answer instantly, using your immediate intuition. Be extremely direct and concise."
-          });
+        masterDirectives.push(`[THINKING EFFORT: NONE] DO NOT perform any step-by-step reasoning or deliberation. DO NOT output any <think> tags. Provide your final answer instantly, using your immediate intuition. Be extremely direct and concise.`);
       }
+
+      formattedMessages.unshift({
+        role: "system",
+        content: masterDirectives.join("\n\n")
+      });
 
       // 3.5. Capabilities (Tools & Skills) Hazırlığı
       const openAiTools = [];
@@ -1087,18 +1130,7 @@ export async function mountChatOrchestrateRoutes(app, deps) {
           toolMap["sys_web_search"] = "sys_web_search";
       }
 
-      // UNIVERSAL META-FORGE DIRECTIVE: Modelin her zaman güncel veri aramasını ve eksik yeteneklerini kendi kendine üretmesini zorunlu kılar.
-      formattedMessages.push({
-          role: "system",
-          content: "[UNIVERSAL AUTONOMY DIRECTIVE]: You are a fully autonomous sovereign AI. If the user asks you to perform a task (e.g., network scan, SSL check, API fetch, data processing) and you realize you lack the necessary tool, skill, or agent to do it, YOU MUST NOT APOLOGIZE OR GIVE UP. Instead, you MUST immediately use the 'sys_delegate_to_metaforge' tool to autonomously synthesize and deploy the missing capability into the system. For simple factual lookups, use 'sys_web_search' or delegate to an agent via 'sys_get_directory'.\n[HONESTY DIRECTIVE]: NEVER hallucinate, guess, or invent results. If a tool fails to return actual data, or if you are waiting for a tool to be created, DO NOT make up the final answer. Tell the user explicitly that the data is unavailable or the tool failed."
-      });
 
-      if (useRag) {
-          formattedMessages.push({
-              role: "system",
-              content: "[ENTERPRISE RAG DIRECTIVE]: The user has explicitly enabled the Knowledge Hub (RAG). You MUST use 'sys_get_directory' to discover expert 'Librarian' agents that have access to internal documents, and then use 'sys_delegate_to_agent' to ask them for the required information BEFORE answering the user's question. Do not hallucinate internal company data."
-          });
-      }
 
       let maxIterations = 15;
       let iteration = 0;
@@ -1619,7 +1651,7 @@ export async function mountChatOrchestrateRoutes(app, deps) {
                                   } else {
                                       try {
                                           const validated = plannerMod.validateForgePlan(obj.plan);
-                                          const requestedBy = actorId || "system";
+                                          const requestedBy = actorCtx?.username || actorCtx?.user?.name || req.session?.username || (actorId && !actorId.includes("-") ? actorId : "admin");
                                           
                                           const ins = await pool.query(
                                             `INSERT INTO forge_plans (id, actor, prompt, actions, status)

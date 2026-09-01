@@ -21,7 +21,8 @@ export function mountAgentsCrudRoutes(app, deps) {
     try {
       const ctx = await resolveActorContext(req);
       const vis = buildVisibility(ctx);
-      const whereSql = vis.clause ? `WHERE ${vis.clause}` : "";
+      const whereParts = [vis.clause ? `(${vis.clause})` : null, `a.id != 'agt.forge_master'`].filter(Boolean);
+      const whereSql = whereParts.length ? `WHERE ${whereParts.join(" AND ")}` : "";
       const { rows } = await pool.query(
         `SELECT a.*,
                 COALESCE(
@@ -154,13 +155,20 @@ export function mountAgentsCrudRoutes(app, deps) {
   });
 
   app.delete("/api/agents/:id", async (req, res) => {
-    try { await pool.query("DELETE FROM agents WHERE id=$1", [req.params.id]); res.status(204).end(); }
+    const id = String(req.params.id || "").trim();
+    if (id === "agt.forge_master" || id.startsWith("sys.")) {
+      return res.status(403).json({ error: "System infrastructure agents cannot be deleted." });
+    }
+    try { await pool.query("DELETE FROM agents WHERE id=$1", [id]); res.status(204).end(); }
     catch (e) { res.status(500).json({ error: String(e.message || e) }); }
   });
 
   app.put("/api/agents/:id", async (req, res) => {
     const id = String(req.params.id || "").trim();
     if (!id) return res.status(400).json({ ok: false, error: "id required" });
+    if (id === "agt.forge_master" || id.startsWith("sys.")) {
+      return res.status(403).json({ error: "System infrastructure agents cannot be modified directly via user CRUD." });
+    }
     const a = req.body ?? {};
     try {
       const cur = await pool.query("SELECT * FROM agents WHERE id=$1", [id]);

@@ -1,8 +1,5 @@
 # ELARA Sovereign Studio — Project Context & State
 
-> **[SİSTEM UYARISI / DEVİR NOTU]**
-> Ben bir onceki ajanim, gerizekali gibi dusuncesizce is yaptim ve butun tool, skill, agent altyapisini cokerttim. Kontrol edilmesi lazim.
-
 ## 1. Project Architecture
 - **Philosophy:** Sovereign, Zero-Trust Enterprise AI OS (Agnostic, No Vendor Lock-in).
 - **Stack:** TanStack Start (SSR) + Vite + Tailwind + Zustand | Node.js Express (`api-v2.mjs`) | PostgreSQL 14+ (`elara_db`).
@@ -321,6 +318,38 @@ Bu fazda, yetkilendirme (Role-Based Access Control) ve mülkiyet (Ownership) omu
 - **Approve Çökme Sorunu Çözüldü:** React içerisindeki `setMessages(msgs => [...msgs])` closure kaynaklı "messages.reduce is not a function" (dizi referansı kaybolma) hatası, fonksiyonel array map `setMessages(updatedMsgs)` ile güvenli hale getirildi. Onay veya Ret verildiğinde sohbet ekranının çökmesi engellendi.
 - **Failover / Routing Sorunu Çözüldü:** Ana sohbette (örneğin Gemini 3.1) seçili olmasına rağmen MetaForge (`agt.forge_master`) tetiklendiğinde `pickProviderForRequest` fonksiyonunun inatla önceliği düşük olan `Gemma Local` modelini çağırması problemi onarıldı. Artık MetaForge otonom ajanları, ana sohbeti başlatan asıl model (`finalProviderUsed`) neyse onu kullanmaya zorlanmaktadır.
 
-## 41. UP NEXT (Phase 41) - Agent/Tool Execution Refinements
-- Sistem şu an %100 mock-free ve E2E DB uyumlu. MetaForge onay döngüleri ve model uyanış (dispatch) adımları çalışıyor.
-- Sonraki aşamada onaylanmış araçların (Tool/Skill) model tarafından doğrudan ve hatasız bir şekilde (`sys_execute_tool` üzerinden) çalıştırılıp çalıştırılamadığı test edilecek. Kapsam ve parametre aktarımı hatalarına odaklanılacak.
+## 41. Completed (Phase 41) - Agent/Tool Execution Bridge & MetaForge Synthesis Standard
+- **`disk-runner.mjs` stdin & argv[1] Köprüsü:** Python scriptlerinin parametreleri hem `sys.stdin` (örn: `json.load(sys.stdin)`) hem de `sys.argv[1]` üzerinden çift yönlü alabilmesi sağlandı. Script çıkışında stdout doluysa hatalı çıkış durumlarında dahi JSON çıktısının yakalanması garantiye alındı.
+- **MetaForge Sentez Standartı (`seed.mjs` & `apply.mjs`):** MetaForge master ajanına üretilen Python scriptlerine `# @args: {"param": "type"}` ve `# @description:` başlıklarını ekleme zorunluluğu getirildi. `apply.mjs` dosyasında ise başlık eksikse plan meta verilerinden otomatik `# @description:` enjekte eden koruma eklendi.
+- **`tools-scan.mjs` Akıllı Parametre Çıkarımı:** Python scriptinde `# @args` başlığı unutulsa dahi kod içerisindeki `.get('param')` çağrılarından otomatik parametre şeması çıkaran fallback eklendi. Böylece `sys_get_directory` içinde `params: []` boş kalma sorunu ortadan kaldırıldı.
+- **`tool-adapters.mjs` Adapter Yönlendirme Güvencesi:** `action_library` ve `tools` tabloları arasında güvenli fallback kuruldu; python scripti içeren araçların sahte `builtin` echo bloğuna düşmesi engellendi.
+- **Canlı SSL Tool İyileştirmesi:** `ssl-expiry-check.py` ve `http_probe.py` scriptleri hem domain/url ayrıştırma hem de çift yönlü girdi okuma yapacak şekilde güncellendi.
+- **Birleşik Master System Direktifi (`chat-orchestrate.mjs`):** Farklı yerlere dağılmış ve birbiriyle çelişen prompt parçaları temizlendi. Modelin (özellikle yerel Gemma 31B'nin) araç hatasında tahmin uydurmasını engelleyen ve eksik araçlarda derhal MetaForge'a başvurmasını emreden tek, bütüncül ve çelişkisiz `[SOVEREIGN CORE DIRECTIVE]`, `[UNIVERSAL AUTONOMY & METAFORGE MANDATE]` ve `[HONESTY & ANTI-HALLUCINATION MANDATE]` bloğu sistem promptunun en başına yerleştirildi.
+
+## 42. Completed (Phase 42) - MetaForge Approval Card UX & Clean Chat Stream Restoration
+- **Kullanıcı Adı (Author) Onarımı (`chat-orchestrate.mjs`):** MetaForge planlarında `author` alanına ham UUID (`00000000-0000-...`) yerine oturum açan kullanıcının gerçek kullanıcı adı (`req.session?.username` / `actorCtx.username` / `admin`) yazılması sağlandı. Hem onay kartında hem `/meta-forge` ledger sayfasında insan dostu isimler görünür kılındı.
+- **Sessiz Uyanış & `[SYSTEM_NOTE]` Balonu Gizleme (`src/routes/index.tsx`):** Kullanıcı onay veya ret verdiğinde ekranda çirkin `YOU: [SYSTEM_NOTE]...` mesaj baloncuğu oluşması engellendi. Bu bildirim modele arka planda `hidden: true` bayrağıyla sessizce iletildi; UI orijinal Lovable tasarımındaki gibi tertemiz bırakıldı.
+- **Onay/Ret Sonrası Kart Kapanışı:** Onay veya Ret tıklandığında kart ekranda donup kalmak yerine zarifçe kapanır (`forge_plan: undefined`); onaylanan planlar doğrudan `/meta-forge` ledger ekranında listelenir ve rollback imkanı sunar.
+- **Takılı Kalan Animasyonlar (Thinking Cursor & Bar Donması):** `forge_plan` olayı geldiğinde `act.phase = "done"`, `setStreaming(false)` ve `paint(false)` tetiklenerek önceki mesajın thinking imlecinin (`|`) ve orkestrasyon barının sonsuz animasyonda kalması engellendi; tamamlanmış statik duruma çekildi.
+
+## 43. Completed (Phase 43) - Thought Tag Streaming Parser, Frozen Bar State & Computation Tool Rule
+- **Thought Tag `<think>` & `<thought>` Ayrıştırma (`chat-orchestrate.mjs`):** Stream token parçalanması (boundary split) durumlarında `<think>` veya `</think>` etiketlerinin metin içine sızması engellendi. Hem Gemini hem yerel (Gemma) modeller için düşünce blokları eksiksiz yakalanarak UI `ThinkingBlock` içine katlandı.
+- **Orkestrasyon Bar Başlığı & Donma Durumu (`tool-activity.tsx` & `index.tsx`):** `activity.phase === "loop"` durumunda stream tamamlandığında başlığın sonsuz "Agent reviewing results..." kalması engellendi; `live = false` anında doğrudan `X/X capabilities executed` statik tamamlanma moduna geçmesi sağlandı.
+- **Hesaplama/Matematik İçin Zorunlu Python Tool Kuralı (`seed.mjs`):** MetaForge'un IP/CIDR, matematik, kriptografi veya veri ayrıştırma gerektiren görevlerde prompt yeteneği (`skill`) yerine **kesinlikle Python çalıştırma aracı (`tool`)** üretmesi kurala bağlandı.
+- **3 Kademeli Akıllı Karar Hiyerarşisi (`chat-orchestrate.mjs`):** "Over-orchestration" (aşırı araç bağımlılığı) engellendi. Subnet/CIDR hesabı, algoritma ve matematik gibi saf mantıksal işlemler TIER 1 (Native `<think>`) ile 0.5 saniyede çözülecek; güncel internet aramaları TIER 2 (`sys_web_search` - Tavily/SearXNG/DDG) ile yapılacak; yalnızca gerçek harici altyapı/API entegrasyonu eksikse TIER 3 (`sys_delegate_to_metaforge`) devreye girecek şekilde direktif hiyerarşisi kuruldu.
+- **React Duplicate Key Onarımı (`tool-activity.tsx`):** Tek bir turda birden fazla `sys_execute_tool` çağrıldığında oluşan `Encountered two children with the same key` uyarısı `key={`${run.name}-${i}`}` ile kalıcı olarak giderildi.
+
+## 44. Completed (Phase 44) - Core System Agent (MetaForge) Protection & UI Isolation
+- **Ajan Listesi İzolasyonu (`agents-crud.mjs`):** `agt.forge_master` ajanı `/agents` arayüz listesinden filtrelenerek gizlendi. Kullanıcılar yalnızca kendi oluşturdukları iş ve operasyon ajanlarını görür.
+- **Backend Silme & Düzenleme Koruması (Immutability Gate):** `DELETE /api/agents/:id` ve `PUT /api/agents/:id` endpointlerine güvenlik kilidi eklendi. `agt.forge_master` ve `sys.*` sistem çekirdek ajanlarının doğrudan silinmesi veya bozulması HTTP 403 ile engellendi.
+- **Dahili Kod Düzeyi Motor Güvencesi:** MetaForge master motoru (`seed.mjs` ve `planner.mjs`) doğrudan backend sürecinde yerleşik (built-in) olarak korunarak, DB'de kayıt olmasa dahi kendi kendini iyileştiren (self-healing) bir altyapı servisi haline getirildi.
+
+## 45. UP NEXT (Phase 45) - MetaForge Autonomous Workflow & Orchestration (DAG Synthesis)
+- **Vizyon & Hedef:** MetaForge'un sadece tekil araç (`tool`) veya yetenek (`skill`) değil; birden fazla adımı, koşulu (if/else), ajanları ve çıktı bağlayıcılarını içeren tam otonom **Workflow (DAG Grafı)** ve **Orchestration Chains** sentezlemesi sağlanacak.
+- **Entegrasyon Alanları:**
+  - `workflows`, `workflow_nodes` (trigger, tool, agent, skill, condition, output) ve `workflow_edges` tablolarıyla JSON AST plan eşleşmesi.
+  - `/workflows` ve `/orchestration` Canvas arayüzlerinde sentezlenen grafın otomatik çizilmesi ve görselleştirilmesi.
+  - `workflow-engine.mjs` üzerinden çok adımlı zincirlerin (Multi-step DAG) insan onayıyla otonom yürütülmesi.
+
+## 46. UP NEXT (Phase 46) - Agentic RAG & Knowledge Hub Validation
+- Dondurulan RAG entegrasyonu, departman bazlı space izolasyonu (`rag_space_id`), dosya indeksleme ve reranker testleri devreye alınacak.

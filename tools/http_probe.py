@@ -26,6 +26,8 @@ from urllib.parse import urlsplit, urlunsplit
 
 def _read():
     try:
+        if len(sys.argv) > 1 and sys.argv[1].strip():
+            return json.loads(sys.argv[1])
         return {} if sys.stdin.isatty() else (json.load(sys.stdin) or {})
     except Exception:
         return {}

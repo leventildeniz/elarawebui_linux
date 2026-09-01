@@ -163,7 +163,7 @@ async function applyPackCreate(pool, planId, item, meta) {
   return { kind: "pack", slug, id: r.rows[0].id, ...meta };
 }
 
-function normalizePythonSource(src, kind, slug) {
+function normalizePythonSource(src, kind, slug, description) {
   let s = String(src || "");
   s = s.replace(/^\uFEFF/, "").replace(/^\s*\n+/, "");
   if (!/^#!\/usr\/bin\/env\s+python3\s*\n/.test(s)) {
@@ -173,16 +173,23 @@ function normalizePythonSource(src, kind, slug) {
     const nl = s.indexOf("\n");
     s = s.slice(0, nl + 1) + "# @tools: -\n" + s.slice(nl + 1);
   }
-  if (kind === "tool" && !/^#\s*@tool:\s*[a-zA-Z0-9_-]+/m.test(s)) {
-    const nl = s.indexOf("\n");
-    s = s.slice(0, nl + 1) + `# @tool: ${slug}\n` + s.slice(nl + 1);
+  if (kind === "tool") {
+    if (!/^#\s*@tool:\s*[a-zA-Z0-9_-]+/m.test(s)) {
+      const nl = s.indexOf("\n");
+      s = s.slice(0, nl + 1) + `# @tool: ${slug}\n` + s.slice(nl + 1);
+    }
+    if (description && !/^#\s*@description:/m.test(s)) {
+      const nl = s.indexOf("\n");
+      const cleanDesc = String(description).replace(/[\r\n]+/g, " ").slice(0, 250);
+      s = s.slice(0, nl + 1) + `# @description: ${cleanDesc}\n` + s.slice(nl + 1);
+    }
   }
   return s;
 }
 
 async function applyToolCreate(pool, planId, item, meta) {
   const slug = safeFileSlug(item.slug);
-  const source = normalizePythonSource(item.source || item.body || "", "tool", slug);
+  const source = normalizePythonSource(item.source || item.body || "", "tool", slug, item.description || item.name);
   const lint = lintPython(source, { kind: "tool" });
   if (!lint.ok) throw new Error(`lint: ${lint.errors.join("; ")}`);
   fs.mkdirSync(TOOLS_DIR, { recursive: true });

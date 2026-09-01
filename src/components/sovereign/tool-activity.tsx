@@ -48,17 +48,20 @@ export function ToolActivityBlock({ activity }: { activity: ToolActivity }) {
   const [open, setOpen] = useState(true);
   const live = activity.phase !== "done";
   const running = live ? activity.runs.find((r) => r.status === "running" || r.status === "pending") : null;
+  const completedCount = activity.runs.filter((r) => r.status === "completed").length;
 
   const headline =
-    activity.phase === "prepare"
-      ? "Preparing capabilities…"
-      : activity.phase === "loop"
-        ? `Agent reviewing results · turn ${activity.iteration}`
-        : (live && running)
-          ? `Running ${running.name}…`
-          : activity.runs.length
-            ? `${activity.runs.filter((r) => r.status === "completed").length}/${activity.runs.length} capabilities executed`
-            : "Orchestration";
+    !live
+      ? (activity.runs.length ? `${completedCount}/${activity.runs.length} capabilities executed` : "Orchestration")
+      : activity.phase === "prepare"
+        ? "Preparing capabilities…"
+        : activity.phase === "loop"
+          ? `Agent reviewing results · turn ${activity.iteration}`
+          : running
+            ? `Running ${running.name}…`
+            : activity.runs.length
+              ? `${completedCount}/${activity.runs.length} capabilities executed`
+              : "Orchestration";
 
   return (
     <div
@@ -109,7 +112,7 @@ export function ToolActivityBlock({ activity }: { activity: ToolActivity }) {
             <div className="space-y-1 border-t border-white/[0.05] px-4 py-3">
               {activity.runs.map((run, i) => (
                 <motion.div
-                  key={run.name}
+                  key={`${run.name}-${i}`}
                   initial={{ opacity: 0, x: -6 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.18, delay: i * 0.05, ease: "easeOut" }}

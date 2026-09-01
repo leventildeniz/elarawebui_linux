@@ -47,7 +47,9 @@ export function mountAgentsExtraRoutes(app, deps) {
       const { rows: counts } = await pool.query(
         `SELECT COALESCE(NULLIF(squad,''), 'Unassigned') AS sq,
                 COUNT(*)::int AS n
-           FROM agents GROUP BY 1`
+           FROM agents
+          WHERE id != 'agt.forge_master'
+          GROUP BY 1`
       );
       const countMap = new Map(counts.map((r) => [r.sq, r.n]));
       const merged = new Map();

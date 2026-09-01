@@ -29,9 +29,11 @@ function sanitizeQueryArg(q) {
  * @param {number} [opts.timeoutMs] hard timeout; default 60s
  */
 export async function runDiskScript(opts) {
-  const script = String(opts?.script || "").trim();
+  let script = String(opts?.script || "").trim();
   if (!script) throw new Error("disk-runner: missing script");
-  if (!path.isAbsolute(script)) throw new Error(`disk-runner: not absolute: ${script}`);
+  if (!path.isAbsolute(script)) {
+    script = path.resolve(process.cwd(), script);
+  }
   if (!script.toLowerCase().endsWith(".py")) throw new Error(`disk-runner: not a .py: ${script}`);
   let stat;
   try { stat = fs.statSync(script); }
@@ -53,14 +55,35 @@ export async function runDiskScript(opts) {
     ...(opts.env || {}),
   };
 
-  const { stdout, stderr } = await execFileAsync(python, [script, safeQuery], {
-    cwd,
-    env: childEnv,
-    timeout: timeoutMs,
-    killSignal: "SIGKILL",
-    maxBuffer: 8 * 1024 * 1024,
-    encoding: "utf-8",
-    windowsHide: true,
+  return new Promise((resolve, reject) => {
+    const child = execFile(python, [script, safeQuery], {
+      cwd,
+      env: childEnv,
+      timeout: timeoutMs,
+      killSignal: "SIGKILL",
+      maxBuffer: 8 * 1024 * 1024,
+      encoding: "utf-8",
+      windowsHide: true,
+    }, (err, stdout, stderr) => {
+      if (err) {
+        // Script non-zero çıkış yapsa bile stdout'a geçerli hata JSON'u basmış olabilir
+        if (stdout && stdout.trim()) {
+          resolve({ stdout: String(stdout || ""), stderr: String(stderr || err.message) });
+        } else {
+          reject(err);
+        }
+      } else {
+        resolve({ stdout: String(stdout || ""), stderr: String(stderr || "") });
+      }
+    });
+
+    // Hem argv[1] hem stdin üzerinden besleme yaparak sys.stdin ve sys.argv uyumluluğu sağlıyoruz
+    if (child.stdin) {
+      child.stdin.on("error", () => {});
+      if (safeQuery) {
+        child.stdin.write(safeQuery);
+      }
+      child.stdin.end();
+    }
   });
-  return { stdout: String(stdout || ""), stderr: String(stderr || "") };
 }

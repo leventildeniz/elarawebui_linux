@@ -49234,3 +49234,154 @@ Failed to ensure forge_master: column "agent_path" of relation "agents" does not
 [Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
 [Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
 [Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[TCP-KILLER] Request Error to 192.168.0.18:8001: Client Aborted
+[TCP-KILLER] Request Error to 192.168.0.18:8001: Client Aborted
+[TCP-KILLER] Request Error to 192.168.0.18:8001: Client Aborted
+[TCP-KILLER] Request Error to 192.168.0.18:8001: Client Aborted
+[TCP-KILLER] Request Error to 192.168.0.18:8001: Client Aborted
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[TCP-KILLER] Request Error to 192.168.0.18:8001: connect ECONNREFUSED 192.168.0.18:8001
+[Orchestrate] Provider Gemma 4 31B Local failed: Connection to LLM failed: connect ECONNREFUSED 192.168.0.18:8001
+[Orchestrate] Provider Gemini 3.1 Pro failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Missing or invalid Authorization header.",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Claude 3.7 Sonnet failed: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011Cecu3sfeUMMnbhqqZkBz3"}
+[Orchestrate] Provider GPT-4o failed: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] Provider Gemini 3.7 Flash failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Please pass a valid API key",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Gemini Flash Lite failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Please pass a valid API key",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[TCP-KILLER] Request Error to 192.168.0.18:8001: connect ECONNREFUSED 192.168.0.18:8001
+[Orchestrate] Provider Gemma 4 31B Local failed: Connection to LLM failed: connect ECONNREFUSED 192.168.0.18:8001
+[Orchestrate] Provider Gemini 3.1 Pro failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Missing or invalid Authorization header.",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Claude 3.7 Sonnet failed: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011Cecu9TGcwb4prTWoeDLkK"}
+[Orchestrate] Provider GPT-4o failed: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] Provider Gemini 3.7 Flash failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Please pass a valid API key",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Gemini Flash Lite failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Please pass a valid API key",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[forge:apply] applied_files persist failed column "updated_at" of relation "forge_plans" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[forge:apply] applied_files persist failed column "updated_at" of relation "forge_plans" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[TCP-KILLER] Request Error to 192.168.0.18:8001: Client Aborted
+[TCP-KILLER] Request Error to 192.168.0.18:8001: Client Aborted
+[forge:apply] applied_files persist failed column "updated_at" of relation "forge_plans" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[forge:apply] applied_files persist failed column "updated_at" of relation "forge_plans" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[forge:apply] applied_files persist failed column "updated_at" of relation "forge_plans" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[forge:apply] applied_files persist failed column "updated_at" of relation "forge_plans" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[forge:apply] applied_files persist failed column "updated_at" of relation "forge_plans" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[forge:apply] applied_files persist failed column "updated_at" of relation "forge_plans" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[forge:apply] applied_files persist failed column "updated_at" of relation "forge_plans" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[forge:apply] applied_files persist failed column "updated_at" of relation "forge_plans" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function

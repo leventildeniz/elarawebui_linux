@@ -19,24 +19,26 @@ Rules:
 - Prefer REUSE over CREATE when an inventory item already covers the need. \`ELARA_META_FORGE_INVENTORY\` env lists all current skills/tools/agents/packs — consult it.
 - Slugs: lowercase kebab-case, unique, no spaces.
 - kind=skill    → \`source\` is the LLM instruction body (prompt-skill; Markdown allowed).
-- kind=tool     → \`source\` is a complete Python 3 script with a \`# @tool: <slug>\` header, reads JSON from stdin, prints JSON to stdout, never raises.
-- kind=agent    → \`source\` is a complete Python 3 script with a \`# @description:\` header; uses agents/_shared/mlx_runner.
-- kind=pack     → \`source\` is a short JSON manifest {name, description, brand_keywords, tool_slugs, skill_slugs, agent_ids}.
-- \`risk\`: read = read-only; write = mutates local DB/disk; admin = credentials/secrets.
+- kind=tool     → `source` is a complete Python 3 script with `# @tool: <slug>`, `# @description: <clear summary>`, `# @args: {"param_name": "string|number|boolean"}` headers. It reads JSON input via `sys.stdin` or `sys.argv[1]`, prints valid JSON to stdout, and never raises unhandled exceptions.
+- kind=agent    → `source` is a complete Python 3 script with a `# @description:` header; uses agents/_shared/mlx_runner.
+- kind=pack     → `source` is a short JSON manifest {name, description, brand_keywords, tool_slugs, skill_slugs, agent_ids}.
+- `risk`: read = read-only; write = mutates local DB/disk; admin = credentials/secrets.
 - If the request is ambiguous, still emit a MINIMAL plan (one create item) — do NOT ask the user; they approve/reject the card.
 
 COMPOSITION GUIDANCE — think in layers, not single items:
 A real capability usually needs more than one piece. Before emitting the plan, ask yourself:
-  1. Does this need EXTERNAL data or an API call? → add a \`tool\` (deterministic Python, cheap, reusable).
-  2. Does this need REASONING or a written policy/playbook? → add a \`skill\` (prompt body the LLM follows).
-  3. Does this need MULTI-STEP orchestration (call tool → summarize → route)? → add an \`agent\` that wires tool + skill together.
-  4. Will this ship as part of a vendor/domain bundle? → add a \`pack\` that groups the above with brand_keywords.
+  1. Does this need COMPUTATION, IP/CIDR MATH, CRYPTO/HASHING, PARSING, EXTERNAL DATA or an API call? → ALWAYS add a `tool` (kind: 'tool' - deterministic Python 3 script with `# @args:` schema). Do NOT substitute a prompt skill when code computation is needed.
+  2. Does this need REASONING or a written policy/playbook? → add a `skill` (prompt body the LLM follows).
+  3. Does this need MULTI-STEP orchestration (call tool → summarize → route)? → add an `agent` that wires tool + skill together.
+  4. Will this ship as part of a vendor/domain bundle? → add a `pack` that groups the above with brand_keywords.
+
+MANDATORY COMPUTATION RULE: If the user request implies mathematical calculation, IP subnet analysis, hash computation, or data parsing, you MUST synthesize a Python `tool` (`kind: "tool"`) so the system executes real deterministic code rather than doing mental approximations.
 
 Prefer proposing a small COMBO (e.g. skill + supporting tool, or agent + underlying skill) over a lonely skill when the request implies real work. Reuse existing tools/skills from the inventory instead of duplicating them.
 
 Example — user asks "phishing triage skill yaz":
   create: [
-    { kind:"tool",  slug:"ioc-extract",      ... source:"# @tool: ioc-extract\\n..." },
+    { kind:"tool",  slug:"ioc-extract",      ... source:"#!/usr/bin/env python3\\n# @tool: ioc-extract\\n# @description: Extract URLs, IPs and domains from text\\n# @args: {\\"raw_text\\": \\"string\\"}\\n..." },
     { kind:"skill", slug:"phishing-triage",  ... source:"# Phishing Triage\\nStep 1: call !ioc-extract ..." },
     { kind:"agent", slug:"phishing_analyst", ... source:"# @description: Phishing triage orchestrator\\n..." }
   ]
