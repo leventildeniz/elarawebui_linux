@@ -1580,9 +1580,7 @@ export async function mountChatOrchestrateRoutes(app, deps) {
                                   { role: "user", content: `System Inventory:\n${JSON.stringify(inventory, null, 2)}\n\nGoal:\n${intentText}\n\nOutput a valid JSON containing a 'plan' object with 'create' and/or 'reuse' arrays. DO NOT USE MARKDOWN BLOCKS.` }
                               ];
 
-                              const { pickProviderForRequest } = await import("../agent-utils.mjs");
-                              const mockDeps = { pool, getActiveProviders: (await import("../agent-utils.mjs")).getActiveProviders, getProviderById: (await import("../agent-utils.mjs")).getProviderById, getRoutingPolicy: (await import("../agent-utils.mjs")).getRoutingPolicy };
-                              const forgeProv = await pickProviderForRequest(mockDeps, { lastUserText: intentText });
+                              const forgeProv = finalProviderUsed || prov;
 
                               if (!forgeProv) {
                                   toolResultStr = JSON.stringify({ error: "No provider found for MetaForge." });

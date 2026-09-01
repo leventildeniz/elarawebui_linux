@@ -317,5 +317,10 @@ Bu fazda, yetkilendirme (Role-Based Access Control) ve mülkiyet (Ownership) omu
 - **Re-Apply (Conflict 409):** `rolled_back` statüsündeki MetaForge planlarının yeniden uygulanmasına izin verilmesi için backend kontrol mantığı esnetildi.
 - **Halüsinasyon (Honesty Prompt) Önlemi:** Araçlar hata döndüğünde modelin sahte veri üretip sohbeti sonlandırması ihtimaline karşı System Prompt'a kesin bir `[HONESTY DIRECTIVE]` enjekte edildi ve iterasyon (ajan deneme) limiti israf olmasın diye 15'e çıkarıldı.
 
-## 40. UP NEXT (Phase 40) - MetaForge Approval Flow Final Polish
-- MetaForge otonomisini test ederken UI üzerindeki `Approve` akışında hala stabilite sorunları yaşanıyor. Mesaj onaylandığı halde modelin aracı çağırıp kullanamadığı, döngünün tıkandığı senaryolar mevcut. Sonraki aşamada bu iletişim kopukluğu detaylıca izole edilecek.
+## 40. Completed (Phase 40) - MetaForge Approval Flow Final Polish & Failover Fixes
+- **Approve Çökme Sorunu Çözüldü:** React içerisindeki `setMessages(msgs => [...msgs])` closure kaynaklı "messages.reduce is not a function" (dizi referansı kaybolma) hatası, fonksiyonel array map `setMessages(updatedMsgs)` ile güvenli hale getirildi. Onay veya Ret verildiğinde sohbet ekranının çökmesi engellendi.
+- **Failover / Routing Sorunu Çözüldü:** Ana sohbette (örneğin Gemini 3.1) seçili olmasına rağmen MetaForge (`agt.forge_master`) tetiklendiğinde `pickProviderForRequest` fonksiyonunun inatla önceliği düşük olan `Gemma Local` modelini çağırması problemi onarıldı. Artık MetaForge otonom ajanları, ana sohbeti başlatan asıl model (`finalProviderUsed`) neyse onu kullanmaya zorlanmaktadır.
+
+## 41. UP NEXT (Phase 41) - Agent/Tool Execution Refinements
+- Sistem şu an %100 mock-free ve E2E DB uyumlu. MetaForge onay döngüleri ve model uyanış (dispatch) adımları çalışıyor.
+- Sonraki aşamada onaylanmış araçların (Tool/Skill) model tarafından doğrudan ve hatasız bir şekilde (`sys_execute_tool` üzerinden) çalıştırılıp çalıştırılamadığı test edilecek. Kapsam ve parametre aktarımı hatalarına odaklanılacak.
