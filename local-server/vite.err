@@ -93408,3 +93408,94 @@ Error in renderToReadableStream: Error: Failed to load url /src/mocks/capabiliti
       at async ESModulesEvaluator.runInlinedModule (file:///home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/vite/dist/node/module-runner.js:1010:3)
 } { componentStack: [Getter] }
 4:21:40 AM [vite] (client) Pre-transform error: Failed to load url /src/mocks/mcp.ts (resolved id: /home/levent/ELARA_PROJECT/Elara_WebUi/src/mocks/mcp.ts) in /home/levent/ELARA_PROJECT/Elara_WebUi/src/lib/mcp-store.ts. Does the file exist?
+$ vite dev
+The plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths resolution natively via the resolve.tsconfigPaths option. You can remove the plugin and set resolve.tsconfigPaths: true in your Vite config instead.
+Error in renderToReadableStream: Error [RolldownError]: Parse failure: Parse failed with 1 error:
+Duplicated export 'defaultMcpState'
+2: import { fetchApi } from "/src/lib/api.ts";
+3: import { scopeOwned, useOwnerCtx } from "/src/lib/ownership.ts";
+4: export const defaultMcpState = {
+                ^
+5:   servers: [],
+6:   exposures: [],
+38:   }
+39: ];
+40: export { defaultMcpState };
+             ^
+41: // We keep a local session log of audits
+42: let sessionAudit = [];
+At file: /src/lib/mcp-store.ts:4:13
+    at error (file:///home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/rolldown/dist/shared/logs-ZGEh6uhb.mjs:152:24)
+    at normalizeParseError (file:///home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/rolldown/dist/parse-ast-index.mjs:25:9)
+    at wrap (file:///home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/rolldown/dist/parse-ast-index.mjs:5:39)
+    at parseAstAsync (file:///home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/rolldown/dist/parse-ast-index.mjs:54:9)
+    at async ssrTransformScript (file:///home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/vite/dist/node/chunks/node.js:12354:9)
+    at async loadAndTransform (file:///home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/vite/dist/node/chunks/node.js:20628:64) {
+  code: 'PARSE_ERROR',
+  id: '/src/lib/mcp-store.ts',
+  pos: 180,
+  loc: { line: 4, column: 13, file: '/src/lib/mcp-store.ts' },
+  frame: '2  |  import { fetchApi } from "/src/lib/api.ts";\n' +
+    '3  |  import { scopeOwned, useOwnerCtx } from "/src/lib/ownership.ts";\n' +
+    '4  |  export const defaultMcpState = {\n' +
+    '   |               ^\n' +
+    '5  |  \tservers: [],\n' +
+    '6  |  \texposures: [],',
+  runnerError: Error: RunnerError
+      at reviveInvokeError (file:///home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/vite/dist/node/module-runner.js:554:64)
+      at Object.invoke (file:///home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/vite/dist/node/module-runner.js:627:11)
+      at async ModuleRunner.getModuleInformation (file:///home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/vite/dist/node/module-runner.js:1203:7)
+      at async request (file:///home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/vite/dist/node/module-runner.js:1220:83)
+      at async eval (/home/levent/ELARA_PROJECT/Elara_WebUi/src/lib/tool-universe.ts:4:1)
+      at async ESModulesEvaluator.runInlinedModule (file:///home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/vite/dist/node/module-runner.js:1010:3)
+      at async ModuleRunner.directRequest (file:///home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/vite/dist/node/module-runner.js:1263:59)
+      at async ModuleRunner.cachedRequest (file:///home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/vite/dist/node/module-runner.js:1170:73)
+      at async eval (/home/levent/ELARA_PROJECT/Elara_WebUi/src/components/sovereign/composer.tsx:36:1)
+      at async ESModulesEvaluator.runInlinedModule (file:///home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/vite/dist/node/module-runner.js:1010:3)
+} { componentStack: [Getter] }
+Error in renderToReadableStream: Error [RolldownError]: Parse failure: Parse failed with 1 error:
+Duplicated export 'defaultMcpState'
+2: import { fetchApi } from "/src/lib/api.ts";
+3: import { scopeOwned, useOwnerCtx } from "/src/lib/ownership.ts";
+4: export const defaultMcpState = {
+                ^
+5:   servers: [],
+6:   exposures: [],
+38:   }
+39: ];
+40: export { defaultMcpState };
+             ^
+41: // We keep a local session log of audits
+42: let sessionAudit = [];
+At file: /src/lib/mcp-store.ts:4:13
+    at error (file:///home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/rolldown/dist/shared/logs-ZGEh6uhb.mjs:152:24)
+    at normalizeParseError (file:///home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/rolldown/dist/parse-ast-index.mjs:25:9)
+    at wrap (file:///home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/rolldown/dist/parse-ast-index.mjs:5:39)
+    at parseAstAsync (file:///home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/rolldown/dist/parse-ast-index.mjs:54:9)
+    at async ssrTransformScript (file:///home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/vite/dist/node/chunks/node.js:12354:9)
+    at async loadAndTransform (file:///home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/vite/dist/node/chunks/node.js:20628:64) {
+  code: 'PARSE_ERROR',
+  id: '/src/lib/mcp-store.ts',
+  pos: 180,
+  loc: { line: 4, column: 13, file: '/src/lib/mcp-store.ts' },
+  frame: '2  |  import { fetchApi } from "/src/lib/api.ts";\n' +
+    '3  |  import { scopeOwned, useOwnerCtx } from "/src/lib/ownership.ts";\n' +
+    '4  |  export const defaultMcpState = {\n' +
+    '   |               ^\n' +
+    '5  |  \tservers: [],\n' +
+    '6  |  \texposures: [],',
+  runnerError: Error: RunnerError
+      at reviveInvokeError (file:///home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/vite/dist/node/module-runner.js:554:64)
+      at Object.invoke (file:///home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/vite/dist/node/module-runner.js:627:11)
+      at async ModuleRunner.getModuleInformation (file:///home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/vite/dist/node/module-runner.js:1203:7)
+      at async request (file:///home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/vite/dist/node/module-runner.js:1220:83)
+      at async eval (/home/levent/ELARA_PROJECT/Elara_WebUi/src/lib/tool-universe.ts:4:1)
+      at async ESModulesEvaluator.runInlinedModule (file:///home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/vite/dist/node/module-runner.js:1010:3)
+      at async ModuleRunner.directRequest (file:///home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/vite/dist/node/module-runner.js:1263:59)
+      at async ModuleRunner.cachedRequest (file:///home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/vite/dist/node/module-runner.js:1170:73)
+      at async eval (/home/levent/ELARA_PROJECT/Elara_WebUi/src/components/sovereign/composer.tsx:36:1)
+      at async ESModulesEvaluator.runInlinedModule (file:///home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/vite/dist/node/module-runner.js:1010:3)
+} { componentStack: [Getter] }
+error: script "dev" exited with code 143
+$ vite dev
+The plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths resolution natively via the resolve.tsconfigPaths option. You can remove the plugin and set resolve.tsconfigPaths: true in your Vite config instead.

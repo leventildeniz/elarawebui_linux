@@ -10,11 +10,18 @@ import {
   type Owned,
 } from "@/lib/ownership";
 export const defaultMcpState: McpState = {
-  servers: [],
-  exposures: [],
-  logs: [],
-  loading: false,
-  error: null,
+  server: {
+    enabled: false,
+    auth: "bearer",
+    namespace: "elara",
+    rateLimit: 60,
+    authSourceKey: null,
+    authFallbackKey: null,
+    exposed: { agents: [], skills: [], tools: [] },
+  },
+  tokens: [],
+  clients: [],
+  audit: [],
 };
 
 /**
@@ -87,7 +94,7 @@ export const authModes: { id: McpAuthMode; label: string; hint: string }[] = [
   { id: "oauth2", label: "OAuth 2.1", hint: "Dynamic client registration via OAuth2" },
 ];
 
-export { defaultMcpState };
+
 
 // We keep a local session log of audits
 let sessionAudit: McpAuditEntry[] = [];
