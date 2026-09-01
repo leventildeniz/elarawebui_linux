@@ -1,0 +1,78 @@
+{
+  "slug": "infoblox_wapi",
+  "input": {
+    "type": "object",
+    "required": [
+      "host",
+      "path"
+    ],
+    "properties": {
+      "host": {
+        "type": "string"
+      },
+      "path": {
+        "type": "string"
+      },
+      "method": {
+        "type": "string",
+        "enum": [
+          "GET",
+          "POST",
+          "PUT",
+          "PATCH",
+          "DELETE"
+        ]
+      },
+      "payload": {
+        "type": [
+          "object",
+          "array",
+          "string",
+          "null"
+        ]
+      },
+      "verify_tls": {
+        "type": "boolean"
+      },
+      "timeout_ms": {
+        "type": "integer",
+        "minimum": 1000,
+        "maximum": 120000
+      },
+      "port": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 65535
+      }
+    }
+  },
+  "output": {
+    "type": "object",
+    "required": [
+      "ok"
+    ],
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      },
+      "status": {
+        "type": "integer"
+      },
+      "headers": {
+        "type": "object"
+      },
+      "body": {
+        "type": "string"
+      },
+      "json": {},
+      "reason": {
+        "type": "string"
+      }
+    }
+  },
+  "dependencies": [],
+  "secrets": [
+    "INFOBLOX_USER",
+    "INFOBLOX_PASSWORD"
+  ]
+}

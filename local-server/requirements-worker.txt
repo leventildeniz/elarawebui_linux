@@ -1,0 +1,14 @@
+# ELARA Vector Worker — install one of these stacks
+#   pip install -r requirements-worker.txt
+#
+# Apple Silicon (fastest):
+mlx-embeddings>=0.0.3 ; sys_platform == "darwin" and platform_machine == "arm64"
+#
+# Cross-platform fallback (Linux / Intel Mac / WSL):
+sentence-transformers>=2.7
+torch>=2.2
+#
+# Always required:
+fastapi>=0.110
+uvicorn[standard]>=0.29
+pydantic>=2

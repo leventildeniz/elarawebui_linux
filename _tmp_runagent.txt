@@ -1,0 +1,172 @@
+    return () => cancelAnimationFrame(id);
+  });
+  /** Late layout (cards, code blocks) settles after the stream ends. */
+  useEffect(() => {
+    if (streaming || !stick.current) return;
+    const ids = [260, 700].map((d) =>
+      setTimeout(() => {
+        const el = scrollRef.current;
+        if (el && stick.current) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+      }, d),
+    );
+    return () => ids.forEach(clearTimeout);
+  }, [streaming, messages.length]);
+
+  /** Simulated streaming run: reasoning trace first, then the answer. */
+  const runAgent = async (base: Msg[], agent?: StudioAgent | undefined, query = "") => {
+    console.log("[UI] runAgent tetiklendi! Base mesaj sayısı:", base.length, "Agent:", agent?.name);
+    const speaker = agent ?? activeModel;
+    const identity: MsgAgent | undefined = speaker
+      ? {
+          id: speaker.id,
+          name: speaker.name,
+          seed: speaker.avatar.seed,
+          style: speaker.avatar.style,
+          jewel: speaker.avatar.jewel,
+          rag: ragOn(speaker),
+          kind: agent ? "agent" : "model",
+        }
+      : undefined;
+
+    stopTimer();
+    setStreaming(true);
+
+    let aiMsg: Msg = {
+      role: "agent",
+      text: "",
+      thinking: "",
+      streaming: true,
+      ...(identity ? { agent: identity } : {}),
+    };
+    
+    setMessages([...base, aiMsg]);
+
+    // Yeni fetch işlemi başlarken eskisini iptal et ve yeni bir controller oluştur
+    if (abortCtrl.current) abortCtrl.current.abort();
+    abortCtrl.current = new AbortController();
+
+    console.log("[UI] Backend'e fetch atılıyor...");
+    try {
+      const res = await fetch("/api/chat/orchestrate", {
+        method: "POST",
+        signal: abortCtrl.current.signal,
+        headers: {
+          "Content-Type": "application/json",
+          "x-session-id": typeof window !== "undefined" ? sessionStorage.getItem("sovereign.operator") || "" : ""
+        },
+        body: JSON.stringify({
+          thread_id: active?.id,
+          messages: base.map((m) => ({ role: m.role, content: m.text })),
+          model: activeModel?.id ?? model,
+          agent_id: agent?.id,
+          // Ekstra Tool ve MCP çağrılarını backend'e paslıyoruz
+          capabilities: {
+             skills: [...query.matchAll(/(?:^|\s)!([a-z0-9][\w.-]*)/gi)].map(m => m[1] ? m[1].toLowerCase() : ""),
+             mcp: [...query.matchAll(/(?:^|\s)#([a-z0-9][\w.-]*)/gi)].map(m => m[1] ? `mcp.${m[1].toLowerCase()}` : ""),
+             tools: [...query.matchAll(/(?:^|\s)\/([a-z0-9][\w.-]*)/gi)].map(m => m[1] ? m[1].toLowerCase() : "")
+          }
+        }),
+      });
+
+      console.log(`[UI] Fetch sonucu: ${res.status} ${res.statusText}`);
+      if (!res.ok) throw new Error(`Engine returned ${res.status}`);
+      if (!res.body) throw new Error("No readable stream body");
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let done = false;
+      let buffer = "";
+
+      while (!done) {
+        const { value, done: streamDone } = await reader.read();
+        if (streamDone) {
+          done = true;
+          break;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+        
+        let lines = buffer.split('\n');
+        // Son eleman tam bir satır olmayabilir (henüz \n gelmemiştir), onu buffer'da tut
+        buffer = lines.pop() || "";
+        
+        for (const rawLine of lines) {
+          const line = rawLine.trim();
+          if (!line.startsWith("data: ")) continue;
+          
+          const dataStr = line.slice(6).trim();
+          if (dataStr === "[DONE]") {
+            done = true;
+            break;
+          }
+          
+          if (!dataStr) continue;
+
+          try {
+            const parsed = JSON.parse(dataStr);
+
+            // 1. Düşünme balonu (Thinking phase)
+            if (parsed.type === "think" && parsed.delta) {
+              aiMsg.thinking = (aiMsg.thinking || "") + parsed.delta;
+            } 
+            // 2. Mesaj metni (Text phase)
+            else if (parsed.delta) {
+              aiMsg.text = (aiMsg.text || "") + parsed.delta;
+            }
+
+            // 3. RAG Sonuçları (Retrieval)
+            if (parsed.rag) {
+              aiMsg.retrieval = {
+                 citations: parsed.rag.sources || [],
+                 kept: parsed.rag.sources?.length || 0,
+                 query: parsed.rag.debug?.queryClean || query,
+                 brands: parsed.rag.fallback?.brands || [],
+                 candidates: parsed.rag.debug?.probe?.top1 || parsed.rag.sources?.length || 0,
+                 reranker: parsed.rag.reranker?.used ? "bge-reranker-v2-m3" : "none",
+                 latencyMs: parsed.rag.debug?.probe?.ms || 0
+              };
+            }
+
+            // 4. MetaForge Kartı (Proposals)
+            if (parsed.forge_plan) {
+              aiMsg.proposals = [parsed.forge_plan];
+              aiMsg.approval = true;
+            }
+
+            // 5. Telemetri Verileri
+            if (parsed.latency) {
+              aiMsg.telemetry = {
+                firstTokenMs: parsed.latency.ttftMs || parsed.latency.thinkMs || 0,
+                totalMs: parsed.latency.totalMs,
+                tokens: parsed.latency.tokensOut || 1,
+                model: activeModel?.name ?? model,
+                effort,
+              };
+            }
+          } catch (err) {
+            // Partial/Invalid JSON chunk yut
+          }
+        }
+        
+        // Arayüzü ilerlemeyle senkronize et
+        setMessages([...base, { ...aiMsg }]);
+      }
+    } catch (err: any) {
+      aiMsg.text += `\n\n⚠️ Chat Error: ${err.message}`;
+      setMessages([...base, { ...aiMsg }]);
+    } finally {
+      aiMsg.streaming = false;
+      setMessages([...base, { ...aiMsg }]);
+      setStreaming(false);
+
+      const next = queued.current;
+      queued.current = null;
+      if (next) setTimeout(() => dispatch(next, []), 220);
+    }
+  };
+
+  const dispatch = (text: string, atts: Attachment[], mentions: Mention[] = []) => {
+    const t = text.trim();
+    if (!t) return;
+    const label = t;
+

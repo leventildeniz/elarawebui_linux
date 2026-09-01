@@ -1,0 +1,1 @@
+{"httpsPort": 10443, "httpPort": 8080, "apiPort": 3005, "certFile": "/home/levent/ELARA_PROJECT/Elara_WebUi/local-server/certs/elara.pem", "keyFile": "/home/levent/ELARA_PROJECT/Elara_WebUi/local-server/certs/elara-key.pem"}

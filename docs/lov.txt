@@ -1,0 +1,81 @@
+Hello Lovable. You built the "Sovereign Studio UI" for my AI OS. The UI looks fantastic, but there is a major gap: we need to connect it to our real PostgreSQL backend (`api-v2.mjs`). Currently, the UI relies heavily on the `src/mocks/` files, and our old database schema does NOT support the new Enterprise features you added (like detailed MCP Servers, Python Runtimes, Workflows, advanced Agents, and System Settings).
+
+I want you to act as our **Backend Database Architect**. 
+Below, I am providing you with:
+1. Our current `schema.sql` (the foundation).
+2. The exact interfaces of the mock data from `src/mocks/` (Agents, MCP, Workflows, Runtimes, Settings).
+
+**Your Task:**
+1. Please generate a highly detailed, complete `v2_master_schema.sql` file. 
+2. This SQL file must include ALL necessary PostgreSQL `CREATE TABLE` and `ALTER TABLE` statements (with JSONB columns where appropriate) to fully support your UI models.
+3. Establish proper Foreign Keys where necessary.
+4. Also, briefly list the exact REST API JSON shapes (GET/POST) my Node.js backend needs to implement for these new tables so they match your UI's expected types perfectly.
+
+---
+### 1. Our Current Foundation (`schema.sql` excerpt)
+```sql
+CREATE TABLE IF NOT EXISTS app_users (
+  id text PRIMARY KEY, username text UNIQUE NOT NULL, display_name text, email text, 
+  role text, groups jsonb, template_id text, status text, avatar_style text, avatar_jewel text
+);
+CREATE TABLE IF NOT EXISTS app_groups (
+  id text PRIMARY KEY, name text NOT NULL, role text, provider text, template_id text, tone text, approvers jsonb
+);
+CREATE TABLE IF NOT EXISTS app_templates (
+  id text PRIMARY KEY, name text, owner_editable boolean, session_ceiling text, user_editable jsonb, overrides jsonb, grants jsonb, params jsonb
+);
+CREATE TABLE IF NOT EXISTS app_roles (
+  id text PRIMARY KEY, name text UNIQUE NOT NULL, provider text, tone text, description text, is_system boolean, scopes jsonb, actions jsonb
+);
+```
+
+### 2. Your UI Mock Data Interfaces (What we need to store in DB now)
+
+**From `src/mocks/agents.ts`:**
+```typescript
+export type StudioAgent = {
+  id: string; name: string; squad: string; role: string; description: string;
+  systemPrompt: string; modelId: string; provider: string; runtimePath: string;
+  scriptPath: string; bridgeHost: string; port: string; healthEndpoint: string;
+  thinking: boolean; enabled: boolean; live: boolean; priority: number;
+  stopGraceMs: number; temperature: number; topP: number; repetitionPenalty: number;
+  maxTokens: number; contextWindow: number; stopSequences: string[];
+  skills: string[]; tools: string[]; adapters: string[]; targets: string[];
+  rag: boolean; ragBrands: string[]; ragKeywords: string; icon: string;
+  avatar: { seed: string; style: string; jewel: string };
+  stats: { calls: number; success: number; latencyMs: number };
+};
+```
+
+**From `src/mocks/mcp.ts`:**
+```typescript
+export type McpState = {
+  server: { enabled: boolean; auth: string; namespace: string; rateLimit: number; exposed: { agents: string[]; skills: string[]; tools: string[] } };
+  tokens: { id: string; label: string; prefix: string; createdAt: number; lastUsed: number }[];
+  clients: any[];
+  audit: { id: string; at: number; actor: string; action: string; detail: string; tone: string }[];
+};
+```
+
+**From `src/mocks/workflows.ts`:**
+```typescript
+export type WorkflowDraft = {
+  id: string; name: string; status: "draft" | "live"; trigger: string; runs: number;
+  nodes: { id: string; kind: string; label: string; meta: string; x: number; y: number }[];
+  edges: { id: string; from: string; to: string }[];
+};
+```
+
+**From `src/mocks/runtimes.ts`:**
+```typescript
+export type PythonRuntime = {
+  id: string; name: string; version: string; pythonPath: string; venvPath: string;
+  memory: number | "auto"; packages: string; egress: boolean; status: "idle" | "running" | "error";
+};
+```
+
+**From `src/mocks/settings.ts`:**
+We need an `app_system_config` table (Key-Value JSONB) to store settings like `set.workspace`, `set.region`, `set.theme` etc.
+
+---
+Please provide the complete `v2_master_schema.sql` block.

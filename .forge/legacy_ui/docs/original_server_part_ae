@@ -1,0 +1,945 @@
+  buildFieldBindingEnvForAgent,
+  buildAgentRagContext,
+  spawnAgentRun,
+  recordAgentRunFinish,
+  buildAgentEnv,
+  buildBrainEnv,
+  buildAgentToolsEnv,
+  cancelAgentRun,
+  classifyAgentError,
+  agentErrorMessage,
+  getRagSettings: () => RAG_SETTINGS,
+  isUuid,
+  enqueueWrite,
+  hydrateAllowedAgentsFromDb,
+  AGENT_RUN_TIMEOUT_MS,
+});
+
+async function probeAgentHealth(baseUrl, healthPath) {
+  const clean = String(baseUrl || "").trim().replace(/\/+$/, "");
+  if (!clean) return { ok: true, skipped: true, message: "no bridge configured · local registry only" };
+  const hp = `/${String(healthPath || "/health").replace(/^\/+/, "")}`;
+  const url = `${clean}${hp}`;
+  try {
+    const r = await fetch(url, { method: "GET", signal: AbortSignal.timeout(AGENT_BRIDGE_TIMEOUT_MS) });
+    if (!r.ok) return { ok: false, message: `health ${r.status} ${r.statusText} @ ${url}` };
+    return { ok: true, message: `health ${r.status} @ ${hp}` };
+  } catch (e) {
+    return { ok: false, message: `unreachable @ ${url} · ${String(e.message || e)}` };
+  }
+}
+
+async function setAgentArmedState(id, targetActive) {
+  const { rows } = await pool.query("SELECT status, bridge_url, meta FROM agents WHERE id=$1", [id]);
+  if (!rows.length) return { httpStatus: 404, body: { ok: false, error: `agent ${id} not found` } };
+  if (targetActive) {
+    const meta = rows[0]?.meta && typeof rows[0].meta === "object" ? rows[0].meta : {};
+    const bridge = await probeAgentHealth(rows[0]?.bridge_url, meta.healthPath);
+    // If a bridge URL is configured but health failed → DO NOT flip to active.
+    if (!bridge.ok && !bridge.skipped) {
+      await pool.query("UPDATE agents SET status='error', updated_at=now() WHERE id=$1", [id]);
+      return { httpStatus: 200, body: { ok: false, id, status: "error", bridge, signal: false } };
+    }
+    const hasLiveSignal = bridge.ok && !bridge.skipped;
+    await pool.query(
+      "UPDATE agents SET status='active', last_active=CASE WHEN $2::boolean THEN now() ELSE last_active END, updated_at=now() WHERE id=$1",
+      [id, hasLiveSignal]
+    );
+    // Arm contract: refresh runtime allow-list so the Orchestrator Bridge
+    // surfaces this agent without waiting for the next boot hydrate.
+    try { await hydrateAllowedAgentsFromDb(); } catch { /* ignore */ }
+    return { httpStatus: 200, body: { ok: true, id, status: "active", bridge, signal: hasLiveSignal, allowedListSize: getAllowedAgents().length } };
+  }
+  await pool.query("UPDATE agents SET status='idle', updated_at=now() WHERE id=$1", [id]);
+  // Disarm contract: kill in-flight runs + drop from runtime allow-list so the
+  // System Engine / Orchestrator Bridge stops surfacing this agent until armed.
+  try { cancelAllRunsForAgent(id); } catch { /* ignore */ }
+  try { await hydrateAllowedAgentsFromDb(); } catch { /* ignore */ }
+  return { httpStatus: 200, body: { ok: true, id, status: "idle", bridge: { ok: true, skipped: true, message: "local registry deactivated" }, signal: false, allowedListSize: getAllowedAgents().length } };
+}
+
+// Tur-5 (revize) helpers — multi-pack binding read/write.
+async function readAgentCapabilityPacks(agentId) {
+  try {
+    const { rows } = await pool.query(
+      `SELECT pack_id FROM agent_capability_packs WHERE agent_id=$1 ORDER BY pack_id`,
+      [agentId],
+    );
+    return rows.map((r) => String(r.pack_id));
+  } catch { return []; }
+}
+// syncAgentCapabilityPacks → lib/agents/runtime.mjs (Tur C)
+
+mountAgentsCrudRoutes(app, {
+  pool,
+  resolveActorContext,
+  resolveActor,
+  buildVisibility,
+  normalizeAgentRow: (r) => normalizeAgentRow(r),
+  createPrefixedId,
+  encryptSecret,
+  setAgentArmedState,
+  syncAgentCapabilityPacks: (...a) => syncAgentCapabilityPacks(...a),
+  readAgentCapabilityPacks,
+  invalidateAgentBrandCache,
+});
+
+mountMcpRoutes(app, { pool, requireSession, port: PORT });
+
+// ============================================================
+// Tur-2 — Adapter Registry CRUD (/api/adapters)
+// `tools` tablosu üstünde dönen, connection_type'a göre dinamik UI
+// için zenginleştirilmiş kayıt CRUD'u. Plaintext credential ASLA
+// burada tutulmaz — credential'lar Vault'tan field-aware bind edilir
+// (vault_binding_spec sadece "hangi field hangi env alias'a gider"
+// şablonunu tutar, değer tutmaz).
+// ============================================================
+const ADAPTER_CATEGORIES   = new Set(["cloud","network","social","content","ai","db","shell","custom"]);
+const CONNECTION_TYPES     = new Set([
+  "ssh","http_basic","rest_token","rest_apikey","checkpoint_smc","soap",
+  "shell","webhook","graphql","rss","smtp","oauth2","custom",
+]);
+const RUNNER_ADAPTERS      = new Set(["http","python","mcp","forge","shell","builtin"]);
+const RISK_LEVELS          = new Set(["low","medium","high","critical"]);
+
+function sanitizeAdapterBody(body = {}) {
+  const name = String(body.name || "").trim().slice(0, 200);
+  if (!name) throw new Error("name required");
+  const adapter = RUNNER_ADAPTERS.has(body.adapter) ? body.adapter : "http";
+  const category = ADAPTER_CATEGORIES.has(body.category) ? body.category : "custom";
+  const connection_type = CONNECTION_TYPES.has(body.connection_type) ? body.connection_type : "custom";
+  const risk_level = RISK_LEVELS.has(body.risk_level) ? body.risk_level : "low";
+  const requires_approval = !!body.requires_approval || risk_level === "high" || risk_level === "critical";
+  const config = (body.config && typeof body.config === "object") ? body.config : {};
+  const vault_binding_spec = Array.isArray(body.vault_binding_spec) ? body.vault_binding_spec : [];
+  const tags = Array.isArray(body.tags) ? body.tags.map(String).slice(0, 20) : [];
+  const description = String(body.description || "").slice(0, 1000);
+  const enabled = body.enabled === false ? false : true;
+  return { name, adapter, category, connection_type, risk_level,
+           requires_approval, config, vault_binding_spec, tags, description, enabled };
+}
+
+// --- Adapter dictionaries (category/connection/runner) CRUD ---------------
+// /api/adapter-dictionaries → lib/routes/adapter-dictionaries.mjs
+initAdapterDictionaries({ pool });
+mountAdapterDictionariesRoutes({ app });
+
+mountAdaptersRoutes({ app, pool, sanitizeAdapterBody });
+
+// ============================================================
+// Tur-2 — Agent bindings (RAG + Vault field-aware credentials)
+// ============================================================
+mountAgentBindingsRoutes(app, { pool });
+
+// --- Backend health for circuit breaker (3001 = python agent host) ---------
+// /api/bridge/health → lib/routes/agents-templates.mjs (Tur 4, 2026-05-30)
+
+// ============================================================
+// Sovereign identity — local users / groups / RBAC / sessions
+// All credentials live in PostgreSQL on the Mac Studio. Never cloud.
+// ============================================================
+function hashPassword(plain, salt) {
+  const s = salt ?? randomBytes(16).toString("hex");
+  const h = scryptSync(String(plain ?? ""), s, 64).toString("hex");
+  return { hash: h, salt: s };
+}
+function verifyPassword(plain, hashHex, salt) {
+  if (!hashHex || !salt) return false;
+  const calc = scryptSync(String(plain ?? ""), salt, 64);
+  const stored = Buffer.from(hashHex, "hex");
+  return calc.length === stored.length && timingSafeEqual(calc, stored);
+}
+function rowToUser(r) {
+  if (!r) return null;
+  return {
+    id: r.id, username: r.username, email: r.email, phone: r.phone,
+    provider: r.provider, role: r.role, groups: r.groups ?? [],
+    templateId: r.template_id ?? undefined,
+    status: r.status,
+    validUntil: r.valid_until ? new Date(r.valid_until).toISOString() : undefined,
+    mustChangePassword: r.must_change_password,
+    avatarUrl: r.avatar_url ?? undefined,
+    allowedProviders: Array.isArray(r.allowed_providers) ? r.allowed_providers : (r.allowed_providers ? JSON.parse(r.allowed_providers) : []),
+    canOverrideProvider: r.can_override_provider !== false,
+     allowedAgents: Array.isArray(r.allowed_agents) ? r.allowed_agents : (r.allowed_agents ? JSON.parse(r.allowed_agents) : []),
+    allowedTools: Array.isArray(r.allowed_tools) ? r.allowed_tools : (r.allowed_tools ? JSON.parse(r.allowed_tools) : []),
+    allowedSkills: Array.isArray(r.allowed_skills) ? r.allowed_skills : (r.allowed_skills ? JSON.parse(r.allowed_skills) : []),
+    createdAt: new Date(r.created_at).toISOString(),
+    lastLoginAt: r.last_login_at ? new Date(r.last_login_at).toISOString() : undefined,
+  };
+}
+
+// Seed bootstrap admin/groups on every boot so PostgreSQL identity never drifts empty.
+// 5 agents/skills fonksiyonu → lib/agents/runtime.mjs (Tur C, 2026-05-30).
+// Init burada (hashPassword decl'inden sonra, seedIdentity çağrı satırından önce).
+// liveRuns const TDZ olduğu için getter ile geçilir; runSkill çağrısı 8195'te.
+({
+  execNodeWithAction,
+  normalizeAgentRow,
+  syncAgentCapabilityPacks,
+  seedIdentity,
+  runSkill,
+} = createAgentRuntime({
+  pool,
+  getRagSettings: () => RAG_SETTINGS,
+  PORT,
+  coerceParams,
+  registerSyntheticRun,
+  buildAgentEnvForScript,
+  runDiskScript,
+  classifyAgentError,
+  agentErrorMessage,
+  tmpl,
+  enqueueWrite,
+  evalChainCondition: typeof evalChainCondition === 'function' ? evalChainCondition : undefined,
+  invalidatePackFilterCache,
+  hashPassword,
+  getLiveRuns: () => liveRuns,
+  runEvent,
+  startMetricsLoop,
+  stopMetricsLoop,
+  executeSkillScript,
+  broadcastAudit,
+}));
+void migrateReady.then(seedIdentity).then(() => autoLinkLegacyOwnership({ migrateReady }));
+void migrateReady.then(() => startSiemConfigSync(pool));
+
+// ---------- Identity (users/groups/rbac/auth-providers/login/sessions) ----------
+// Moved to lib/routes/identity.mjs (B-1 / Tur 1.1, 2026-05-30).
+mountIdentityRoutes({
+  app, pool,
+  hashPassword, verifyPassword, randomBytes,
+  createPrefixedId, createLocalId,
+  rowToUser, providerPolicyCacheDeleteUser,
+  isAdminCaller, rlLogin, enqueueWrite,
+  encryptSecret, decryptSecret,
+  authenticateLdap, authenticateRadius,
+});
+
+// ---------- Admin helper — Faz 2: tek gerçeklik = req.session.role ----------
+// `x-user-role` başlığı artık güven kaynağı değil. attachSessionContext()
+// session'ı zaten DB ile doğrulayıp rolü `app_users`'tan getiriyor; burada
+// sadece okuyup karar veriyoruz. Header'a güvenen eski yollar kapandı.
+async function isAdminCaller(req) {
+  return isAdminFromSession(req);
+}
+
+// ---------- SIEM (real syslog forwarder) ----------
+// /api/siem/* → lib/routes/agents-templates.mjs (Tur 4, 2026-05-30)
+
+// Resolves the actor (req.actor → app_users.id). Returns null for anon.
+async function resolveActorId(req) {
+  if (!req.actor) return null;
+  try {
+    const r = await pool.query("SELECT id FROM app_users WHERE lower(username)=lower($1) LIMIT 1", [req.actor]);
+    return r.rows[0]?.id ?? null;
+  } catch { return null; }
+}
+
+// /api/me/prefs → lib/routes/agents-templates.mjs (Tur 4, 2026-05-30)
+
+// ============================================================
+// Hybrid AI providers (Gemini, Tavily, OpenAI, Serper, …)
+// ============================================================
+function encField(v) {
+  if (!v) return { ct: "", iv: "", tag: "" };
+  const e = encryptSecret(v);
+  return { ct: e.ciphertext, iv: e.iv, tag: e.tag };
+}
+function decField(ct, iv, tag) {
+  if (!ct) return "";
+  try { return decryptSecret(ct, iv, tag); } catch { return ""; }
+}
+function maskKey(s) {
+  if (!s) return "";
+  if (s.length <= 8) return "•".repeat(s.length);
+  return s.slice(0, 4) + "•".repeat(Math.max(4, s.length - 8)) + s.slice(-4);
+}
+function rowToProvider(r, { reveal = false } = {}) {
+  const key = decField(r.api_key_ct, r.api_key_iv, r.api_key_tag);
+  return {
+    id: r.id, providerName: r.provider_name, kind: r.kind,
+    apiKey: reveal ? key : maskKey(key),
+    hasKey: !!key,
+    baseUrl: r.base_url, model: r.model,
+    isActive: r.is_active, priority: r.priority,
+    updatedAt: new Date(r.updated_at).toISOString(),
+  };
+}
+
+// /api/providers/* CRUD + usage aggregates + connectivity ping extracted
+// 2026-05-30 → lib/routes/providers.mjs. Helpers (encField/decField/
+// maskKey/rowToProvider) kept in server.mjs because vision/agent-bridge
+// callers reference decField/recordUsage directly.
+mountProvidersRoutes({
+  app,
+  pool,
+  createPrefixedId,
+  encField,
+  decField,
+  rowToProvider,
+});
+
+// ---- Usage ledger / aggregates ------------------------------------
+function approxTokens(text) {
+  if (!text) return 0;
+  return Math.max(1, Math.round(String(text).length / 4));
+}
+function recordUsage({ providerId, providerName, kind, model, threadId, promptTokens, responseTokens, latencyMs, status }) {
+  enqueueWrite(
+    `INSERT INTO provider_usage(provider_id, provider_name, kind, model, thread_id,
+       prompt_tokens, response_tokens, total_tokens, latency_ms, status)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+    [providerId ?? null, providerName, kind, model ?? "", threadId ?? null,
+     promptTokens|0, responseTokens|0, (promptTokens|0)+(responseTokens|0),
+     latencyMs|0, status ?? "ok"]
+  );
+}
+
+async function getActiveProvider(kind) {
+  const { rows } = await pool.query(
+    "SELECT * FROM ai_providers WHERE kind=$1 AND is_active=true ORDER BY priority ASC LIMIT 1",
+    [kind]
+  );
+  if (!rows[0]) return null;
+  const r = rows[0];
+  return { ...r, apiKey: decField(r.api_key_ct, r.api_key_iv, r.api_key_tag) };
+}
+async function getActiveProviders(kind) {
+  const { rows } = await pool.query(
+    "SELECT * FROM ai_providers WHERE kind=$1 AND is_active=true ORDER BY priority ASC, provider_name ASC",
+    [kind]
+  );
+  return rows.map(r => ({ ...r, apiKey: decField(r.api_key_ct, r.api_key_iv, r.api_key_tag) }));
+}
+async function getProviderById(id) {
+  const { rows } = await pool.query("SELECT * FROM ai_providers WHERE id=$1", [id]);
+  if (!rows[0]) return null;
+  const r = rows[0];
+  return { ...r, apiKey: decField(r.api_key_ct, r.api_key_iv, r.api_key_tag) };
+}
+function detectProviderFamily(name = "", baseUrl = "") {
+  const n = `${name} ${baseUrl}`.toLowerCase();
+  if (/anthropic|claude/.test(n)) return "anthropic";
+  if (/gemini|googleapis|generativelanguage/.test(n)) return "gemini";
+  // OpenAI-compatible: openai, groq, mistral, deepseek, perplexity, openrouter, cohere(v1/chat), together, etc.
+  return "openai";
+}
+async function* streamFromOpenAICompat({ apiKey, model, baseUrl, messages, signal }) {
+  const url = `${(baseUrl || "https://api.openai.com/v1").replace(/\/+$/, "")}/chat/completions`;
+  const r = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({ model: model || "gpt-4o-mini", messages, stream: true }),
+    signal,
+  });
+  if (!r.ok || !r.body) throw new Error(`provider ${r.status} ${await r.text().catch(()=> "")}`);
+  const reader = r.body.getReader(); const dec = new TextDecoder(); let buf = "";
+  while (true) {
+    const { value, done } = await reader.read(); if (done) break;
+    buf += dec.decode(value, { stream: true });
+    const frames = buf.split("\n"); buf = frames.pop() ?? "";
+    for (const f of frames) {
+      const line = f.trim(); if (!line.startsWith("data:")) continue;
+      const payload = line.slice(5).trim(); if (!payload || payload === "[DONE]") continue;
+      try {
+        const j = JSON.parse(payload);
+        const piece = j.choices?.[0]?.delta?.content || "";
+        if (piece) yield piece;
+      } catch {}
+    }
+  }
+}
+async function* streamFromAnthropic({ apiKey, model, baseUrl, messages, signal }) {
+  const url = `${(baseUrl || "https://api.anthropic.com").replace(/\/+$/, "")}/v1/messages`;
+  const sys = messages.filter(m => m.role === "system").map(m => m.content).join("\n");
+  const msgs = messages.filter(m => m.role !== "system").map(m => ({
+    role: m.role === "assistant" ? "assistant" : "user", content: m.content,
+  }));
+  const r = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json", "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({ model: model || "claude-3-5-sonnet-latest", max_tokens: 4096, system: sys || undefined, messages: msgs, stream: true }),
+    signal,
+  });
+  if (!r.ok || !r.body) throw new Error(`anthropic ${r.status} ${await r.text().catch(()=> "")}`);
+  const reader = r.body.getReader(); const dec = new TextDecoder(); let buf = "";
+  while (true) {
+    const { value, done } = await reader.read(); if (done) break;
+    buf += dec.decode(value, { stream: true });
+    const frames = buf.split("\n"); buf = frames.pop() ?? "";
+    for (const f of frames) {
+      const line = f.trim(); if (!line.startsWith("data:")) continue;
+      try {
+        const j = JSON.parse(line.slice(5).trim());
+        const piece = j.delta?.text || j.content_block?.text || "";
+        if (piece) yield piece;
+      } catch {}
+    }
+  }
+}
+async function streamFromProvider({ provider, messages, signal }) {
+  const fam = detectProviderFamily(provider.provider_name, provider.base_url);
+  if (fam === "gemini") return streamFromGemini({ apiKey: provider.apiKey, model: provider.model, baseUrl: provider.base_url, messages, signal });
+  if (fam === "anthropic") return streamFromAnthropic({ apiKey: provider.apiKey, model: provider.model, baseUrl: provider.base_url, messages, signal });
+  return streamFromOpenAICompat({ apiKey: provider.apiKey, model: provider.model, baseUrl: provider.base_url, messages, signal });
+}
+
+// ----- Routing policy stored in app_settings -------------------------------
+async function getRoutingPolicy() {
+  const { rows } = await pool.query("SELECT value FROM app_settings WHERE key='ai.routing'").catch(()=>({rows:[]}));
+  const v = rows[0]?.value || {};
+  return { mode: v.mode || "failover", rules: Array.isArray(v.rules) ? v.rules : [] };
+}
+function pickByRouter(providers, lastUserText, rules) {
+  const text = String(lastUserText || "").toLowerCase();
+  for (const r of rules) {
+    if (!r?.match || !r?.providerId) continue;
+    try { if (new RegExp(r.match, "i").test(text)) {
+      const hit = providers.find(p => p.id === r.providerId); if (hit) return hit;
+    } } catch {}
+  }
+  return providers[0] || null;
+}
+async function pickProviderForRequest({ providerId, lastUserText, allowedIds = null }) {
+  if (providerId) return await getProviderById(providerId);
+  let list = await getActiveProviders("llm");
+  if (allowedIds && allowedIds.length) list = list.filter(p => allowedIds.includes(p.id));
+  if (!list.length) return null;
+  const pol = await getRoutingPolicy();
+  if (pol.mode === "router") return pickByRouter(list, lastUserText, pol.rules);
+  return list[0]; // failover/manual default = highest priority
+}
+
+// Generic app_settings KV
+// /api/app-settings/:key → lib/routes/agents-templates.mjs (Tur 4, 2026-05-30)
+
+// ============================================================
+// Smart orchestrator — DeepDive (Gemini) / WebSearch / Local
+// Extracted 2026-05-30 → lib/providers/gemini-web.mjs
+// ============================================================
+initGeminiWeb({ pool, getActiveProvider: (kind) => getActiveProvider(kind) });
+
+// Provider policy cache — kills the 500ms `prep.provider_policy.timeout`
+// on hot path. TTL 5dk, invalidated by user/template write paths.
+// Extracted 2026-05-30 → lib/providers/policy-cache.mjs
+initProviderPolicyCache({ pool });
+
+// =============================================================================
+// MESSAGING WEBHOOKS → lib/routes/webhooks.mjs (extracted 2026-05-30)
+// =============================================================================
+mountWebhookRoutes({ app, express, pool, extractFileContent, ingestMediaUrl, ingestSource });
+
+// =============================================================================
+// CROSS-REFERENCE ENGINE — per-source-type retrieval + side-by-side comparison
+// =============================================================================
+// /api/chat/cross-reference → lib/routes/agents-templates.mjs (Tur 4, 2026-05-30)
+
+// =============================================================================
+// GRAPH RAG — entity neighborhood lookup (used by orchestrator + UI)
+// =============================================================================
+mountGraphRoutes({ app, pool, purgeGraphOrphans, extractEntities });
+
+// Replace original streamFromLocalLLM dispatcher: accept mode hints.
+// Note: original /api/chat/stream still works for plain local; orchestrator route below.
+// 2026-07-06 — Eski Capability Gap Detector hattı komple söküldü.
+// Yaratma sorumluluğu Meta-Forge auto-routing'e devredildi
+// (autoForgeRouting + forge_preview + forge_run_prompt akışı).
+
+
+mountChatOrchestrateRoutes(app, {
+  PORT, MLX_RUNTIME_PORT: Number(process.env.MLX_RUNTIME_PORT || 8001), RAG_SETTINGS, ROLE_RANK, MLX_TRANSPORT,
+  getRagSettings: () => RAG_SETTINGS,
+
+  TIMEOUT_BUDGETS,
+  _brandDisplay, _makeThinkStripper, _mlxEffectiveFirstTokenMs, _mlxIsCold, _mlxRecordFirstToken,
+  applyExecutionGuard, approxTokens, broadcastBridge, buildFreeAnswerMessages, chatTrace,
+  classifyIntent, cosine, detectLibraryMatch, getLibraryBrands, getProviderById,
+  getProviderPolicyCachedSync, getWatchdogCfg, getAgentsBaseDir, isUuid, normalizeAccessLevel, pickProviderForRequest,
+  preflightMlxReset, ragProbeAndFetch, readNextWithHeartbeat, recordMlxActivity, recordUsage,
+  refineIntentSemantically, resolvePolicyContext, runWebSearch, streamFromProvider, streamFromLocalLLM,
+  triggerMlxZombieSelfHeal,
+  sseBegin, extractToolCalls, runToolCallsForAgent, buildBrainEnv,
+  buildAgentEnv, buildAgentEnvForScript, buildAgentToolsEnv,
+  detectAgentIntent, classifyAgentError, agentErrorMessage,
+  Planner, runLocalAgent, streamLocalAgent, finishRun, dispatchUserTurn,
+  enqueueWrite, mlxQueue, pool, runtimeModel, brandSync,
+  getAllowedAgents, hydrateAllowedAgentsFromDb,
+});
+
+
+mountChatStreamRoutes(app, {
+  PORT, MLX_RUNTIME_PORT: Number(process.env.MLX_RUNTIME_PORT || 8001), RAG_SETTINGS, ROLE_RANK, MLX_TRANSPORT,
+  getRagSettings: () => RAG_SETTINGS,
+  TIMEOUT_BUDGETS, HEDGE_PATTERNS,
+  _brandDisplay, _mlxEffectiveFirstTokenMs: _mlxEffectiveFirstTokenMs, _makeThinkStripper, _mlxRecordFirstToken,
+  agentErrorMessage, applyExecutionGuard, brandSync, broadcastAudit, broadcastBridge,
+  buildAgentEnvForScript, buildFreeAnswerMessages, chatTrace, classifyAgentError, classifyIntent,
+  detectAgentIntent, detectLibraryMatch, enqueueWrite, extractToolCalls, flushModelKvCache,
+  getLibraryBrands, logCheckpoint, mlxQueue, normalizeAccessLevel, pool, pushLog,
+  ragProbeAndFetch, recordChatSample, recordMlxActivity, refineIntentSemantically,
+  registerSyntheticRun, runLocalAgent, streamLocalAgent, runToolCallsForAgent, runtimeBase, runtimeModel,
+  sseBegin, streamFromLocalLLM, triggerMlxZombieSelfHeal, getAllowedAgents, hydrateAllowedAgentsFromDb,
+});
+
+
+// ============================================================
+// Agent Factory — local Python/CLI agents
+// ============================================================
+function rowToAppAgent(r) {
+  return {
+    id: r.id, agentName: r.agent_name, scriptPath: r.script_path,
+    bridgeUrl: r.bridge_url, role: r.role, status: r.status,
+    description: r.description,
+    updatedAt: new Date(r.updated_at).toISOString(),
+  };
+}
+// /api/app-agents/* → lib/routes/agents-templates.mjs (Tur 4, 2026-05-30)
+
+// ============================================================
+// Vision Service control → lib/routes/vision-service.mjs
+// (helpers + status/start/stop/logs/analyze/config endpoints)
+// ============================================================
+initVisionService({ pool, enqueueWrite, decField });
+mountVisionServiceRoutes({ app });
+
+// ============================================================
+// Voice profiles → lib/routes/voice-profiles.mjs
+// ============================================================
+initVoiceProfiles({ pool, createPrefixedId });
+mountVoiceProfilesRoutes({ app });
+
+// vision/analyze + vision/config → lib/routes/vision-service.mjs (mountVisionServiceRoutes)
+
+// ============================================================
+// Premium TTS bridge — OpenAI / Google Cloud / fallback
+// Returns audio/mpeg or audio/ogg buffer; client plays via <audio>.
+// ============================================================
+// /api/tts → lib/routes/agents-templates.mjs (Tur 4, 2026-05-30)
+
+// ============================================================
+// User Model Templates — sovereign PostgreSQL CRUD
+// ============================================================
+function rowToTemplate(r) {
+  return {
+    id: r.id, name: r.name,
+    systemPrompt: r.system_prompt ?? "",
+    temperature: Number(r.temperature ?? 0.4),
+    topP: Number(r.top_p ?? 0.9),
+    maxTokens: Number(r.max_tokens ?? 4096),
+    params: Array.isArray(r.params) ? r.params : (r.params ? JSON.parse(r.params) : []),
+    agents: Array.isArray(r.agents) ? r.agents : (r.agents ? JSON.parse(r.agents) : []),
+    ownerEditable: !!r.owner_editable,
+    allowedProviders: Array.isArray(r.allowed_providers) ? r.allowed_providers : (r.allowed_providers ? JSON.parse(r.allowed_providers) : []),
+    canOverrideProvider: r.can_override_provider !== false,
+    allowedTools: Array.isArray(r.allowed_tools) ? r.allowed_tools : (r.allowed_tools ? JSON.parse(r.allowed_tools) : []),
+    allowedSkills: Array.isArray(r.allowed_skills) ? r.allowed_skills : (r.allowed_skills ? JSON.parse(r.allowed_skills) : []),
+    createdAt: r.created_at, updatedAt: r.updated_at,
+  };
+}
+
+// /api/templates/* → lib/routes/agents-templates.mjs (Tur 4, 2026-05-30)
+
+// /api/template-assignments → lib/routes/template-assignments.mjs
+initTemplateAssignments({ pool, migrateReady, providerPolicyCacheClear });
+mountTemplateAssignmentsRoutes({ app });
+
+// ============================================================
+// WebSocket /ws/live-call + HTTP/HTTPS server creation + TLS bootstrap
+// → lib/live-call.mjs (T-2026-05-30).
+const { httpServer, httpsServer, HTTPS_ENABLED, HTTPS_PORT, TLS_CERT_FILE } =
+  await installLiveCall({ app, pool, port: PORT, __bootDir });
+
+// Backup subsystem (FULL snapshots, pg cluster dump, restore orchestrator,
+// supervisor detection, file catalog) → lib/routes/backup.mjs (Tur 1.4).
+const { ensurePgVersionsCompatible, getPgClientMajor, getPgServerMajor } = mountBackupRoutes(app, {
+  pool, enqueueWrite, spawnPg, initPgVersion, upload,
+  UPLOAD_DIR, BACKUP_DIR, DATABASE_URL, __bootDir, startedAt,
+  brandSync, safeSlug,
+});
+void ensurePgVersionsCompatible; void getPgClientMajor; void getPgServerMajor;
+
+// ============================================================
+// Skills Engine — sealed procedures (! triggers)
+// SYSTEM_SKILLS + seedSkills → lib/skills/seed.mjs (Tur S-1)
+// ============================================================
+import { seedSkills } from "./lib/skills/seed.mjs";
+import {
+  initSkillsRuntime,
+  liveRuns,
+  ROLE_LEVEL,
+  RISK_LEVEL,
+  runEvent,
+  validateAgainstSchema,
+  getActorRole,
+  readSkillSecrets,
+  writeSkillSecrets,
+  executeSkillScript,
+  startMetricsLoop,
+  stopMetricsLoop,
+} from "./lib/skills/runtime.mjs";
+initSkillsRuntime({
+  pool,
+  sseWrite,
+  runDiskScript,
+  secretsPath: path.join(__dirname, ".env.secrets"),
+});
+seedSkills({ pool, migrateReady });
+
+// System Workflows seed → lib/workflows/seed.mjs (W-2 revised, 2026-06-01)
+// Seeds workflows table (NOT workflow_chains); also one-time cleans up
+// yesterday's mis-seeded sys.* rows from workflow_chains.
+import { seedSystemWorkflows } from "./lib/workflows/seed.mjs";
+seedSystemWorkflows({ pool, migrateReady });
+
+// runSkill → lib/agents/runtime.mjs (Tur C)
+
+// --- REST endpoints ---------------------------------------------------------
+mountSkillRoutes(app, {
+  pool,
+  resolveActorContext,
+  getActorRole,
+  ROLE_LEVEL,
+  RISK_LEVEL,
+  readSkillSecrets,
+  writeSkillSecrets,
+  broadcastAudit,
+  coerceParams,
+  validateAgainstSchema,
+  createPrefixedId,
+  liveRuns,
+  runSkill,
+  runEvent,
+  sseBegin,
+});
+
+// =============================================================================
+// System Engine — Master Control cockpit endpoints
+// =============================================================================
+function maskUrl(u) {
+  if (!u) return null;
+  try { return String(u).replace(/(:\/\/)([^:]+):([^@]+)@/, "$1$2:***@"); } catch { return u; }
+}
+app.get("/api/system/engine", async (_req, res) => {
+  const workerHealth = await probeWorkerHealth();
+  res.json({
+    ok: true,
+    server: {
+      port: PORT,
+      host: HOST,
+      uptime_s: Math.floor((Date.now() - startedAt) / 1000),
+      uploadDir: UPLOAD_DIR,
+      cors: (process.env.CORS_ORIGINS || "").split(",").map((s) => s.trim()).filter(Boolean),
+      pid: process.pid,
+      node: process.version,
+    },
+    llm: {
+      provider: RUNTIME_PROVIDER_CFG.provider,
+      baseUrl: runtimeBase() || null,
+      model: runtimeModel() || null,
+    },
+    embed: {
+      model: process.env.MLX_EMBED_MODEL || null,
+      baseUrl: process.env.MLX_EMBED_BASE_URL || process.env.MLX_BASE_URL || null,
+      configured: !!process.env.MLX_EMBED_MODEL,
+      dim: workerHealth?.dim ?? 1024,
+    },
+    database: {
+      url: maskUrl(DATABASE_URL),
+      pool: { max: pool.options?.max ?? 20, idle: pool.idleCount, total: pool.totalCount, waiting: pool.waitingCount },
+    },
+    worker: {
+      port: EMBED_WORKER_PORT,
+      status: workerStatus,
+      pid: workerProc?.pid ?? null,
+      uptime_s: workerProc ? Math.floor((Date.now() - workerStartedAt) / 1000) : 0,
+      backend: workerHealth?.backend || null,
+      model: workerHealth?.model || null,
+      lastError: workerLastError,
+    },
+  });
+});
+
+app.get("/api/system/worker/status", async (_req, res) => {
+  const workerHealth = await probeWorkerHealth();
+  // /health geri dönüyorsa worker yaşıyor: status'u biz spawn etmedik bile
+  // olsa "online-external" olarak senkronla — UI'da gereksiz "down" flicker
+  // olmasın.
+  if (workerHealth && workerStatus !== "online-auto" && workerStatus !== "online-external") {
+    workerStatus = "online-external";
+    workerLastError = null;
+  }
+  let pythonCandidates = [];
+  try {
+    pythonCandidates = resolvePythonCandidates().map(c => `${c.file}${c.args.length ? " " + c.args.join(" ") : ""}`);
+  } catch {}
+  res.json({
+    status: workerStatus,
+    port: EMBED_WORKER_PORT,
+    pid: workerProc?.pid ?? null,
+    uptime_s: workerProc ? Math.floor((Date.now() - workerStartedAt) / 1000) : 0,
+    backend: workerHealth?.backend || null,
+    model: workerHealth?.model || null,
+    dim: workerHealth?.dim ?? null,
+    healthy: !!workerHealth,
+    rss_gb: workerHealth?.rss_gb ?? null,
+    req_count: workerHealth?.req_count ?? null,
+    max_rss_gb: workerHealth?.max_rss_gb ?? null,
+    max_requests: workerHealth?.max_requests ?? null,
+    respawns_in_window: _getEmbedWorkerDiag().respawnsInWindow,
+    respawn_window_ms: _getEmbedWorkerDiag().respawnWindowMs,
+    locked: _getEmbedWorkerDiag().locked,
+    lastError: workerLastError,
+    lastEmbedError: getLastEmbedError(),
+    recentWorkerLogs: SYS_LOG_RING.filter((evt) => evt?.source === "worker").slice(-40),
+    diag: {
+      embedModel: process.env.MLX_EMBED_MODEL || null,
+      baseUrl: process.env.MLX_EMBED_BASE_URL || process.env.MLX_BASE_URL || null,
+      bootTimeoutSec: Math.round(Number(process.env.WORKER_BOOT_TIMEOUT_MS || 360_000) / 1000),
+      healthTimeoutMs: WORKER_HEALTH_TIMEOUT_MS,
+      selfHealCooldownSec: Math.round(SELF_HEAL_COOLDOWN_MS / 1000),
+      lastHealAgoSec: _getEmbedWorkerDiag().lastHealAgoSec,
+      pythonCandidates,
+      cwd: __dirname,
+      offline: { HF_HUB_OFFLINE: process.env.HF_HUB_OFFLINE, TRANSFORMERS_OFFLINE: process.env.TRANSFORMERS_OFFLINE },
+    },
+  });
+});
+
+// v9 — Admin-token mutabakat tanısı (token DEĞERİNİ sızdırmaz; sadece
+// var/yok + uzunluk + ilk/son 4 karakter). Restart script bunu .env'den
+// okuduğu değerle karşılaştırıp launchd<->.env env-drift'i ifşa ediyor.
+// /api/system/diag/admin-token → lib/routes/agents-templates.mjs (Tur 4, 2026-05-30)
+
+// /api/system/worker/start, /stop, /api/system/restart-worker
+// → lib/embed-worker/runtime.mjs (Tur 3b); mountEmbedWorkerRoutes(app).
+
+// ---------------------------------------------------------------------------
+// MLX 72B chat runtime self-heal — gerçek restart (zombi slot reçetesi).
+// mlx_lm.server'ın TEK generation slot'u var; client abort edince (reader.cancel)
+// TCP kapanır ama server o turun üretimini max_tokens bitene kadar sürdürür →
+// sonraki "selam" stuck slot'un arkasında bekler, first-token timeout (120s) yer.
+// `/reset` URL'i mlx_lm.server'da gerçek bir route DEĞİL (404 döner, slot'u
+// temizlemez). Tek kesin çözüm process restart: port 8001 sahibini öldür,
+// launchd (com.elara.qwen72b · KeepAlive) yeniden başlatır. Opsiyonel
+// MLX_RESTART_CMD verilirse o da çalıştırılır. Embed worker reçetesinin
+// (`/api/system/restart-worker`) MLX karşılığı.
+// ---------------------------------------------------------------------------
+const MLX_RUNTIME_PORT = Number(process.env.MLX_RUNTIME_PORT || 8001);
+// Resolve the *active* runtime port from the UI-managed runtime base on every
+// call. Falls back to env-derived MLX_RUNTIME_PORT only when the URL has no
+// explicit port. This makes "Restart Runtime" honour the operator's custom
+// base set in Models → Runtime Provider.
+function _activeRuntimePort() {
+  try {
+    const base = (typeof runtimeUpstreamBase === "function") ? runtimeUpstreamBase() : "";
+    if (base) {
+      const u = new URL(base);
+      const p = Number(u.port || (u.protocol === "https:" ? 443 : 80));
+      if (Number.isFinite(p) && p > 0) return p;
+    }
+  } catch {}
+  return MLX_RUNTIME_PORT;
+}
+// /api/system/restart-mlx + /restart-runtime + /mlx-sockets moved to
+// lib/routes/system-mlx.mjs (Tur 2.2). Mount happens below near other route modules.
+mountSystemMlxRoutes(app, {
+  listPortPids,
+  listPortSockets,
+  summarizeSocketStates,
+  killPortOwnerAndWait,
+  mlxQueue,
+  resetMlxKeepAliveAgent,
+  restartLocalLlmRuntime,
+  MLX_TRANSPORT,
+  runtimeUpstreamBase,
+  runtimeModel,
+  pushLog,
+});
+
+// /api/system/logs/stream + all Tur 4 routes → lib/routes/agents-templates.mjs (2026-05-30)
+mountAgentsTemplatesRoutes(app, {
+  pool, migrateReady,
+  hydrateRuntimeProviderFromDb, runtimeUpstreamBase, runtimeBase, runtimeIsMlx, joinRuntimePath,
+  isAdminCaller, siem, enqueueWrite,
+  resolveActorId,
+  _buildFtsOrQuery,
+  resolveActorContext, buildVisibility, createPrefixedId, resolveActor, rowToAppAgent,
+  rowToTemplate, providerPolicyCacheClear,
+  sseBegin, SYS_LOG_RING, SYS_LOG_SUBS,
+});
+
+// Port self-heal — lib/port-util.mjs'e taşındı (Block E.2 Tur 3).
+import { ensurePortFree } from "./lib/port-util.mjs";
+ensurePortFree(PORT);
+if (HTTPS_ENABLED) ensurePortFree(HTTPS_PORT);
+
+// 2026-05-29 — Config-driven timeout hiyerarşisi (queue-config.mjs TIMEOUT_BUDGETS).
+// RAG_SETTINGS.httpSocketTimeoutMs UI canlı override eder; boş → TIMEOUT_BUDGETS fallback.
+const _httpSocketMs = Math.max(10_000, Number(RAG_SETTINGS?.httpSocketTimeoutMs) || TIMEOUT_BUDGETS.HTTP_SOCKET_MS);
+httpServer.timeout        = _httpSocketMs;
+httpServer.requestTimeout = TIMEOUT_BUDGETS.HTTP_REQUEST_MS;
+httpServer.headersTimeout = TIMEOUT_BUDGETS.HTTP_HEADERS_MS;
+httpServer.keepAliveTimeout = TIMEOUT_BUDGETS.HTTP_KEEPALIVE_MS;
+if (httpsServer) {
+  httpsServer.timeout        = _httpSocketMs;
+  httpsServer.requestTimeout = TIMEOUT_BUDGETS.HTTP_REQUEST_MS;
+  httpsServer.headersTimeout = TIMEOUT_BUDGETS.HTTP_HEADERS_MS;
+  httpsServer.keepAliveTimeout = TIMEOUT_BUDGETS.HTTP_KEEPALIVE_MS;
+}
+
+// Mount workflow routes (T-2b, 2026-05-30). Deferred to after all deps defined.
+mountWorkflowRoutes(app, {
+  pool,
+  requireSession,
+  enqueueWrite,
+  execNodeWithAction,
+  startWorkflowRun,
+  resumeWorkflowRun,
+  cancelWorkflowRun,
+  getRunSteps,
+  createPrefixedId,
+  liveRuns,
+  executeSkillScript,
+  coerceParams,
+  validateAgainstSchema,
+});
+assertTimeoutHierarchy({
+  httpSocketTimeoutMs: RAG_SETTINGS?.httpSocketTimeoutMs,
+  mlxStreamTotalMs:    RAG_SETTINGS?.mlxStreamTotalMs,
+  mlxQueueWaitMs:      RAG_SETTINGS?.mlxQueueWaitMs,
+});
+
+httpServer.listen({ port: PORT, host: HOST }, () => {
+  console.log(`[middleware] listening on ${HOST}:${PORT} — uploads at ${UPLOAD_DIR}`);
+  console.log(`[middleware] loopback: http://127.0.0.1:${PORT}`);
+  console.log(`[middleware] WebSocket: ws://127.0.0.1:${PORT}/ws/live-call`);
+  if (httpsServer) {
+    httpsServer.listen({ port: HTTPS_PORT, host: HOST }, () => {
+      console.log(`[middleware] HTTPS    : https://127.0.0.1:${HTTPS_PORT} (cert: ${TLS_CERT_FILE})`);
+      console.log(`[middleware] WSS      : wss://127.0.0.1:${HTTPS_PORT}/ws/live-call`);
+    });
+  }
+  console.log(`[boot] db=elara_db · port ${PORT} (HTTP) · port ${HTTPS_PORT} (HTTPS ${httpsServer ? "aktif" : "pasif"}) · TLS=${path.basename(TLS_CERT_FILE)}`);
+  // FAZ 25 — Agent Bridge boot self-check (tek seferlik log)
+  try {
+    const dir = process.env.ELARA_AGENTS_DIR || "";
+    if (!dir) {
+      pushLog("agent-bridge", `disabled · ELARA_AGENTS_DIR unset`);
+    } else if (!fs.existsSync(dir)) {
+      pushLog("agent-bridge", `disabled · dir not found · ${dir}`);
+    } else {
+      const allowed = getAllowedAgents();
+      pushLog("agent-bridge", `ready · dir=${dir} · allowed=${allowed.length} · python=${process.env.ELARA_AGENTS_PYTHON || "python3"}`);
+    }
+  } catch (e) { pushLog("agent-bridge", `selfcheck-error · ${String(e?.message || e).slice(0, 200)}`); }
+  // Knowledge tabloları DDL'ini boot'ta ısıt (eski davranış).
+  Promise.all([
+    ensureKnowledgeFilesTable().catch((e) => console.warn("[boot] ensureKnowledgeFilesTable:", e?.message || e)),
+    ensureKnowledgeChunksTable().catch((e) => console.warn("[boot] ensureKnowledgeChunksTable:", e?.message || e)),
+    ensureAdapterDictionariesSeed().catch((e) => console.warn("[boot] ensureAdapterDictionariesSeed:", e?.message || e)),
+  ]).then(() => console.log("[boot] knowledge + adapter-dict schema ready"));
+
+  startServiceWatchdog();
+  // Embedding worker artık boot'ta uyandırılmıyor — sadece RAG path'i veya
+  // knowledge ingest gerçekten istediğinde lazy-spawn ediliyor (mlxEmbed →
+  // ensureWorker). MLX chat runtime warmup'ı da bypass'ı geciktirmesin diye
+  // boot'ta çağrılmıyor; ilk gerçek istek modeli zaten ısıtır.
+  // v17: Boot warmup default KAPALI. 72B modeli middleware testinde otomatik
+  // uyanıp unified memory'i 95GB'a vurdurmasın. İstenirse LLM_BOOT_WARMUP_ENABLED=1.
+  // 2026-06-02: UI knob (RAG_SETTINGS.mlxBootWarmup) explicit false ise env'i
+  // ezer — operatör UI'dan kapatınca restart'ta tekrar açılmasın.
+  let _bootWarmupEnabled = String(process.env.LLM_BOOT_WARMUP_ENABLED ?? "0") === "1";
+  try {
+    if (typeof RAG_SETTINGS !== "undefined" && RAG_SETTINGS?.mlxBootWarmup === false) {
+      _bootWarmupEnabled = false;
+    } else if (typeof RAG_SETTINGS !== "undefined" && RAG_SETTINGS?.mlxBootWarmup === true) {
+      _bootWarmupEnabled = true;
+    }
+  } catch { /* RAG_SETTINGS hazır değilse env'e güven */ }
+  if (_bootWarmupEnabled) {
+    setTimeout(() => { warmLocalChatModel("boot").catch(() => {}); }, 1500).unref?.();
+  } else {
+    console.log("[boot] LLM boot warmup disabled (UI knob / env)");
+  }
+  // Embed worker warm-up: ilk knowledge sorgusu cold-start (8-260s) yememeli.
+  // ensureAnchorVecs() idempotent + singleton; tek mlxEmbed çağrısı worker
+  // spawn + bge-m3 yükleme tetikler. EMBED_WORKER_WARMUP=0 ile kapatılabilir.
+   if (process.env.EMBED_WORKER_WARMUP !== "0") {
+    setTimeout(() => {
+      const t0 = Date.now();
+      ensureAnchorVecs()
+        .then((v) => console.log(`[boot] embed worker warmup → ${v ? "ok" : "skipped"} (${Date.now() - t0}ms)`))
+        .catch((e) => console.warn(`[boot] embed worker warmup failed: ${String(e?.message || e).slice(0, 200)}`));
+    }, 5000);
+  }
+  // Provider policy cache pre-warm: ilk istekte cache miss + 500ms timeout yememeli.
+  // 8sn delay: DB cold pool + ensureWorker'ın yerleşmesini bekle, paralel lookup ile <1sn'de doldur.
+  setTimeout(() => {
+    const t0 = Date.now();
+    warmProviderPolicyCache()
+      .then((n) => console.log(`[boot] provider_policy cache warmed: ${n} users (${Date.now() - t0}ms)`))
+      .catch((e) => console.warn(`[boot] provider_policy warmup failed: ${String(e?.message || e).slice(0, 200)}`));
+  }, 8000);
+  // Periyodik tazeleme — TTL 5dk, refresh 4dk: cache hiç soğumasın.
+  setInterval(() => { warmProviderPolicyCache().catch(()=>{}); }, 240_000).unref?.();
+  // v17: Vision warmup da default KAPALI; 7B vision modeli sadece Live Call'da uyansın.
+  if (String(process.env.MLX_VISION_WARMUP_ENABLED ?? "0") === "1") setTimeout(async () => {
+    try {
+      const mlxBase = (process.env.MLX_VISION_BASE_URL || "http://127.0.0.1:8011").replace(/\/$/, "");
+      const mlxModel = process.env.MLX_VISION_MODEL || "mlx-community/Qwen2-VL-7B-Instruct-4bit";
+      // 1×1 saydam PNG
+      const tinyPng = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+      const t0 = Date.now();
+      const r = await fetch(`${mlxBase}/v1/chat/completions`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: mlxModel, stream: false, max_tokens: 4,
+          messages: [{ role: "user", content: [
+            { type: "text", text: "ok" },
+            { type: "image_url", image_url: { url: `data:image/png;base64,${tinyPng}` } },
+          ]}],
+        }),
+        signal: AbortSignal.timeout(120_000),
+      });
+      console.log(`[boot] MLX vision warmup → ${r.status} (${Date.now()-t0}ms) · ${mlxBase}`);
+    } catch (e) {
+      // Vision modeli opsiyonel — yokken her boot'ta warning basma; sadece DEBUG ile göster.
+      if (process.env.DEBUG_MLX_WARMUP === "1") {
+        console.warn(`[boot] MLX vision warmup failed (model çalışmıyor olabilir): ${String(e?.message || e).slice(0, 200)}`);
+      }
+    }
+  }, 2500).unref?.();
+  console.log(`[boot] embed worker uykuda · LLM/vision/keepwarm default kapalı · cold-start ilk gerçek istekte olabilir.`);
+  console.log(`[boot] OFFLINE seal · HF_HUB_OFFLINE=${process.env.HF_HUB_OFFLINE} TRANSFORMERS_OFFLINE=${process.env.TRANSFORMERS_OFFLINE} HF_DATASETS_OFFLINE=${process.env.HF_DATASETS_OFFLINE}`);
+  // v9 — KV cache heartbeat. Her N saniyede bir mini ısıtıcı (max_tokens=1).
+  // Skip kuralı: son N*0.75 saniye içinde gerçek aktivite olduysa atla.
+  setInterval(async () => {
+    if (!MLX_TRANSPORT.heartbeatEnabled) {
+      MLX_TRANSPORT.lastHeartbeatStatus = "skipped";
+      MLX_TRANSPORT.lastHeartbeatDetail = "disabled";
+      return;
+    }
+    const sinceActivity = Date.now() - (MLX_TRANSPORT.lastActivityAt || 0);
+    const skipWindow = Math.floor(MLX_TRANSPORT.heartbeatMs * 0.75);
+    if (MLX_TRANSPORT.lastActivityAt && sinceActivity < skipWindow) {
+      MLX_TRANSPORT.lastHeartbeatAt = Date.now();
+      MLX_TRANSPORT.lastHeartbeatStatus = "skipped";
+      MLX_TRANSPORT.lastHeartbeatDetail = `recent activity ${Math.floor(sinceActivity/1000)}s ago`;
+      return;
+    }
+    if (MLX_TRANSPORT.inflight > 0) {
+      MLX_TRANSPORT.lastHeartbeatStatus = "skipped";
+      MLX_TRANSPORT.lastHeartbeatDetail = `inflight=${MLX_TRANSPORT.inflight}`;
+      return;
+    }
+    const ok = await warmLocalChatModel("heartbeat").catch(() => false);
+    MLX_TRANSPORT.lastHeartbeatAt = Date.now();
+    MLX_TRANSPORT.lastHeartbeatStatus = ok ? "ok" : "failed";
+    MLX_TRANSPORT.lastHeartbeatDetail = ok ? "kv cache refreshed" : "warm call failed";
+  }, Math.max(15_000, MLX_TRANSPORT.heartbeatMs)).unref?.();
+});
+

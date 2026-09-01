@@ -1,0 +1,26 @@
+{
+  "slug": "hashtag_score",
+  "input": {
+    "type": "object",
+    "required": ["hashtags", "platform"],
+    "properties": {
+      "hashtags":        { "type": "array", "items": { "type": "string" }, "minItems": 1, "maxItems": 200 },
+      "platform":        { "type": "string", "enum": ["instagram", "linkedin", "x", "tiktok"] },
+      "niche_keywords":  { "type": "array", "items": { "type": "string" }, "maxItems": 50 }
+    }
+  },
+  "output": {
+    "type": "object",
+    "required": ["ok"],
+    "properties": {
+      "ok":               { "type": "boolean" },
+      "platform":         { "type": "string" },
+      "ranked":           { "type": "array" },
+      "suggested_drop":   { "type": "array" },
+      "generics_loaded":  { "type": "integer" },
+      "generics_source":  { "type": "string" },
+      "reason":           { "type": "string" }
+    }
+  },
+  "dependencies": []
+}

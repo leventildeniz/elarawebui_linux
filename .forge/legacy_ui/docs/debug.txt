@@ -1,0 +1,27 @@
+********************************https/10443***********************
+Failed to load resource: net::ERR_EMPTY_RESPONSE
+main.tsx:1  Failed to load resource: net::ERR_EMPTY_RESPONSE
+client:1  Failed to load resource: net::ERR_CONNECTION_REFUSED
+favicon.ico:1  Failed to load resource: net::ERR_CONNECTION_REFUSED
+
+
+****************************http/8080***********************************
+
+[vite] connecting...
+client:745 WebSocket connection to 'wss://5400-li.local:10443/?token=xtyvdTxaNe88' failed: Error during WebSocket handshake: Unexpected response code: 200
+(anonymous) @ client:745
+connect @ client:411
+connect @ client:751
+connect @ client:289
+connect @ client:373
+(anonymous) @ client:823
+client:772 [vite] failed to connect to websocket (Error: WebSocket closed without opened.). 
+connect @ client:772
+await in connect
+connect @ client:289
+connect @ client:373
+(anonymous) @ client:823
+client:423 Uncaught (in promise) Error: WebSocket closed without opened.
+    at WebSocket.<anonymous> (client:423:30
+(anonymous) @ client:423
+system-store.tsx:4 Uncaught SyntaxError: The requested module '/src/lib/api-client.ts' does not provide an export named 'PythonAPI' (at system-store.tsx:4:35)

@@ -1,0 +1,4708 @@
+[
+  {
+    "symbol": "MLX",
+    "proposed": "LOCAL",
+    "def": "`local-server/lib/runtime-registry.mjs:17`",
+    "calls": [
+      "`local-server/scripts/measure-rag-ttft.sh:123`",
+      "`local-server/lib/routes/chat-stream.mjs:611`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:1396`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:1195`",
+      "`local-server/migrations/20260622_models_runtime_model_id.sql:2`",
+      "`local-server/lib/rag/intent-classifier.mjs:336`",
+      "`local-server/lib/prompt-size.mjs:1`",
+      "`local-server/lib/rag/util.mjs:56`",
+      "`local-server/migrations/20260624_gemma4_template_family.sql:8`",
+      "`local-server/scripts/gemma3-install.sh:98`",
+      "`local-server/scripts/chat-live-watch.sh:12`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:1900`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:2090`",
+      "`local-server/scripts/mlx-flag-patch.sh:199`",
+      "`local-server/lib/ingest/extract.mjs:5`",
+      "`local-server/lib/ingest/extract.mjs:243`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:314`",
+      "`local-server/scripts/mlx-flag-patch.sh:29`",
+      "`local-server/lib/routes/chat-stream.mjs:981`",
+      "`local-server/lib/agent-env.mjs:465`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:1126`",
+      "`local-server/scripts/chat-fulldebug.sh:33`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:2201`",
+      "`local-server/lib/routes/rag-readops.mjs:587`",
+      "`local-server/lib/ingest/extract.mjs:6`",
+      "`local-server/scripts/qwen3-install.sh:192`",
+      "`local-server/lib/routes/chat-stream.mjs:221`",
+      "`local-server/lib/runtime-transport.mjs:13`",
+      "`local-server/scripts/rag-content-audit.mjs:71`",
+      "`local-server/lib/agent-bridge.mjs:271`",
+      "`local-server/scripts/mistral-install.sh:10`",
+      "`local-server/lib/runtime-queue.mjs:220`",
+      "`local-server/lib/rag/intent-classifier.mjs:371`",
+      "`local-server/lib/runtime-queue.mjs:225`",
+      "`local-server/scripts/rag-diagnose.mjs:3`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:972`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:2100`",
+      "`local-server/lib/routes/chat-stream.mjs:1042`",
+      "`local-server/lib/agent-env.mjs:411`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:2089`",
+      "`local-server/lib/ingest/extract.mjs:481`",
+      "`local-server/lib/runtime-transport.mjs:1`",
+      "`local-server/lib/agent-env.mjs:466`",
+      "`local-server/lib/chat-prompt.mjs:34`",
+      "`local-server/lib/routes/vision-service.mjs:293`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:1864`",
+      "`local-server/scripts/leak-hunt.sh:7`",
+      "`local-server/scripts/smoke-mlx-transport.sh:2`",
+      "`local-server/scripts/leak-hunt.sh:121`",
+      "`local-server/scripts/qwen3-install.sh:173`",
+      "`local-server/lib/routes/chat-stream.mjs:1366`",
+      "`local-server/lib/runtime-registry.mjs:185`",
+      "`local-server/scripts/leak-hunt-load.sh:181`",
+      "`local-server/scripts/leak-hunt-load.sh:9`",
+      "`local-server/scripts/mlx-upgrade.sh:70`",
+      "`local-server/lib/agent-bridge.mjs:270`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:1841`",
+      "`local-server/scripts/qwen3-install.sh:109`",
+      "`local-server/launchd/com.elara.middleware.plist:45`",
+      "`local-server/scripts/rag-debug.mjs:3`",
+      "`local-server/lib/routes/chat-stream.mjs:898`",
+      "`local-server/scripts/chat-live-watch.sh:69`",
+      "`local-server/lib/runtime-transport.mjs:104`",
+      "`local-server/lib/ingest/extract.mjs:277`",
+      "`local-server/lib/routes/chat-stream.mjs:272`",
+      "`local-server/scripts/agent-auto-route-smoke.sh:152`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:864`",
+      "`local-server/schema.sql:172`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:302`",
+      "`local-server/lib/queue-config.mjs:25`",
+      "`local-server/scripts/mlx-upgrade.sh:62`",
+      "`local-server/lib/runtime-queue.mjs:3`",
+      "`local-server/scripts/gemma3-install.sh:159`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:1003`",
+      "`local-server/migrations/20260622_models_runtime_model_id.sql:1`",
+      "`local-server/scripts/mlx-upgrade.sh:74`",
+      "`local-server/launchd/com.elara.middleware.plist:70`",
+      "`local-server/scripts/diagnose-agent-run.sh:183`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:2009`",
+      "`local-server/scripts/mlx-flag-patch.sh:158`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:1853`",
+      "`local-server/scripts/chat-live-watch.sh:128`",
+      "`local-server/lib/routes/chat-templates.mjs:14`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:1206`",
+      "`local-server/scripts/leak-hunt-load.sh:183`",
+      "`local-server/scripts/mlx-upgrade.sh:51`",
+      "`local-server/lib/agent-env.mjs:469`",
+      "`local-server/lib/rag/util.mjs:44`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:2062`",
+      "`local-server/lib/runtime-transport.mjs:42`",
+      "`local-server/scripts/qwen3-install.sh:10`",
+      "`local-server/scripts/chat-live-watch.sh:130`",
+      "`local-server/scripts/rag-content-audit.mjs:74`",
+      "`local-server/worker.py:186`",
+      "`local-server/lib/rag/util.mjs:47`",
+      "`local-server/lib/routes/vision-service.mjs:155`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:2125`",
+      "`local-server/lib/ingest/extract.mjs:296`",
+      "`local-server/lib/routes/vision-service.mjs:227`",
+      "`local-server/scripts/mlx-upgrade.sh:76`",
+      "`local-server/lib/routes/chat-stream.mjs:1039`",
+      "`local-server/lib/queue-config.mjs:1`",
+      "`local-server/lib/rag/util.mjs:54`",
+      "`local-server/scripts/leak-hunt.sh:192`",
+      "`local-server/lib/agent-bridge.mjs:268`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:1862`",
+      "`local-server/scripts/diag-first-token-ab.sh:131`",
+      "`local-server/lib/rag/util.mjs:51`",
+      "`local-server/lib/ingest/extract.mjs:233`",
+      "`local-server/lib/runtime-transport.mjs:34`",
+      "`local-server/lib/ingest/extract.mjs:495`",
+      "`local-server/lib/migrate.mjs:79`",
+      "`local-server/lib/rag/defaults.mjs:67`",
+      "`local-server/scripts/mistral-install.sh:108`",
+      "`local-server/lib/rag/util.mjs:37`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:1174`",
+      "`local-server/lib/routes/rag-readops.mjs:371`",
+      "`local-server/scripts/gemma3-install.sh:186`",
+      "`local-server/schema.sql:171`",
+      "`local-server/scripts/backfill-parse-quality.mjs:4`",
+      "`local-server/schema.sql:154`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:185`",
+      "`local-server/lib/routes/chat-stream.mjs:1376`",
+      "`local-server/lib/routes/chat-stream.mjs:926`",
+      "`local-server/scripts/mistral-install.sh:69`",
+      "`local-server/scripts/leak-hunt-load.sh:215`",
+      "`local-server/lib/runtime-queue.mjs:4`",
+      "`local-server/lib/registry/system-actions.mjs:45`",
+      "`local-server/scripts/dump-agent-prompt.mjs:2`",
+      "`local-server/scripts/qwen3-install.sh:69`",
+      "`local-server/scripts/reembed-all.sh:310`",
+      "`local-server/scripts/mistral-install.sh:169`",
+      "`local-server/lib/ingest/extract.mjs:494`",
+      "`local-server/lib/routes/agent-run.mjs:191`",
+      "`local-server/lib/rag/intent-classifier.mjs:305`",
+      "`local-server/scripts/rag-content-audit.mjs:55`",
+      "`local-server/scripts/leak-hunt.sh:156`",
+      "`local-server/scripts/mistral-install.sh:192`",
+      "`local-server/lib/routes/knowledge-retrieve.mjs:377`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:1050`",
+      "`local-server/lib/routes/vision-service.mjs:1`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:860`",
+      "`local-server/lib/migrate.mjs:78`",
+      "`local-server/scripts/mlx-flag-patch.sh:169`",
+      "`local-server/scripts/leak-hunt-load.sh:2`",
+      "`local-server/scripts/diag-first-token-ab.sh:76`",
+      "`local-server/scripts/gemma3-install.sh:11`",
+      "`local-server/lib/rag/util.mjs:55`",
+      "`local-server/lib/routes/chat-stream.mjs:812`"
+    ],
+    "risk": "Y\u00fcksek"
+  },
+  {
+    "symbol": "127.0.0.1",
+    "proposed": "CONFIG_HOST",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/reembed-all.sh:285`",
+      "`local-server/launchd/install-systemd.sh:52`",
+      "`local-server/scripts/migrate-url-recursive.mjs:32`",
+      "`local-server/worker.py:557`",
+      "`local-server/scripts/admin-curl.sh:16`",
+      "`local-server/lib/runtime-registry.mjs:25`",
+      "`local-server/scripts/middleware-restart.sh:116`",
+      "`local-server/scripts/reembed-all.sh:18`",
+      "`local-server/lib/runtime-registry.mjs:62`",
+      "`local-server/auth-providers.mjs:177`",
+      "`local-server/lib/live-call.mjs:152`",
+      "`local-server/lib/port-process.mjs:33`",
+      "`local-server/scripts/reprocess-low-quality.mjs:30`",
+      "`local-server/scripts/mlx-upgrade.sh:30`",
+      "`local-server/tools/smoke.mjs:366`",
+      "`local-server/lib/health-deep.mjs:94`",
+      "`local-server/lib/ingest/extract.mjs:299`",
+      "`local-server/lib/routes/system-misc.mjs:206`",
+      "`local-server/worker.py:9`",
+      "`local-server/server.mjs:341`",
+      "`local-server/lib/embed-provider.mjs:11`",
+      "`local-server/tools/smoke.mjs:109`",
+      "`local-server/scripts/tls-proxy-restart.sh:72`",
+      "`local-server/tools/smoke/faz1b.sh:139`",
+      "`local-server/scripts/skill-runs-probe.sh:6`",
+      "`local-server/launchd/com.elara.middleware.plist:42`",
+      "`local-server/scripts/enrich-structured-chunks.mjs:130`",
+      "`local-server/scripts/leak-hunt-load.sh:24`",
+      "`local-server/scripts/agent-rag-doctor.mjs:85`",
+      "`local-server/scripts/vault-rotate-drill.sh:11`",
+      "`local-server/scripts/leak-hunt-load.sh:182`",
+      "`local-server/scripts/seed-cloudflare.mjs:4`",
+      "`local-server/scripts/orchestration-smoke.sh:60`",
+      "`local-server/scripts/issue-cert.sh:29`",
+      "`local-server/lib/actor.mjs:93`",
+      "`local-server/scripts/enrich-structured-chunks.mjs:18`",
+      "`local-server/scripts/retry-embeddings-drain.sh:25`",
+      "`local-server/scripts/approval-gate-probe.sh:69`",
+      "`local-server/lib/rerank-provider.mjs:11`",
+      "`local-server/lib/live-call.mjs:119`",
+      "`local-server/tools/smoke/fazB.sh:101`",
+      "`local-server/lib/tool-adapters.mjs:164`",
+      "`local-server/lib/embed-worker-probe.mjs:8`",
+      "`local-server/lib/routes/agents-templates.mjs:49`",
+      "`local-server/scripts/agent-stack-smoke.sh:85`",
+      "`local-server/lib/routes/workflows.mjs:224`",
+      "`local-server/lib/runtime-registry.mjs:196`",
+      "`local-server/scripts/middleware-restart.sh:82`",
+      "`local-server/scripts/agent-auto-route-smoke.sh:15`",
+      "`local-server/lib/routes/system-agnostic.mjs:61`",
+      "`local-server/scripts/rag-golden.mjs:21`",
+      "`local-server/scripts/capability-sse-smoke.sh:16`",
+      "`local-server/scripts/db-backup.sh:23`",
+      "`local-server/scripts/wireshark-orphan-check.sh:9`",
+      "`local-server/scripts/run-chaos-drill.sh:98`",
+      "`local-server/scripts/rag-golden.mjs:11`",
+      "`local-server/launchd/install-launchd.sh:191`",
+      "`local-server/scripts/agent-stack-smoke.sh:13`",
+      "`local-server/lib/routes/system-misc.mjs:400`",
+      "`local-server/lib/session-gate.mjs:58`",
+      "`local-server/lib/routes/vision-service.mjs:228`",
+      "`local-server/scripts/meta-forge-idempotency-smoke.sh:11`",
+      "`local-server/scripts/agent-stack-smoke.sh:87`",
+      "`local-server/lib/auth-utils.mjs:21`",
+      "`local-server/scripts/mlx-upgrade.sh:35`",
+      "`local-server/scripts/skill-runs-probe.sh:41`",
+      "`local-server/lib/runtime-registry.mjs:26`",
+      "`local-server/lib/routes/identity.mjs:244`",
+      "`local-server/scripts/seed-cloudflare.mjs:13`",
+      "`local-server/scripts/smoke-chat-templates.sh:25`",
+      "`local-server/scripts/diag-first-token-ab.sh:11`",
+      "`local-server/scripts/db-audit-and-clean.sh:227`",
+      "`local-server/scripts/agent-stack-smoke.sh:20`",
+      "`local-server/scripts/qwen3-install.sh:110`",
+      "`local-server/tools/smoke.mjs:365`",
+      "`local-server/lib/tool-call-parser.mjs:102`",
+      "`local-server/scripts/run-chaos-drill.sh:9`",
+      "`local-server/scripts/mlx-upgrade.sh:28`",
+      "`local-server/scripts/gemma3-install.sh:99`",
+      "`local-server/tools/smoke.mjs:56`",
+      "`local-server/gateway.mjs:6`",
+      "`local-server/dev-tls-proxy.mjs:108`",
+      "`local-server/scripts/approval-gate-probe.sh:13`",
+      "`local-server/scripts/rag-citrix-checkpoint-probe.mjs:7`",
+      "`local-server/scripts/_admin-fetch.mjs:15`",
+      "`local-server/gateway.mjs:113`",
+      "`local-server/scripts/meta-forge-idempotency-smoke.sh:17`",
+      "`local-server/scripts/rag-content-audit.mjs:28`",
+      "`local-server/scripts/diag-first-token-ab.sh:16`",
+      "`local-server/scripts/leak-hunt-load.sh:25`",
+      "`local-server/scripts/agent-rag-doctor.mjs:93`",
+      "`local-server/lib/routes/identity.mjs:307`",
+      "`local-server/scripts/agent-stack-smoke.sh:88`",
+      "`local-server/launchd/install-launchd.sh:102`",
+      "`local-server/scripts/admin-curl.sh:11`",
+      "`local-server/scripts/qa-agent-capabilities.sh:9`",
+      "`local-server/tools/smoke/wfW2.sh:9`",
+      "`local-server/tools/smoke.mjs:5`",
+      "`local-server/scripts/db-maintenance.sh:34`",
+      "`local-server/scripts/skill-runs-probe.sh:35`",
+      "`local-server/scripts/mlx-upgrade.sh:76`",
+      "`local-server/lib/mcp/dispatch.mjs:12`",
+      "`local-server/scripts/measure-rag-ttft.sh:30`",
+      "`local-server/scripts/rag-stage-doctor.mjs:34`",
+      "`local-server/scripts/rag-diagnose.mjs:149`",
+      "`local-server/scripts/middleware-restart.sh:129`",
+      "`local-server/launchd/install-launchd.sh:192`",
+      "`local-server/gateway.mjs:112`",
+      "`local-server/scripts/mistral-install.sh:109`",
+      "`local-server/scripts/db-restore-drill.sh:20`",
+      "`local-server/scripts/meta-forge-debug.sh:15`",
+      "`local-server/scripts/watch-worker.sh:7`",
+      "`local-server/scripts/reprocess-low-quality.mjs:47`",
+      "`local-server/dev-tls-proxy.mjs:53`",
+      "`local-server/scripts/worker-watchdog.sh:23`",
+      "`local-server/scripts/middleware-restart.sh:83`",
+      "`local-server/tools/smoke.mjs:6`",
+      "`local-server/scripts/orchestration-smoke.sh:7`",
+      "`local-server/launchd/install-launchd.sh:190`",
+      "`local-server/launchd/install-launchd.sh:189`",
+      "`local-server/scripts/wireshark-orphan-cleanup.sh:9`",
+      "`local-server/lib/embed-worker/runtime.mjs:416`",
+      "`local-server/scripts/retry-embeddings-drain.sh:29`",
+      "`local-server/scripts/middleware-restart.sh:98`",
+      "`local-server/scripts/netscaler-phantom-check.sh:10`",
+      "`local-server/scripts/rag-content-audit.mjs:56`",
+      "`local-server/lib/routes/vision-service.mjs:38`",
+      "`local-server/launchd/com.elara.middleware.plist:47`",
+      "`local-server/scripts/brand-backfill.mjs:28`",
+      "`local-server/scripts/retry-embeddings-drain.sh:12`",
+      "`local-server/scripts/worker-watchdog.sh:24`",
+      "`local-server/lib/routes/mcp.mjs:41`",
+      "`local-server/lib/tool-adapters.mjs:148`",
+      "`local-server/scripts/tls-proxy-restart.sh:73`",
+      "`local-server/scripts/agent-auto-route-smoke.sh:25`",
+      "`local-server/scripts/rag-tau-sweep.mjs:56`",
+      "`local-server/lib/routes/telemetry.mjs:10`",
+      "`local-server/launchd/install-launchd.sh:193`",
+      "`local-server/lib/agent-manifest.mjs:71`",
+      "`local-server/scripts/diagnose-agent-run.sh:20`",
+      "`local-server/scripts/reembed-all.sh:248`",
+      "`local-server/scripts/agent-stack-smoke.sh:86`",
+      "`local-server/scripts/rag-citrix-checkpoint-probe.mjs:19`",
+      "`local-server/auth-providers.mjs:151`",
+      "`local-server/scripts/reembed-all.sh:43`",
+      "`local-server/scripts/skill-runs-probe.sh:29`",
+      "`local-server/launchd/install-launchd.sh:188`",
+      "`local-server/scripts/agent-stack-smoke.sh:89`"
+    ],
+    "risk": "Y\u00fcksek"
+  },
+  {
+    "symbol": "3005",
+    "proposed": "CONFIG_PORT",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/approval-gate-probe.sh:13`",
+      "`local-server/scripts/rag-citrix-checkpoint-probe.mjs:7`",
+      "`local-server/scripts/_admin-fetch.mjs:15`",
+      "`local-server/scripts/middleware-restart.sh:82`",
+      "`local-server/scripts/meta-forge-idempotency-smoke.sh:17`",
+      "`local-server/scripts/diag-first-token-ab.sh:16`",
+      "`local-server/scripts/admin-curl.sh:16`",
+      "`local-server/scripts/capability-sse-smoke.sh:15`",
+      "`local-server/scripts/leak-hunt-load.sh:25`",
+      "`local-server/scripts/rag-content-audit.mjs:56`",
+      "`local-server/scripts/agent-auto-route-smoke.sh:15`",
+      "`local-server/scripts/middleware-restart.sh:58`",
+      "`local-server/scripts/rag-golden.mjs:21`",
+      "`local-server/launchd/com.elara.middleware.plist:3`",
+      "`local-server/scripts/middleware-restart.sh:18`",
+      "`local-server/scripts/mlx-flag-patch.sh:170`",
+      "`local-server/lib/tool-adapters.mjs:163`",
+      "`local-server/scripts/reembed-all.sh:18`",
+      "`local-server/scripts/mlx-flag-patch.sh:143`",
+      "`local-server/dev-tls-proxy.mjs:21`",
+      "`local-server/scripts/admin-curl.sh:11`",
+      "`local-server/scripts/qa-agent-capabilities.sh:9`",
+      "`local-server/scripts/retry-embeddings-drain.sh:12`",
+      "`local-server/tools/smoke/wfW2.sh:9`",
+      "`local-server/lib/deps.mjs:5`",
+      "`local-server/tools/smoke.mjs:5`",
+      "`local-server/scripts/meta-forge-debug.sh:48`",
+      "`local-server/scripts/agent-auto-route-smoke.sh:25`",
+      "`local-server/launchd/uninstall-launchd.sh:12`",
+      "`local-server/scripts/reprocess-low-quality.mjs:30`",
+      "`local-server/scripts/rag-golden.mjs:11`",
+      "`local-server/scripts/skill-runs-probe.sh:27`",
+      "`local-server/scripts/skill-runs-probe.sh:39`",
+      "`local-server/scripts/meta-forge-idempotency-smoke.sh:11`",
+      "`local-server/scripts/leak-hunt.sh:59`",
+      "`local-server/scripts/seed-cloudflare.mjs:13`",
+      "`local-server/scripts/diag-first-token-ab.sh:11`",
+      "`local-server/scripts/agent-stack-smoke.sh:20`",
+      "`local-server/scripts/run-chaos-drill.sh:67`",
+      "`local-server/scripts/diagnose-agent-run.sh:20`",
+      "`local-server/scripts/measure-rag-ttft.sh:29`",
+      "`local-server/scripts/chat-fulldebug.sh:117`",
+      "`local-server/scripts/middleware-restart.sh:64`",
+      "`local-server/proxy-config.json:1`",
+      "`local-server/launchd/install-launchd.sh:192`",
+      "`local-server/scripts/capability-sse-smoke.sh:7`",
+      "`local-server/scripts/meta-forge-debug.sh:15`",
+      "`local-server/scripts/mlx-flag-patch.sh:162`",
+      "`local-server/scripts/rag-citrix-checkpoint-probe.mjs:19`",
+      "`local-server/scripts/reprocess-low-quality.mjs:47`",
+      "`local-server/launchd/com.elara.middleware.plist:36`",
+      "`local-server/launchd/install-launchd.sh:6`",
+      "`local-server/scripts/run-chaos-drill.sh:9`",
+      "`local-server/scripts/mlx-flag-patch.sh:161`",
+      "`local-server/scripts/reembed-all.sh:43`",
+      "`local-server/scripts/vault-rotate-drill.sh:11`",
+      "`local-server/tools/contracts.mjs:275`",
+      "`local-server/lib/routes/workflows.mjs:222`",
+      "`local-server/tools/smoke.mjs:56`",
+      "`local-server/gateway.mjs:6`",
+      "`local-server/scripts/seed-cloudflare.mjs:4`",
+      "`local-server/scripts/brand-aliases-smoke.mjs:75`",
+      "`local-server/scripts/orchestration-smoke.sh:7`",
+      "`local-server/launchd/install-launchd.sh:196`",
+      "`local-server/lib/agents/runtime.mjs:3`",
+      "`local-server/scripts/measure-rag-ttft.sh:14`",
+      "`local-server/scripts/retry-embeddings-drain.sh:25`"
+    ],
+    "risk": "Y\u00fcksek"
+  },
+  {
+    "symbol": "mlx",
+    "proposed": "local",
+    "def": "`local-server/worker.py:293`",
+    "calls": [
+      "`local-server/lib/metrics.mjs:168`",
+      "`local-server/scripts/diagnose-agent-run.sh:166`",
+      "`local-server/scripts/chat-live-watch.sh:7`",
+      "`local-server/lib/routes/vision-service.mjs:257`",
+      "`local-server/lib/runtime-registry.mjs:101`",
+      "`local-server/scripts/diagnose-agent-run.sh:158`",
+      "`local-server/worker.py:13`",
+      "`local-server/lib/metrics.mjs:219`",
+      "`local-server/lib/metrics.mjs:88`",
+      "`local-server/lib/port-process.mjs:188`",
+      "`local-server/lib/runtime-registry.mjs:176`",
+      "`local-server/lib/metrics.mjs:335`",
+      "`local-server/lib/runtime-registry.mjs:25`",
+      "`local-server/scripts/meta-forge-debug.sh:191`",
+      "`local-server/lib/runtime-registry.mjs:201`",
+      "`local-server/lib/routes/vision-service.mjs:251`",
+      "`local-server/scripts/leak-hunt-load.sh:76`",
+      "`local-server/scripts/leak-hunt-load.sh:107`",
+      "`local-server/lib/health-deep.mjs:50`",
+      "`local-server/lib/metrics.mjs:296`",
+      "`local-server/worker.py:96`",
+      "`local-server/lib/routes/engine.mjs:78`",
+      "`local-server/lib/runtime-registry.mjs:32`",
+      "`local-server/lib/runtime-registry.mjs:82`",
+      "`local-server/lib/port-process.mjs:294`",
+      "`local-server/lib/port-process.mjs:348`",
+      "`local-server/lib/runtime-registry.mjs:198`",
+      "`local-server/lib/metrics.mjs:169`",
+      "`local-server/lib/routes/engine.mjs:107`",
+      "`local-server/lib/runtime-queue.mjs:159`",
+      "`local-server/lib/port-process.mjs:293`",
+      "`local-server/lib/metrics.mjs:167`",
+      "`local-server/lib/runtime-registry.mjs:84`",
+      "`local-server/worker.py:463`",
+      "`local-server/scripts/diagnose-agent-run.sh:165`",
+      "`local-server/scripts/chat-live-watch.sh:69`",
+      "`local-server/lib/ingest/extract.mjs:491`",
+      "`local-server/scripts/meta-forge-debug.sh:193`",
+      "`local-server/lib/metrics.mjs:240`",
+      "`local-server/lib/runtime-registry.mjs:35`",
+      "`local-server/lib/metrics.mjs:158`",
+      "`local-server/worker.py:89`",
+      "`local-server/lib/runtime-registry.mjs:100`",
+      "`local-server/scripts/leak-hunt-load.sh:191`",
+      "`local-server/lib/migrate.mjs:78`",
+      "`local-server/lib/routes/chat-stream.mjs:1052`",
+      "`local-server/scripts/leak-hunt-load.sh:101`",
+      "`local-server/lib/port-process.mjs:292`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:2008`",
+      "`local-server/lib/routes/models.mjs:29`",
+      "`local-server/lib/runtime-registry.mjs:99`",
+      "`local-server/lib/runtime-registry.mjs:204`",
+      "`local-server/scripts/mlx-upgrade.sh:64`",
+      "`local-server/lib/runtime-registry.mjs:190`",
+      "`local-server/scripts/mlx-upgrade.sh:55`",
+      "`local-server/lib/metrics.mjs:302`",
+      "`local-server/lib/port-process.mjs:347`"
+    ],
+    "risk": "Y\u00fcksek"
+  },
+  {
+    "symbol": "10443",
+    "proposed": "CONFIG_PORT",
+    "def": "N/A",
+    "calls": [
+      "`local-server/launchd/install-systemd.sh:153`",
+      "`local-server/scripts/rag-tau-sweep.mjs:18`",
+      "`local-server/scripts/brand-aliases-smoke.mjs:17`",
+      "`local-server/scripts/fortios-api-audit.mjs:15`",
+      "`local-server/scripts/chat-live-watch.sh:23`",
+      "`local-server/scripts/rag-stage-doctor.mjs:9`",
+      "`local-server/scripts/tls-proxy-restart.sh:3`",
+      "`local-server/scripts/rag-citrix-checkpoint-probe.mjs:8`",
+      "`local-server/launchd/install-systemd.sh:105`",
+      "`local-server/launchd/com.elara.tls-proxy.plist:3`",
+      "`local-server/scripts/agent-rag-debug.mjs:27`",
+      "`local-server/scripts/rag-diff.mjs:13`",
+      "`local-server/scripts/rag-debug.mjs:16`",
+      "`local-server/scripts/rag-tau-sweep.mjs:10`",
+      "`local-server/scripts/chat-fulldebug.sh:19`",
+      "`local-server/scripts/agent-stack-smoke.sh:13`",
+      "`local-server/scripts/worker-postmortem.mjs:19`",
+      "`local-server/scripts/rag-diagnose.mjs:8`",
+      "`local-server/scripts/rag-diff.mjs:7`",
+      "`local-server/launchd/install-launchd.sh:193`",
+      "`local-server/scripts/rag-debug.mjs:8`",
+      "`local-server/scripts/leak-hunt.sh:59`",
+      "`local-server/scripts/smoke-mlx-transport.sh:11`",
+      "`local-server/launchd/install-launchd.sh:8`",
+      "`local-server/scripts/tls-proxy-restart.sh:72`",
+      "`local-server/scripts/rag-chat-smoke.sh:16`",
+      "`local-server/proxy-config.json:1`",
+      "`local-server/scripts/brand-aliases-smoke.mjs:25`",
+      "`local-server/lib/deps.mjs:7`",
+      "`local-server/scripts/rag-diagnose.mjs:20`",
+      "`local-server/scripts/rag-stage-doctor.mjs:31`",
+      "`local-server/tools/smoke.mjs:6`",
+      "`local-server/scripts/tls-proxy-restart.sh:6`",
+      "`local-server/scripts/brand-aliases-smoke.mjs:75`",
+      "`local-server/scripts/admin-curl.sh:9`",
+      "`local-server/dev-tls-proxy.mjs:19`",
+      "`local-server/scripts/rag-chat-smoke.sh:12`"
+    ],
+    "risk": "Y\u00fcksek"
+  },
+  {
+    "symbol": "8001",
+    "proposed": "CONFIG_PORT",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/chat-orchestrate.mjs:861`",
+      "`local-server/scripts/rag-content-audit.mjs:28`",
+      "`local-server/scripts/mlx-upgrade.sh:15`",
+      "`local-server/scripts/mistral-install.sh:170`",
+      "`local-server/scripts/mlx-flag-patch.sh:110`",
+      "`local-server/scripts/chat-live-watch.sh:13`",
+      "`local-server/lib/runtime-queue.mjs:4`",
+      "`local-server/scripts/mlx-flag-patch.sh:109`",
+      "`local-server/lib/routes/chat-stream.mjs:1366`",
+      "`local-server/lib/runtime-registry.mjs:185`",
+      "`local-server/scripts/qwen3-install.sh:174`",
+      "`local-server/lib/runtime-registry.mjs:198`",
+      "`local-server/launchd/com.elara.middleware.plist:45`",
+      "`local-server/scripts/leak-hunt.sh:59`",
+      "`local-server/scripts/smoke-chat-templates.sh:25`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:1126`",
+      "`local-server/lib/rag/util.mjs:54`",
+      "`local-server/lib/agent-bridge.mjs:268`",
+      "`local-server/lib/routes/system-agnostic.mjs:20`",
+      "`local-server/scripts/mlx-flag-patch.sh:169`",
+      "`local-server/lib/rag/util.mjs:51`",
+      "`local-server/scripts/mlx-flag-patch.sh:111`",
+      "`local-server/lib/runtime-registry.mjs:179`",
+      "`local-server/scripts/gemma3-install.sh:160`",
+      "`local-server/scripts/mlx-flag-patch.sh:157`",
+      "`local-server/lib/runtime-registry.mjs:17`",
+      "`local-server/scripts/mlx-flag-patch.sh:158`"
+    ],
+    "risk": "Y\u00fcksek"
+  },
+  {
+    "symbol": "8082",
+    "proposed": "CONFIG_PORT",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rerank-provider.mjs:10`",
+      "`local-server/worker.py:3`",
+      "`local-server/scripts/retry-embeddings-drain.sh:29`",
+      "`local-server/launchd/install-systemd.sh:52`",
+      "`local-server/scripts/worker-postmortem.mjs:5`",
+      "`local-server/lib/embed-provider.mjs:10`",
+      "`local-server/scripts/worker-postmortem.mjs:56`",
+      "`local-server/scripts/worker-revive.mjs:92`",
+      "`local-server/scripts/worker-revive.mjs:65`",
+      "`local-server/worker.py:557`",
+      "`local-server/scripts/watch-worker.sh:13`",
+      "`local-server/scripts/worker-revive.mjs:90`",
+      "`local-server/scripts/worker-watchdog.sh:2`",
+      "`local-server/lib/deps.mjs:6`",
+      "`local-server/scripts/agent-rag-doctor.mjs:84`",
+      "`local-server/launchd/install-systemd.sh:41`",
+      "`local-server/scripts/rag-stage-doctor.mjs:34`",
+      "`local-server/worker.py:9`",
+      "`local-server/scripts/worker-postmortem.mjs:57`",
+      "`local-server/scripts/rag-diagnose.mjs:147`",
+      "`local-server/scripts/middleware-restart.sh:16`",
+      "`local-server/scripts/watch-worker.sh:3`",
+      "`local-server/scripts/agent-rag-doctor.mjs:92`"
+    ],
+    "risk": "Y\u00fcksek"
+  },
+  {
+    "symbol": "localhost",
+    "proposed": "CONFIG_HOST",
+    "def": "N/A",
+    "calls": [
+      "`local-server/launchd/install-systemd.sh:153`",
+      "`local-server/dev-tls-proxy.mjs:73`",
+      "`local-server/dev-tls-proxy.mjs:72`",
+      "`local-server/dev-tls-proxy.mjs:81`",
+      "`local-server/lib/routes/mcp.mjs:41`",
+      "`local-server/lib/deps.mjs:7`",
+      "`local-server/launchd/install-systemd.sh:154`",
+      "`local-server/lib/agent-manifest.mjs:71`",
+      "`local-server/lib/deps.mjs:8`",
+      "`local-server/lib/runtime-registry.mjs:61`",
+      "`local-server/scripts/brand-aliases-smoke.mjs:75`",
+      "`local-server/lib/deps.mjs:6`",
+      "`local-server/lib/routes/telemetry.mjs:10`",
+      "`local-server/scripts/issue-cert.sh:29`",
+      "`local-server/scripts/env-to-vault-migrate.mjs:127`"
+    ],
+    "risk": "Y\u00fcksek"
+  },
+  {
+    "symbol": "mlxQueue",
+    "proposed": "localQueue",
+    "def": "`local-server/lib/runtime-queue.mjs:335`",
+    "calls": [
+      "`local-server/lib/agent-runs.mjs:36`",
+      "`local-server/lib/agent-bridge.mjs:269`",
+      "`local-server/lib/agent-bridge.mjs:15`",
+      "`local-server/lib/routes/chat-stream.mjs:129`",
+      "`local-server/lib/agent-bridge.mjs:314`",
+      "`local-server/lib/routes/rag-settings.mjs:278`",
+      "`local-server/lib/health-deep.mjs:27`",
+      "`local-server/lib/routes/capabilities-runs.mjs:21`",
+      "`local-server/lib/health-deep.mjs:56`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:2114`",
+      "`local-server/lib/agent-runs.mjs:247`",
+      "`local-server/lib/tool-adapters.mjs:21`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:157`"
+    ],
+    "risk": "Y\u00fcksek"
+  },
+  {
+    "symbol": "mlxEmbed",
+    "proposed": "localEmbed",
+    "def": "`local-server/lib/rag/intent-classifier.mjs:141`",
+    "calls": [
+      "`local-server/worker.py:6`",
+      "`local-server/lib/rag/retrieval.mjs:471`",
+      "`local-server/lib/rag/intent-classifier.mjs:3`",
+      "`local-server/lib/rag/retrieval.mjs:592`",
+      "`local-server/lib/rag/retrieval.mjs:739`",
+      "`local-server/lib/rag/retrieval.mjs:1144`",
+      "`local-server/lib/routes/rag-diagnostics.mjs:322`",
+      "`local-server/lib/capability/manifest-embed.mjs:107`",
+      "`local-server/lib/routes/rag-diagnostics.mjs:252`",
+      "`local-server/lib/embed-worker/store.mjs:3`",
+      "`local-server/lib/rag/retrieval.mjs:1137`",
+      "`local-server/lib/rag/retrieval.mjs:1191`"
+    ],
+    "risk": "Y\u00fcksek"
+  },
+  {
+    "symbol": "openai",
+    "proposed": "remote",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/agents-templates.mjs:261`",
+      "`local-server/lib/routes/agents-templates.mjs:247`",
+      "`local-server/lib/routes/agent-run.mjs:354`",
+      "`local-server/lib/routes/vision-service.mjs:284`",
+      "`local-server/lib/routes/vision-service.mjs:281`",
+      "`local-server/lib/redaction.mjs:38`",
+      "`local-server/schema.sql:375`",
+      "`local-server/lib/routes/agents-templates.mjs:243`",
+      "`local-server/lib/agent-utils.mjs:188`",
+      "`local-server/lib/routes/agent-run.mjs:469`"
+    ],
+    "risk": "Y\u00fcksek"
+  },
+  {
+    "symbol": "mlx.first_token.received",
+    "proposed": "local.first_token.received",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/chat-live-watch.sh:99`",
+      "`local-server/scripts/measure-rag-ttft.sh:21`",
+      "`local-server/scripts/chat-live-watch.sh:12`",
+      "`local-server/scripts/diag-first-token-ab.sh:120`",
+      "`local-server/scripts/diag-first-token-ab.sh:119`",
+      "`local-server/scripts/measure-rag-ttft.sh:81`",
+      "`local-server/lib/rag/util.mjs:29`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:2058`",
+      "`local-server/lib/rag/util.mjs:59`",
+      "`local-server/lib/routes/chat-stream.mjs:1111`"
+    ],
+    "risk": "Y\u00fcksek"
+  },
+  {
+    "symbol": "process.env.MLX_EMBED_MODEL",
+    "proposed": "process.env.LOCAL_EMBED_MODEL",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/embed-worker-probe.mjs:28`",
+      "`local-server/lib/embed-worker-probe.mjs:50`",
+      "`local-server/lib/embed-worker/runtime.mjs:151`",
+      "`local-server/lib/routes/system-misc.mjs:212`",
+      "`local-server/scripts/rag-content-audit.mjs:29`",
+      "`local-server/server.mjs:343`",
+      "`local-server/lib/routes/knowledge-retrieve.mjs:302`",
+      "`local-server/lib/embed-worker/store.mjs:28`",
+      "`local-server/lib/routes/knowledge-retrieve.mjs:279`"
+    ],
+    "risk": "Y\u00fcksek"
+  },
+  {
+    "symbol": "elara-72b-mlx",
+    "proposed": "elara-72b-local",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/chat-fulldebug.sh:20`",
+      "`local-server/scripts/agent-auto-route-smoke.sh:219`",
+      "`local-server/scripts/qwen3-install.sh:196`",
+      "`local-server/scripts/meta-forge-debug.sh:17`",
+      "`local-server/scripts/qwen3-install.sh:217`",
+      "`local-server/scripts/meta-forge-idempotency-smoke.sh:18`",
+      "`local-server/scripts/meta-forge-idempotency-smoke.sh:12`",
+      "`local-server/scripts/agent-auto-route-smoke.sh:222`",
+      "`local-server/scripts/qwen3-install.sh:211`"
+    ],
+    "risk": "Y\u00fcksek"
+  },
+  {
+    "symbol": "mlx.stream.done",
+    "proposed": "local.stream.done",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/measure-rag-ttft.sh:82`",
+      "`local-server/scripts/chat-live-watch.sh:99`",
+      "`local-server/scripts/diag-first-token-ab.sh:122`",
+      "`local-server/scripts/measure-rag-ttft.sh:22`",
+      "`local-server/scripts/diag-first-token-ab.sh:121`",
+      "`local-server/lib/routes/chat-stream.mjs:1128`",
+      "`local-server/lib/rag/util.mjs:61`",
+      "`local-server/scripts/measure-rag-ttft.sh:23`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:2078`"
+    ],
+    "risk": "Y\u00fcksek"
+  },
+  {
+    "symbol": "runtimeIsMlx",
+    "proposed": "runtimeIsLocal",
+    "def": "`local-server/lib/runtime-registry.mjs:174`",
+    "calls": [
+      "`local-server/lib/routes/engine.mjs:76`",
+      "`local-server/lib/rag/intent-classifier.mjs:19`",
+      "`local-server/lib/routes/agents-templates.mjs:31`",
+      "`local-server/lib/rag/intent-classifier.mjs:305`",
+      "`local-server/lib/routes/engine.mjs:105`",
+      "`local-server/lib/routes/agents-templates.mjs:53`",
+      "`local-server/lib/rag/intent-classifier.mjs:280`",
+      "`local-server/lib/routes/engine.mjs:14`",
+      "`local-server/lib/runtime-registry.mjs:171`"
+    ],
+    "risk": "Y\u00fcksek"
+  },
+  {
+    "symbol": "mlx_local",
+    "proposed": "local_local",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/chat-templates.mjs:13`",
+      "`local-server/lib/routes/models.mjs:65`",
+      "`local-server/schema.sql:191`",
+      "`local-server/migrations/20260602_models_transport_and_apikey.sql:4`",
+      "`local-server/lib/routes/models.mjs:6`",
+      "`local-server/migrations/20260602_models_transport_and_apikey.sql:5`",
+      "`local-server/schema.sql:188`",
+      "`local-server/migrations/20260602_models_transport_and_apikey.sql:10`"
+    ],
+    "risk": "Y\u00fcksek"
+  },
+  {
+    "symbol": "OpenAI",
+    "proposed": "Remote",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/chat-templates.mjs:20`",
+      "`local-server/lib/redaction.mjs:35`",
+      "`local-server/lib/routes/vision-service.mjs:259`",
+      "`local-server/lib/routes/vision-service.mjs:287`",
+      "`local-server/lib/cloud-transport.mjs:8`",
+      "`local-server/schema.sql:303`",
+      "`local-server/lib/cloud-transport.mjs:60`",
+      "`local-server/lib/routes/vision-service.mjs:289`"
+    ],
+    "risk": "Y\u00fcksek"
+  },
+  {
+    "symbol": "MLX_PID",
+    "proposed": "LOCAL_PID",
+    "def": "`local-server/scripts/leak-hunt-load.sh:54`",
+    "calls": [
+      "`local-server/scripts/leak-hunt-load.sh:101`",
+      "`local-server/scripts/leak-hunt-load.sh:107`",
+      "`local-server/scripts/leak-hunt-load.sh:100`",
+      "`local-server/scripts/leak-hunt-load.sh:106`",
+      "`local-server/scripts/leak-hunt-load.sh:105`",
+      "`local-server/scripts/leak-hunt-load.sh:108`",
+      "`local-server/scripts/leak-hunt-load.sh:98`",
+      "`local-server/scripts/leak-hunt-load.sh:104`"
+    ],
+    "risk": "Y\u00fcksek"
+  },
+  {
+    "symbol": "mlx.slot.acquired",
+    "proposed": "local.slot.acquired",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/chat-live-watch.sh:114`",
+      "`local-server/lib/rag/util.mjs:30`",
+      "`local-server/scripts/chat-live-watch.sh:12`",
+      "`local-server/scripts/chat-live-watch.sh:101`",
+      "`local-server/scripts/diag-first-token-ab.sh:118`",
+      "`local-server/scripts/chat-live-watch.sh:10`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:2006`",
+      "`local-server/lib/routes/chat-stream.mjs:1051`"
+    ],
+    "risk": "Y\u00fcksek"
+  },
+  {
+    "symbol": "mlx_embeddings",
+    "proposed": "local_embeddings",
+    "def": "N/A",
+    "calls": [
+      "`local-server/worker.py:84`",
+      "`local-server/worker.py:106`",
+      "`local-server/worker.py:81`",
+      "`local-server/worker.py:186`",
+      "`local-server/worker.py:206`",
+      "`local-server/worker.py:63`",
+      "`local-server/worker.py:214`"
+    ],
+    "risk": "Y\u00fcksek"
+  },
+  {
+    "symbol": "mlxWarmCacheTtlMs",
+    "proposed": "localWarmCacheTtlMs",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/rag-settings.mjs:46`",
+      "`local-server/.rag-settings.json:33`",
+      "`local-server/lib/routes/engine.mjs:21`",
+      "`local-server/lib/routes/engine.mjs:137`",
+      "`local-server/lib/rag/util.mjs:144`",
+      "`local-server/lib/routes/engine.mjs:157`",
+      "`local-server/lib/rag/defaults.mjs:107`"
+    ],
+    "risk": "Y\u00fcksek"
+  },
+  {
+    "symbol": "mlx-lm",
+    "proposed": "local-lm",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/port-process.mjs:292`",
+      "`local-server/scripts/mlx-upgrade.sh:3`",
+      "`local-server/scripts/mlx-upgrade.sh:59`",
+      "`local-server/scripts/mlx-upgrade.sh:58`",
+      "`local-server/scripts/mlx-upgrade.sh:55`",
+      "`local-server/lib/port-process.mjs:347`",
+      "`local-server/scripts/mlx-upgrade.sh:2`"
+    ],
+    "risk": "Y\u00fcksek"
+  },
+  {
+    "symbol": "MLX_STREAM_TOTAL_MS",
+    "proposed": "LOCAL_STREAM_TOTAL_MS",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/rag-stage-doctor.mjs:133`",
+      "`local-server/lib/rag/defaults.mjs:109`",
+      "`local-server/scripts/agent-rag-doctor.mjs:70`",
+      "`local-server/lib/queue-config.mjs:29`",
+      "`local-server/lib/queue-config.mjs:23`",
+      "`local-server/lib/queue-config.mjs:64`",
+      "`local-server/lib/queue-config.mjs:40`"
+    ],
+    "risk": "Y\u00fcksek"
+  },
+  {
+    "symbol": "mlxGenMs",
+    "proposed": "localGenMs",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/chat-orchestrate.mjs:2193`",
+      "`local-server/lib/rag/util.mjs:60`",
+      "`local-server/scripts/diag-first-token-ab.sh:67`",
+      "`local-server/scripts/diag-first-token-ab.sh:119`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:2058`",
+      "`local-server/scripts/chat-live-watch.sh:111`",
+      "`local-server/lib/routes/chat-stream.mjs:1111`"
+    ],
+    "risk": "Y\u00fcksek"
+  },
+  {
+    "symbol": "triggerMlxZombieSelfHeal",
+    "proposed": "triggerLocalZombieSelfHeal",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/chat-orchestrate.mjs:139`",
+      "`local-server/lib/routes/chat-stream.mjs:145`",
+      "`local-server/lib/routes/chat-stream.mjs:383`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:2109`",
+      "`local-server/lib/routes/chat-stream.mjs:1358`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:569`",
+      "`local-server/lib/runtime-transport.mjs:6`"
+    ],
+    "risk": "Y\u00fcksek"
+  },
+  {
+    "symbol": "mlxQueue.stats",
+    "proposed": "localQueue.stats",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/health-deep.mjs:57`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:1879`",
+      "`local-server/lib/routes/chat-stream.mjs:1051`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:1881`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:2114`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:2006`",
+      "`local-server/lib/routes/capabilities-runs.mjs:161`"
+    ],
+    "risk": "Y\u00fcksek"
+  },
+  {
+    "symbol": "mlxColdFirstTokenMs",
+    "proposed": "localColdFirstTokenMs",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/rag-settings.mjs:45`",
+      "`local-server/lib/routes/chat-stream.mjs:1038`",
+      "`local-server/lib/rag/util.mjs:143`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:2039`",
+      "`local-server/lib/rag/defaults.mjs:106`",
+      "`local-server/.rag-settings.json:32`"
+    ],
+    "risk": "Y\u00fcksek"
+  },
+  {
+    "symbol": "mlxQueueWaitMs",
+    "proposed": "localQueueWaitMs",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/queue-config.mjs:19`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:2035`",
+      "`local-server/.rag-settings.json:53`",
+      "`local-server/lib/routes/chat-stream.mjs:1076`",
+      "`local-server/lib/rag/util.mjs:147`",
+      "`local-server/lib/rag/defaults.mjs:110`"
+    ],
+    "risk": "Y\u00fcksek"
+  },
+  {
+    "symbol": "mlxSmalltalkMaxTokens",
+    "proposed": "localSmalltalkMaxTokens",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/rag-settings.mjs:398`",
+      "`local-server/lib/routes/rag-settings.mjs:65`",
+      "`local-server/lib/agent-rag.mjs:33`",
+      "`local-server/lib/rag/util.mjs:176`",
+      "`local-server/lib/rag/defaults.mjs:226`",
+      "`local-server/.rag-settings.json:64`"
+    ],
+    "risk": "Y\u00fcksek"
+  },
+  {
+    "symbol": "MLX_QUEUE_WAIT_MS",
+    "proposed": "LOCAL_QUEUE_WAIT_MS",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/rag-stage-doctor.mjs:133`",
+      "`local-server/lib/queue-config.mjs:41`",
+      "`local-server/scripts/agent-rag-doctor.mjs:70`",
+      "`local-server/lib/queue-config.mjs:65`",
+      "`local-server/lib/queue-config.mjs:23`",
+      "`local-server/lib/queue-config.mjs:30`"
+    ],
+    "risk": "Y\u00fcksek"
+  },
+  {
+    "symbol": "mlx.queue.enqueued",
+    "proposed": "local.queue.enqueued",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/chat-live-watch.sh:103`",
+      "`local-server/scripts/chat-live-watch.sh:114`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:1881`",
+      "`local-server/scripts/chat-live-watch.sh:10`",
+      "`local-server/scripts/chat-live-watch.sh:127`",
+      "`local-server/lib/rag/util.mjs:31`"
+    ],
+    "risk": "Y\u00fcksek"
+  },
+  {
+    "symbol": "mlx.reset",
+    "proposed": "local.reset",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/chat-live-watch.sh:97`",
+      "`local-server/scripts/chat-live-watch.sh:124`",
+      "`local-server/lib/rag/util.mjs:56`",
+      "`local-server/lib/rag/util.mjs:40`",
+      "`local-server/scripts/chat-live-watch.sh:117`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:2117`"
+    ],
+    "risk": "Y\u00fcksek"
+  },
+  {
+    "symbol": "OpenAI-compatible",
+    "proposed": "Remote-compatible",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/chat-templates.mjs:19`",
+      "`local-server/lib/ingest/extract.mjs:311`",
+      "`local-server/lib/cloud-transport.mjs:140`",
+      "`local-server/lib/routes/vision-service.mjs:227`",
+      "`local-server/lib/cloud-transport.mjs:1`",
+      "`local-server/lib/runtime-registry.mjs:17`"
+    ],
+    "risk": "Y\u00fcksek"
+  },
+  {
+    "symbol": "MLX_TRANSPORT",
+    "proposed": "LOCAL_TRANSPORT",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/engine.mjs:21`",
+      "`local-server/lib/routes/capabilities-runs.mjs:22`",
+      "`local-server/lib/runtime-transport.mjs:4`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:105`",
+      "`local-server/lib/routes/chat-stream.mjs:103`",
+      "`local-server/lib/runtime-transport.mjs:66`"
+    ],
+    "risk": "Y\u00fcksek"
+  },
+  {
+    "symbol": "MLX_TRANSPORT.dirty",
+    "proposed": "LOCAL_TRANSPORT.dirty",
+    "def": "`local-server/lib/routes/chat-orchestrate.mjs:2107`",
+    "calls": [
+      "`local-server/lib/routes/chat-orchestrate.mjs:2119`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:2145`",
+      "`local-server/lib/routes/capabilities-runs.mjs:164`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:2142`",
+      "`local-server/lib/routes/chat-stream.mjs:1052`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:2008`"
+    ],
+    "risk": "Y\u00fcksek"
+  },
+  {
+    "symbol": "MLX_EMBED_MODEL",
+    "proposed": "LOCAL_EMBED_MODEL",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/embed-worker/runtime.mjs:151`",
+      "`local-server/lib/routes/knowledge-retrieve.mjs:280`",
+      "`local-server/worker.py:40`",
+      "`local-server/worker.py:12`",
+      "`local-server/scripts/worker-revive.mjs:143`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "openai_compatible",
+    "proposed": "remote_compatible",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/chat-templates.mjs:18`",
+      "`local-server/lib/cloud-transport.mjs:3`",
+      "`local-server/schema.sql:189`",
+      "`local-server/migrations/20260602_models_transport_and_apikey.sql:4`",
+      "`local-server/lib/routes/models.mjs:6`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "MLX_KEEPWARM_ENABLED",
+    "proposed": "LOCAL_KEEPWARM_ENABLED",
+    "def": "`local-server/scripts/mlx-flag-patch.sh:7`",
+    "calls": [
+      "`local-server/scripts/mlx-flag-patch.sh:136`",
+      "`local-server/scripts/mlx-flag-patch.sh:36`",
+      "`local-server/launchd/com.elara.middleware.plist:56`",
+      "`local-server/scripts/mlx-flag-patch.sh:119`",
+      "`local-server/scripts/mlx-flag-patch.sh:126`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "mlx_lm.generate",
+    "proposed": "local_lm.generate",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/qwen3-install.sh:69`",
+      "`local-server/scripts/qwen3-install.sh:75`",
+      "`local-server/scripts/gemma3-install.sh:68`",
+      "`local-server/scripts/mistral-install.sh:69`",
+      "`local-server/scripts/mistral-install.sh:75`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "mlx_lm",
+    "proposed": "local_lm",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/port-process.mjs:292`",
+      "`local-server/scripts/gemma3-install.sh:65`",
+      "`local-server/lib/port-process.mjs:347`",
+      "`local-server/scripts/mistral-install.sh:72`",
+      "`local-server/scripts/qwen3-install.sh:72`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "8082/health",
+    "proposed": "CONFIG_HOST",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/watch-worker.sh:7`",
+      "`local-server/scripts/reembed-all.sh:285`",
+      "`local-server/scripts/worker-watchdog.sh:23`",
+      "`local-server/scripts/reembed-all.sh:248`",
+      "`local-server/scripts/orchestration-smoke.sh:60`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "mlx_runner",
+    "proposed": "local_runner",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/agent-run.mjs:468`",
+      "`local-server/scripts/smoke-chat-templates.sh:27`",
+      "`local-server/lib/agent-env.mjs:413`",
+      "`local-server/lib/routes/agent-run.mjs:353`",
+      "`local-server/lib/agent-env.mjs:476`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "TIMEOUT_BUDGETS.MLX_QUEUE_WAIT_MS",
+    "proposed": "TIMEOUT_BUDGETS.LOCAL_QUEUE_WAIT_MS",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/chat-orchestrate.mjs:2035`",
+      "`local-server/lib/routes/chat-stream.mjs:1076`",
+      "`local-server/lib/rag/defaults.mjs:110`",
+      "`local-server/lib/queue-config.mjs:65`",
+      "`local-server/lib/runtime-queue.mjs:20`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "mlxBase",
+    "proposed": "localBase",
+    "def": "`local-server/lib/routes/vision-service.mjs:228`",
+    "calls": [
+      "`local-server/lib/routes/vision-service.mjs:257`",
+      "`local-server/lib/routes/vision-service.mjs:242`",
+      "`local-server/lib/health-deep.mjs:27`",
+      "`local-server/lib/routes/vision-service.mjs:293`",
+      "`local-server/lib/health-deep.mjs:51`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "isMlx",
+    "proposed": "isLocal",
+    "def": "`local-server/lib/rag/intent-classifier.mjs:280`",
+    "calls": [
+      "`local-server/lib/routes/engine.mjs:76`",
+      "`local-server/lib/rag/intent-classifier.mjs:297`",
+      "`local-server/lib/rag/intent-classifier.mjs:282`",
+      "`local-server/lib/routes/engine.mjs:105`",
+      "`local-server/lib/rag/intent-classifier.mjs:285`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "_mlxEffectiveFirstTokenMs",
+    "proposed": "_localEffectiveFirstTokenMs",
+    "def": "`local-server/lib/routes/chat-stream.mjs:1036`",
+    "calls": [
+      "`local-server/lib/routes/chat-orchestrate.mjs:1875`",
+      "`local-server/lib/routes/chat-stream.mjs:108`",
+      "`local-server/lib/routes/chat-stream.mjs:1037`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:110`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:2039`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "recordMlxActivity",
+    "proposed": "recordLocalActivity",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/chat-orchestrate.mjs:185`",
+      "`local-server/lib/routes/chat-stream.mjs:135`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:2058`",
+      "`local-server/lib/routes/chat-stream.mjs:1109`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:132`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "tBeforeMlx",
+    "proposed": "tBeforeLocal",
+    "def": "`local-server/lib/routes/chat-stream.mjs:1031`",
+    "calls": [
+      "`local-server/lib/routes/chat-stream.mjs:1050`",
+      "`local-server/lib/routes/chat-stream.mjs:1106`",
+      "`local-server/lib/routes/chat-stream.mjs:1128`",
+      "`local-server/lib/routes/chat-stream.mjs:1112`",
+      "`local-server/lib/routes/chat-stream.mjs:1111`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "MLX_TRANSPORT.lastResetStatus",
+    "proposed": "LOCAL_TRANSPORT.lastResetStatus",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/chat-orchestrate.mjs:2119`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:2145`",
+      "`local-server/lib/routes/capabilities-runs.mjs:169`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:2142`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:2124`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "_mlx_metal_gb",
+    "proposed": "_local_metal_gb",
+    "def": "`local-server/worker.py:185`",
+    "calls": [
+      "`local-server/worker.py:293`",
+      "`local-server/worker.py:408`",
+      "`local-server/worker.py:215`",
+      "`local-server/worker.py:463`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "mlxColdWarmupOnDemand",
+    "proposed": "localColdWarmupOnDemand",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/util.mjs:132`",
+      "`local-server/lib/routes/capabilities-runs.mjs:171`",
+      "`local-server/.rag-settings.json:29`",
+      "`local-server/lib/rag/defaults.mjs:94`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "mlxStreamTotalMs",
+    "proposed": "localStreamTotalMs",
+    "def": "N/A",
+    "calls": [
+      "`local-server/.rag-settings.json:51`",
+      "`local-server/lib/queue-config.mjs:19`",
+      "`local-server/lib/rag/util.mjs:146`",
+      "`local-server/lib/rag/defaults.mjs:109`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "mlx-community/Qwen2-VL-7B-Instruct-4bit",
+    "proposed": "local-community/Qwen2-VL-7B-Instruct-4bit",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/vision-service.mjs:229`",
+      "`local-server/lib/ingest/extract.mjs:300`",
+      "`local-server/launchd/com.elara.middleware.plist:49`",
+      "`local-server/lib/routes/vision-service.mjs:25`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "MLX_WARMUP_HEARTBEAT_ENABLED",
+    "proposed": "LOCAL_WARMUP_HEARTBEAT_ENABLED",
+    "def": "`local-server/scripts/mlx-flag-patch.sh:7`",
+    "calls": [
+      "`local-server/launchd/com.elara.middleware.plist:58`",
+      "`local-server/scripts/mlx-flag-patch.sh:119`",
+      "`local-server/scripts/mlx-flag-patch.sh:37`",
+      "`local-server/scripts/mlx-flag-patch.sh:127`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "8001/v1",
+    "proposed": "CONFIG_HOST",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/runtime-registry.mjs:25`",
+      "`local-server/scripts/mistral-install.sh:109`",
+      "`local-server/scripts/qwen3-install.sh:110`",
+      "`local-server/scripts/gemma3-install.sh:99`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "ELARA_MLX_VENV",
+    "proposed": "ELARA_LOCAL_VENV",
+    "def": "`local-server/lib/os_utils.sh:20`",
+    "calls": [
+      "`local-server/scripts/mlx-upgrade.sh:24`",
+      "`local-server/lib/os_utils.sh:20`",
+      "`local-server/scripts/mlx-upgrade.sh:12`",
+      "`local-server/lib/os_utils.sh:22`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "mlxGen",
+    "proposed": "localGen",
+    "def": "`local-server/lib/rag/util.mjs:61`",
+    "calls": [
+      "`local-server/lib/rag/util.mjs:62`",
+      "`local-server/scripts/diag-first-token-ab.sh:115`",
+      "`local-server/scripts/diag-first-token-ab.sh:114`",
+      "`local-server/scripts/diag-first-token-ab.sh:131`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "ok_mlx",
+    "proposed": "ok_local",
+    "def": "`local-server/scripts/mlx-flag-patch.sh:155`",
+    "calls": [
+      "`local-server/scripts/mlx-flag-patch.sh:165`",
+      "`local-server/scripts/mlx-flag-patch.sh:169`",
+      "`local-server/scripts/mlx-flag-patch.sh:159`",
+      "`local-server/scripts/mlx-flag-patch.sh:157`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "11434",
+    "proposed": "CONFIG_PORT",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/runtime-registry.mjs:26`",
+      "`local-server/lib/runtime-registry.mjs:199`",
+      "`local-server/lib/runtime-registry.mjs:185`",
+      "`local-server/lib/runtime-registry.mjs:18`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "getMlxTransportSnapshot",
+    "proposed": "getLocalTransportSnapshot",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/runtime-transport.mjs:4`",
+      "`local-server/lib/routes/engine.mjs:21`",
+      "`local-server/lib/routes/engine.mjs:157`",
+      "`local-server/lib/routes/engine.mjs:137`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "mlxUsedGb",
+    "proposed": "localUsedGb",
+    "def": "`local-server/lib/metrics.mjs:156`",
+    "calls": [
+      "`local-server/lib/metrics.mjs:168`",
+      "`local-server/lib/metrics.mjs:335`",
+      "`local-server/lib/metrics.mjs:219`",
+      "`local-server/lib/metrics.mjs:240`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "mlxQueryMaxTokens",
+    "proposed": "localQueryMaxTokens",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/rag-settings.mjs:66`",
+      "`local-server/lib/routes/rag-settings.mjs:398`",
+      "`local-server/lib/rag/util.mjs:177`",
+      "`local-server/lib/rag/defaults.mjs:227`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "mlxRagMaxTokens",
+    "proposed": "localRagMaxTokens",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/rag-settings.mjs:398`",
+      "`local-server/lib/rag/defaults.mjs:228`",
+      "`local-server/lib/rag/util.mjs:178`",
+      "`local-server/lib/routes/rag-settings.mjs:67`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "mlxVisionCaption",
+    "proposed": "localVisionCaption",
+    "def": "`local-server/lib/ingest/extract.mjs:297`",
+    "calls": [
+      "`local-server/lib/ingest/extract.mjs:12`",
+      "`local-server/lib/ingest/extract.mjs:491`",
+      "`local-server/lib/ingest/extract.mjs:5`",
+      "`local-server/lib/ingest/extract.mjs:636`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "MLX_TRANSPORT.resetEnabled",
+    "proposed": "LOCAL_TRANSPORT.resetEnabled",
+    "def": "`local-server/lib/routes/engine.mjs:145`",
+    "calls": [
+      "`local-server/lib/routes/chat-orchestrate.mjs:2124`",
+      "`local-server/lib/routes/engine.mjs:156`",
+      "`local-server/lib/routes/engine.mjs:148`",
+      "`local-server/lib/routes/capabilities-runs.mjs:168`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "MLX_RUNTIME_PORT",
+    "proposed": "LOCAL_RUNTIME_PORT",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/chat-stream.mjs:1052`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:101`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:2008`",
+      "`local-server/lib/routes/chat-stream.mjs:99`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "_mlxRecordFirstToken",
+    "proposed": "_localRecordFirstToken",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/chat-stream.mjs:1106`",
+      "`local-server/lib/routes/chat-stream.mjs:110`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:112`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:2058`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "mlxErr",
+    "proposed": "localErr",
+    "def": "`local-server/lib/routes/vision-service.mjs:232`",
+    "calls": [
+      "`local-server/lib/routes/vision-service.mjs:257`",
+      "`local-server/lib/routes/vision-service.mjs:293`",
+      "`local-server/lib/routes/vision-service.mjs:255`",
+      "`local-server/lib/routes/vision-service.mjs:253`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "_mlxIsCold",
+    "proposed": "_localIsCold",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/chat-orchestrate.mjs:2119`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:2145`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:1876`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:111`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "mlx.metal",
+    "proposed": "local.metal",
+    "def": "N/A",
+    "calls": [
+      "`local-server/worker.py:208`",
+      "`local-server/worker.py:207`",
+      "`local-server/worker.py:206`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "mlxBootWarmup",
+    "proposed": "localBootWarmup",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/util.mjs:133`",
+      "`local-server/lib/rag/defaults.mjs:95`",
+      "`local-server/.rag-settings.json:28`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "mlxSelfHealEnabled",
+    "proposed": "localSelfHealEnabled",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/util.mjs:135`",
+      "`local-server/.rag-settings.json:31`",
+      "`local-server/lib/rag/defaults.mjs:97`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "mlxStopSequences",
+    "proposed": "localStopSequences",
+    "def": "N/A",
+    "calls": [
+      "`local-server/.rag-settings.json:41`",
+      "`local-server/lib/rag/defaults.mjs:231`",
+      "`local-server/lib/rag/util.mjs:183`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "Gemini",
+    "proposed": "Remote",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/qwen3-install.sh:211`",
+      "`local-server/schema.sql:303`",
+      "`local-server/lib/cloud-transport.mjs:9`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "3005/3006",
+    "proposed": "CONFIG_HOST",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/chat-fulldebug.sh:116`",
+      "`local-server/launchd/install-systemd.sh:62`",
+      "`local-server/launchd/com.elara.middleware.plist:34`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "3005/api/health",
+    "proposed": "CONFIG_HOST",
+    "def": "N/A",
+    "calls": [
+      "`local-server/launchd/install-launchd.sh:189`",
+      "`local-server/scripts/agent-stack-smoke.sh:86`",
+      "`local-server/scripts/middleware-restart.sh:82`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "10443/api/health",
+    "proposed": "CONFIG_HOST",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/agent-stack-smoke.sh:89`",
+      "`local-server/launchd/install-launchd.sh:192`",
+      "`local-server/scripts/tls-proxy-restart.sh:72`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "Localhost",
+    "proposed": "CONFIG_HOST",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/auth-utils.mjs:20`",
+      "`local-server/scripts/admin-curl.sh:2`",
+      "`local-server/lib/session-gate.mjs:42`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "MLX_URL",
+    "proposed": "LOCAL_URL",
+    "def": "`local-server/scripts/leak-hunt-load.sh:24`",
+    "calls": [
+      "`local-server/scripts/leak-hunt-load.sh:78`",
+      "`local-server/scripts/leak-hunt-load.sh:175`",
+      "`local-server/scripts/leak-hunt-load.sh:24`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "stop_mlx",
+    "proposed": "stop_local",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/leak-hunt-load.sh:103`",
+      "`local-server/scripts/leak-hunt-load.sh:220`",
+      "`local-server/scripts/leak-hunt-load.sh:114`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "local-server/scripts/mlx-upgrade.sh",
+    "proposed": "local-server/scripts/local-upgrade.sh",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/mlx-upgrade.sh:6`",
+      "`local-server/scripts/mlx-upgrade.sh:7`",
+      "`local-server/scripts/mlx-upgrade.sh:8`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "mlx_runner.py",
+    "proposed": "local_runner.py",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/chat-templates.mjs:8`",
+      "`local-server/scripts/smoke-chat-templates.sh:6`",
+      "`local-server/scripts/audit-hidden-prompts.sh:8`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "mlx_lm.server",
+    "proposed": "local_lm.server",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/runtime-registry.mjs:17`",
+      "`local-server/lib/routes/chat-templates.mjs:15`",
+      "`local-server/scripts/mlx-flag-patch.sh:185`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "mlx.fetch.start",
+    "proposed": "local.fetch.start",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/chat-live-watch.sh:101`",
+      "`local-server/lib/routes/chat-stream.mjs:1052`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:2008`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "api/mlx-queue/stats",
+    "proposed": "api/local-queue/stats",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/capabilities-runs.mjs:6`",
+      "`local-server/lib/routes/capabilities-runs.mjs:156`",
+      "`local-server/tools/contracts.mjs:62`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "mlx.prompt.size",
+    "proposed": "local.prompt.size",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/chat-stream.mjs:1056`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:2014`",
+      "`local-server/lib/prompt-size.mjs:4`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "OPENAI_API_KEY",
+    "proposed": "OPENAI_API_KEY",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/vision-service.mjs:293`",
+      "`local-server/lib/cloud-transport.mjs:17`",
+      "`local-server/lib/routes/agents-templates.mjs:249`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "_mlxServingId",
+    "proposed": "_localServingId",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/runtime-registry.mjs:5`",
+      "`local-server/lib/rag/intent-classifier.mjs:26`",
+      "`local-server/lib/rag/intent-classifier.mjs:274`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "RUNTIME_PROVIDER_PRESETS.mlx.baseUrl",
+    "proposed": "RUNTIME_PROVIDER_PRESETS.local.baseUrl",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/runtime-registry.mjs:204`",
+      "`local-server/lib/runtime-registry.mjs:190`",
+      "`local-server/lib/migrate.mjs:70`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "MLX_RESET_URL",
+    "proposed": "LOCAL_RESET_URL",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/chat-orchestrate.mjs:2124`",
+      "`local-server/lib/runtime-transport.mjs:41`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:1852`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "mlxQueue.enqueue",
+    "proposed": "localQueue.enqueue",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/runtime-queue.mjs:339`",
+      "`local-server/lib/agent-bridge.mjs:362`",
+      "`local-server/lib/agent-bridge.mjs:277`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "TIMEOUT_BUDGETS.MLX_STREAM_TOTAL_MS",
+    "proposed": "TIMEOUT_BUDGETS.LOCAL_STREAM_TOTAL_MS",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/queue-config.mjs:64`",
+      "`local-server/lib/rag/defaults.mjs:109`",
+      "`local-server/lib/routes/chat-stream.mjs:1038`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "streamFromOpenAICompat",
+    "proposed": "streamFromRemoteCompat",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/agent-utils.mjs:191`",
+      "`local-server/lib/agent-utils.mjs:253`",
+      "`local-server/lib/agent-utils.mjs:249`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "_mlxEmbed",
+    "proposed": "_localEmbed",
+    "def": "`local-server/lib/rag/intent-classifier.mjs:133`",
+    "calls": [
+      "`local-server/lib/rag/intent-classifier.mjs:251`",
+      "`local-server/lib/rag/intent-classifier.mjs:215`",
+      "`local-server/lib/rag/intent-classifier.mjs:141`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "mlx.first_token_timeout",
+    "proposed": "local.first_token_timeout",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/chat-orchestrate.mjs:2117`",
+      "`local-server/lib/rag/util.mjs:40`",
+      "`local-server/lib/rag/util.mjs:55`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "process.env.MLX_VISION_MODEL",
+    "proposed": "process.env.LOCAL_VISION_MODEL",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/vision-service.mjs:229`",
+      "`local-server/lib/ingest/extract.mjs:300`",
+      "`local-server/lib/routes/vision-service.mjs:25`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "mlx.skip_outer",
+    "proposed": "local.skip_outer",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/chat-orchestrate.mjs:1016`",
+      "`local-server/lib/routes/chat-stream.mjs:1012`",
+      "`local-server/lib/routes/chat-stream.mjs:951`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "MLX_TRANSPORT.keepAlive",
+    "proposed": "LOCAL_TRANSPORT.keepAlive",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/chat-orchestrate.mjs:2119`",
+      "`local-server/lib/routes/chat-stream.mjs:1052`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:2008`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "mlx_warming",
+    "proposed": "local_warming",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/chat-orchestrate.mjs:2023`",
+      "`local-server/lib/routes/chat-stream.mjs:1068`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:2024`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "MLX_FIRST_TOKEN_TIMEOUT",
+    "proposed": "LOCAL_FIRST_TOKEN_TIMEOUT",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/chat-stream.mjs:1088`",
+      "`local-server/lib/routes/chat-stream.mjs:1356`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:2094`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "MLX_TRANSPORT.inflight",
+    "proposed": "LOCAL_TRANSPORT.inflight",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/capabilities-runs.mjs:163`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:2145`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:2142`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "MLX_TRANSPORT.lastActivityAt",
+    "proposed": "LOCAL_TRANSPORT.lastActivityAt",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/chat-orchestrate.mjs:1877`",
+      "`local-server/lib/routes/capabilities-runs.mjs:167`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:1855`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "tBeforeMlxOrch",
+    "proposed": "tBeforeLocalOrch",
+    "def": "`local-server/lib/routes/chat-orchestrate.mjs:1870`",
+    "calls": [
+      "`local-server/lib/routes/chat-orchestrate.mjs:2078`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:2058`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:2005`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "memory/.lovable",
+    "proposed": "memory/.system",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/backup.mjs:160`",
+      "`local-server/lib/routes/backup.mjs:376`",
+      "`local-server/lib/routes/backup.mjs:528`"
+    ],
+    "risk": "Orta"
+  },
+  {
+    "symbol": "mlx.core",
+    "proposed": "local.core",
+    "def": "N/A",
+    "calls": [
+      "`local-server/worker.py:80`",
+      "`local-server/worker.py:191`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlx_metal_gb",
+    "proposed": "local_metal_gb",
+    "def": "N/A",
+    "calls": [
+      "`local-server/worker.py:408`",
+      "`local-server/worker.py:211`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "3007",
+    "proposed": "CONFIG_PORT",
+    "def": "N/A",
+    "calls": [
+      "`local-server/server.mjs:96`",
+      "`local-server/server.mjs:342`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlx_lm.__version__",
+    "proposed": "local_lm.__version__",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/mistral-install.sh:72`",
+      "`local-server/scripts/qwen3-install.sh:72`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "8082/v1/embeddings",
+    "proposed": "CONFIG_HOST",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/rag-tau-sweep.mjs:56`",
+      "`local-server/scripts/rag-diagnose.mjs:149`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlx_loop",
+    "proposed": "local_loop",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/leak-hunt-load.sh:70`",
+      "`local-server/scripts/leak-hunt-load.sh:99`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "start_mlx",
+    "proposed": "start_local",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/leak-hunt-load.sh:97`",
+      "`local-server/scripts/leak-hunt-load.sh:214`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "lovable/plan.md",
+    "proposed": "system/plan.md",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/chat-orchestrate.mjs:1168`",
+      "`local-server/scripts/mlx-upgrade.sh:3`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "ELARA_MLX_LAUNCHD_LABEL",
+    "proposed": "ELARA_LOCAL_LAUNCHD_LABEL",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/mlx-upgrade.sh:70`",
+      "`local-server/scripts/mlx-upgrade.sh:17`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "restart_mlx",
+    "proposed": "restart_local",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/diag-first-token-ab.sh:75`",
+      "`local-server/scripts/diag-first-token-ab.sh:93`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlx-community/Qwen3-32B-4bit",
+    "proposed": "local-community/Qwen3-32B-4bit",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/qwen3-install.sh:25`",
+      "`local-server/lib/runtime-registry.mjs:122`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "process.env.MLX_BASE_URL",
+    "proposed": "process.env.LOCAL_BASE_URL",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/vision-service.mjs:228`",
+      "`local-server/scripts/rag-content-audit.mjs:28`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "localhost/loopback",
+    "proposed": "CONFIG_HOST",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/reprocess-oversized-html.mjs:10`",
+      "`local-server/scripts/brand-backfill.mjs:14`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "MLX-FIRSTTOKEN",
+    "proposed": "LOCAL-FIRSTTOKEN",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/chat-live-watch.sh:69`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:2044`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlx.warming",
+    "proposed": "local.warming",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/chat-live-watch.sh:101`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:2025`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlx.first_token.budget",
+    "proposed": "local.first_token.budget",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/chat-orchestrate.mjs:2043`",
+      "`local-server/scripts/chat-live-watch.sh:103`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlx-transport-smoke",
+    "proposed": "local-transport-smoke",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/smoke-mlx-transport.sh:60`",
+      "`local-server/scripts/smoke-mlx-transport.sh:65`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlx-community/gemma-3-27b-it-6bit",
+    "proposed": "local-community/gemma-3-27b-it-6bit",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/gemma3-install.sh:6`",
+      "`local-server/scripts/gemma3-install.sh:204`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlx_queue",
+    "proposed": "local_queue",
+    "def": "N/A",
+    "calls": [
+      "`local-server/tools/contracts.mjs:23`",
+      "`local-server/lib/health-deep.mjs:55`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "agents/_shared/mlx_runner.py",
+    "proposed": "agents/_shared/local_runner.py",
+    "def": "N/A",
+    "calls": [
+      "`local-server/migrations/20260619_agent_loop_guard_defaults.sql:3`",
+      "`local-server/lib/chat-templates.mjs:5`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "api.openai.com/v1",
+    "proposed": "api.remote.com/v1",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/agent-utils.mjs:192`",
+      "`local-server/lib/cloud-transport.mjs:8`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "ollama",
+    "proposed": "local",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/db.mjs:28`",
+      "`local-server/lib/runtime-registry.mjs:102`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "recordMlxAbort",
+    "proposed": "recordLocalAbort",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/runtime-transport.mjs:6`",
+      "`local-server/lib/runtime-transport.mjs:114`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "streamMlxCompletion",
+    "proposed": "streamLocalCompletion",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/runtime-transport.mjs:16`",
+      "`local-server/lib/runtime-transport.mjs:113`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "sampleMlxRss",
+    "proposed": "sampleLocalRss",
+    "def": "`local-server/lib/metrics.mjs:87`",
+    "calls": [
+      "`local-server/lib/metrics.mjs:302`",
+      "`local-server/lib/metrics.mjs:159`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlxPct",
+    "proposed": "localPct",
+    "def": "`local-server/lib/metrics.mjs:156`",
+    "calls": [
+      "`local-server/lib/metrics.mjs:219`",
+      "`local-server/lib/metrics.mjs:169`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "DB/MLX",
+    "proposed": "DB/LOCAL",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/agent-run.mjs:265`",
+      "`local-server/lib/agent-rag.mjs:448`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "Lovable",
+    "proposed": "System",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/chat-templates.mjs:20`",
+      "`local-server/lib/state-paths.mjs:2`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlx-queue.mjs",
+    "proposed": "local-queue.mjs",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/runtime-queue.mjs:2`",
+      "`local-server/lib/routes/rag-settings.mjs:278`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlx.queue",
+    "proposed": "local.queue",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/runtime-queue.mjs:39`",
+      "`local-server/lib/runtime-queue.mjs:87`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlx-queue",
+    "proposed": "local-queue",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/runtime-queue.mjs:203`",
+      "`local-server/lib/runtime-queue.mjs:204`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "ELARA_MLX_BASE_URL",
+    "proposed": "ELARA_LOCAL_BASE_URL",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/agent-env.mjs:403`",
+      "`local-server/lib/agent-env.mjs:184`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "RUNTIME_PROVIDER_PRESETS.mlx.model",
+    "proposed": "RUNTIME_PROVIDER_PRESETS.local.model",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/migrate.mjs:90`",
+      "`local-server/lib/migrate.mjs:69`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "t.MLX_STREAM_TOTAL_MS",
+    "proposed": "t.LOCAL_STREAM_TOTAL_MS",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/queue-config.mjs:70`",
+      "`local-server/lib/queue-config.mjs:71`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "gemini",
+    "proposed": "remote",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/agent-utils.mjs:187`",
+      "`local-server/lib/agent-utils.mjs:251`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "streamFromGemini",
+    "proposed": "streamFromRemote",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/agent-utils.mjs:251`",
+      "`local-server/lib/agent-utils.mjs:249`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlx/i.test",
+    "proposed": "local/i.test",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/port-process.mjs:347`",
+      "`local-server/lib/port-process.mjs:292`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlxKeepwarmEnabled",
+    "proposed": "localKeepwarmEnabled",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/defaults.mjs:100`",
+      "`local-server/lib/rag/util.mjs:136`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlxKeepwarmIntervalMs",
+    "proposed": "localKeepwarmIntervalMs",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/util.mjs:137`",
+      "`local-server/lib/rag/defaults.mjs:101`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlxQueueConcurrency",
+    "proposed": "localQueueConcurrency",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/defaults.mjs:102`",
+      "`local-server/lib/rag/util.mjs:138`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlxPreflightResetEnabled",
+    "proposed": "localPreflightResetEnabled",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/util.mjs:140`",
+      "`local-server/lib/rag/defaults.mjs:104`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlxHistoryKeep",
+    "proposed": "localHistoryKeep",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/chat-stream.mjs:816`",
+      "`local-server/lib/rag/defaults.mjs:105`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "ep.isMlx",
+    "proposed": "ep.isLocal",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/ingest/extract.mjs:271`",
+      "`local-server/lib/ingest/extract.mjs:257`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "process.env.MLX_VISION_BASE_URL",
+    "proposed": "process.env.LOCAL_VISION_BASE_URL",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/ingest/extract.mjs:299`",
+      "`local-server/lib/routes/vision-service.mjs:228`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "process.env.MLX_VISION_PORT",
+    "proposed": "process.env.LOCAL_VISION_PORT",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/ingest/extract.mjs:299`",
+      "`local-server/lib/routes/vision-service.mjs:22`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "MLX_TRANSPORT.resetUrl.length",
+    "proposed": "LOCAL_TRANSPORT.resetUrl.length",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/engine.mjs:145`",
+      "`local-server/lib/routes/engine.mjs:148`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "MLX_HIST_KEEP",
+    "proposed": "LOCAL_HIST_KEEP",
+    "def": "`local-server/lib/routes/chat-stream.mjs:816`",
+    "calls": [
+      "`local-server/lib/routes/chat-stream.mjs:817`",
+      "`local-server/lib/routes/chat-stream.mjs:820`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlx.bypass",
+    "proposed": "local.bypass",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/chat-stream.mjs:1045`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:1845`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlxQueue.enqueueStream",
+    "proposed": "localQueue.enqueueStream",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/chat-stream.mjs:1047`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:1999`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "MLX_TRANSPORT.lastSelfHealStatus",
+    "proposed": "LOCAL_TRANSPORT.lastSelfHealStatus",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/chat-stream.mjs:1368`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:2139`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "MLX_TRANSPORT.lastSelfHealDetail",
+    "proposed": "LOCAL_TRANSPORT.lastSelfHealDetail",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/chat-stream.mjs:1368`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:2139`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlx.cache.flush",
+    "proposed": "local.cache.flush",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/chat-stream.mjs:1382`",
+      "`local-server/lib/routes/chat-stream.mjs:1384`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlxRerank",
+    "proposed": "localRerank",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/rag-diagnostics.mjs:361`",
+      "`local-server/lib/routes/rag-diagnostics.mjs:252`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlx_vlm.server",
+    "proposed": "local_vlm.server",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/vision-service.mjs:79`",
+      "`local-server/lib/routes/vision-service.mjs:86`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlxModel",
+    "proposed": "localModel",
+    "def": "`local-server/lib/routes/vision-service.mjs:229`",
+    "calls": [
+      "`local-server/lib/routes/vision-service.mjs:235`",
+      "`local-server/lib/routes/vision-service.mjs:251`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "openaiKey",
+    "proposed": "remoteKey",
+    "def": "`local-server/lib/routes/vision-service.mjs:260`",
+    "calls": [
+      "`local-server/lib/routes/vision-service.mjs:266`",
+      "`local-server/lib/routes/vision-service.mjs:261`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "process.env.OPENAI_API_KEY",
+    "proposed": "process.env.OPENAI_API_KEY",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/agents-templates.mjs:248`",
+      "`local-server/lib/routes/vision-service.mjs:260`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "openai-error",
+    "proposed": "remote-error",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/vision-service.mjs:287`",
+      "`local-server/lib/routes/vision-service.mjs:289`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "api/mlx-queue",
+    "proposed": "api/local-queue",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/capabilities-runs.mjs:176`",
+      "`local-server/lib/routes/capabilities-runs.mjs:7`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "getMlxWarmState",
+    "proposed": "getLocalWarmState",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/capabilities-runs.mjs:23`",
+      "`local-server/lib/routes/capabilities-runs.mjs:158`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "MLX_TRANSPORT.lastAbortReason",
+    "proposed": "LOCAL_TRANSPORT.lastAbortReason",
+    "def": "`local-server/lib/routes/chat-orchestrate.mjs:2108`",
+    "calls": [
+      "`local-server/lib/routes/chat-orchestrate.mjs:2119`",
+      "`local-server/lib/routes/capabilities-runs.mjs:166`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "preflightMlxReset",
+    "proposed": "preflightLocalReset",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/chat-orchestrate.mjs:129`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:1857`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "_mlxIdleMs",
+    "proposed": "_localIdleMs",
+    "def": "`local-server/lib/routes/chat-orchestrate.mjs:1855`",
+    "calls": [
+      "`local-server/lib/routes/chat-orchestrate.mjs:1856`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:1859`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlx_queue_enqueued",
+    "proposed": "local_queue_enqueued",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/chat-orchestrate.mjs:1869`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:1879`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "isMlxBusy",
+    "proposed": "isLocalBusy",
+    "def": "`local-server/lib/routes/chat-orchestrate.mjs:2097`",
+    "calls": [
+      "`local-server/lib/routes/chat-orchestrate.mjs:2137`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:2117`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "_mlxGenMs",
+    "proposed": "_localGenMs",
+    "def": "`local-server/lib/routes/chat-orchestrate.mjs:2184`",
+    "calls": [
+      "`local-server/lib/routes/chat-orchestrate.mjs:2193`",
+      "`local-server/lib/routes/chat-orchestrate.mjs:2185`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "body.mlxColdWarmupOnDemand",
+    "proposed": "body.localColdWarmupOnDemand",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/rag-settings.mjs:253`",
+      "`local-server/lib/routes/rag-settings.mjs:254`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "body.mlxBootWarmup",
+    "proposed": "body.localBootWarmup",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/rag-settings.mjs:257`",
+      "`local-server/lib/routes/rag-settings.mjs:256`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "body.mlxSelfHealEnabled",
+    "proposed": "body.localSelfHealEnabled",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/rag-settings.mjs:263`",
+      "`local-server/lib/routes/rag-settings.mjs:262`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "body.mlxKeepwarmEnabled",
+    "proposed": "body.localKeepwarmEnabled",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/rag-settings.mjs:266`",
+      "`local-server/lib/routes/rag-settings.mjs:267`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "body.mlxKeepwarmIntervalMs",
+    "proposed": "body.localKeepwarmIntervalMs",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/rag-settings.mjs:270`",
+      "`local-server/lib/routes/rag-settings.mjs:269`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "body.mlxQueueConcurrency",
+    "proposed": "body.localQueueConcurrency",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/rag-settings.mjs:273`",
+      "`local-server/lib/routes/rag-settings.mjs:274`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "body.mlxPreflightResetEnabled",
+    "proposed": "body.localPreflightResetEnabled",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/rag-settings.mjs:290`",
+      "`local-server/lib/routes/rag-settings.mjs:291`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "body.mlxHistoryKeep",
+    "proposed": "body.localHistoryKeep",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/rag-settings.mjs:310`",
+      "`local-server/lib/routes/rag-settings.mjs:311`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "body.mlxColdFirstTokenMs",
+    "proposed": "body.localColdFirstTokenMs",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/rag-settings.mjs:314`",
+      "`local-server/lib/routes/rag-settings.mjs:315`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "body.mlxWarmCacheTtlMs",
+    "proposed": "body.localWarmCacheTtlMs",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/rag-settings.mjs:319`",
+      "`local-server/lib/routes/rag-settings.mjs:318`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "body.mlxStreamTotalMs",
+    "proposed": "body.localStreamTotalMs",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/rag-settings.mjs:327`",
+      "`local-server/lib/routes/rag-settings.mjs:326`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "body.mlxQueueWaitMs",
+    "proposed": "body.localQueueWaitMs",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/rag-settings.mjs:331`",
+      "`local-server/lib/routes/rag-settings.mjs:330`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "body.mlxStopSequences",
+    "proposed": "body.localStopSequences",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/rag-settings.mjs:412`",
+      "`local-server/lib/routes/rag-settings.mjs:411`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "lovable",
+    "proposed": "system",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/backup.mjs:160`",
+      "`local-server/lib/routes/backup.mjs:528`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "agents/_shared/mlx_runner",
+    "proposed": "agents/_shared/local_runner",
+    "def": "N/A",
+    "calls": [
+      "`local-server/migrations/20260705_meta_forge_agent_seed.sql:43`",
+      "`local-server/lib/meta-forge/seed.mjs:23`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "OpenAI-uyumlu",
+    "proposed": "Remote-uyumlu",
+    "def": "N/A",
+    "calls": [
+      "`local-server/worker.py:5`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "_try_mlx",
+    "proposed": "_try_local",
+    "def": "`local-server/worker.py:76`",
+    "calls": [
+      "`local-server/worker.py:318`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlx_embeddings.utils",
+    "proposed": "local_embeddings.utils",
+    "def": "N/A",
+    "calls": [
+      "`local-server/worker.py:79`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlx_metal",
+    "proposed": "local_metal",
+    "def": "N/A",
+    "calls": [
+      "`local-server/worker.py:96`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlx-embeddings",
+    "proposed": "local-embeddings",
+    "def": "N/A",
+    "calls": [
+      "`local-server/worker.py:320`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "home/levent/ELARA_PROJECT/Elara_WebUi/local-server/certs/elara.pem",
+    "proposed": "CONFIG_PATH",
+    "def": "N/A",
+    "calls": [
+      "`local-server/proxy-config.json:1`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "home/levent/ELARA_PROJECT/Elara_WebUi/local-server/certs/elara-key.pem",
+    "proposed": "CONFIG_PATH",
+    "def": "N/A",
+    "calls": [
+      "`local-server/proxy-config.json:1`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "MLX_VISION_BASE_URL",
+    "proposed": "LOCAL_VISION_BASE_URL",
+    "def": "N/A",
+    "calls": [
+      "`local-server/launchd/com.elara.middleware.plist:46`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "MLX_VISION_MODEL",
+    "proposed": "LOCAL_VISION_MODEL",
+    "def": "N/A",
+    "calls": [
+      "`local-server/launchd/com.elara.middleware.plist:48`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "MLX_VISION_WARMUP_ENABLED",
+    "proposed": "LOCAL_VISION_WARMUP_ENABLED",
+    "def": "N/A",
+    "calls": [
+      "`local-server/launchd/com.elara.middleware.plist:64`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "3005/api/system/diag/admin-token",
+    "proposed": "CONFIG_HOST",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/middleware-restart.sh:98`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "3005/api/system/worker/start",
+    "proposed": "CONFIG_HOST",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/middleware-restart.sh:116`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "3005/api/system/worker/status",
+    "proposed": "CONFIG_HOST",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/middleware-restart.sh:129`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlx-community/Mistral-Small-3.1-24B-Instruct-2503-6bit",
+    "proposed": "local-community/Mistral-Small-3.1-24B-Instruct-2503-6bit",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/mistral-install.sh:25`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "MLX_EMBED_BASE_URL",
+    "proposed": "LOCAL_EMBED_BASE_URL",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/worker-revive.mjs:143`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "127.0.0.1/elara_db",
+    "proposed": "CONFIG_HOST",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/db-restore-drill.sh:12`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "3005/api/system/restart-worker",
+    "proposed": "CONFIG_HOST",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/worker-watchdog.sh:24`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "LocalHostName",
+    "proposed": "CONFIG_HOST",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/issue-cert.sh:33`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "8001/v1/chat/completions",
+    "proposed": "CONFIG_HOST",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/leak-hunt-load.sh:24`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "MLX_PROMPTS",
+    "proposed": "LOCAL_PROMPTS",
+    "def": "`local-server/scripts/leak-hunt-load.sh:44`",
+    "calls": [
+      "`local-server/scripts/leak-hunt-load.sh:73`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlx_code",
+    "proposed": "local_code",
+    "def": "`local-server/scripts/leak-hunt-load.sh:182`",
+    "calls": [
+      "`local-server/scripts/leak-hunt-load.sh:183`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "8001/health",
+    "proposed": "CONFIG_HOST",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/leak-hunt-load.sh:182`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlx-only",
+    "proposed": "local-only",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/leak-hunt-load.sh:247`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlx-upgrade.sh",
+    "proposed": "local-upgrade.sh",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/mlx-upgrade.sh:2`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "path/to/pip-freeze-before-mlx-upgrade.txt",
+    "proposed": "path/to/pip-freeze-before-local-upgrade.txt",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/mlx-upgrade.sh:8`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "ELARA_MLX/.venv",
+    "proposed": "ELARA_LOCAL/.venv",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/mlx-upgrade.sh:12`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "ELARA_MLX_MODEL_ID",
+    "proposed": "ELARA_LOCAL_MODEL_ID",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/mlx-upgrade.sh:14`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "ELARA_MLX_PORT",
+    "proposed": "ELARA_LOCAL_PORT",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/mlx-upgrade.sh:15`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "ELARA_MLX_SNAPSHOT_DIR",
+    "proposed": "ELARA_LOCAL_SNAPSHOT_DIR",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/mlx-upgrade.sh:16`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "pip-freeze-before-mlx-upgrade",
+    "proposed": "pip-freeze-before-local-upgrade",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/mlx-upgrade.sh:16`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlx-metal",
+    "proposed": "local-metal",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/mlx-upgrade.sh:55`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "api/system/restart-mlx",
+    "proposed": "api/system/restart-local",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/diag-first-token-ab.sh:77`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "ELARA_MLX_BASE",
+    "proposed": "ELARA_LOCAL_BASE",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/smoke-chat-templates.sh:25`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "ELARA_MLX_TIMEOUT_S",
+    "proposed": "ELARA_LOCAL_TIMEOUT_S",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/smoke-chat-templates.sh:26`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlx_runner._CHAT_TEMPLATES.keys",
+    "proposed": "local_runner._CHAT_TEMPLATES.keys",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/smoke-chat-templates.sh:28`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlx-flag-patch.sh",
+    "proposed": "local-flag-patch.sh",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/mlx-flag-patch.sh:2`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "api/mlx/health",
+    "proposed": "api/local/health",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/chat-fulldebug.sh:119`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "api/mlx/queue/stats",
+    "proposed": "api/local/queue/stats",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/chat-fulldebug.sh:119`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "BASE//10443/3000",
+    "proposed": "CONFIG_HOST",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/chat-fulldebug.sh:196`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "3005/api/skills/runs",
+    "proposed": "CONFIG_HOST",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/skill-runs-probe.sh:29`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "3005/api/skills",
+    "proposed": "CONFIG_HOST",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/skill-runs-probe.sh:41`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "process.env.MLX_EMBED_BASE_URL",
+    "proposed": "process.env.LOCAL_EMBED_BASE_URL",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/rag-content-audit.mjs:28`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "3005/api/rag/diagnose-join",
+    "proposed": "CONFIG_HOST",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/brand-backfill.mjs:28`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "tmp/mlx-transport-smoke",
+    "proposed": "tmp/local-transport-smoke",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/smoke-mlx-transport.sh:12`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "localhost-only",
+    "proposed": "CONFIG_HOST",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/rag-diagnose.mjs:148`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlx-community/gemma-3-27b-it-qat-4bit",
+    "proposed": "local-community/gemma-3-27b-it-qat-4bit",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/gemma3-install.sh:23`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "10443/api/rag/reembed-enriched",
+    "proposed": "CONFIG_HOST",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/enrich-structured-chunks.mjs:18`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "10443/api/rag/retry-embeddings",
+    "proposed": "CONFIG_HOST",
+    "def": "N/A",
+    "calls": [
+      "`local-server/scripts/enrich-structured-chunks.mjs:130`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "3005/ws/live-call",
+    "proposed": "CONFIG_HOST",
+    "def": "N/A",
+    "calls": [
+      "`local-server/tools/smoke.mjs:365`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlx_queue.stats",
+    "proposed": "local_queue.stats",
+    "def": "N/A",
+    "calls": [
+      "`local-server/tools/contracts.mjs:60`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "127.0.0.1/admin",
+    "proposed": "CONFIG_HOST",
+    "def": "N/A",
+    "calls": [
+      "`local-server/tools/contracts.mjs:134`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "api.groq.com/openai/v1",
+    "proposed": "api.groq.com/remote/v1",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/cloud-transport.mjs:11`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "X-Lovable-AIG-SDK",
+    "proposed": "X-System-AIG-SDK",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/cloud-transport.mjs:93`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "IsMlx/UpstreamBase",
+    "proposed": "IsLocal/UpstreamBase",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/runtime-registry.mjs:5`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "Ollama-style",
+    "proposed": "Local-style",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/runtime-registry.mjs:18`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "chat/MLX",
+    "proposed": "chat/LOCAL",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/runtime-registry.mjs:153`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlxServingId",
+    "proposed": "localServingId",
+    "def": "`local-server/lib/runtime-registry.mjs:163`",
+    "calls": [
+      "`local-server/lib/rag/intent-classifier.mjs:26`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "gemini-2.0-flash",
+    "proposed": "remote-2.0-flash",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/llm-provider.mjs:32`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "3001",
+    "proposed": "CONFIG_PORT",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/llm-provider.mjs:93`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "decisions/mlx-transport-modularization-2026-05-30.md",
+    "proposed": "decisions/local-transport-modularization-2026-05-30.md",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/runtime-transport.mjs:9`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "session/2026-05-30-mlx-transport-break-0.md",
+    "proposed": "session/2026-05-30-local-transport-break-0.md",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/runtime-transport.mjs:10`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "session/2026-05-30-mlx-transport-break-2a.md",
+    "proposed": "session/2026-05-30-local-transport-break-2a.md",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/runtime-transport.mjs:11`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlx-transport",
+    "proposed": "local-transport",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/runtime-transport.mjs:28`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "_mlxWarmCacheTtlMs",
+    "proposed": "_localWarmCacheTtlMs",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/runtime-transport.mjs:79`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "MLX/RAG",
+    "proposed": "LOCAL/RAG",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/user-agent-intent.mjs:5`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlx_ps",
+    "proposed": "local_ps",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/metrics.mjs:296`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "process.env.MLX_QUEUE_CONCURRENCY",
+    "proposed": "process.env.LOCAL_QUEUE_CONCURRENCY",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/runtime-queue.mjs:17`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "RAG_SETTINGS.mlxQueueWaitMs",
+    "proposed": "RAG_SETTINGS.localQueueWaitMs",
+    "def": "`local-server/lib/routes/rag-settings.mjs:332`",
+    "calls": [
+      "`local-server/lib/runtime-queue.mjs:19`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "MlxQueue",
+    "proposed": "LocalQueue",
+    "def": "`local-server/lib/runtime-queue.mjs:22`",
+    "calls": [
+      "`local-server/lib/runtime-queue.mjs:335`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlx.queue.wait",
+    "proposed": "local.queue.wait",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/runtime-queue.mjs:70`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "process.env.MLX_QUEUE_ALLOW_PARALLEL",
+    "proposed": "process.env.LOCAL_QUEUE_ALLOW_PARALLEL",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/runtime-queue.mjs:83`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "cfg.MLX_BASE_URL",
+    "proposed": "cfg.LOCAL_BASE_URL",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/agent-env.mjs:403`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "11434/.test",
+    "proposed": "CONFIG_HOST",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/migrate.mjs:79`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "openai-compat",
+    "proposed": "remote-compat",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/agent-bridge.mjs:268`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "process.env.MLX_STREAM_TOTAL_MS",
+    "proposed": "process.env.LOCAL_STREAM_TOTAL_MS",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/queue-config.mjs:40`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "process.env.MLX_QUEUE_MAX_WAIT_MS",
+    "proposed": "process.env.LOCAL_QUEUE_MAX_WAIT_MS",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/queue-config.mjs:41`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "extra.mlxStreamTotalMs",
+    "proposed": "extra.localStreamTotalMs",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/queue-config.mjs:64`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "extra.mlxQueueWaitMs",
+    "proposed": "extra.localQueueWaitMs",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/queue-config.mjs:65`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "t.MLX_QUEUE_WAIT_MS",
+    "proposed": "t.LOCAL_QUEUE_WAIT_MS",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/queue-config.mjs:71`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlxBase.replace",
+    "proposed": "localBase.replace",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/health-deep.mjs:52`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "MLX-ish",
+    "proposed": "LOCAL-ish",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/port-process.mjs:268`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "deps.mlxEmbed",
+    "proposed": "deps.localEmbed",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/intent-classifier.mjs:141`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "process.env.MLX_DISABLE_THINK_SMALLTALK",
+    "proposed": "process.env.LOCAL_DISABLE_THINK_SMALLTALK",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/defaults.mjs:52`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "process.env.MLX_DISABLE_THINK_QUERY",
+    "proposed": "process.env.LOCAL_DISABLE_THINK_QUERY",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/defaults.mjs:53`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "process.env.MLX_DISABLE_THINK_RAG",
+    "proposed": "process.env.LOCAL_DISABLE_THINK_RAG",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/defaults.mjs:54`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "cold-MLX",
+    "proposed": "cold-LOCAL",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/defaults.mjs:71`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "process.env.MLX_COLD_WARMUP_ON_DEMAND",
+    "proposed": "process.env.LOCAL_COLD_WARMUP_ON_DEMAND",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/defaults.mjs:94`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "process.env.MLX_SELF_HEAL_ENABLED",
+    "proposed": "process.env.LOCAL_SELF_HEAL_ENABLED",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/defaults.mjs:97`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "process.env.MLX_KEEPWARM_ENABLED",
+    "proposed": "process.env.LOCAL_KEEPWARM_ENABLED",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/defaults.mjs:100`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "MLX_KEEPWARM_MS",
+    "proposed": "LOCAL_KEEPWARM_MS",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/defaults.mjs:101`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "MLX_QUEUE_CONCURRENCY",
+    "proposed": "LOCAL_QUEUE_CONCURRENCY",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/defaults.mjs:102`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "process.env.MLX_RESET_URL",
+    "proposed": "process.env.LOCAL_RESET_URL",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/defaults.mjs:104`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "MLX_HISTORY_KEEP",
+    "proposed": "LOCAL_HISTORY_KEEP",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/defaults.mjs:105`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "MLX_COLD_FIRST_TOKEN_MS",
+    "proposed": "LOCAL_COLD_FIRST_TOKEN_MS",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/defaults.mjs:106`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "MLX_WARM_CACHE_TTL_MS",
+    "proposed": "LOCAL_WARM_CACHE_TTL_MS",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/defaults.mjs:107`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "MLX_QUEUE_MAX_WAIT_MS",
+    "proposed": "LOCAL_QUEUE_MAX_WAIT_MS",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/defaults.mjs:110`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "MLX_SMALLTALK_MAX_TOKENS",
+    "proposed": "LOCAL_SMALLTALK_MAX_TOKENS",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/defaults.mjs:226`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "MLX_QUERY_MAX_TOKENS",
+    "proposed": "LOCAL_QUERY_MAX_TOKENS",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/defaults.mjs:227`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "MLX_RAG_MAX_TOKENS",
+    "proposed": "LOCAL_RAG_MAX_TOKENS",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/defaults.mjs:228`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "process.env.MLX_STRIP_THINK_BLOCKS",
+    "proposed": "process.env.LOCAL_STRIP_THINK_BLOCKS",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/defaults.mjs:230`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "process.env.MLX_THINK_OFF_PREFIX",
+    "proposed": "process.env.LOCAL_THINK_OFF_PREFIX",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/defaults.mjs:251`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "j.mlxColdWarmupOnDemand",
+    "proposed": "j.localColdWarmupOnDemand",
+    "def": "`local-server/lib/rag/defaults.mjs:329`",
+    "calls": [
+      "`local-server/lib/rag/defaults.mjs:329`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "j.mlxBootWarmup",
+    "proposed": "j.localBootWarmup",
+    "def": "`local-server/lib/rag/defaults.mjs:330`",
+    "calls": [
+      "`local-server/lib/rag/defaults.mjs:330`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "target.mlxBootWarmup",
+    "proposed": "target.localBootWarmup",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/defaults.mjs:330`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "j.mlxSelfHealEnabled",
+    "proposed": "j.localSelfHealEnabled",
+    "def": "`local-server/lib/rag/defaults.mjs:332`",
+    "calls": [
+      "`local-server/lib/rag/defaults.mjs:332`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "target.mlxSelfHealEnabled",
+    "proposed": "target.localSelfHealEnabled",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/defaults.mjs:332`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "j.mlxKeepwarmEnabled",
+    "proposed": "j.localKeepwarmEnabled",
+    "def": "`local-server/lib/rag/defaults.mjs:333`",
+    "calls": [
+      "`local-server/lib/rag/defaults.mjs:333`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "target.mlxKeepwarmEnabled",
+    "proposed": "target.localKeepwarmEnabled",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/defaults.mjs:333`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "j.mlxKeepwarmIntervalMs",
+    "proposed": "j.localKeepwarmIntervalMs",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/defaults.mjs:334`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "j.mlxQueueConcurrency",
+    "proposed": "j.localQueueConcurrency",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/defaults.mjs:335`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "target.mlxQueueConcurrency",
+    "proposed": "target.localQueueConcurrency",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/defaults.mjs:335`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "j.mlxPreflightResetEnabled",
+    "proposed": "j.localPreflightResetEnabled",
+    "def": "`local-server/lib/rag/defaults.mjs:337`",
+    "calls": [
+      "`local-server/lib/rag/defaults.mjs:337`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "j.mlxHistoryKeep",
+    "proposed": "j.localHistoryKeep",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/defaults.mjs:338`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "j.mlxColdFirstTokenMs",
+    "proposed": "j.localColdFirstTokenMs",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/defaults.mjs:339`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "j.mlxWarmCacheTtlMs",
+    "proposed": "j.localWarmCacheTtlMs",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/defaults.mjs:340`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "j.mlxStreamTotalMs",
+    "proposed": "j.localStreamTotalMs",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/defaults.mjs:342`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "target.mlxStreamTotalMs",
+    "proposed": "target.localStreamTotalMs",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/defaults.mjs:342`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "j.mlxQueueWaitMs",
+    "proposed": "j.localQueueWaitMs",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/defaults.mjs:343`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "target.mlxQueueWaitMs",
+    "proposed": "target.localQueueWaitMs",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/defaults.mjs:343`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "j.mlxSmalltalkMaxTokens",
+    "proposed": "j.localSmalltalkMaxTokens",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/defaults.mjs:395`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "j.mlxQueryMaxTokens",
+    "proposed": "j.localQueryMaxTokens",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/defaults.mjs:396`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "target.mlxQueryMaxTokens",
+    "proposed": "target.localQueryMaxTokens",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/defaults.mjs:396`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "j.mlxRagMaxTokens",
+    "proposed": "j.localRagMaxTokens",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/defaults.mjs:397`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "target.mlxRagMaxTokens",
+    "proposed": "target.localRagMaxTokens",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/defaults.mjs:397`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "j.mlxStopSequences",
+    "proposed": "j.localStopSequences",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/defaults.mjs:402`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "target.mlxStopSequences",
+    "proposed": "target.localStopSequences",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/defaults.mjs:402`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "j.mlxStopSequences.map",
+    "proposed": "j.localStopSequences.map",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/defaults.mjs:402`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlx.first_token",
+    "proposed": "local.first_token",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/util.mjs:29`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlx.client_abort",
+    "proposed": "local.client_abort",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/util.mjs:34`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlx.headers_timeout",
+    "proposed": "local.headers_timeout",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/util.mjs:54`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "src.mlxColdWarmupOnDemand",
+    "proposed": "src.localColdWarmupOnDemand",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/util.mjs:132`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "RAG_DEFAULTS.mlxColdWarmupOnDemand",
+    "proposed": "RAG_DEFAULTS.localColdWarmupOnDemand",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/util.mjs:132`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "src.mlxBootWarmup",
+    "proposed": "src.localBootWarmup",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/util.mjs:133`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "RAG_DEFAULTS.mlxBootWarmup",
+    "proposed": "RAG_DEFAULTS.localBootWarmup",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/util.mjs:133`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "src.mlxSelfHealEnabled",
+    "proposed": "src.localSelfHealEnabled",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/util.mjs:135`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "RAG_DEFAULTS.mlxSelfHealEnabled",
+    "proposed": "RAG_DEFAULTS.localSelfHealEnabled",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/util.mjs:135`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "src.mlxKeepwarmEnabled",
+    "proposed": "src.localKeepwarmEnabled",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/util.mjs:136`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "RAG_DEFAULTS.mlxKeepwarmEnabled",
+    "proposed": "RAG_DEFAULTS.localKeepwarmEnabled",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/util.mjs:136`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "src.mlxKeepwarmIntervalMs",
+    "proposed": "src.localKeepwarmIntervalMs",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/util.mjs:137`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "RAG_DEFAULTS.mlxKeepwarmIntervalMs",
+    "proposed": "RAG_DEFAULTS.localKeepwarmIntervalMs",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/util.mjs:137`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "src.mlxQueueConcurrency",
+    "proposed": "src.localQueueConcurrency",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/util.mjs:138`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "RAG_DEFAULTS.mlxQueueConcurrency",
+    "proposed": "RAG_DEFAULTS.localQueueConcurrency",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/util.mjs:138`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "src.mlxPreflightResetEnabled",
+    "proposed": "src.localPreflightResetEnabled",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/util.mjs:140`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "RAG_DEFAULTS.mlxPreflightResetEnabled",
+    "proposed": "RAG_DEFAULTS.localPreflightResetEnabled",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/util.mjs:140`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "src.mlxColdFirstTokenMs",
+    "proposed": "src.localColdFirstTokenMs",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/util.mjs:143`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "RAG_DEFAULTS.mlxColdFirstTokenMs",
+    "proposed": "RAG_DEFAULTS.localColdFirstTokenMs",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/util.mjs:143`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "src.mlxWarmCacheTtlMs",
+    "proposed": "src.localWarmCacheTtlMs",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/util.mjs:144`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "RAG_DEFAULTS.mlxWarmCacheTtlMs",
+    "proposed": "RAG_DEFAULTS.localWarmCacheTtlMs",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/util.mjs:144`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "src.mlxStreamTotalMs",
+    "proposed": "src.localStreamTotalMs",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/util.mjs:146`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "RAG_DEFAULTS.mlxStreamTotalMs",
+    "proposed": "RAG_DEFAULTS.localStreamTotalMs",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/util.mjs:146`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "src.mlxQueueWaitMs",
+    "proposed": "src.localQueueWaitMs",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/util.mjs:147`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "RAG_DEFAULTS.mlxQueueWaitMs",
+    "proposed": "RAG_DEFAULTS.localQueueWaitMs",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/util.mjs:147`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "src.mlxSmalltalkMaxTokens",
+    "proposed": "src.localSmalltalkMaxTokens",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/util.mjs:176`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "RAG_DEFAULTS.mlxSmalltalkMaxTokens",
+    "proposed": "RAG_DEFAULTS.localSmalltalkMaxTokens",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/util.mjs:176`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "src.mlxQueryMaxTokens",
+    "proposed": "src.localQueryMaxTokens",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/util.mjs:177`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "RAG_DEFAULTS.mlxQueryMaxTokens",
+    "proposed": "RAG_DEFAULTS.localQueryMaxTokens",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/util.mjs:177`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "src.mlxRagMaxTokens",
+    "proposed": "src.localRagMaxTokens",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/util.mjs:178`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "RAG_DEFAULTS.mlxRagMaxTokens",
+    "proposed": "RAG_DEFAULTS.localRagMaxTokens",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/util.mjs:178`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "src.mlxStopSequences",
+    "proposed": "src.localStopSequences",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/util.mjs:183`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "src.mlxStopSequences.map",
+    "proposed": "src.localStopSequences.map",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/util.mjs:184`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "RAG_DEFAULTS.mlxStopSequences",
+    "proposed": "RAG_DEFAULTS.localStopSequences",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/util.mjs:185`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlx-rerank",
+    "proposed": "local-rerank",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/rag/retrieval.mjs:1198`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "_resolveMlxEndpoint",
+    "proposed": "_resolveLocalEndpoint",
+    "def": "`local-server/lib/ingest/extract.mjs:67`",
+    "calls": [
+      "`local-server/lib/ingest/extract.mjs:249`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "MLX-VLM",
+    "proposed": "LOCAL-VLM",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/ingest/extract.mjs:311`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlx-vlm",
+    "proposed": "local-vlm",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/ingest/extract.mjs:330`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "gemini/.test",
+    "proposed": "remote/.test",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/providers.mjs:137`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "openai/.test",
+    "proposed": "remote/.test",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/providers.mjs:139`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "api.openai.com",
+    "proposed": "api.remote.com",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/providers.mjs:140`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "MLX_TRANSPORT.resetUrl",
+    "proposed": "LOCAL_TRANSPORT.resetUrl",
+    "def": "`local-server/lib/routes/engine.mjs:144`",
+    "calls": [
+      "`local-server/lib/routes/engine.mjs:156`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "MLX_TRANSPORT.heartbeatEnabled",
+    "proposed": "LOCAL_TRANSPORT.heartbeatEnabled",
+    "def": "`local-server/lib/routes/engine.mjs:151`",
+    "calls": [
+      "`local-server/lib/routes/engine.mjs:156`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "MLX_TRANSPORT.heartbeatMs",
+    "proposed": "LOCAL_TRANSPORT.heartbeatMs",
+    "def": "`local-server/lib/routes/engine.mjs:154`",
+    "calls": [
+      "`local-server/lib/routes/engine.mjs:156`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "RAG_SETTINGS.mlxHistoryKeep",
+    "proposed": "RAG_SETTINGS.localHistoryKeep",
+    "def": "`local-server/lib/routes/rag-settings.mjs:312`",
+    "calls": [
+      "`local-server/lib/routes/chat-stream.mjs:815`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlx.history.trimmed",
+    "proposed": "local.history.trimmed",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/chat-stream.mjs:822`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "queueMlx",
+    "proposed": "queueLocal",
+    "def": "`local-server/lib/routes/chat-stream.mjs:1112`",
+    "calls": [
+      "`local-server/lib/routes/chat-orchestrate.mjs:2058`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "brainEnv.ELARA_MLX_BASE_URL",
+    "proposed": "brainEnv.ELARA_LOCAL_BASE_URL",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/agent-run.mjs:323`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "env.MLX_EMBED_MODEL",
+    "proposed": "env.LOCAL_EMBED_MODEL",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/rag-readops.mjs:364`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "process.env.MLX_VISION_BIND",
+    "proposed": "process.env.LOCAL_VISION_BIND",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/vision-service.mjs:21`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "process.env.MLX_VLM_BIN",
+    "proposed": "process.env.LOCAL_VLM_BIN",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/vision-service.mjs:81`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "opt/homebrew/bin/mlx_vlm.server",
+    "proposed": "opt/homebrew/bin/local_vlm.server",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/vision-service.mjs:82`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "usr/local/bin/mlx_vlm.server",
+    "proposed": "usr/local/bin/local_vlm.server",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/vision-service.mjs:83`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "process.env.MLX_VISION_TIMEOUT_MS",
+    "proposed": "process.env.LOCAL_VISION_TIMEOUT_MS",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/vision-service.mjs:176`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "OpenAI-style",
+    "proposed": "Remote-style",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/vision-service.mjs:181`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "gemini/i.test",
+    "proposed": "remote/i.test",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/vision-service.mjs:202`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "gemini-1.5-pro-vision",
+    "proposed": "remote-1.5-pro-vision",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/vision-service.mjs:203`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlxBody",
+    "proposed": "localBody",
+    "def": "`local-server/lib/routes/vision-service.mjs:234`",
+    "calls": [
+      "`local-server/lib/routes/vision-service.mjs:244`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "process.env.OPENAI_VISION_MODEL",
+    "proposed": "process.env.OPENAI_VISION_MODEL",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/vision-service.mjs:263`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "api.openai.com/v1/chat/completions",
+    "proposed": "api.remote.com/v1/chat/completions",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/vision-service.mjs:264`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "_MLX_WARM_STATE",
+    "proposed": "_LOCAL_WARM_STATE",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/capabilities-runs.mjs:23`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "MLX_TRANSPORT.lastFirstTokenTimeoutAt",
+    "proposed": "LOCAL_TRANSPORT.lastFirstTokenTimeoutAt",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/capabilities-runs.mjs:165`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlxQueue.cancel",
+    "proposed": "localQueue.cancel",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/capabilities-runs.mjs:177`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "agents3001",
+    "proposed": "CONFIG_HOST",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/agents-templates.mjs:48`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "3001/health",
+    "proposed": "CONFIG_HOST",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/agents-templates.mjs:49`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "api.openai.com/v1/audio/speech",
+    "proposed": "api.remote.com/v1/audio/speech",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/agents-templates.mjs:250`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "openai-tts",
+    "proposed": "remote-tts",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/agents-templates.mjs:266`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "direct-3005",
+    "proposed": "CONFIG_HOST",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/chat-orchestrate.mjs:202`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "Pre-MLX",
+    "proposed": "Pre-LOCAL",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/chat-orchestrate.mjs:298`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "preparing/searching-knowledge/mlx_queue_enqueued",
+    "proposed": "preparing/searching-knowledge/local_queue_enqueued",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/chat-orchestrate.mjs:301`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlx_warming/streaming-ready",
+    "proposed": "local_warming/streaming-ready",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/chat-orchestrate.mjs:302`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlx.preflight_reset.skipped",
+    "proposed": "local.preflight_reset.skipped",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/chat-orchestrate.mjs:1859`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlx-enqueue",
+    "proposed": "local-enqueue",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/chat-orchestrate.mjs:1868`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlx.intent_hint",
+    "proposed": "local.intent_hint",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/chat-orchestrate.mjs:1914`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlx-warming",
+    "proposed": "local-warming",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/chat-orchestrate.mjs:2022`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlx.loop_guard",
+    "proposed": "local.loop_guard",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/chat-orchestrate.mjs:2029`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "MLX_BUSY",
+    "proposed": "LOCAL_BUSY",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/chat-orchestrate.mjs:2099`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlx_busy",
+    "proposed": "local_busy",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/chat-orchestrate.mjs:2145`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "RAG_SETTINGS.mlxQueueConcurrency",
+    "proposed": "RAG_SETTINGS.localQueueConcurrency",
+    "def": "`local-server/lib/routes/rag-settings.mjs:276`",
+    "calls": [
+      "`local-server/lib/routes/rag-settings.mjs:279`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlxQueue.setConcurrency",
+    "proposed": "localQueue.setConcurrency",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/rag-settings.mjs:279`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "RAG_SETTINGS.mlxPreflightResetEnabled",
+    "proposed": "RAG_SETTINGS.localPreflightResetEnabled",
+    "def": "`local-server/lib/routes/rag-settings.mjs:291`",
+    "calls": [
+      "`local-server/lib/routes/rag-settings.mjs:294`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlx-transport.mjs",
+    "proposed": "local-transport.mjs",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/routes/rag-settings.mjs:293`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "elara-mlx",
+    "proposed": "elara-local",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/capabilities/packs-seed.mjs:7`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "ELARA_MLX_URL",
+    "proposed": "ELARA_LOCAL_URL",
+    "def": "N/A",
+    "calls": [
+      "`local-server/lib/registry/system-actions.mjs:45`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "mlx_runner.run_agent",
+    "proposed": "local_runner.run_agent",
+    "def": "N/A",
+    "calls": [
+      "`local-server/migrations/20260705_meta_forge_agent_seed.sql:3`"
+    ],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "MLX_KEEPALIVE_AGENT",
+    "proposed": "LOCAL_KEEPALIVE_AGENT",
+    "def": "`local-server/lib/runtime-transport.mjs:31`",
+    "calls": [],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "withMlxSlot",
+    "proposed": "withLocalSlot",
+    "def": "`local-server/lib/runtime-queue.mjs:338`",
+    "calls": [],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "env.ELARA_MLX_BASE_URL",
+    "proposed": "env.ELARA_LOCAL_BASE_URL",
+    "def": "`local-server/lib/agent-env.mjs:463`",
+    "calls": [],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "target.mlxColdWarmupOnDemand",
+    "proposed": "target.localColdWarmupOnDemand",
+    "def": "`local-server/lib/rag/defaults.mjs:329`",
+    "calls": [],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "target.mlxKeepwarmIntervalMs",
+    "proposed": "target.localKeepwarmIntervalMs",
+    "def": "`local-server/lib/rag/defaults.mjs:334`",
+    "calls": [],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "target.mlxPreflightResetEnabled",
+    "proposed": "target.localPreflightResetEnabled",
+    "def": "`local-server/lib/rag/defaults.mjs:337`",
+    "calls": [],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "target.mlxHistoryKeep",
+    "proposed": "target.localHistoryKeep",
+    "def": "`local-server/lib/rag/defaults.mjs:338`",
+    "calls": [],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "target.mlxColdFirstTokenMs",
+    "proposed": "target.localColdFirstTokenMs",
+    "def": "`local-server/lib/rag/defaults.mjs:339`",
+    "calls": [],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "target.mlxWarmCacheTtlMs",
+    "proposed": "target.localWarmCacheTtlMs",
+    "def": "`local-server/lib/rag/defaults.mjs:340`",
+    "calls": [],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "target.mlxSmalltalkMaxTokens",
+    "proposed": "target.localSmalltalkMaxTokens",
+    "def": "`local-server/lib/rag/defaults.mjs:395`",
+    "calls": [],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "process.env.MLX_VISION_DISABLED",
+    "proposed": "process.env.LOCAL_VISION_DISABLED",
+    "def": "`local-server/lib/ingest/extract.mjs:298`",
+    "calls": [],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "probes.agents3001",
+    "proposed": "CONFIG_HOST",
+    "def": "`local-server/lib/routes/agents-templates.mjs:49`",
+    "calls": [],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "RAG_SETTINGS.mlxColdWarmupOnDemand",
+    "proposed": "RAG_SETTINGS.localColdWarmupOnDemand",
+    "def": "`local-server/lib/routes/rag-settings.mjs:254`",
+    "calls": [],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "RAG_SETTINGS.mlxBootWarmup",
+    "proposed": "RAG_SETTINGS.localBootWarmup",
+    "def": "`local-server/lib/routes/rag-settings.mjs:257`",
+    "calls": [],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "RAG_SETTINGS.mlxSelfHealEnabled",
+    "proposed": "RAG_SETTINGS.localSelfHealEnabled",
+    "def": "`local-server/lib/routes/rag-settings.mjs:263`",
+    "calls": [],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "RAG_SETTINGS.mlxKeepwarmEnabled",
+    "proposed": "RAG_SETTINGS.localKeepwarmEnabled",
+    "def": "`local-server/lib/routes/rag-settings.mjs:267`",
+    "calls": [],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "RAG_SETTINGS.mlxKeepwarmIntervalMs",
+    "proposed": "RAG_SETTINGS.localKeepwarmIntervalMs",
+    "def": "`local-server/lib/routes/rag-settings.mjs:271`",
+    "calls": [],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "t.MLX_TRANSPORT.resetEnabled",
+    "proposed": "t.LOCAL_TRANSPORT.resetEnabled",
+    "def": "`local-server/lib/routes/rag-settings.mjs:294`",
+    "calls": [],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "RAG_SETTINGS.mlxColdFirstTokenMs",
+    "proposed": "RAG_SETTINGS.localColdFirstTokenMs",
+    "def": "`local-server/lib/routes/rag-settings.mjs:316`",
+    "calls": [],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "RAG_SETTINGS.mlxWarmCacheTtlMs",
+    "proposed": "RAG_SETTINGS.localWarmCacheTtlMs",
+    "def": "`local-server/lib/routes/rag-settings.mjs:320`",
+    "calls": [],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "RAG_SETTINGS.mlxStreamTotalMs",
+    "proposed": "RAG_SETTINGS.localStreamTotalMs",
+    "def": "`local-server/lib/routes/rag-settings.mjs:328`",
+    "calls": [],
+    "risk": "D\u00fc\u015f\u00fck"
+  },
+  {
+    "symbol": "RAG_SETTINGS.mlxStopSequences",
+    "proposed": "RAG_SETTINGS.localStopSequences",
+    "def": "`local-server/lib/routes/rag-settings.mjs:412`",
+    "calls": [],
+    "risk": "D\u00fc\u015f\u00fck"
+  }
+]

@@ -1,0 +1,30 @@
+{
+  "slug": "shell_exec",
+  "input": {
+    "type": "object",
+    "required": ["cmd"],
+    "properties": {
+      "cmd": { "type": "string", "description": "Bare executable name; must be in TOOL_SHELL_ALLOWLIST." },
+      "args": { "type": "array", "items": { "type": ["string", "number"] } },
+      "timeout_ms": { "type": "integer", "minimum": 500, "maximum": 120000 },
+      "cwd": { "type": "string" }
+    }
+  },
+  "output": {
+    "type": "object",
+    "required": ["ok"],
+    "properties": {
+      "ok": { "type": "boolean" },
+      "exit_code": { "type": "integer" },
+      "stdout": { "type": "string" },
+      "stderr": { "type": "string" },
+      "cmd": { "type": "string" },
+      "reason": { "type": "string" },
+      "allowed": { "type": "array", "items": { "type": "string" } }
+    }
+  },
+  "policy": {
+    "default_allowlist": ["ls","cat","grep","rg","head","tail","wc","file","stat","echo","pwd","date","uname"],
+    "override_env": "TOOL_SHELL_ALLOWLIST"
+  }
+}

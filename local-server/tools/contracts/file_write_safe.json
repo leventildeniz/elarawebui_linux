@@ -1,0 +1,32 @@
+{
+  "slug": "file_write_safe",
+  "input": {
+    "type": "object",
+    "required": ["path", "content"],
+    "properties": {
+      "path": { "type": "string" },
+      "content": { "type": "string" },
+      "mode": { "type": "string", "enum": ["write", "append"] },
+      "encoding": { "type": "string" }
+    }
+  },
+  "output": {
+    "type": "object",
+    "required": ["ok"],
+    "properties": {
+      "ok": { "type": "boolean" },
+      "path": { "type": "string" },
+      "bytes": { "type": "integer" },
+      "mode": { "type": "string" },
+      "reason": { "type": "string" },
+      "resolved": { "type": "string" },
+      "allowed_roots": { "type": "array", "items": { "type": "string" } }
+    }
+  },
+  "policy": {
+    "default_roots": ["/mnt/documents", "<repo>/tools/_workdir"],
+    "override_env": "FILE_WRITE_SAFE_ROOTS",
+    "max_bytes_env": "FILE_WRITE_SAFE_MAX_BYTES",
+    "max_bytes_default": 10485760
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "slug": "pdf_extract",
+  "input": {
+    "type": "object",
+    "required": ["path"],
+    "properties": {
+      "path": { "type": "string" },
+      "max_pages": { "type": "integer", "minimum": 1, "maximum": 500 },
+      "start_page": { "type": "integer", "minimum": 1 }
+    }
+  },
+  "output": {
+    "type": "object",
+    "required": ["ok"],
+    "properties": {
+      "ok": { "type": "boolean" },
+      "page_count": { "type": "integer" },
+      "returned": { "type": "integer" },
+      "start_page": { "type": "integer" },
+      "pages": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "n": { "type": "integer" },
+            "text": { "type": "string" }
+          }
+        }
+      },
+      "meta": { "type": "object" },
+      "reason": { "type": "string" }
+    }
+  },
+  "dependencies": ["pypdf"]
+}

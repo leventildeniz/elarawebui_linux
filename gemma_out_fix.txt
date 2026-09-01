@@ -1,0 +1,4094 @@
+data: {"phase":"accepted"}
+
+data: {"phase":"policy","meta":{"source":"provider:Custom/Local","model":"gemma4-31b"}}
+
+data: {"phase":"streaming"}
+
+data: {"type":"think","delta":"\""}
+
+data: {"type":"think","delta":"B"}
+
+data: {"type":"think","delta":"ana"}
+
+data: {"type":"think","delta":" çok"}
+
+data: {"type":"think","delta":" uzun"}
+
+data: {"type":"think","delta":" bir"}
+
+data: {"type":"think","delta":" hik"}
+
+data: {"type":"think","delta":"aye"}
+
+data: {"type":"think","delta":" anlat"}
+
+data: {"type":"think","delta":".\""}
+
+data: {"type":"think","delta":" ("}
+
+data: {"type":"think","delta":"Tell"}
+
+data: {"type":"think","delta":" me"}
+
+data: {"type":"think","delta":" a"}
+
+data: {"type":"think","delta":" very"}
+
+data: {"type":"think","delta":" long"}
+
+data: {"type":"think","delta":" story"}
+
+data: {"type":"think","delta":".)"}
+
+data: {"type":"think","delta":"\n"}
+
+data: {"type":"think","delta":"Turkish"}
+
+data: {"type":"think","delta":"."}
+
+data: {"type":"think","delta":"\n"}
+
+data: {"type":"think","delta":"\""}
+
+data: {"type":"think","delta":"Very"}
+
+data: {"type":"think","delta":" long"}
+
+data: {"type":"think","delta":"\""}
+
+data: {"type":"think","delta":" ("}
+
+data: {"type":"think","delta":"Ç"}
+
+data: {"type":"think","delta":"ok"}
+
+data: {"type":"think","delta":" uzun"}
+
+data: {"type":"think","delta":")."}
+
+data: {"type":"think","delta":" This"}
+
+data: {"type":"think","delta":" means"}
+
+data: {"type":"think","delta":" I"}
+
+data: {"type":"think","delta":" need"}
+
+data: {"type":"think","delta":" a"}
+
+data: {"type":"think","delta":" plot"}
+
+data: {"type":"think","delta":" with"}
+
+data: {"type":"think","delta":" depth"}
+
+data: {"type":"think","delta":","}
+
+data: {"type":"think","delta":" world"}
+
+data: {"type":"think","delta":"-"}
+
+data: {"type":"think","delta":"building"}
+
+data: {"type":"think","delta":","}
+
+data: {"type":"think","delta":" character"}
+
+data: {"type":"think","delta":" development"}
+
+data: {"type":"think","delta":","}
+
+data: {"type":"think","delta":" and"}
+
+data: {"type":"think","delta":" several"}
+
+data: {"type":"think","delta":" chapters"}
+
+data: {"type":"think","delta":" or"}
+
+data: {"type":"think","delta":" acts"}
+
+data: {"type":"think","delta":"."}
+
+data: {"type":"think","delta":" A"}
+
+data: {"type":"think","delta":" simple"}
+
+data: {"type":"think","delta":" fable"}
+
+data: {"type":"think","delta":" won"}
+
+data: {"type":"think","delta":"'"}
+
+data: {"type":"think","delta":"t"}
+
+data: {"type":"think","delta":" suffice"}
+
+data: {"type":"think","delta":"."}
+
+data: {"type":"think","delta":" I"}
+
+data: {"type":"think","delta":" need"}
+
+data: {"type":"think","delta":" an"}
+
+data: {"type":"think","delta":" epic"}
+
+data: {"type":"think","delta":" or"}
+
+data: {"type":"think","delta":" a"}
+
+data: {"type":"think","delta":" detailed"}
+
+data: {"type":"think","delta":" fantasy"}
+
+data: {"type":"think","delta":"/"}
+
+data: {"type":"think","delta":"sci"}
+
+data: {"type":"think","delta":"-"}
+
+data: {"type":"think","delta":"fi"}
+
+data: {"type":"think","delta":" narrative"}
+
+data: {"type":"think","delta":"."}
+
+data: {"type":"think","delta":"\n\n"}
+
+data: {"type":"think","delta":"    "}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":"   "}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":"Option"}
+
+data: {"type":"think","delta":" A"}
+
+data: {"type":"think","delta":":"}
+
+data: {"type":"think","delta":" Space"}
+
+data: {"type":"think","delta":" Opera"}
+
+data: {"type":"think","delta":".*"}
+
+data: {"type":"think","delta":" ("}
+
+data: {"type":"think","delta":"Too"}
+
+data: {"type":"think","delta":" technical"}
+
+data: {"type":"think","delta":"?)"}
+
+data: {"type":"think","delta":"\n"}
+
+data: {"type":"think","delta":"    "}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":"   "}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":"Option"}
+
+data: {"type":"think","delta":" B"}
+
+data: {"type":"think","delta":":"}
+
+data: {"type":"think","delta":" High"}
+
+data: {"type":"think","delta":" Fantasy"}
+
+data: {"type":"think","delta":".*"}
+
+data: {"type":"think","delta":" ("}
+
+data: {"type":"think","delta":"Classic"}
+
+data: {"type":"think","delta":","}
+
+data: {"type":"think","delta":" allows"}
+
+data: {"type":"think","delta":" for"}
+
+data: {"type":"think","delta":" great"}
+
+data: {"type":"think","delta":" descriptions"}
+
+data: {"type":"think","delta":","}
+
+data: {"type":"think","delta":" timeless"}
+
+data: {"type":"think","delta":".)"}
+
+data: {"type":"think","delta":"\n"}
+
+data: {"type":"think","delta":"    "}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":"   "}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":"Option"}
+
+data: {"type":"think","delta":" C"}
+
+data: {"type":"think","delta":":"}
+
+data: {"type":"think","delta":" Magical"}
+
+data: {"type":"think","delta":" Real"}
+
+data: {"type":"think","delta":"ism"}
+
+data: {"type":"think","delta":"/"}
+
+data: {"type":"think","delta":"Historical"}
+
+data: {"type":"think","delta":".*"}
+
+data: {"type":"think","delta":" ("}
+
+data: {"type":"think","delta":"Interesting"}
+
+data: {"type":"think","delta":","}
+
+data: {"type":"think","delta":" but"}
+
+data: {"type":"think","delta":" maybe"}
+
+data: {"type":"think","delta":" less"}
+
+data: {"type":"think","delta":" \""}
+
+data: {"type":"think","delta":"epic"}
+
+data: {"type":"think","delta":"\""}
+
+data: {"type":"think","delta":" in"}
+
+data: {"type":"think","delta":" scale"}
+
+data: {"type":"think","delta":".)"}
+
+data: {"type":"think","delta":"\n"}
+
+data: {"type":"think","delta":"    "}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":"   "}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":"Decision"}
+
+data: {"type":"think","delta":":*"}
+
+data: {"type":"think","delta":" High"}
+
+data: {"type":"think","delta":" Fantasy"}
+
+data: {"type":"think","delta":" with"}
+
+data: {"type":"think","delta":" a"}
+
+data: {"type":"think","delta":" twist"}
+
+data: {"type":"think","delta":" of"}
+
+data: {"type":"think","delta":" mystery"}
+
+data: {"type":"think","delta":"."}
+
+data: {"type":"think","delta":" Let"}
+
+data: {"type":"think","delta":"'"}
+
+data: {"type":"think","delta":"s"}
+
+data: {"type":"think","delta":" create"}
+
+data: {"type":"think","delta":" a"}
+
+data: {"type":"think","delta":" world"}
+
+data: {"type":"think","delta":" where"}
+
+data: {"type":"think","delta":" memories"}
+
+data: {"type":"think","delta":" are"}
+
+data: {"type":"think","delta":" currency"}
+
+data: {"type":"think","delta":" or"}
+
+data: {"type":"think","delta":" power"}
+
+data: {"type":"think","delta":"."}
+
+data: {"type":"think","delta":"\n\n"}
+
+data: {"type":"think","delta":"    "}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":"   "}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":"World"}
+
+data: {"type":"think","delta":" Name"}
+
+data: {"type":"think","delta":":*"}
+
+data: {"type":"think","delta":" A"}
+
+data: {"type":"think","delta":"et"}
+
+data: {"type":"think","delta":"hel"}
+
+data: {"type":"think","delta":"gard"}
+
+data: {"type":"think","delta":"."}
+
+data: {"type":"think","delta":"\n"}
+
+data: {"type":"think","delta":"    "}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":"   "}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":"Key"}
+
+data: {"type":"think","delta":" Concept"}
+
+data: {"type":"think","delta":":*"}
+
+data: {"type":"think","delta":" The"}
+
+data: {"type":"think","delta":" \""}
+
+data: {"type":"think","delta":"Library"}
+
+data: {"type":"think","delta":" of"}
+
+data: {"type":"think","delta":" Echo"}
+
+data: {"type":"think","delta":"es"}
+
+data: {"type":"think","delta":"\""}
+
+data: {"type":"think","delta":" ("}
+
+data: {"type":"think","delta":"Y"}
+
+data: {"type":"think","delta":"ank"}
+
+data: {"type":"think","delta":"ılar"}
+
+data: {"type":"think","delta":" K"}
+
+data: {"type":"think","delta":"ütü"}
+
+data: {"type":"think","delta":"ph"}
+
+data: {"type":"think","delta":"anesi"}
+
+data: {"type":"think","delta":")."}
+
+data: {"type":"think","delta":" People"}
+
+data: {"type":"think","delta":" can"}
+
+data: {"type":"think","delta":" trade"}
+
+data: {"type":"think","delta":" memories"}
+
+data: {"type":"think","delta":" for"}
+
+data: {"type":"think","delta":" skills"}
+
+data: {"type":"think","delta":" or"}
+
+data: {"type":"think","delta":" wealth"}
+
+data: {"type":"think","delta":"."}
+
+data: {"type":"think","delta":"\n"}
+
+data: {"type":"think","delta":"    "}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":"   "}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":"Prot"}
+
+data: {"type":"think","delta":"agonist"}
+
+data: {"type":"think","delta":":*"}
+
+data: {"type":"think","delta":" El"}
+
+data: {"type":"think","delta":"ian"}
+
+data: {"type":"think","delta":","}
+
+data: {"type":"think","delta":" a"}
+
+data: {"type":"think","delta":" \""}
+
+data: {"type":"think","delta":"Memory"}
+
+data: {"type":"think","delta":" Weaver"}
+
+data: {"type":"think","delta":"\""}
+
+data: {"type":"think","delta":" ("}
+
+data: {"type":"think","delta":"H"}
+
+data: {"type":"think","delta":"af"}
+
+data: {"type":"think","delta":"ıza"}
+
+data: {"type":"think","delta":" Dok"}
+
+data: {"type":"think","delta":"umac"}
+
+data: {"type":"think","delta":"ısı"}
+
+data: {"type":"think","delta":")"}
+
+data: {"type":"think","delta":" who"}
+
+data: {"type":"think","delta":" can"}
+
+data: {"type":"think","delta":" see"}
+
+data: {"type":"think","delta":" memories"}
+
+data: {"type":"think","delta":" others"}
+
+data: {"type":"think","delta":" have"}
+
+data: {"type":"think","delta":" forgotten"}
+
+data: {"type":"think","delta":"."}
+
+data: {"type":"think","delta":"\n"}
+
+data: {"type":"think","delta":"    "}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":"   "}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":"Conflict"}
+
+data: {"type":"think","delta":":*"}
+
+data: {"type":"think","delta":" The"}
+
+data: {"type":"think","delta":" Great"}
+
+data: {"type":"think","delta":" Silence"}
+
+data: {"type":"think","delta":" ("}
+
+data: {"type":"think","delta":"B"}
+
+data: {"type":"think","delta":"üyük"}
+
+data: {"type":"think","delta":" Sess"}
+
+data: {"type":"think","delta":"izlik"}
+
+data: {"type":"think","delta":")"}
+
+data: {"type":"think","delta":" is"}
+
+data: {"type":"think","delta":" spreading"}
+
+data: {"type":"think","delta":","}
+
+data: {"type":"think","delta":" erasing"}
+
+data: {"type":"think","delta":" the"}
+
+data: {"type":"think","delta":" world"}
+
+data: {"type":"think","delta":"'"}
+
+data: {"type":"think","delta":"s"}
+
+data: {"type":"think","delta":" history"}
+
+data: {"type":"think","delta":"."}
+
+data: {"type":"think","delta":"\n"}
+
+data: {"type":"think","delta":"    "}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":"   "}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":"Goal"}
+
+data: {"type":"think","delta":":*"}
+
+data: {"type":"think","delta":" Find"}
+
+data: {"type":"think","delta":" the"}
+
+data: {"type":"think","delta":" \""}
+
+data: {"type":"think","delta":"First"}
+
+data: {"type":"think","delta":" Word"}
+
+data: {"type":"think","delta":"\""}
+
+data: {"type":"think","delta":" to"}
+
+data: {"type":"think","delta":" restart"}
+
+data: {"type":"think","delta":" the"}
+
+data: {"type":"think","delta":" world"}
+
+data: {"type":"think","delta":"'"}
+
+data: {"type":"think","delta":"s"}
+
+data: {"type":"think","delta":" memory"}
+
+data: {"type":"think","delta":"."}
+
+data: {"type":"think","delta":"\n\n"}
+
+data: {"type":"think","delta":"    "}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":"   "}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":"Introduction"}
+
+data: {"type":"think","delta":":*"}
+
+data: {"type":"think","delta":" Establish"}
+
+data: {"type":"think","delta":" El"}
+
+data: {"type":"think","delta":"ian"}
+
+data: {"type":"think","delta":"'"}
+
+data: {"type":"think","delta":"s"}
+
+data: {"type":"think","delta":" life"}
+
+data: {"type":"think","delta":" in"}
+
+data: {"type":"think","delta":" the"}
+
+data: {"type":"think","delta":" city"}
+
+data: {"type":"think","delta":" of"}
+
+data: {"type":"think","delta":" O"}
+
+data: {"type":"think","delta":"riz"}
+
+data: {"type":"think","delta":"on"}
+
+data: {"type":"think","delta":"."}
+
+data: {"type":"think","delta":" Describe"}
+
+data: {"type":"think","delta":" the"}
+
+data: {"type":"think","delta":" atmosphere"}
+
+data: {"type":"think","delta":"."}
+
+data: {"type":"think","delta":"\n"}
+
+data: {"type":"think","delta":"    "}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":"   "}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":"Inc"}
+
+data: {"type":"think","delta":"iting"}
+
+data: {"type":"think","delta":" Incident"}
+
+data: {"type":"think","delta":":*"}
+
+data: {"type":"think","delta":" El"}
+
+data: {"type":"think","delta":"ian"}
+
+data: {"type":"think","delta":" finds"}
+
+data: {"type":"think","delta":" a"}
+
+data: {"type":"think","delta":" memory"}
+
+data: {"type":"think","delta":" fragment"}
+
+data: {"type":"think","delta":" that"}
+
+data: {"type":"think","delta":" doesn"}
+
+data: {"type":"think","delta":"'"}
+
+data: {"type":"think","delta":"t"}
+
+data: {"type":"think","delta":" belong"}
+
+data: {"type":"think","delta":" to"}
+
+data: {"type":"think","delta":" any"}
+
+data: {"type":"think","delta":" human"}
+
+data: {"type":"think","delta":"."}
+
+data: {"type":"think","delta":" It"}
+
+data: {"type":"think","delta":"'"}
+
+data: {"type":"think","delta":"s"}
+
+data: {"type":"think","delta":" a"}
+
+data: {"type":"think","delta":" memory"}
+
+data: {"type":"think","delta":" of"}
+
+data: {"type":"think","delta":" the"}
+
+data: {"type":"think","delta":" world"}
+
+data: {"type":"think","delta":" before"}
+
+data: {"type":"think","delta":" the"}
+
+data: {"type":"think","delta":" Silence"}
+
+data: {"type":"think","delta":"."}
+
+data: {"type":"think","delta":"\n"}
+
+data: {"type":"think","delta":"    "}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":"   "}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":"Rising"}
+
+data: {"type":"think","delta":" Action"}
+
+data: {"type":"think","delta":":*"}
+
+data: {"type":"think","delta":"\n"}
+
+data: {"type":"think","delta":"        "}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":"   "}
+
+data: {"type":"think","delta":"Journey"}
+
+data: {"type":"think","delta":" to"}
+
+data: {"type":"think","delta":" the"}
+
+data: {"type":"think","delta":" Whis"}
+
+data: {"type":"think","delta":"pering"}
+
+data: {"type":"think","delta":" Mountains"}
+
+data: {"type":"think","delta":"."}
+
+data: {"type":"think","delta":"\n"}
+
+data: {"type":"think","delta":"        "}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":"   "}
+
+data: {"type":"think","delta":"Meeting"}
+
+data: {"type":"think","delta":" a"}
+
+data: {"type":"think","delta":" companion"}
+
+data: {"type":"think","delta":" ("}
+
+data: {"type":"think","delta":"K"}
+
+data: {"type":"think","delta":"ael"}
+
+data: {"type":"think","delta":"en"}
+
+data: {"type":"think","delta":","}
+
+data: {"type":"think","delta":" a"}
+
+data: {"type":"think","delta":" fallen"}
+
+data: {"type":"think","delta":" guardian"}
+
+data: {"type":"think","delta":")."}
+
+data: {"type":"think","delta":"\n"}
+
+data: {"type":"think","delta":"        "}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":"   "}
+
+data: {"type":"think","delta":"Facing"}
+
+data: {"type":"think","delta":" the"}
+
+data: {"type":"think","delta":" \""}
+
+data: {"type":"think","delta":"Void"}
+
+data: {"type":"think","delta":" Seek"}
+
+data: {"type":"think","delta":"ers"}
+
+data: {"type":"think","delta":"\""}
+
+data: {"type":"think","delta":" ("}
+
+data: {"type":"think","delta":"ant"}
+
+data: {"type":"think","delta":"agon"}
+
+data: {"type":"think","delta":"ists"}
+
+data: {"type":"think","delta":" who"}
+
+data: {"type":"think","delta":" want"}
+
+data: {"type":"think","delta":" the"}
+
+data: {"type":"think","delta":" Silence"}
+
+data: {"type":"think","delta":" to"}
+
+data: {"type":"think","delta":" consume"}
+
+data: {"type":"think","delta":" everything"}
+
+data: {"type":"think","delta":")."}
+
+data: {"type":"think","delta":"\n"}
+
+data: {"type":"think","delta":"    "}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":"   "}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":"Cl"}
+
+data: {"type":"think","delta":"imax"}
+
+data: {"type":"think","delta":":*"}
+
+data: {"type":"think","delta":" Re"}
+
+data: {"type":"think","delta":"aching"}
+
+data: {"type":"think","delta":" the"}
+
+data: {"type":"think","delta":" Library"}
+
+data: {"type":"think","delta":" of"}
+
+data: {"type":"think","delta":" Echo"}
+
+data: {"type":"think","delta":"es"}
+
+data: {"type":"think","delta":"."}
+
+data: {"type":"think","delta":" A"}
+
+data: {"type":"think","delta":" confrontation"}
+
+data: {"type":"think","delta":" with"}
+
+data: {"type":"think","delta":" the"}
+
+data: {"type":"think","delta":" Architect"}
+
+data: {"type":"think","delta":" of"}
+
+data: {"type":"think","delta":" Silence"}
+
+data: {"type":"think","delta":"."}
+
+data: {"type":"think","delta":"\n"}
+
+data: {"type":"think","delta":"    "}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":"   "}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":"Resolution"}
+
+data: {"type":"think","delta":":*"}
+
+data: {"type":"think","delta":" El"}
+
+data: {"type":"think","delta":"ian"}
+
+data: {"type":"think","delta":" sacrifices"}
+
+data: {"type":"think","delta":" a"}
+
+data: {"type":"think","delta":" personal"}
+
+data: {"type":"think","delta":" memory"}
+
+data: {"type":"think","delta":" to"}
+
+data: {"type":"think","delta":" save"}
+
+data: {"type":"think","delta":" the"}
+
+data: {"type":"think","delta":" collective"}
+
+data: {"type":"think","delta":" memory"}
+
+data: {"type":"think","delta":" of"}
+
+data: {"type":"think","delta":" humanity"}
+
+data: {"type":"think","delta":"."}
+
+data: {"type":"think","delta":"\n"}
+
+data: {"type":"think","delta":"    "}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":"   "}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":"Ep"}
+
+data: {"type":"think","delta":"ilogue"}
+
+data: {"type":"think","delta":":*"}
+
+data: {"type":"think","delta":" The"}
+
+data: {"type":"think","delta":" world"}
+
+data: {"type":"think","delta":" begins"}
+
+data: {"type":"think","delta":" to"}
+
+data: {"type":"think","delta":" remember"}
+
+data: {"type":"think","delta":";"}
+
+data: {"type":"think","delta":" a"}
+
+data: {"type":"think","delta":" new"}
+
+data: {"type":"think","delta":" era"}
+
+data: {"type":"think","delta":" of"}
+
+data: {"type":"think","delta":" truth"}
+
+data: {"type":"think","delta":"."}
+
+data: {"type":"think","delta":"\n\n"}
+
+data: {"type":"think","delta":"    "}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":"   "}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":"Intro"}
+
+data: {"type":"think","delta":":*"}
+
+data: {"type":"think","delta":" Start"}
+
+data: {"type":"think","delta":" with"}
+
+data: {"type":"think","delta":" a"}
+
+data: {"type":"think","delta":" descriptive"}
+
+data: {"type":"think","delta":" opening"}
+
+data: {"type":"think","delta":"."}
+
+data: {"type":"think","delta":" \""}
+
+data: {"type":"think","delta":"Z"}
+
+data: {"type":"think","delta":"aman"}
+
+data: {"type":"think","delta":"ın"}
+
+data: {"type":"think","delta":" unut"}
+
+data: {"type":"think","delta":"uldu"}
+
+data: {"type":"think","delta":"ğu"}
+
+data: {"type":"think","delta":","}
+
+data: {"type":"think","delta":" gö"}
+
+data: {"type":"think","delta":"ky"}
+
+data: {"type":"think","delta":"üz"}
+
+data: {"type":"think","delta":"ünün"}
+
+data: {"type":"think","delta":" ise"}
+
+data: {"type":"think","delta":" sürekli"}
+
+data: {"type":"think","delta":" mor"}
+
+data: {"type":"think","delta":" bir"}
+
+data: {"type":"think","delta":" al"}
+
+data: {"type":"think","delta":"acak"}
+
+data: {"type":"think","delta":"aran"}
+
+data: {"type":"think","delta":"lık"}
+
+data: {"type":"think","delta":"ta"}
+
+data: {"type":"think","delta":" kald"}
+
+data: {"type":"think","delta":"ığı"}
+
+data: {"type":"think","delta":" bir"}
+
+data: {"type":"think","delta":" di"}
+
+data: {"type":"think","delta":"yar"}
+
+data: {"type":"think","delta":" vardı"}
+
+data: {"type":"think","delta":"...\""}
+
+data: {"type":"think","delta":" ("}
+
+data: {"type":"think","delta":"There"}
+
+data: {"type":"think","delta":" was"}
+
+data: {"type":"think","delta":" a"}
+
+data: {"type":"think","delta":" land"}
+
+data: {"type":"think","delta":" where"}
+
+data: {"type":"think","delta":" time"}
+
+data: {"type":"think","delta":" was"}
+
+data: {"type":"think","delta":" forgotten"}
+
+data: {"type":"think","delta":" and"}
+
+data: {"type":"think","delta":" the"}
+
+data: {"type":"think","delta":" sky"}
+
+data: {"type":"think","delta":" remained"}
+
+data: {"type":"think","delta":" in"}
+
+data: {"type":"think","delta":" a"}
+
+data: {"type":"think","delta":" purple"}
+
+data: {"type":"think","delta":" twilight"}
+
+data: {"type":"think","delta":"...)"}
+
+data: {"type":"think","delta":"\n"}
+
+data: {"type":"think","delta":"    "}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":"   "}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":"Character"}
+
+data: {"type":"think","delta":" Detail"}
+
+data: {"type":"think","delta":":*"}
+
+data: {"type":"think","delta":" El"}
+
+data: {"type":"think","delta":"ian"}
+
+data: {"type":"think","delta":" isn"}
+
+data: {"type":"think","delta":"'"}
+
+data: {"type":"think","delta":"t"}
+
+data: {"type":"think","delta":" just"}
+
+data: {"type":"think","delta":" a"}
+
+data: {"type":"think","delta":" weaver"}
+
+data: {"type":"think","delta":";"}
+
+data: {"type":"think","delta":" he"}
+
+data: {"type":"think","delta":"'"}
+
+data: {"type":"think","delta":"s"}
+
+data: {"type":"think","delta":" lonely"}
+
+data: {"type":"think","delta":"."}
+
+data: {"type":"think","delta":" He"}
+
+data: {"type":"think","delta":" carries"}
+
+data: {"type":"think","delta":" the"}
+
+data: {"type":"think","delta":" weight"}
+
+data: {"type":"think","delta":" of"}
+
+data: {"type":"think","delta":" others"}
+
+data: {"type":"think","delta":"'"}
+
+data: {"type":"think","delta":" sorrows"}
+
+data: {"type":"think","delta":"."}
+
+data: {"type":"think","delta":"\n"}
+
+data: {"type":"think","delta":"    "}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":"   "}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":"Plot"}
+
+data: {"type":"think","delta":"ting"}
+
+data: {"type":"think","delta":" the"}
+
+data: {"type":"think","delta":" Journey"}
+
+data: {"type":"think","delta":":*"}
+
+data: {"type":"think","delta":" Describe"}
+
+data: {"type":"think","delta":" the"}
+
+data: {"type":"think","delta":" landscapes"}
+
+data: {"type":"think","delta":"."}
+
+data: {"type":"think","delta":" The"}
+
+data: {"type":"think","delta":" Glass"}
+
+data: {"type":"think","delta":" Forest"}
+
+data: {"type":"think","delta":","}
+
+data: {"type":"think","delta":" the"}
+
+data: {"type":"think","delta":" Sea"}
+
+data: {"type":"think","delta":" of"}
+
+data: {"type":"think","delta":" Tears"}
+
+data: {"type":"think","delta":"."}
+
+data: {"type":"think","delta":" Use"}
+
+data: {"type":"think","delta":" sensory"}
+
+data: {"type":"think","delta":" language"}
+
+data: {"type":"think","delta":"."}
+
+data: {"type":"think","delta":"\n"}
+
+data: {"type":"think","delta":"    "}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":"   "}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":"Dialogue"}
+
+data: {"type":"think","delta":":*"}
+
+data: {"type":"think","delta":" Add"}
+
+data: {"type":"think","delta":" interactions"}
+
+data: {"type":"think","delta":" between"}
+
+data: {"type":"think","delta":" El"}
+
+data: {"type":"think","delta":"ian"}
+
+data: {"type":"think","delta":" and"}
+
+data: {"type":"think","delta":" K"}
+
+data: {"type":"think","delta":"ael"}
+
+data: {"type":"think","delta":"en"}
+
+data: {"type":"think","delta":" to"}
+
+data: {"type":"think","delta":" build"}
+
+data: {"type":"think","delta":" emotional"}
+
+data: {"type":"think","delta":" weight"}
+
+data: {"type":"think","delta":"."}
+
+data: {"type":"think","delta":"\n"}
+
+data: {"type":"think","delta":"    "}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":"   "}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":"The"}
+
+data: {"type":"think","delta":" Cl"}
+
+data: {"type":"think","delta":"imax"}
+
+data: {"type":"think","delta":":*"}
+
+data: {"type":"think","delta":" Make"}
+
+data: {"type":"think","delta":" it"}
+
+data: {"type":"think","delta":" philosophical"}
+
+data: {"type":"think","delta":"."}
+
+data: {"type":"think","delta":" Is"}
+
+data: {"type":"think","delta":" forgetting"}
+
+data: {"type":"think","delta":" a"}
+
+data: {"type":"think","delta":" mercy"}
+
+data: {"type":"think","delta":" or"}
+
+data: {"type":"think","delta":" a"}
+
+data: {"type":"think","delta":" curse"}
+
+data: {"type":"think","delta":"?"}
+
+data: {"type":"think","delta":"\n\n"}
+
+data: {"type":"think","delta":"    "}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":"   "}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":"Check"}
+
+data: {"type":"think","delta":":*"}
+
+data: {"type":"think","delta":" Is"}
+
+data: {"type":"think","delta":" it"}
+
+data: {"type":"think","delta":" long"}
+
+data: {"type":"think","delta":" enough"}
+
+data: {"type":"think","delta":"?"}
+
+data: {"type":"think","delta":" ("}
+
+data: {"type":"think","delta":"I"}
+
+data: {"type":"think","delta":" need"}
+
+data: {"type":"think","delta":" to"}
+
+data: {"type":"think","delta":" expand"}
+
+data: {"type":"think","delta":" descriptions"}
+
+data: {"type":"think","delta":")."}
+
+data: {"type":"think","delta":"\n"}
+
+data: {"type":"think","delta":"    "}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":"   "}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":"Check"}
+
+data: {"type":"think","delta":":*"}
+
+data: {"type":"think","delta":" Is"}
+
+data: {"type":"think","delta":" the"}
+
+data: {"type":"think","delta":" Turkish"}
+
+data: {"type":"think","delta":" natural"}
+
+data: {"type":"think","delta":" and"}
+
+data: {"type":"think","delta":" evocative"}
+
+data: {"type":"think","delta":"?"}
+
+data: {"type":"think","delta":" ("}
+
+data: {"type":"think","delta":"Use"}
+
+data: {"type":"think","delta":" words"}
+
+data: {"type":"think","delta":" like"}
+
+data: {"type":"think","delta":" *"}
+
+data: {"type":"think","delta":"kad"}
+
+data: {"type":"think","delta":"im"}
+
+data: {"type":"think","delta":","}
+
+data: {"type":"think","delta":" e"}
+
+data: {"type":"think","delta":"fs"}
+
+data: {"type":"think","delta":"un"}
+
+data: {"type":"think","delta":"lu"}
+
+data: {"type":"think","delta":","}
+
+data: {"type":"think","delta":" mel"}
+
+data: {"type":"think","delta":"ank"}
+
+data: {"type":"think","delta":"oli"}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":")."}
+
+data: {"type":"think","delta":"\n"}
+
+data: {"type":"think","delta":"    "}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":"   "}
+
+data: {"type":"think","delta":"*"}
+
+data: {"type":"think","delta":"Structuring"}
+
+data: {"type":"think","delta":":*"}
+
+data: {"type":"think","delta":" Use"}
+
+data: {"type":"think","delta":" headings"}
+
+data: {"type":"think","delta":" or"}
+
+data: {"type":"think","delta":" clear"}
+
+data: {"type":"think","delta":" breaks"}
+
+data: {"type":"think","delta":" to"}
+
+data: {"type":"think","delta":" make"}
+
+data: {"type":"think","delta":" it"}
+
+data: {"type":"think","delta":" readable"}
+
+data: {"type":"think","delta":" despite"}
+
+data: {"type":"think","delta":" the"}
+
+data: {"type":"think","delta":" length"}
+
+data: {"type":"think","delta":"."}
+
+data: {"delta":"S"}
+
+data: {"delta":"ana"}
+
+data: {"delta":","}
+
+data: {"delta":" zaman"}
+
+data: {"delta":"ın"}
+
+data: {"delta":" ö"}
+
+data: {"delta":"tes"}
+
+data: {"delta":"inde"}
+
+data: {"delta":","}
+
+data: {"delta":" yıld"}
+
+data: {"delta":"ız"}
+
+data: {"delta":"ların"}
+
+data: {"delta":" henüz"}
+
+data: {"delta":" şark"}
+
+data: {"delta":"ı"}
+
+data: {"delta":" söyle"}
+
+data: {"delta":"meyi"}
+
+data: {"delta":" öğrend"}
+
+data: {"delta":"i"}
+
+data: {"delta":"ği"}
+
+data: {"delta":" ve"}
+
+data: {"delta":" r"}
+
+data: {"delta":"üz"}
+
+data: {"delta":"g"}
+
+data: {"delta":"arlar"}
+
+data: {"delta":"ın"}
+
+data: {"delta":" eski"}
+
+data: {"delta":" d"}
+
+data: {"delta":"iller"}
+
+data: {"delta":"de"}
+
+data: {"delta":" f"}
+
+data: {"delta":"ısı"}
+
+data: {"delta":"ld"}
+
+data: {"delta":"adığı"}
+
+data: {"delta":" bir"}
+
+data: {"delta":" ev"}
+
+data: {"delta":"rende"}
+
+data: {"delta":" geçen"}
+
+data: {"delta":","}
+
+data: {"delta":" ep"}
+
+data: {"delta":"ik"}
+
+data: {"delta":" bir"}
+
+data: {"delta":" hik"}
+
+data: {"delta":"aye"}
+
+data: {"delta":" anlat"}
+
+data: {"delta":"acağım"}
+
+data: {"delta":"."}
+
+data: {"delta":" Bu"}
+
+data: {"delta":","}
+
+data: {"delta":" sadece"}
+
+data: {"delta":" bir"}
+
+data: {"delta":" yol"}
+
+data: {"delta":"cul"}
+
+data: {"delta":"uğ"}
+
+data: {"delta":"un"}
+
+data: {"delta":" değil"}
+
+data: {"delta":","}
+
+data: {"delta":" aynı"}
+
+data: {"delta":" zamanda"}
+
+data: {"delta":" hatırl"}
+
+data: {"delta":"aman"}
+
+data: {"delta":"ın"}
+
+data: {"delta":" ve"}
+
+data: {"delta":" kay"}
+
+data: {"delta":"bet"}
+
+data: {"delta":"menin"}
+
+data: {"delta":" hik"}
+
+data: {"delta":"ay"}
+
+data: {"delta":"esi"}
+
+data: {"delta":"."}
+
+data: {"delta":"\n\n"}
+
+data: {"delta":"Ar"}
+
+data: {"delta":"kanı"}
+
+data: {"delta":" yas"}
+
+data: {"delta":"lan"}
+
+data: {"delta":","}
+
+data: {"delta":" derin"}
+
+data: {"delta":" bir"}
+
+data: {"delta":" nef"}
+
+data: {"delta":"es"}
+
+data: {"delta":" al"}
+
+data: {"delta":"."}
+
+data: {"delta":" İşte"}
+
+data: {"delta":" **"}
+
+data: {"delta":"\""}
+
+data: {"delta":"G"}
+
+data: {"delta":"ümüş"}
+
+data: {"delta":" Haf"}
+
+data: {"delta":"ıza"}
+
+data: {"delta":" ve"}
+
+data: {"delta":" Sess"}
+
+data: {"delta":"izlik"}
+
+data: {"delta":" Ş"}
+
+data: {"delta":"eh"}
+
+data: {"delta":"ri"}
+
+data: {"delta":"\""}
+
+data: {"delta":"**"}
+
+data: {"delta":"nin"}
+
+data: {"delta":" hik"}
+
+data: {"delta":"ay"}
+
+data: {"delta":"esi"}
+
+data: {"delta":"."}
+
+data: {"delta":"\n\n"}
+
+data: {"delta":"***"}
+
+data: {"delta":"\n\n"}
+
+data: {"delta":"###"}
+
+data: {"delta":" I"}
+
+data: {"delta":"."}
+
+data: {"delta":" Böl"}
+
+data: {"delta":"üm"}
+
+data: {"delta":":"}
+
+data: {"delta":" Un"}
+
+data: {"delta":"ut"}
+
+data: {"delta":"ul"}
+
+data: {"delta":"muş"}
+
+data: {"delta":" Ş"}
+
+data: {"delta":"ehir"}
+
+data: {"delta":" O"}
+
+data: {"delta":"riz"}
+
+data: {"delta":"on"}
+
+data: {"delta":"\n\n"}
+
+data: {"delta":"Dü"}
+
+data: {"delta":"ny"}
+
+data: {"delta":"anın"}
+
+data: {"delta":" merkez"}
+
+data: {"delta":"inde"}
+
+data: {"delta":","}
+
+data: {"delta":" gö"}
+
+data: {"delta":"ky"}
+
+data: {"delta":"üz"}
+
+data: {"delta":"ünün"}
+
+data: {"delta":" her"}
+
+data: {"delta":" daim"}
+
+data: {"delta":" mor"}
+
+data: {"delta":" bir"}
+
+data: {"delta":" al"}
+
+data: {"delta":"acak"}
+
+data: {"delta":"aran"}
+
+data: {"delta":"lık"}
+
+data: {"delta":"ta"}
+
+data: {"delta":" kald"}
+
+data: {"delta":"ığı"}
+
+data: {"delta":","}
+
+data: {"delta":" bul"}
+
+data: {"delta":"ut"}
+
+data: {"delta":"ların"}
+
+data: {"delta":" ise"}
+
+data: {"delta":" krist"}
+
+data: {"delta":"al"}
+
+data: {"delta":"den"}
+
+data: {"delta":" olduğu"}
+
+data: {"delta":" bir"}
+
+data: {"delta":" şehir"}
+
+data: {"delta":" vardı"}
+
+data: {"delta":":"}
+
+data: {"delta":" O"}
+
+data: {"delta":"riz"}
+
+data: {"delta":"on"}
+
+data: {"delta":"."}
+
+data: {"delta":" O"}
+
+data: {"delta":"riz"}
+
+data: {"delta":"on"}
+
+data: {"delta":","}
+
+data: {"delta":" \""}
+
+data: {"delta":"H"}
+
+data: {"delta":"af"}
+
+data: {"delta":"ız"}
+
+data: {"delta":"aların"}
+
+data: {"delta":" Ş"}
+
+data: {"delta":"eh"}
+
+data: {"delta":"ri"}
+
+data: {"delta":"\""}
+
+data: {"delta":" olarak"}
+
+data: {"delta":" bilin"}
+
+data: {"delta":"irdi"}
+
+data: {"delta":"."}
+
+data: {"delta":" Bu"}
+
+data: {"delta":" şehir"}
+
+data: {"delta":"de"}
+
+data: {"delta":" insanlar"}
+
+data: {"delta":" an"}
+
+data: {"delta":"ı"}
+
+data: {"delta":"larını"}
+
+data: {"delta":" fizik"}
+
+data: {"delta":"sel"}
+
+data: {"delta":" nes"}
+
+data: {"delta":"nel"}
+
+data: {"delta":"ere"}
+
+data: {"delta":" dön"}
+
+data: {"delta":"üşt"}
+
+data: {"delta":"ü"}
+
+data: {"delta":"reb"}
+
+data: {"delta":"il"}
+
+data: {"delta":"irdi"}
+
+data: {"delta":"."}
+
+data: {"delta":" Mut"}
+
+data: {"delta":"lu"}
+
+data: {"delta":" bir"}
+
+data: {"delta":" çocuk"}
+
+data: {"delta":"luk"}
+
+data: {"delta":" an"}
+
+data: {"delta":"ısı"}
+
+data: {"delta":" küçük"}
+
+data: {"delta":","}
+
+data: {"delta":" par"}
+
+data: {"delta":"layan"}
+
+data: {"delta":" bir"}
+
+data: {"delta":" keh"}
+
+data: {"delta":"rib"}
+
+data: {"delta":"ara"}
+
+data: {"delta":";"}
+
+data: {"delta":" ilk"}
+
+data: {"delta":" aşk"}
+
+data: {"delta":"ın"}
+
+data: {"delta":" hey"}
+
+data: {"delta":"ec"}
+
+data: {"delta":"anı"}
+
+data: {"delta":" pem"}
+
+data: {"delta":"be"}
+
+data: {"delta":" bir"}
+
+data: {"delta":" kuv"}
+
+data: {"delta":"arsa"}
+
+data: {"delta":";"}
+
+data: {"delta":" derin"}
+
+data: {"delta":" bir"}
+
+data: {"delta":" k"}
+
+data: {"delta":"eder"}
+
+data: {"delta":" ise"}
+
+data: {"delta":" ağır"}
+
+data: {"delta":","}
+
+data: {"delta":" siyah"}
+
+data: {"delta":" bir"}
+
+data: {"delta":" obs"}
+
+data: {"delta":"idy"}
+
+data: {"delta":"ene"}
+
+data: {"delta":" dönüş"}
+
+data: {"delta":"ür"}
+
+data: {"delta":"dü"}
+
+data: {"delta":"."}
+
+data: {"delta":"\n\n"}
+
+data: {"delta":"İ"}
+
+data: {"delta":"nsan"}
+
+data: {"delta":"lar"}
+
+data: {"delta":","}
+
+data: {"delta":" ac"}
+
+data: {"delta":"ı"}
+
+data: {"delta":"larını"}
+
+data: {"delta":" hafif"}
+
+data: {"delta":"let"}
+
+data: {"delta":"mek"}
+
+data: {"delta":" için"}
+
+data: {"delta":" kötü"}
+
+data: {"delta":" an"}
+
+data: {"delta":"ı"}
+
+data: {"delta":"larını"}
+
+data: {"delta":" sat"}
+
+data: {"delta":"ar"}
+
+data: {"delta":","}
+
+data: {"delta":" z"}
+
+data: {"delta":"engin"}
+
+data: {"delta":"ler"}
+
+data: {"delta":" ise"}
+
+data: {"delta":" hayat"}
+
+data: {"delta":"larına"}
+
+data: {"delta":" renk"}
+
+data: {"delta":" kat"}
+
+data: {"delta":"mak"}
+
+data: {"delta":" için"}
+
+data: {"delta":" baş"}
+
+data: {"delta":"k"}
+
+data: {"delta":"alarının"}
+
+data: {"delta":" mac"}
+
+data: {"delta":"eral"}
+
+data: {"delta":"ar"}
+
+data: {"delta":"ını"}
+
+data: {"delta":" ve"}
+
+data: {"delta":" mutl"}
+
+data: {"delta":"uluk"}
+
+data: {"delta":"larını"}
+
+data: {"delta":" satın"}
+
+data: {"delta":" al"}
+
+data: {"delta":"ırl"}
+
+data: {"delta":"ardı"}
+
+data: {"delta":"."}
+
+data: {"delta":" Ancak"}
+
+data: {"delta":" bu"}
+
+data: {"delta":" ticaret"}
+
+data: {"delta":"in"}
+
+data: {"delta":" bir"}
+
+data: {"delta":" bed"}
+
+data: {"delta":"eli"}
+
+data: {"delta":" vardı"}
+
+data: {"delta":":"}
+
+data: {"delta":" Bir"}
+
+data: {"delta":" an"}
+
+data: {"delta":"ıyı"}
+
+data: {"delta":" satt"}
+
+data: {"delta":"ığınız"}
+
+data: {"delta":"da"}
+
+data: {"delta":","}
+
+data: {"delta":" onu"}
+
+data: {"delta":" sadece"}
+
+data: {"delta":" z"}
+
+data: {"delta":"ihn"}
+
+data: {"delta":"iniz"}
+
+data: {"delta":"den"}
+
+data: {"delta":" değil"}
+
+data: {"delta":","}
+
+data: {"delta":" ruh"}
+
+data: {"delta":"unuz"}
+
+data: {"delta":"dan"}
+
+data: {"delta":" da"}
+
+data: {"delta":" sil"}
+
+data: {"delta":"erd"}
+
+data: {"delta":"iniz"}
+
+data: {"delta":"."}
+
+data: {"delta":" Art"}
+
+data: {"delta":"ık"}
+
+data: {"delta":" o"}
+
+data: {"delta":" olay"}
+
+data: {"delta":" sizin"}
+
+data: {"delta":" için"}
+
+data: {"delta":" hiç"}
+
+data: {"delta":" yaş"}
+
+data: {"delta":"an"}
+
+data: {"delta":"mam"}
+
+data: {"delta":"ıştı"}
+
+data: {"delta":"."}
+
+data: {"delta":"\n\n"}
+
+data: {"delta":"Bu"}
+
+data: {"delta":" şehir"}
+
+data: {"delta":"de"}
+
+data: {"delta":","}
+
+data: {"delta":" El"}
+
+data: {"delta":"ian"}
+
+data: {"delta":" ad"}
+
+data: {"delta":"ında"}
+
+data: {"delta":" genç"}
+
+data: {"delta":" bir"}
+
+data: {"delta":" \""}
+
+data: {"delta":"H"}
+
+data: {"delta":"af"}
+
+data: {"delta":"ıza"}
+
+data: {"delta":" Dok"}
+
+data: {"delta":"umac"}
+
+data: {"delta":"ısı"}
+
+data: {"delta":"\""}
+
+data: {"delta":" yaş"}
+
+data: {"delta":"ardı"}
+
+data: {"delta":"."}
+
+data: {"delta":" El"}
+
+data: {"delta":"ian"}
+
+data: {"delta":"’"}
+
+data: {"delta":"ın"}
+
+data: {"delta":" yet"}
+
+data: {"delta":"ene"}
+
+data: {"delta":"ği"}
+
+data: {"delta":" nad"}
+
+data: {"delta":"irdi"}
+
+data: {"delta":";"}
+
+data: {"delta":" o"}
+
+data: {"delta":","}
+
+data: {"delta":" sadece"}
+
+data: {"delta":" an"}
+
+data: {"delta":"ıları"}
+
+data: {"delta":" nes"}
+
+data: {"delta":"nel"}
+
+data: {"delta":"ere"}
+
+data: {"delta":" dön"}
+
+data: {"delta":"üşt"}
+
+data: {"delta":"ürm"}
+
+data: {"delta":"ek"}
+
+data: {"delta":"le"}
+
+data: {"delta":" kal"}
+
+data: {"delta":"maz"}
+
+data: {"delta":","}
+
+data: {"delta":" aynı"}
+
+data: {"delta":" zamanda"}
+
+data: {"delta":" parç"}
+
+data: {"delta":"alan"}
+
+data: {"delta":"mış"}
+
+data: {"delta":","}
+
+data: {"delta":" kır"}
+
+data: {"delta":"ılmış"}
+
+data: {"delta":" veya"}
+
+data: {"delta":" unut"}
+
+data: {"delta":"ul"}
+
+data: {"delta":"muş"}
+
+data: {"delta":" an"}
+
+data: {"delta":"ıları"}
+
+data: {"delta":" on"}
+
+data: {"delta":"ar"}
+
+data: {"delta":"abil"}
+
+data: {"delta":"irdi"}
+
+data: {"delta":"."}
+
+data: {"delta":" El"}
+
+data: {"delta":"ian"}
+
+data: {"delta":","}
+
+data: {"delta":" şehr"}
+
+data: {"delta":"in"}
+
+data: {"delta":" en"}
+
+data: {"delta":" alt"}
+
+data: {"delta":" kat"}
+
+data: {"delta":"man"}
+
+data: {"delta":"larında"}
+
+data: {"delta":","}
+
+data: {"delta":" eski"}
+
+data: {"delta":" kitap"}
+
+data: {"delta":"lar"}
+
+data: {"delta":" ve"}
+
+data: {"delta":" toz"}
+
+data: {"delta":"lu"}
+
+data: {"delta":" krist"}
+
+data: {"delta":"aller"}
+
+data: {"delta":"le"}
+
+data: {"delta":" dolu"}
+
+data: {"delta":" küçük"}
+
+data: {"delta":" bir"}
+
+data: {"delta":" d"}
+
+data: {"delta":"ük"}
+
+data: {"delta":"k"}
+
+data: {"delta":"anda"}
+
+data: {"delta":" çalış"}
+
+data: {"delta":"ıyordu"}
+
+data: {"delta":"."}
+
+data: {"delta":"\n\n"}
+
+data: {"delta":"El"}
+
+data: {"delta":"ian"}
+
+data: {"delta":"’"}
+
+data: {"delta":"ın"}
+
+data: {"delta":" tek"}
+
+data: {"delta":" bir"}
+
+data: {"delta":" sır"}
+
+data: {"delta":"rı"}
+
+data: {"delta":" vardı"}
+
+data: {"delta":":"}
+
+data: {"delta":" K"}
+
+data: {"delta":"endi"}
+
+data: {"delta":" an"}
+
+data: {"delta":"ı"}
+
+data: {"delta":"larını"}
+
+data: {"delta":" asla"}
+
+data: {"delta":" sat"}
+
+data: {"delta":"mam"}
+
+data: {"delta":"ıştı"}
+
+data: {"delta":"."}
+
+data: {"delta":" Bu"}
+
+data: {"delta":" yüzden"}
+
+data: {"delta":" şehr"}
+
+data: {"delta":"in"}
+
+data: {"delta":" geri"}
+
+data: {"delta":" kalan"}
+
+data: {"delta":"ına"}
+
+data: {"delta":" göre"}
+
+data: {"delta":" çok"}
+
+data: {"delta":" daha"}
+
+data: {"delta":" ağır"}
+
+data: {"delta":" bir"}
+
+data: {"delta":" yük"}
+
+data: {"delta":" taşı"}
+
+data: {"delta":"y"}
+
+data: {"delta":"ordu"}
+
+data: {"delta":";"}
+
+data: {"delta":" tüm"}
+
+data: {"delta":" h"}
+
+data: {"delta":"üz"}
+
+data: {"delta":"ün"}
+
+data: {"delta":"leri"}
+
+data: {"delta":","}
+
+data: {"delta":" tüm"}
+
+data: {"delta":" piş"}
+
+data: {"delta":"man"}
+
+data: {"delta":"lık"}
+
+data: {"delta":"ları"}
+
+data: {"delta":" ve"}
+
+data: {"delta":" tüm"}
+
+data: {"delta":" öz"}
+
+data: {"delta":"le"}
+
+data: {"delta":"mleri"}
+
+data: {"delta":"yle"}
+
+data: {"delta":" birlikte"}
+
+data: {"delta":" yaşı"}
+
+data: {"delta":"y"}
+
+data: {"delta":"ordu"}
+
+data: {"delta":"."}
+
+data: {"delta":" O"}
+
+data: {"delta":"riz"}
+
+data: {"delta":"on"}
+
+data: {"delta":" halk"}
+
+data: {"delta":"ı"}
+
+data: {"delta":" ona"}
+
+data: {"delta":" \""}
+
+data: {"delta":"K"}
+
+data: {"delta":"eder"}
+
+data: {"delta":"li"}
+
+data: {"delta":" Çocuk"}
+
+data: {"delta":"\""}
+
+data: {"delta":" der"}
+
+data: {"delta":"di"}
+
+data: {"delta":","}
+
+data: {"delta":" çünkü"}
+
+data: {"delta":" göz"}
+
+data: {"delta":"lerinde"}
+
+data: {"delta":" bin"}
+
+data: {"delta":" yıllık"}
+
+data: {"delta":" bir"}
+
+data: {"delta":" y"}
+
+data: {"delta":"org"}
+
+data: {"delta":"un"}
+
+data: {"delta":"luk"}
+
+data: {"delta":" vardı"}
+
+data: {"delta":"."}
+
+data: {"delta":"\n\n"}
+
+data: {"delta":"###"}
+
+data: {"delta":" II"}
+
+data: {"delta":"."}
+
+data: {"delta":" Böl"}
+
+data: {"delta":"üm"}
+
+data: {"delta":":"}
+
+data: {"delta":" Yas"}
+
+data: {"delta":"ak"}
+
+data: {"delta":" Par"}
+
+data: {"delta":"ça"}
+
+data: {"delta":"\n\n"}
+
+data: {"delta":"Bir"}
+
+data: {"delta":" gün"}
+
+data: {"delta":","}
+
+data: {"delta":" d"}
+
+data: {"delta":"ük"}
+
+data: {"delta":"kan"}
+
+data: {"delta":"ına"}
+
+data: {"delta":" kim"}
+
+data: {"delta":"liği"}
+
+data: {"delta":" bel"}
+
+data: {"delta":"irs"}
+
+data: {"delta":"iz"}
+
+data: {"delta":","}
+
+data: {"delta":" p"}
+
+data: {"delta":"elerini"}
+
+data: {"delta":"yle"}
+
+data: {"delta":" yüz"}
+
+data: {"delta":"ünü"}
+
+data: {"delta":" giz"}
+
+data: {"delta":"le"}
+
+data: {"delta":"miş"}
+
+data: {"delta":" bir"}
+
+data: {"delta":" kadın"}
+
+data: {"delta":" geldi"}
+
+data: {"delta":"."}
+
+data: {"delta":" Kad"}
+
+data: {"delta":"ın"}
+
+data: {"delta":","}
+
+data: {"delta":" El"}
+
+data: {"delta":"ian"}
+
+data: {"delta":"’"}
+
+data: {"delta":"ın"}
+
+data: {"delta":" mas"}
+
+data: {"delta":"asına"}
+
+data: {"delta":" küçük"}
+
+data: {"delta":","}
+
+data: {"delta":" çat"}
+
+data: {"delta":"lak"}
+
+data: {"delta":" ve"}
+
+data: {"delta":" reng"}
+
+data: {"delta":"i"}
+
+data: {"delta":" sol"}
+
+data: {"delta":"muş"}
+
+data: {"delta":" gri"}
+
+data: {"delta":" bir"}
+
+data: {"delta":" krist"}
+
+data: {"delta":"al"}
+
+data: {"delta":" bı"}
+
+data: {"delta":"rakt"}
+
+data: {"delta":"ı"}
+
+data: {"delta":"."}
+
+data: {"delta":" Krist"}
+
+data: {"delta":"al"}
+
+data: {"delta":" o"}
+
+data: {"delta":" kadar"}
+
+data: {"delta":" sol"}
+
+data: {"delta":"uk"}
+
+data: {"delta":"tu"}
+
+data: {"delta":" ki"}
+
+data: {"delta":","}
+
+data: {"delta":" nered"}
+
+data: {"delta":"eyse"}
+
+data: {"delta":" görün"}
+
+data: {"delta":"mez"}
+
+data: {"delta":"di"}
+
+data: {"delta":"."}
+
+data: {"delta":"\n\n"}
+
+data: {"delta":"\""}
+
+data: {"delta":"B"}
+
+data: {"delta":"unu"}
+
+data: {"delta":" on"}
+
+data: {"delta":"ar"}
+
+data: {"delta":"abilir"}
+
+data: {"delta":" mis"}
+
+data: {"delta":"in"}
+
+data: {"delta":"?\""}
+
+data: {"delta":" diye"}
+
+data: {"delta":" s"}
+
+data: {"delta":"ordu"}
+
+data: {"delta":" kadın"}
+
+data: {"delta":"."}
+
+data: {"delta":" S"}
+
+data: {"delta":"esi"}
+
+data: {"delta":","}
+
+data: {"delta":" kurum"}
+
+data: {"delta":"uş"}
+
+data: {"delta":" yap"}
+
+data: {"delta":"rak"}
+
+data: {"delta":"ların"}
+
+data: {"delta":" h"}
+
+data: {"delta":"ışı"}
+
+data: {"delta":"rt"}
+
+data: {"delta":"ısı"}
+
+data: {"delta":" gibi"}
+
+data: {"delta":"ydi"}
+
+data: {"delta":"."}
+
+data: {"delta":"\n\n"}
+
+data: {"delta":"El"}
+
+data: {"delta":"ian"}
+
+data: {"delta":" krist"}
+
+data: {"delta":"ale"}
+
+data: {"delta":" dok"}
+
+data: {"delta":"und"}
+
+data: {"delta":"uğu"}
+
+data: {"delta":" an"}
+
+data: {"delta":","}
+
+data: {"delta":" şidd"}
+
+data: {"delta":"etli"}
+
+data: {"delta":" bir"}
+
+data: {"delta":" s"}
+
+data: {"delta":"ars"}
+
+data: {"delta":"ıntı"}
+
+data: {"delta":" his"}
+
+data: {"delta":"setti"}
+
+data: {"delta":"."}
+
+data: {"delta":" Bu"}
+
+data: {"delta":","}
+
+data: {"delta":" sı"}
+
+data: {"delta":"rad"}
+
+data: {"delta":"an"}
+
+data: {"delta":" bir"}
+
+data: {"delta":" an"}
+
+data: {"delta":"ı"}
+
+data: {"delta":" değ"}
+
+data: {"delta":"ildi"}
+
+data: {"delta":"."}
+
+data: {"delta":" Bu"}
+
+data: {"delta":","}
+
+data: {"delta":" \""}
+
+data: {"delta":"Dü"}
+
+data: {"delta":"nya"}
+
+data: {"delta":"’"}
+
+data: {"delta":"nın"}
+
+data: {"delta":" İlk"}
+
+data: {"delta":" Söz"}
+
+data: {"delta":"ü"}
+
+data: {"delta":"\""}
+
+data: {"delta":"ne"}
+
+data: {"delta":" ait"}
+
+data: {"delta":" bir"}
+
+data: {"delta":" parç"}
+
+data: {"delta":"ay"}
+
+data: {"delta":"dı"}
+
+data: {"delta":"."}
+
+data: {"delta":" E"}
+
+data: {"delta":"fs"}
+
+data: {"delta":"an"}
+
+data: {"delta":"elere"}
+
+data: {"delta":" göre"}
+
+data: {"delta":","}
+
+data: {"delta":" dünya"}
+
+data: {"delta":" yarat"}
+
+data: {"delta":"ıld"}
+
+data: {"delta":"ığında"}
+
+data: {"delta":" söyl"}
+
+data: {"delta":"enen"}
+
+data: {"delta":" ilk"}
+
+data: {"delta":" söz"}
+
+data: {"delta":","}
+
+data: {"delta":" tüm"}
+
+data: {"delta":" var"}
+
+data: {"delta":"olu"}
+
+data: {"delta":"ş"}
+
+data: {"delta":"un"}
+
+data: {"delta":" deng"}
+
+data: {"delta":"esini"}
+
+data: {"delta":" tut"}
+
+data: {"delta":"uy"}
+
+data: {"delta":"ordu"}
+
+data: {"delta":"."}
+
+data: {"delta":" Ancak"}
+
+data: {"delta":" bu"}
+
+data: {"delta":" söz"}
+
+data: {"delta":" bin"}
+
+data: {"delta":"lerce"}
+
+data: {"delta":" yıl"}
+
+data: {"delta":" önce"}
+
+data: {"delta":" parç"}
+
+data: {"delta":"alan"}
+
+data: {"delta":"mış"}
+
+data: {"delta":" ve"}
+
+data: {"delta":" parç"}
+
+data: {"delta":"aları"}
+
+data: {"delta":" dünyanın"}
+
+data: {"delta":" dört"}
+
+data: {"delta":" bir"}
+
+data: {"delta":" yan"}
+
+data: {"delta":"ına"}
+
+data: {"delta":" dağı"}
+
+data: {"delta":"l"}
+
+data: {"delta":"mıştı"}
+
+data: {"delta":"."}
+
+data: {"delta":" Eğer"}
+
+data: {"delta":" bu"}
+
+data: {"delta":" parç"}
+
+data: {"delta":"alar"}
+
+data: {"delta":" bir"}
+
+data: {"delta":"leş"}
+
+data: {"delta":"irse"}
+
+data: {"delta":","}
+
+data: {"delta":" insanlar"}
+
+data: {"delta":" an"}
+
+data: {"delta":"ı"}
+
+data: {"delta":"larını"}
+
+data: {"delta":" sat"}
+
+data: {"delta":"mak"}
+
+data: {"delta":" zorunda"}
+
+data: {"delta":" kal"}
+
+data: {"delta":"maz"}
+
+data: {"delta":"dı"}
+
+data: {"delta":";"}
+
+data: {"delta":" gerçek"}
+
+data: {"delta":" ben"}
+
+data: {"delta":"lik"}
+
+data: {"delta":"lerine"}
+
+data: {"delta":" geri"}
+
+data: {"delta":" dö"}
+
+data: {"delta":"ne"}
+
+data: {"delta":"bilir"}
+
+data: {"delta":"ler"}
+
+data: {"delta":"di"}
+
+data: {"delta":"."}
+
+data: {"delta":"\n\n"}
+
+data: {"delta":"Kad"}
+
+data: {"delta":"ın"}
+
+data: {"delta":","}
+
+data: {"delta":" \""}
+
+data: {"delta":"S"}
+
+data: {"delta":"ess"}
+
+data: {"delta":"iz"}
+
+data: {"delta":"li"}
+
+data: {"delta":"ğin"}
+
+data: {"delta":" Mu"}
+
+data: {"delta":"haf"}
+
+data: {"delta":"ız"}
+
+data: {"delta":"ları"}
+
+data: {"delta":"\""}
+
+data: {"delta":"ndan"}
+
+data: {"delta":" kaç"}
+
+data: {"delta":"an"}
+
+data: {"delta":" bir"}
+
+data: {"delta":" sür"}
+
+data: {"delta":"g"}
+
+data: {"delta":"ünd"}
+
+data: {"delta":"ü"}
+
+data: {"delta":"."}
+
+data: {"delta":" Mu"}
+
+data: {"delta":"haf"}
+
+data: {"delta":"ız"}
+
+data: {"delta":"lar"}
+
+data: {"delta":","}
+
+data: {"delta":" O"}
+
+data: {"delta":"riz"}
+
+data: {"delta":"on"}
+
+data: {"delta":"’"}
+
+data: {"delta":"un"}
+
+data: {"delta":" düzen"}
+
+data: {"delta":"ini"}
+
+data: {"delta":" kor"}
+
+data: {"delta":"uyan"}
+
+data: {"delta":","}
+
+data: {"delta":" insanların"}
+
+data: {"delta":" unut"}
+
+data: {"delta":"maya"}
+
+data: {"delta":" devam"}
+
+data: {"delta":" et"}
+
+data: {"delta":"mesini"}
+
+data: {"delta":" isteyen"}
+
+data: {"delta":" karan"}
+
+data: {"delta":"lık"}
+
+data: {"delta":" bir"}
+
+data: {"delta":" tarik"}
+
+data: {"delta":"att"}
+
+data: {"delta":"ı"}
+
+data: {"delta":"."}
+
+data: {"delta":" Çünkü"}
+
+data: {"delta":" insanlar"}
+
+data: {"delta":" hatırl"}
+
+data: {"delta":"arsa"}
+
+data: {"delta":","}
+
+data: {"delta":" Mu"}
+
+data: {"delta":"haf"}
+
+data: {"delta":"ız"}
+
+data: {"delta":"ların"}
+
+data: {"delta":" on"}
+
+data: {"delta":"lara"}
+
+data: {"delta":" sund"}
+
+data: {"delta":"uğu"}
+
+data: {"delta":" sa"}
+
+data: {"delta":"hte"}
+
+data: {"delta":" cen"}
+
+data: {"delta":"net"}
+
+data: {"delta":" çö"}
+
+data: {"delta":"ke"}
+
+data: {"delta":"ce"}
+
+data: {"delta":"kti"}
+
+data: {"delta":"."}
+
+data: {"delta":"\n\n"}
+
+data: {"delta":"Kad"}
+
+data: {"delta":"ın"}
+
+data: {"delta":","}
+
+data: {"delta":" El"}
+
+data: {"delta":"ian"}
+
+data: {"delta":"’"}
+
+data: {"delta":"a"}
+
+data: {"delta":" bir"}
+
+data: {"delta":" har"}
+
+data: {"delta":"ita"}
+
+data: {"delta":" bı"}
+
+data: {"delta":"rakt"}
+
+data: {"delta":"ı"}
+
+data: {"delta":" ve"}
+
+data: {"delta":" f"}
+
+data: {"delta":"ısı"}
+
+data: {"delta":"ld"}
+
+data: {"delta":"adı"}
+
+data: {"delta":":"}
+
+data: {"delta":" *\""}
+
+data: {"delta":"Hat"}
+
+data: {"delta":"ırl"}
+
+data: {"delta":"amak"}
+
+data: {"delta":","}
+
+data: {"delta":" ac"}
+
+data: {"delta":"ı"}
+
+data: {"delta":" çek"}
+
+data: {"delta":"m"}
+
+data: {"delta":"ektir"}
+
+data: {"delta":";"}
+
+data: {"delta":" ama"}
+
+data: {"delta":" hatırl"}
+
+data: {"delta":"am"}
+
+data: {"delta":"ayan"}
+
+data: {"delta":"lar"}
+
+data: {"delta":" asla"}
+
+data: {"delta":" gerçekten"}
+
+data: {"delta":" yaşam"}
+
+data: {"delta":"am"}
+
+data: {"delta":"ıştır"}
+
+data: {"delta":"."}
+
+data: {"delta":" G"}
+
+data: {"delta":"ümüş"}
+
+data: {"delta":" K"}
+
+data: {"delta":"ütü"}
+
+data: {"delta":"ph"}
+
+data: {"delta":"ane"}
+
+data: {"delta":"’"}
+
+data: {"delta":"ye"}
+
+data: {"delta":" git"}
+
+data: {"delta":","}
+
+data: {"delta":" El"}
+
+data: {"delta":"ian"}
+
+data: {"delta":"."}
+
+data: {"delta":" Or"}
+
+data: {"delta":"ada"}
+
+data: {"delta":" seni"}
+
+data: {"delta":" bek"}
+
+data: {"delta":"leyen"}
+
+data: {"delta":" gerçek"}
+
+data: {"delta":" seni"}
+
+data: {"delta":" bul"}
+
+data: {"delta":"acaks"}
+
+data: {"delta":"ın"}
+
+data: {"delta":".\""}
+
+data: {"delta":"*"}
+
+data: {"delta":"\n\n"}
+
+data: {"delta":"###"}
+
+data: {"delta":" III"}
+
+data: {"delta":"."}
+
+data: {"delta":" Böl"}
+
+data: {"delta":"üm"}
+
+data: {"delta":":"}
+
+data: {"delta":" Krist"}
+
+data: {"delta":"al"}
+
+data: {"delta":" Orm"}
+
+data: {"delta":"an"}
+
+data: {"delta":"lar"}
+
+data: {"delta":" ve"}
+
+data: {"delta":" F"}
+
+data: {"delta":"ısı"}
+
+data: {"delta":"lt"}
+
+data: {"delta":"ı"}
+
+data: {"delta":" Da"}
+
+data: {"delta":"ğ"}
+
+data: {"delta":"ları"}
+
+data: {"delta":"\n\n"}
+
+data: {"delta":"El"}
+
+data: {"delta":"ian"}
+
+data: {"delta":","}
+
+data: {"delta":" hayat"}
+
+data: {"delta":"ında"}
+
+data: {"delta":" ilk"}
+
+data: {"delta":" kez"}
+
+data: {"delta":" d"}
+
+data: {"delta":"ük"}
+
+data: {"delta":"kan"}
+
+data: {"delta":"ının"}
+
+data: {"delta":" kap"}
+
+data: {"delta":"ısını"}
+
+data: {"delta":" k"}
+
+data: {"delta":"ilit"}
+
+data: {"delta":"ledi"}
+
+data: {"delta":" ve"}
+
+data: {"delta":" şeh"}
+
+data: {"delta":"ird"}
+
+data: {"delta":"en"}
+
+data: {"delta":" ayr"}
+
+data: {"delta":"ıldı"}
+
+data: {"delta":"."}
+
+data: {"delta":" Yan"}
+
+data: {"delta":"ına"}
+
+data: {"delta":" sadece"}
+
+data: {"delta":" on"}
+
+data: {"delta":"ar"}
+
+data: {"delta":"abile"}
+
+data: {"delta":"ceği"}
+
+data: {"delta":" birkaç"}
+
+data: {"delta":" an"}
+
+data: {"delta":"ı"}
+
+data: {"delta":" krist"}
+
+data: {"delta":"ali"}
+
+data: {"delta":" ve"}
+
+data: {"delta":" kad"}
+
+data: {"delta":"ının"}
+
+data: {"delta":" bı"}
+
+data: {"delta":"rakt"}
+
+data: {"delta":"ığı"}
+
+data: {"delta":" har"}
+
+data: {"delta":"it"}
+
+data: {"delta":"ayı"}
+
+data: {"delta":" aldı"}
+
+data: {"delta":"."}
+
+data: {"delta":"\n\n"}
+
+data: {"delta":"Y"}
+
+data: {"delta":"ol"}
+
+data: {"delta":"cul"}
+
+data: {"delta":"uğu"}
+
+data: {"delta":","}
+
+data: {"delta":" önce"}
+
+data: {"delta":" \""}
+
+data: {"delta":"Krist"}
+
+data: {"delta":"al"}
+
+data: {"delta":" Orm"}
+
+data: {"delta":"an"}
+
+data: {"delta":"lar"}
+
+data: {"delta":"\""}
+
+data: {"delta":"dan"}
+
+data: {"delta":" geçti"}
+
+data: {"delta":"."}
+
+data: {"delta":" Burada"}
+
+data: {"delta":" ağ"}
+
+data: {"delta":"aç"}
+
+data: {"delta":"lar"}
+
+data: {"delta":" cam"}
+
+data: {"delta":"d"}
+
+data: {"delta":"andı"}
+
+data: {"delta":" ve"}
+
+data: {"delta":" r"}
+
+data: {"delta":"üz"}
+
+data: {"delta":"gar"}
+
+data: {"delta":" esti"}
+
+data: {"delta":"ğinde"}
+
+data: {"delta":" bin"}
+
+data: {"delta":"lerce"}
+
+data: {"delta":" ç"}
+
+data: {"delta":"an"}
+
+data: {"delta":" ç"}
+
+data: {"delta":"alı"}
+
+data: {"delta":"y"}
+
+data: {"delta":"orm"}
+
+data: {"delta":"uş"}
+
+data: {"delta":" gibi"}
+
+data: {"delta":" ses"}
+
+data: {"delta":" çıkar"}
+
+data: {"delta":"ırl"}
+
+data: {"delta":"ardı"}
+
+data: {"delta":"."}
+
+data: {"delta":" Orm"}
+
+data: {"delta":"anın"}
+
+data: {"delta":" derin"}
+
+data: {"delta":"lik"}
+
+data: {"delta":"lerinde"}
+
+data: {"delta":","}
+
+data: {"delta":" El"}
+
+data: {"delta":"ian"}
+
+data: {"delta":" kendi"}
+
+data: {"delta":" y"}
+
+data: {"delta":"ansı"}
+
+data: {"delta":"masını"}
+
+data: {"delta":" görd"}
+
+data: {"delta":"ü"}
+
+data: {"delta":" ama"}
+
+data: {"delta":" bu"}
+
+data: {"delta":" y"}
+
+data: {"delta":"ans"}
+
+data: {"delta":"ıma"}
+
+data: {"delta":" onun"}
+
+data: {"delta":" ş"}
+
+data: {"delta":"imd"}
+
+data: {"delta":"iki"}
+
+data: {"delta":" hali"}
+
+data: {"delta":" değil"}
+
+data: {"delta":","}
+
+data: {"delta":" hiç"}
+
+data: {"delta":" tan"}
+
+data: {"delta":"ım"}
+
+data: {"delta":"adığı"}
+
+data: {"delta":" bir"}
+
+data: {"delta":" vers"}
+
+data: {"delta":"iyon"}
+
+data: {"delta":"uy"}
+
+data: {"delta":"du"}
+
+data: {"delta":"."}
+
+data: {"delta":" Y"}
+
+data: {"delta":"ansı"}
+
+data: {"delta":"ması"}
+
+data: {"delta":" ona"}
+
+data: {"delta":" g"}
+
+data: {"delta":"ülü"}
+
+data: {"delta":"ms"}
+
+data: {"delta":"edi"}
+
+data: {"delta":" ve"}
+
+data: {"delta":" şöyle"}
+
+data: {"delta":" dedi"}
+
+data: {"delta":":"}
+
+data: {"delta":" *\""}
+
+data: {"delta":"Kay"}
+
+data: {"delta":"bett"}
+
+data: {"delta":"ik"}
+
+data: {"delta":"lerini"}
+
+data: {"delta":" ar"}
+
+data: {"delta":"ama"}
+
+data: {"delta":","}
+
+data: {"delta":" bul"}
+
+data: {"delta":"duk"}
+
+data: {"delta":"larını"}
+
+data: {"delta":" kor"}
+
+data: {"delta":"u"}
+
+data: {"delta":".\""}
+
+data: {"delta":"*"}
+
+data: {"delta":"\n\n"}
+
+data: {"delta":"Ard"}
+
+data: {"delta":"ından"}
+
+data: {"delta":" \""}
+
+data: {"delta":"F"}
+
+data: {"delta":"ısı"}
+
+data: {"delta":"lt"}
+
+data: {"delta":"ı"}
+
+data: {"delta":" Da"}
+
+data: {"delta":"ğ"}
+
+data: {"delta":"ları"}
+
+data: {"delta":"\""}
+
+data: {"delta":"na"}
+
+data: {"delta":" t"}
+
+data: {"delta":"ırm"}
+
+data: {"delta":"andı"}
+
+data: {"delta":"."}
+
+data: {"delta":" Bu"}
+
+data: {"delta":" da"}
+
+data: {"delta":"ğ"}
+
+data: {"delta":"larda"}
+
+data: {"delta":" hava"}
+
+data: {"delta":" o"}
+
+data: {"delta":" kadar"}
+
+data: {"delta":" yo"}
+
+data: {"delta":"ğ"}
+
+data: {"delta":"undu"}
+
+data: {"delta":" ki"}
+
+data: {"delta":","}
+
+data: {"delta":" et"}
+
+data: {"delta":"raft"}
+
+data: {"delta":"a"}
+
+data: {"delta":" uç"}
+
+data: {"delta":"uş"}
+
+data: {"delta":"an"}
+
+data: {"delta":" görün"}
+
+data: {"delta":"mez"}
+
+data: {"delta":" an"}
+
+data: {"delta":"ı"}
+
+data: {"delta":" parç"}
+
+data: {"delta":"aları"}
+
+data: {"delta":" kula"}
+
+data: {"delta":"ğ"}
+
+data: {"delta":"ınıza"}
+
+data: {"delta":" f"}
+
+data: {"delta":"ısı"}
+
+data: {"delta":"ld"}
+
+data: {"delta":"amaya"}
+
+data: {"delta":" baş"}
+
+data: {"delta":"lardı"}
+
+data: {"delta":"."}
+
+data: {"delta":" Baş"}
+
+data: {"delta":"ka"}
+
+data: {"delta":" insanların"}
+
+data: {"delta":" piş"}
+
+data: {"delta":"man"}
+
+data: {"delta":"lık"}
+
+data: {"delta":"larını"}
+
+data: {"delta":","}
+
+data: {"delta":" giz"}
+
+data: {"delta":"li"}
+
+data: {"delta":" aşk"}
+
+data: {"delta":"larını"}
+
+data: {"delta":" ve"}
+
+data: {"delta":" kork"}
+
+data: {"delta":"ular"}
+
+data: {"delta":"ını"}
+
+data: {"delta":" duy"}
+
+data: {"delta":"uy"}
+
+data: {"delta":"ordu"}
+
+data: {"delta":"."}
+
+data: {"delta":" El"}
+
+data: {"delta":"ian"}
+
+data: {"delta":","}
+
+data: {"delta":" bu"}
+
+data: {"delta":" g"}
+
+data: {"delta":"ür"}
+
+data: {"delta":"ült"}
+
+data: {"delta":"ü"}
+
+data: {"delta":"den"}
+
+data: {"delta":" delir"}
+
+data: {"delta":"menin"}
+
+data: {"delta":" eş"}
+
+data: {"delta":"i"}
+
+data: {"delta":"ğine"}
+
+data: {"delta":" geldi"}
+
+data: {"delta":"ğinde"}
+
+data: {"delta":","}
+
+data: {"delta":" kendi"}
+
+data: {"delta":" an"}
+
+data: {"delta":"ı"}
+
+data: {"delta":"larına"}
+
+data: {"delta":" tut"}
+
+data: {"delta":"undu"}
+
+data: {"delta":"."}
+
+data: {"delta":" An"}
+
+data: {"delta":"nes"}
+
+data: {"delta":"inin"}
+
+data: {"delta":" ona"}
+
+data: {"delta":" söyledi"}
+
+data: {"delta":"ği"}
+
+data: {"delta":" bir"}
+
+data: {"delta":" nin"}
+
+data: {"delta":"ni"}
+
+data: {"delta":"yi"}
+
+data: {"delta":","}
+
+data: {"delta":" çocuk"}
+
+data: {"delta":"ken"}
+
+data: {"delta":" y"}
+
+data: {"delta":"edi"}
+
+data: {"delta":"ği"}
+
+data: {"delta":" bir"}
+
+data: {"delta":" el"}
+
+data: {"delta":"manın"}
+
+data: {"delta":" tad"}
+
+data: {"delta":"ını"}
+
+data: {"delta":","}
+
+data: {"delta":" yağ"}
+
+data: {"delta":"mur"}
+
+data: {"delta":" sonrası"}
+
+data: {"delta":" toprak"}
+
+data: {"delta":" kok"}
+
+data: {"delta":"us"}
+
+data: {"delta":"unu"}
+
+data: {"delta":" hatırl"}
+
+data: {"delta":"adı"}
+
+data: {"delta":"."}
+
+data: {"delta":" K"}
+
+data: {"delta":"endi"}
+
+data: {"delta":" gerçek"}
+
+data: {"delta":"liği"}
+
+data: {"delta":","}
+
+data: {"delta":" dış"}
+
+data: {"delta":" düny"}
+
+data: {"delta":"adaki"}
+
+data: {"delta":" kaos"}
+
+data: {"delta":"un"}
+
+data: {"delta":" içinde"}
+
+data: {"delta":" onun"}
+
+data: {"delta":" çap"}
+
+data: {"delta":"ası"}
+
+data: {"delta":" oldu"}
+
+data: {"delta":"."}
+
+data: {"delta":"\n\n"}
+
+data: {"delta":"Y"}
+
+data: {"delta":"olda"}
+
+data: {"delta":","}
+
+data: {"delta":" K"}
+
+data: {"delta":"ael"}
+
+data: {"delta":"en"}
+
+data: {"delta":" ad"}
+
+data: {"delta":"ında"}
+
+data: {"delta":" eski"}
+
+data: {"delta":" bir"}
+
+data: {"delta":" ş"}
+
+data: {"delta":"ö"}
+
+data: {"delta":"val"}
+
+data: {"delta":"y"}
+
+data: {"delta":"ey"}
+
+data: {"delta":"le"}
+
+data: {"delta":" tan"}
+
+data: {"delta":"ıştı"}
+
+data: {"delta":"."}
+
+data: {"delta":" K"}
+
+data: {"delta":"ael"}
+
+data: {"delta":"en"}
+
+data: {"delta":","}
+
+data: {"delta":" savaş"}
+
+data: {"delta":" an"}
+
+data: {"delta":"ı"}
+
+data: {"delta":"larını"}
+
+data: {"delta":" sat"}
+
+data: {"delta":"mış"}
+
+data: {"delta":" bir"}
+
+data: {"delta":" asker"}
+
+data: {"delta":"di"}
+
+data: {"delta":"."}
+
+data: {"delta":" Art"}
+
+data: {"delta":"ık"}
+
+data: {"delta":" nasıl"}
+
+data: {"delta":" savaş"}
+
+data: {"delta":"acağını"}
+
+data: {"delta":" bili"}
+
+data: {"delta":"y"}
+
+data: {"delta":"ordu"}
+
+data: {"delta":" ("}
+
+data: {"delta":"kas"}
+
+data: {"delta":" haf"}
+
+data: {"delta":"ız"}
+
+data: {"delta":"ası"}
+
+data: {"delta":" kal"}
+
+data: {"delta":"mıştı"}
+
+data: {"delta":")"}
+
+data: {"delta":" ama"}
+
+data: {"delta":" neden"}
+
+data: {"delta":" sava"}
+
+data: {"delta":"şt"}
+
+data: {"delta":"ığını"}
+
+data: {"delta":","}
+
+data: {"delta":" kim"}
+
+data: {"delta":"in"}
+
+data: {"delta":" için"}
+
+data: {"delta":" dö"}
+
+data: {"delta":"v"}
+
+data: {"delta":"üşt"}
+
+data: {"delta":"üğ"}
+
+data: {"delta":"ünü"}
+
+data: {"delta":" unut"}
+
+data: {"delta":"muş"}
+
+data: {"delta":"tu"}
+
+data: {"delta":"."}
+
+data: {"delta":" K"}
+
+data: {"delta":"ael"}
+
+data: {"delta":"en"}
+
+data: {"delta":","}
+
+data: {"delta":" boş"}
+
+data: {"delta":"luk"}
+
+data: {"delta":"ta"}
+
+data: {"delta":" yür"}
+
+data: {"delta":"üy"}
+
+data: {"delta":"en"}
+
+data: {"delta":" bir"}
+
+data: {"delta":" ruh"}
+
+data: {"delta":" gibi"}
+
+data: {"delta":"ydi"}
+
+data: {"delta":"."}
+
+data: {"delta":" El"}
+
+data: {"delta":"ian"}
+
+data: {"delta":","}
+
+data: {"delta":" K"}
+
+data: {"delta":"ael"}
+
+data: {"delta":"en"}
+
+data: {"delta":"’"}
+
+data: {"delta":"in"}
+
+data: {"delta":" z"}
+
+data: {"delta":"ihn"}
+
+data: {"delta":"indeki"}
+
+data: {"delta":" çat"}
+
+data: {"delta":"lak"}
+
+data: {"delta":"ları"}
+
+data: {"delta":" on"}
+
+data: {"delta":"arm"}
+
+data: {"delta":"aya"}
+
+data: {"delta":" çalış"}
+
+data: {"delta":"tı"}
+
+data: {"delta":" ve"}
+
+data: {"delta":" ona"}
+
+data: {"delta":" küçük"}
+
+data: {"delta":" bir"}
+
+data: {"delta":" an"}
+
+data: {"delta":"ı"}
+
+data: {"delta":" parç"}
+
+data: {"delta":"ası"}
+
+data: {"delta":" verdi"}
+
+data: {"delta":":"}
+
+data: {"delta":" Bir"}
+
+data: {"delta":" çocuğ"}
+
+data: {"delta":"un"}
+
+data: {"delta":" gül"}
+
+data: {"delta":"üm"}
+
+data: {"delta":"sem"}
+
+data: {"delta":"esi"}
+
+data: {"delta":"."}
+
+data: {"delta":" K"}
+
+data: {"delta":"ael"}
+
+data: {"delta":"en"}
+
+data: {"delta":" bu"}
+
+data: {"delta":" an"}
+
+data: {"delta":"ıyla"}
+
+data: {"delta":" birlikte"}
+
+data: {"delta":" yeniden"}
+
+data: {"delta":" ağ"}
+
+data: {"delta":"lam"}
+
+data: {"delta":"ayı"}
+
+data: {"delta":" hatırl"}
+
+data: {"delta":"adı"}
+
+data: {"delta":"."}
+

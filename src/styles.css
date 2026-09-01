@@ -1,0 +1,348 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Elara Sovereign Studio design system.
+ * Deep dark canvas, jewel-tone accents, glass surfaces.
+ * All colors in oklch. Never hardcode colors in components.
+ */
+
+@theme inline {
+  --default-transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  --default-transition-duration: 150ms;
+  --ease-in-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --font-sans: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-canvas: var(--canvas);
+  --color-panel: var(--panel);
+  --color-raised: var(--raised);
+  --color-hairline: var(--hairline);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-sapphire: var(--sapphire);
+  --color-sapphire-deep: var(--sapphire-deep);
+  --color-emerald: var(--emerald);
+  --color-amethyst: var(--amethyst);
+  --color-topaz: var(--topaz);
+  --color-ruby: var(--ruby);
+  --color-platinum: var(--platinum);
+
+  --color-chart-1: var(--sapphire);
+  --color-chart-2: var(--emerald);
+  --color-chart-3: var(--amethyst);
+  --color-chart-4: var(--topaz);
+  --color-chart-5: var(--ruby);
+}
+
+:root {
+  --radius: 0.625rem;
+
+  /* neutral charcoal surfaces — flat, Kimi-like */
+  --canvas: oklch(0.235 0.003 260); /* main chat canvas */
+  --canvas-deep: oklch(0.205 0.003 260); /* sidebar / rails */
+  --canvas-low: oklch(0.235 0.003 260);
+  --panel: oklch(0.268 0.003 260);
+  --raised: oklch(0.305 0.003 260);
+  --hairline: oklch(1 0 0 / 6%);
+
+  --background: var(--canvas);
+  --foreground: oklch(0.928 0.012 258); /* platinum silver #e2e8f0 */
+  --card: var(--panel);
+  --card-foreground: var(--foreground);
+  --popover: var(--raised);
+  --popover-foreground: var(--foreground);
+
+  --sapphire: oklch(0.62 0.155 260); /* jewel sapphire */
+  --sapphire-deep: oklch(0.5 0.14 260);
+  --emerald: oklch(0.774 0.136 156);
+  --amethyst: oklch(0.68 0.155 305);
+  --topaz: oklch(0.8 0.13 85);
+  --ruby: oklch(0.64 0.19 22);
+  --platinum: oklch(0.78 0.003 260);
+
+  --primary: var(--sapphire);
+  --primary-foreground: oklch(0.2 0.005 260);
+  --secondary: var(--raised);
+  --secondary-foreground: oklch(0.94 0.004 260);
+  --muted: oklch(0.32 0.003 260);
+  --muted-foreground: oklch(0.745 0.008 258);
+  --accent: var(--raised);
+  --accent-foreground: oklch(0.96 0.003 260);
+  --destructive: var(--ruby);
+  --destructive-foreground: oklch(0.97 0.003 260);
+  --border: oklch(1 0 0 / 8%);
+  --input: oklch(1 0 0 / 10%);
+  --ring: var(--sapphire);
+
+  --glow-sapphire:
+    0 0 0 1px color-mix(in oklab, var(--sapphire) 42%, transparent),
+    0 0 18px -6px color-mix(in oklab, var(--sapphire) 45%, transparent);
+  --glow-emerald: 0 0 20px -8px color-mix(in oklab, var(--emerald) 50%, transparent);
+  --glow-amethyst: 0 0 20px -8px color-mix(in oklab, var(--amethyst) 50%, transparent);
+  --shadow-panel: 0 1px 0 0 oklch(1 0 0 / 4%) inset, 0 2px 6px -3px oklch(0 0 0 / 40%);
+  --text-etch: none;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: var(--canvas);
+    color: var(--color-foreground);
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    letter-spacing: -0.03em;
+    font-weight: 600;
+    color: oklch(0.985 0.004 258);
+    text-wrap: balance;
+  }
+
+  code,
+  pre,
+  kbd,
+  samp {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+
+  ::selection {
+    background: color-mix(in oklab, var(--sapphire) 35%, transparent);
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: oklch(1 0 0 / 10%);
+    border-radius: 999px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+}
+
+@utility glass {
+  background: color-mix(in oklab, var(--panel) 86%, transparent);
+  backdrop-filter: blur(18px) saturate(140%);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--shadow-panel);
+}
+
+@utility obsidian-slab {
+  background: color-mix(in oklab, var(--panel) 94%, transparent);
+  backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid oklch(1 0 0 / 7%);
+  box-shadow:
+    0 1px 0 0 oklch(1 0 0 / 4%) inset,
+    0 18px 44px -30px oklch(0 0 0 / 70%);
+  transition: border-color 0.16s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@utility jewel-edge {
+  border: 1px solid color-mix(in oklab, var(--sapphire) 30%, transparent);
+  box-shadow: var(--glow-sapphire);
+}
+
+@utility etched {
+  color: var(--foreground);
+}
+
+@utility platinum-data {
+  font-family: var(--font-mono);
+  color: var(--platinum);
+  font-variant-numeric: tabular-nums;
+}
+
+@utility canvas-depth {
+  background-color: var(--canvas);
+}
+
+@utility corner-bloom {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: none;
+}
+
+@utility hairline-t {
+  border-top: 1px solid var(--hairline);
+}
+
+@utility mono-label {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+@utility grid-veil {
+  background-image:
+    linear-gradient(to right, oklch(1 0 0 / 3.5%) 1px, transparent 1px),
+    linear-gradient(to bottom, oklch(1 0 0 / 3.5%) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black, transparent 75%);
+}
+
+@utility bloom-sapphire {
+  box-shadow: var(--glow-sapphire);
+}
+
+/* Advanced Tuning range sliders — jewel thumb over a custom track */
+.tuning-range {
+  height: 16px;
+}
+.tuning-range::-webkit-slider-runnable-track {
+  height: 16px;
+  background: transparent;
+}
+.tuning-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 12px;
+  width: 12px;
+  border-radius: 9999px;
+  background: var(--panel, #111113);
+  border: 1.5px solid var(--knob, var(--sapphire));
+  box-shadow: 0 0 10px -2px var(--knob, var(--sapphire));
+  transition: transform 0.15s ease;
+}
+.tuning-range:hover::-webkit-slider-thumb {
+  transform: scale(1.15);
+}
+.tuning-range::-moz-range-track {
+  height: 16px;
+  background: transparent;
+}
+.tuning-range::-moz-range-thumb {
+  height: 12px;
+  width: 12px;
+  border-radius: 9999px;
+  background: var(--panel, #111113);
+  border: 1.5px solid var(--knob, var(--sapphire));
+  box-shadow: 0 0 10px -2px var(--knob, var(--sapphire));
+}
+
+/* --- graph edges: fluid travelling energy along links --- */
+@keyframes edge-dash-flow {
+  to {
+    stroke-dashoffset: -36;
+  }
+}
+.edge-flow {
+  animation: edge-dash-flow 1.4s linear infinite;
+}
+.edge-group:hover path[stroke^="url"] {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .edge-flow {
+    animation: none;
+  }
+}
+
+/* --- Inverse Onyx: rails ride lighter than the canvas, so rail-side --- */
+/* --- surfaces and hairlines invert to keep the same depth reading.  --- */
+.studio-invert .studio-rail {
+  --hairline: oklch(0 0 0 / 26%);
+  --border: oklch(0 0 0 / 24%);
+  --input: oklch(0 0 0 / 26%);
+  --panel: oklch(0.305 0.004 260);
+  --raised: oklch(0.325 0.004 260);
+  --muted: oklch(0.318 0.004 260);
+  --canvas: oklch(0.272 0.004 260);
+}
+.studio-invert .studio-rail .bg-raised {
+  background-color: var(--raised);
+}
+.studio-invert .studio-rail *::selection {
+  background: color-mix(in oklab, var(--sapphire) 35%, transparent);
+}
+
+/* inside the stage the canvas is the darkest layer, so wells go even deeper */
+.studio-invert .studio-stage {
+  --canvas-deep: oklch(0.118 0.004 260);
+  --canvas-low: oklch(0.162 0.004 260);
+}
+
+/* --- Motion polish: unified snappy easing + GPU-friendly panel transitions --- */
+@layer base {
+  *,
+  *::before,
+  *::after {
+    transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  /* Keep animated glass/blur surfaces on their own compositing layer so
+     menu <-> submenu and card transitions don't stutter. */
+  [data-motion-layer],
+  .glass,
+  .obsidian-slab {
+    backface-visibility: hidden;
+    transform: translateZ(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Horizontal tab rails: scrollable without a visible scrollbar. */
+@utility no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}

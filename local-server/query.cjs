@@ -1,0 +1,1 @@
+const pg = require('pg'); const pool = new pg.Pool({ connectionString: 'postgres://sovereign:sovereign@127.0.0.1:5432/elara_db' }); pool.query(process.argv[2]).then(res => console.log(JSON.stringify(res.rows, null, 2))).catch(console.error).finally(() => pool.end());

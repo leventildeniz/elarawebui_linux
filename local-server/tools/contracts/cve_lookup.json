@@ -1,0 +1,26 @@
+{
+  "slug": "cve_lookup",
+  "input": {
+    "type": "object",
+    "properties": {
+      "cve_id": { "type": "string" },
+      "keyword": { "type": "string", "minLength": 2, "maxLength": 100 },
+      "limit": { "type": "integer", "minimum": 1, "maximum": 100 }
+    },
+    "anyOf": [
+      { "required": ["cve_id"] },
+      { "required": ["keyword"] }
+    ]
+  },
+  "output": {
+    "type": "object",
+    "required": ["ok"],
+    "properties": {
+      "ok": { "type": "boolean" },
+      "items": { "type": "array" },
+      "count": { "type": "integer" },
+      "reason": { "type": "string" }
+    }
+  },
+  "dependencies": []
+}

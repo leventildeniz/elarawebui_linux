@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ELARA PostgreSQL launchd unit (foreground postgres · port 5432).
+  Path placeholders (__POSTGRES_BIN__, __PGDATA__, __HOME__) are hydrated by install-launchd.sh.
+  Foreground modunda çalışır ki KeepAlive crash'i doğru yakalasın.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.elara.postgres</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>__POSTGRES_RUNNER__</string>
+    <string>__POSTGRES_BIN__</string>
+    <string>__PGDATA__</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>__PGDATA__</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>HOME</key>
+    <string>__HOME__</string>
+    <key>LC_ALL</key>
+    <string>en_US.UTF-8</string>
+    <key>LANG</key>
+    <string>en_US.UTF-8</string>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+    <key>Crashed</key>
+    <true/>
+  </dict>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+  <key>ProcessType</key>
+  <string>Interactive</string>
+
+  <key>StandardOutPath</key>
+  <string>/tmp/elara-postgres.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/elara-postgres.err.log</string>
+</dict>
+</plist>

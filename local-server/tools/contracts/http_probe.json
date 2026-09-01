@@ -1,0 +1,27 @@
+{
+  "slug": "http_probe",
+  "input": {
+    "type": "object",
+    "required": ["url"],
+    "properties": {
+      "url": { "type": "string" },
+      "method": { "type": "string", "enum": ["HEAD", "GET"] },
+      "timeout_ms": { "type": "integer", "minimum": 1000, "maximum": 60000 },
+      "max_redirects": { "type": "integer", "minimum": 0, "maximum": 10 }
+    }
+  },
+  "output": {
+    "type": "object",
+    "required": ["ok"],
+    "properties": {
+      "ok": { "type": "boolean" },
+      "status": { "type": "integer" },
+      "final_url": { "type": "string" },
+      "headers": { "type": "object" },
+      "tls": { "type": ["object", "null"] },
+      "redirects": { "type": "array" },
+      "reason": { "type": "string" }
+    }
+  },
+  "dependencies": []
+}

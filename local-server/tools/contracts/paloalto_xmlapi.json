@@ -1,0 +1,76 @@
+{
+  "slug": "paloalto_xmlapi",
+  "input": {
+    "type": "object",
+    "required": [
+      "host"
+    ],
+    "properties": {
+      "host": {
+        "type": "string"
+      },
+      "type": {
+        "type": "string",
+        "enum": [
+          "op",
+          "config",
+          "keygen",
+          "report",
+          "export",
+          "log"
+        ]
+      },
+      "cmd": {
+        "type": "string"
+      },
+      "xpath": {
+        "type": "string"
+      },
+      "element": {
+        "type": "string"
+      },
+      "action": {
+        "type": "string"
+      },
+      "verify_tls": {
+        "type": "boolean"
+      },
+      "timeout_ms": {
+        "type": "integer",
+        "minimum": 1000,
+        "maximum": 120000
+      },
+      "port": {
+        "type": "integer"
+      }
+    }
+  },
+  "output": {
+    "type": "object",
+    "required": [
+      "ok"
+    ],
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      },
+      "status": {
+        "type": "integer"
+      },
+      "headers": {
+        "type": "object"
+      },
+      "body": {
+        "type": "string"
+      },
+      "json": {},
+      "reason": {
+        "type": "string"
+      }
+    }
+  },
+  "dependencies": [],
+  "secrets": [
+    "PALOALTO_API_KEY"
+  ]
+}

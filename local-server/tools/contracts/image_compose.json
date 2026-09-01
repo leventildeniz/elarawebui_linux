@@ -1,0 +1,31 @@
+{
+  "slug": "image_compose",
+  "input": {
+    "type": "object",
+    "required": ["template", "title", "output_path"],
+    "properties": {
+      "template":     { "type": "string", "enum": ["square_text", "story_quote", "landscape_announce", "portrait_45"] },
+      "title":        { "type": "string", "minLength": 1, "maxLength": 280 },
+      "subtitle":     { "type": "string", "maxLength": 280 },
+      "brand_color":  { "type": "string", "maxLength": 7 },
+      "bg_image_path":{ "type": "string", "maxLength": 1024 },
+      "output_path":  { "type": "string", "minLength": 1, "maxLength": 1024 },
+      "font_path":    { "type": "string", "maxLength": 1024 }
+    }
+  },
+  "output": {
+    "type": "object",
+    "required": ["ok"],
+    "properties": {
+      "ok":         { "type": "boolean" },
+      "path":       { "type": "string" },
+      "template":   { "type": "string" },
+      "width":      { "type": "integer" },
+      "height":     { "type": "integer" },
+      "size_bytes": { "type": "integer" },
+      "reason":     { "type": "string" },
+      "detail":     { "type": "string" }
+    }
+  },
+  "dependencies": ["Pillow"]
+}

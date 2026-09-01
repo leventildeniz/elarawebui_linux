@@ -1,0 +1,25 @@
+{
+  "slug": "pcap_summary",
+  "input": {
+    "type": "object",
+    "required": ["path"],
+    "properties": {
+      "path": { "type": "string" },
+      "max_packets": { "type": "integer", "minimum": 1, "maximum": 100000 }
+    }
+  },
+  "output": {
+    "type": "object",
+    "required": ["ok"],
+    "properties": {
+      "ok": { "type": "boolean" },
+      "packet_count": { "type": "integer" },
+      "flows": { "type": "array" },
+      "protocols": { "type": "object" },
+      "top_talkers": { "type": "array" },
+      "file_bytes": { "type": "integer" },
+      "reason": { "type": "string" }
+    }
+  },
+  "dependencies": ["scapy"]
+}

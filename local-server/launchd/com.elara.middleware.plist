@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ELARA Middleware launchd unit (server.mjs · 3005 HTTP + 3006 HTTPS).
+  Path placeholders are hydrated by install-launchd.sh.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.elara.middleware</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>__BUN__</string>
+    <string>run</string>
+    <string>server.mjs</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>__PROJECT_ROOT__/local-server</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>HOME</key>
+    <string>__HOME__</string>
+    <!-- v19 (2026-05-18) — Repo'nun venv'ini (3.12.13) kullan. uvicorn/fastapi
+         sadece burada kurulu. Homebrew'un sistem python3.12'sinde uvicorn yok,
+         worker "No module named uvicorn" ile patlıyordu. server.mjs:410
+         resolvePythonCandidates() ilk sırada PYTHON_BIN'i okuyor. -->
+    <key>PYTHON_BIN</key>
+    <string>__PROJECT_ROOT__/.venv/bin/python</string>
+    <!-- v14 — Port + DB + TLS env'leri plist'te. .env okunamasa bile 3005/3006 açılır. -->
+    <key>PORT</key>
+    <string>3005</string>
+    <key>HTTPS_ENABLED</key>
+    <string>1</string>
+    <key>HTTPS_PORT</key>
+    <string>3006</string>
+    <key>DATABASE_URL</key>
+    <string>postgres://sovereign:sovereign@127.0.0.1:5432/elara_db</string>
+    <key>ELARA_DB_NAME</key>
+    <string>elara_db</string>
+    <!-- v11 — MLX Vision ayrı portta. Chat MLX 8001'i tutuyor; vision 8011'e taşındı. -->
+    <key>MLX_VISION_BASE_URL</key>
+    <string>http://127.0.0.1:8011</string>
+    <key>MLX_VISION_MODEL</key>
+    <string>mlx-community/Qwen2-VL-7B-Instruct-4bit</string>
+    <!-- v17 — 95GB memory spike fix: middleware boot ederken Qwen72B keep-warm
+         eager ping atmasın. Model sadece gerçek chat isteğinde yüklensin.
+         2026-05-28: LLM_BOOT_WARMUP_ENABLED yeniden 0'a alındı. Boot warmup
+         operatörün ilk "selam" chat'iyle paralel ikinci bir 72B isteği açıp
+         unified memory'yi katlıyordu (120GB çakılma). Artık ilk gerçek chat
+         modeli TEK istek olarak uyandırır; boot'ta otomatik warmup YOK. -->
+    <key>MLX_KEEPWARM_ENABLED</key>
+    <string>0</string>
+    <key>MLX_WARMUP_HEARTBEAT_ENABLED</key>
+    <string>0</string>
+    <key>LLM_BOOT_WARMUP_ENABLED</key>
+    <string>0</string>
+    <key>LLM_WARMUP_TIMEOUT_MS</key>
+    <string>90000</string>
+    <key>MLX_VISION_WARMUP_ENABLED</key>
+    <string>0</string>
+    <!-- v13 — Reboot sonrası Postgres geç gelirse 10dk derin nefes (server.mjs:536). -->
+    <key>DB_BOOT_MAX_ATTEMPTS</key>
+    <string>120</string>
+    <!-- v16/v17 — Embed worker boot'ta spawn/warmup olmasın; ilk knowledge sorgusunda lazy yüklensin.
+         Boot RAM tasarrufu: ~500-800MB (bge-m3 + MLX cache). Cold-start cost: ilk sorgu +3-5sn. -->
+    <key>EMBED_WORKER_WARMUP</key>
+    <string>0</string>
+    <!-- v18 (cap-calibrate 2026-05-20) — worker.py artık MPS-aware footprint
+         (RSS + torch.mps.current_allocated_memory) ile karar veriyor.
+         Boot baseline ölçümü: rss=1.54 + mps=3.15 → footprint=4.69GB
+         (bge-m3 embed + bge-reranker-base reranker, ikisi de MPS'te).
+         Eski 4.0GB cap baseline'ın ALTINDA kaldığı için worker spawn olur
+         olmaz watchdog suicide → respawn loop tetikliyordu.
+         Yeni: hard 7.0GB → baseline + ~2GB working set + tampon.
+              Soft cap (0.75×) = 5.25GB → cache flush, suicide YOK.
+         Reranker cap'i 2.5 → 6.5: MPS heap embed ile ortak, ayrı düşük cap
+         post-rerank suicide'a yol açıyordu.
+         Lazy davranış AYNI: EMBED_WORKER_WARMUP=0 (boot'ta spawn yok).
+         NOT: server.mjs dotenv'i override:false → plist .env'yi ezer. -->
+    <key>EMBED_WORKER_MAX_RSS_GB</key>
+    <string>11.0</string>
+    <key>RERANKER_MAX_RSS_GB</key>
+    <string>7.5</string>
+    <!-- Reranker model — multilingual XLM-R. base sürümü TR×EN sorgularda çöküyor.
+         BOOT default; runtime model swap aşama #5 UI knob'una taşınacak. -->
+    <key>RAG_RERANK_MODEL</key>
+    <string>BAAI/bge-reranker-v2-m3</string>
+    <key>EMBED_WORKER_MAX_REQUESTS</key>
+    <string>20000</string>
+    <key>EMBED_WORKER_RSS_CHECK_SEC</key>
+    <string>30</string>
+    <key>EMBED_WORKER_GC_EVERY</key>
+    <string>1</string>
+    <key>EMBED_PREWARM</key>
+    <string>0</string>
+    <!-- Reranker: multilingual (TR + EN). bge-reranker-base İngilizce-merkez,
+         TR sorgu × EN doc çiftinde zayıf skor veriyordu → top1 yanlış brand'e
+         kayıyordu. v2-m3 XLM-R backbone, ~568M, ilk istek HF download ~2.3GB.
+         Geri al: bu iki satırı sil → kod fallback "bge-reranker-base". -->
+    <key>RAG_RERANK_MODEL</key>
+    <string>BAAI/bge-reranker-v2-m3</string>
+
+    <!-- Per-source + per-brand diversity cap (LangChain MMR / Elastic diversify
+         retriever pattern). Vector retrieval önce DIVERSITY_POOL aday HNSW ile
+         çeker; iki ROW_NUMBER ile file_id başına PER_SOURCE_CAP, brand başına
+         PER_BRAND_CAP satır tutulur; top 24 oradan seçilir. Küçük yapılandırılmış
+         kaynaklar (API JSON, KB) büyük PDF dump'ları tarafından boğulmaz.
+         Vendor-agnostik — yarın Adobe Premiere doc'u atılsa da çalışır.
+         Geri al: RAG_PER_SOURCE_CAP=999 ve/veya RAG_PER_BRAND_CAP=999. -->
+    <key>RAG_PER_SOURCE_CAP</key>
+    <string>3</string>
+    <key>RAG_PER_BRAND_CAP</key>
+    <string>6</string>
+    <key>RAG_DIVERSITY_POOL</key>
+    <string>200</string>
+
+    <!-- Yapılandırılmış chunk enrichment (API/KB/JSON/YAML).
+         '1' iken embed worker COALESCE(content_enriched, content) okur.
+         Yeni chunk'lar enrich-structured-chunks.mjs ile doldurulur ve sadece
+         enriched satırlar yeniden embed'lenir. Geri al: '0' (eski content). -->
+    <key>RAG_USE_ENRICHED_CONTENT</key>
+    <string>1</string>
+
+
+
+
+  </dict>
+
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+    <key>Crashed</key>
+    <true/>
+  </dict>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+
+  <key>StandardOutPath</key>
+  <string>/tmp/elara-middleware.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/elara-middleware.err.log</string>
+</dict>
+</plist>

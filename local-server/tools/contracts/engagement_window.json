@@ -1,0 +1,31 @@
+{
+  "slug": "engagement_window",
+  "input": {
+    "type": "object",
+    "required": ["platform", "timezone"],
+    "properties": {
+      "platform":         { "type": "string", "enum": ["instagram", "linkedin", "x", "tiktok"] },
+      "timezone":         { "type": "string", "minLength": 3, "maxLength": 64 },
+      "day_of_week":      { "type": "integer", "minimum": 0, "maximum": 6 },
+      "audience_region":  { "type": "string", "enum": ["tr", "us", "eu"] }
+    }
+  },
+  "output": {
+    "type": "object",
+    "required": ["ok"],
+    "properties": {
+      "ok":             { "type": "boolean" },
+      "platform":       { "type": "string" },
+      "timezone":       { "type": "string" },
+      "windows":        { "type": "array" },
+      "weekly":         { "type": "object" },
+      "day_of_week":    { "type": "integer" },
+      "day_name":       { "type": "string" },
+      "audience_region":{ "type": "string" },
+      "region_hint_tz": { "type": "string" },
+      "generated_at":   { "type": "string" },
+      "reason":         { "type": "string" }
+    }
+  },
+  "dependencies": []
+}

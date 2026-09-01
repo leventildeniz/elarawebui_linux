@@ -1,0 +1,1000 @@
+// Sovereign AI OS — Local Node.js Middleware (sync touch)
+// Bare-metal: Express + node-postgres. No cloud DB. Async persistence.
+// Binary uploads (.pcap, .pdf, .docx, ...) go to UPLOAD_DIR with a metadata row.
+import { config as loadDotenv } from "dotenv";
+import { fileURLToPath as _fu } from "node:url";
+import path_boot from "node:path";
+import fs_boot from "node:fs";
+// System Env (launchd/plist) WINS over .env. .env only fills missing keys.
+// Resolve .env relative to this file (absolute path) so launchd/macOS services
+// don't get lost when CWD differs from the source directory.
+const __bootDir = path_boot.dirname(_fu(import.meta.url));
+const _envPath = path_boot.join(__bootDir, ".env");
+if (fs_boot.existsSync(_envPath)) loadDotenv({ path: _envPath, override: false });
+else loadDotenv({ override: false });
+
+// v15.1 — Pending code/config swap (left by a Full restore right before exit).
+// Marker lives at <local-server>/.pending-swap.json and points to a staging
+// directory inside BACKUP_DIR. We move staging → real paths BEFORE binding the
+// port so a restore that touches server.mjs / src/ takes effect on the next boot.
+try {
+  const _swapMarker = path_boot.join(__bootDir, ".pending-swap.json");
+  if (fs_boot.existsSync(_swapMarker)) {
+    const m = JSON.parse(fs_boot.readFileSync(_swapMarker, "utf8"));
+    const _projectRoot = path_boot.resolve(__bootDir, "..");
+    const _backupPrev = path_boot.join(m.backup_dir, `_pre-swap-${m.stamp}`);
+    fs_boot.mkdirSync(_backupPrev, { recursive: true });
+    for (const item of m.items || []) {
+      const realAbs   = path_boot.resolve(_projectRoot, item.real);
+      const stageAbs  = path_boot.resolve(m.staging_dir, item.staged);
+      if (!fs_boot.existsSync(stageAbs)) continue;
+      const prevAbs   = path_boot.join(_backupPrev, item.real.replace(/[/\\]/g, "__"));
+      try {
+        if (fs_boot.existsSync(realAbs)) fs_boot.renameSync(realAbs, prevAbs);
+        fs_boot.mkdirSync(path_boot.dirname(realAbs), { recursive: true });
+        fs_boot.renameSync(stageAbs, realAbs);
+        console.log(`[pending-swap] applied ${item.real}`);
+      } catch (e) {
+        console.error(`[pending-swap] FAIL ${item.real}: ${e.message} — rolling back`);
+        try { if (fs_boot.existsSync(prevAbs)) fs_boot.renameSync(prevAbs, realAbs); } catch {}
+      }
+    }
+    try { fs_boot.unlinkSync(_swapMarker); } catch {}
+    try { fs_boot.rmSync(m.staging_dir, { recursive: true, force: true }); } catch {}
+    console.log(`[pending-swap] complete (prev kept at ${_backupPrev})`);
+  }
+} catch (e) {
+  console.error(`[pending-swap] orchestrator error: ${e.message}`);
+}
+
+// Global crash dampers — stream cancel async rejection / yarıda kalan upstream
+// hattı yüzünden launchd döngüsüne girmesin. Bir kez logla, process'i öldürme.
+process.on("unhandledRejection", (reason) => {
+  console.error(`[unhandledRejection] ${reason?.stack || reason?.message || reason}`);
+});
+process.on("uncaughtException", (err) => {
+  console.error(`[uncaughtException] ${err?.stack || err?.message || err}`);
+});
+
+// v9 — OFFLINE Mührü: HF Hub'a tek paket bile sızmasın. Env'de yoksa default "1".
+// Tüm spawn edilen worker subprocess'leri (worker.py, mlx server) bu env'i miras alır.
+process.env.HF_HUB_OFFLINE      = process.env.HF_HUB_OFFLINE      ?? "1";
+process.env.TRANSFORMERS_OFFLINE = process.env.TRANSFORMERS_OFFLINE ?? "1";
+process.env.HF_DATASETS_OFFLINE  = process.env.HF_DATASETS_OFFLINE  ?? "1";
+import express from "express";
+import cors from "cors";
+import pg from "pg";
+import multer from "multer";
+import fs from "node:fs";
+import path from "node:path";
+import os from "node:os";
+import { createCipheriv, createDecipheriv, scryptSync, randomBytes, timingSafeEqual, createHash, randomUUID } from "node:crypto";
+import { execFile, execSync, spawn } from "node:child_process";
+import net from "node:net";
+import { fileURLToPath } from "node:url";
+import { Agent as UndiciAgent } from "undici";
+import { siem, startSiemConfigSync } from "./siem-forwarder.mjs";
+import { toCompletionBody, CHAT_TEMPLATE_FAMILY } from "./lib/chat-prompt.mjs";
+import {
+  isPortOpen,
+  pidAlive as _pidAlive,
+  waitForPidExit as _waitForPidExit,
+  killPortOwner,
+  listPortPids,
+  listPortSockets,
+  summarizeSocketStates,
+  killPortOwnerAndWait,
+  spawnPg,
+  discoverLaunchdLabelForPort,
+  findLaunchdLabelByPattern,
+  findLaunchdRuntimePlist,
+  findSystemdRuntimeUnit,
+  readLaunchdPlistRuntimeCommand,
+  readSystemdServiceRuntimeCommand,
+} from "./lib/port-process.mjs";
+// Kırılım 2a (2026-05-30): MLX transport state container artık modül-scope'lu.
+// MLX_TRANSPORT objesi import edilir; property mutation'ları (inflight++, dirty=true,
+// lastActivityAt=Date.now()) referans üstünden geçer. Kırılım 2b'de fetch hattı da
+// taşınacak. Detay: mem://decisions/mlx-transport-modularization-2026-05-30.md
+import {
+  MLX_TRANSPORT,
+  getMlxTransportSnapshot,
+  streamMlxCompletion,
+  initMlxSelfHeal,
+  MLX_TRANSPORT_MODULE_VERSION as __MLX_TRANSPORT_MOD_VER,
+} from "./lib/mlx-transport.mjs";
+void __MLX_TRANSPORT_MOD_VER;
+import {
+  probeLdap, probeRadius,
+  authenticateLdap, authenticateRadius,
+  mapGroupsToRole,
+} from "./auth-providers.mjs";
+import {
+  detectAgentIntent, runLocalAgent, streamLocalAgent, classifyAgentError,
+  agentErrorMessage, coerceParams,
+  detectExecutionIntent, setAllowedAgents, getAllowedAgents, setAgentsBaseDir, getAgentsBaseDir,
+} from "./lib/agent-bridge.mjs";
+import {
+  spawnAgentRun, cancelAgentRun, cancelAllRunsForAgent, registerSyntheticRun,
+  listAgentRuns, liveCountsByAgent,
+} from "./lib/agent-runs.mjs";
+import { buildAgentEnv, buildAgentEnvForScript, buildFieldBindingEnvForAgent, buildAgentToolsEnv, buildBrainEnv, initAgentEnv } from "./lib/agent-env.mjs";
+import { buildAgentRagContext, initAgentRag } from "./lib/agent-rag.mjs";
+import { extractToolCalls, runToolCallsForAgent } from "./lib/tool-call-parser.mjs";
+import { enrichChunkContent } from "./lib/chunk-enrichment.mjs";
+import {
+  RAG_STOP as _RAG_STOP,
+  RAG_STOP_ASCII as _RAG_STOP_ASCII,
+  TR_SUFFIXES as _TR_SUFFIXES,
+  stripTurkishSuffix as _stripTurkishSuffix,
+  extractQueryTerms as _extractQueryTerms,
+  metaTokenSet as _metaTokenSet,
+  vendorBoost as _vendorBoost,
+  rrfFuse as _rrfFuse,
+  computeConfidence as _computeConfidence,
+  makeThinkStripper,
+} from "./lib/rag/scoring.mjs";
+import { createRagUtil } from "./lib/rag/util.mjs";
+import { buildRagDefaults, loadRagSettingsFromDisk } from "./lib/rag/defaults.mjs";
+import { resolvePrompt as resolveSystemPrompt } from "./lib/system-prompts.mjs";
+import {
+ initRagRetrieval,
+ ragProbeAndFetch,
+ semanticSearch,
+ _ftsHybridFallback,
+ _buildFtsOrQuery,
+ getLastFtsError,
+ getLastFtsChunkError,
+ getLastFtsSourceError,
+} from "./lib/rag/retrieval.mjs";
+import { initProductCache } from "./lib/rag/product-cache.mjs";
+import {
+  initBrandCache,
+  getLibraryBrands,
+  getActivePackBrandFilter,
+  invalidatePackFilterCache,
+  getAgentRagBrands,
+  invalidateAgentBrandCache,
+  _brandDisplay,
+  detectLibraryMatch,
+} from "./lib/rag/brand-cache.mjs";
+import {
+  initEntityExtractor,
+  extractEntities,
+  linkEntitiesForChunk,
+} from "./lib/rag/entity-extractor.mjs";
+import {
+  initGeminiWeb,
+  streamFromGemini,
+  runWebSearch,
+} from "./lib/providers/gemini-web.mjs";
+import {
+  initProviderPolicyCache,
+  providerPolicyCacheClear,
+  providerPolicyCacheDeleteUser,
+  getProviderPolicyCachedSync,
+  getEffectiveProviderPolicyForUser,
+  warmProviderPolicyCache,
+} from "./lib/providers/policy-cache.mjs";
+import {
+  initWatchers,
+  scheduleRootReindex,
+  startWatchingRoot,
+  stopWatchingRoot,
+  stopAllWatchers,
+  bootstrapWatchers,
+} from "./lib/knowledge/watchers.mjs";
+import {
+  getSecretsForScope, vaultAuditRuntime,
+  putSecretV2, listSecretFieldNames, getSecretAllFields, VAULT_KIND_FIELDS,
+} from "./lib/vault.mjs";
+import {
+  initSessionGate,
+  attachSessionContext,
+  requireSession,
+  isAdminFromSession,
+} from "./lib/session-gate.mjs";
+import { bootstrapDatabase, waitForDatabaseReady, attachPoolErrorHandler } from "./lib/db.mjs";
+import { runMigration } from "./lib/migrate.mjs";
+import {
+  initCapabilityRegistry,
+  syncCapabilitiesFromSources,
+  listCapabilities,
+} from "./lib/capability-registry.mjs";
+import { scanToolsDir, defaultToolsRoots } from "./lib/tools-scan.mjs";
+import { scanSkillsDir, defaultSkillsRoots } from "./lib/skills-scan.mjs";
+import { scanAgentsDir, defaultAgentsRoots } from "./lib/agents-scan.mjs";
+import { mountCapabilityRoutes } from "./lib/routes/capabilities.mjs";
+import { mountSkillRoutes } from "./lib/routes/skills.mjs";
+import { mountToolRoutes } from "./lib/routes/tools.mjs";
+import { mountAgentsCrudRoutes } from "./lib/routes/agents-crud.mjs";
+import { mountAgentBindingsRoutes } from "./lib/routes/agent-bindings.mjs";
+import { mountRagSettingsRoutes } from "./lib/routes/rag-settings.mjs";
+import {
+  initRagReadOps, mountRagReadOpsRoutes,
+  getRagHealth, ragSelfAudit, resolveJoinExpr, verifySourceReachability,
+} from "./lib/routes/rag-readops.mjs";
+import {
+  initRagDiagnostics, mountRagDiagnosticsRoutes,
+} from "./lib/routes/rag-diagnostics.mjs";
+import {
+  initBrandAliases, mountBrandAliasesRoutes,
+  spawnBrandReenrich, maybeAutoReenrich, triggerSyncAutoReenrich, _coerceBool,
+} from "./lib/routes/brand-aliases.mjs";
+import { initVisionService, mountVisionServiceRoutes } from "./lib/routes/vision-service.mjs";
+import { initVoiceProfiles, mountVoiceProfilesRoutes } from "./lib/routes/voice-profiles.mjs";
+import { initAdapterDictionaries, mountAdapterDictionariesRoutes } from "./lib/routes/adapter-dictionaries.mjs";
+import { initTemplateAssignments, mountTemplateAssignmentsRoutes } from "./lib/routes/template-assignments.mjs";
+import { mountPlannerRoutes } from "./lib/routes/planner.mjs";
+import { mountProvidersRoutes } from "./lib/routes/providers.mjs";
+import { mountAgentsExtraRoutes } from "./lib/routes/agents-extra.mjs";
+import { mountAgentRunRoute } from "./lib/routes/agent-run.mjs";
+import { mountMcpRoutes } from "./lib/routes/mcp.mjs";
+import { mountKnowledgeMaintenanceRoutes } from "./lib/routes/knowledge-maintenance.mjs";
+import { mountKnowledgeSyncRoutes } from "./lib/routes/knowledge-sync.mjs";
+import { mountKnowledgeRetrieveRoutes, invalidateSourcesCache } from "./lib/routes/knowledge-retrieve.mjs";
+import { mountKnowledgeAuditRoutes } from "./lib/routes/knowledge-audit.mjs";
+import { mountKnowledgeIngestRoutes } from "./lib/routes/knowledge-ingest.mjs";
+import {
+  createIngestExtract,
+  isTableLine, isListLine, packAtomic,
+  CHUNK_SIZE, CHUNK_OVERLAP, ATOMIC_MAX, MIN_CHUNK_CHARS,
+} from "./lib/ingest/extract.mjs";
+import { createIngestPipeline } from "./lib/ingest/pipeline.mjs";
+// Ingest cluster bindings — initialized later from factory deps (see ~line 5740).
+let htmlToText, jsonToSearchableText, extractTechnicalCore, mlxVisionCaption, extractFileContent, chunkText;
+let ingestSource, rebuildChunksForFile, ingestMediaUrl, recrawlUrlSource, withCrawlMutex, deriveChildSourceId;
+import { createKnowledgeMaintenance } from "./lib/knowledge/maintenance.mjs";
+import { SYSTEM_ACTIONS, SYS_DISK_TOOLS } from "./lib/registry/system-actions.mjs";
+import { mountTelemetryRoutes } from "./lib/routes/telemetry.mjs";
+import { mountRagOpsRoutes } from "./lib/routes/rag-ops.mjs";
+import { mountSystemMiscRoutes } from "./lib/routes/system-misc.mjs";
+import { mountCapabilitiesRunsRoutes } from "./lib/routes/capabilities-runs.mjs";
+import { mountAgentsTemplatesRoutes } from "./lib/routes/agents-templates.mjs";
+import { createSendRagStatus, mountRagStatusRoute } from "./lib/routes/rag-status.mjs";
+import { createWatchdogPersistence } from "./lib/watchdog.mjs";
+let cleanupKnowledgeGhosts, syncCanonicalLibraryPaths, seedForgeLibrary;
+import { createAgentRuntime } from "./lib/agents/runtime.mjs";
+let execNodeWithAction, normalizeAgentRow, syncAgentCapabilityPacks, seedIdentity, runSkill;
+import { initAdaptersSchema } from "./lib/schema-adapters.mjs";
+let ensureAdapterDictionariesSeed;
+import { initReindexer } from "./lib/knowledge/reindexer.mjs";
+import { mountChatOrchestrateRoutes } from "./lib/routes/chat-orchestrate.mjs";
+import { mountChatStreamRoutes } from "./lib/routes/chat-stream.mjs";
+
+import { mountWebhookRoutes } from "./lib/routes/webhooks.mjs";
+import { mountAdaptersRoutes } from "./lib/routes/adapters.mjs";
+import { mountPythonRoutes } from "./lib/routes/python.mjs";
+import { mountGraphRoutes } from "./lib/routes/graph.mjs";
+import { mountMessagesRoutes } from "./lib/routes/messages.mjs";
+import { mountRbacRoutes } from "./lib/routes/rbac.mjs";
+import { mountEngineRoutes } from "./lib/routes/engine.mjs";
+import { mountThreadRoutes } from "./lib/routes/threads.mjs";
+import { mountWorkflowRoutes } from "./lib/routes/workflows.mjs";
+import { mountForgeRoutes } from "./lib/routes/forge.mjs";
+import { mountMetaForgeRoutes } from "./lib/routes/meta-forge.mjs";
+
+import { mountIdentityRoutes } from "./lib/routes/identity.mjs";
+import { mountModelsRoutes } from "./lib/routes/models.mjs";
+import { mountChatTemplatesRoute } from "./lib/routes/chat-templates.mjs";
+import { streamCloudCompletion } from "./lib/cloud-transport.mjs";
+import { mountVaultRoutes } from "./lib/routes/vault.mjs";
+import { mountBackupRoutes } from "./lib/routes/backup.mjs";
+import { mountSystemMlxRoutes } from "./lib/routes/system-mlx.mjs";
+import { installMetrics } from "./lib/metrics.mjs";
+import { installLiveCall } from "./lib/live-call.mjs";
+import { initPgVersion } from "./lib/pg-version.mjs";
+import { mountMutationGuard } from "./lib/mutation-guard.mjs";
+import { runDiskScript } from "./lib/disk-runner.mjs";
+import {
+  initDispatcher,
+  dispatchUserTurn,
+  finishRun,
+} from "./lib/dispatch.mjs";
+import { mlxQueue } from "./lib/mlx-queue.mjs";
+import { TIMEOUT_BUDGETS, assertTimeoutHierarchy } from "./lib/queue-config.mjs";
+import {
+  initToolAdapters,
+  invokeTool,
+  decideApproval,
+  listPendingApprovals,
+  ApprovalRequired,
+  ToolPolicyError,
+} from "./lib/tool-adapters.mjs";
+import { getAgentManifest, reloadManifests, isLoopback } from "./lib/agent-manifest.mjs";
+import {
+  RUNTIME_PROVIDER_PRESETS,
+  RUNTIME_PROVIDER_CFG,
+  defaultRuntimeProviderConfig,
+  runtimeFetchError,
+  normalizeRuntimeBaseUrl,
+  joinRuntimePath,
+  fallbackModelName,
+  runtimeBase,
+  runtimeModel,
+  runtimeIsMlx,
+  runtimeUpstreamBase,
+  hydrateRuntimeProviderFromDb,
+  initRuntimeRegistry,
+  sanitizeModels as _sanitizeModels,
+  resolveProvider as _resolveProvider,
+  isPathLikeModelId as _isPathLikeModelId,
+  assertModelSlug as _assertModelSlug,
+  safeRuntimeModel as _safeRuntimeModel,
+  mlxServingId as _mlxServingId,
+} from "./lib/runtime-registry.mjs";
+import { corsHeadersFor, flushSse, sseWrite, sseBegin } from "./lib/sse.mjs";
+import {
+  initMlxEmbedRerank,
+  mlxEmbed,
+  mlxRerank,
+  getLastEmbedError,
+  getLastRerankError,
+  getLastRerankMs,
+  getLastRerankAt,
+} from "./lib/rag/mlx-embed-rerank.mjs";
+import {
+  RUNTIME_INTENT_CFG,
+  DEFAULT_CLASSIFIER_PROMPT,
+  INTENT_ANCHORS,
+  classifyIntent,
+  refineIntentSemantically,
+  semanticIntentGate,
+  llmIntentClassify,
+  scoreTechnicalSignal,
+  ensureAnchorVecs,
+  hydrateIntentConfigFromDb,
+  initIntentClassifier,
+  scheduleIntentHydrate,
+  clampThreshold,
+  clampSemanticThreshold,
+} from "./lib/rag/intent-classifier.mjs";
+import {
+  initMlxWarmup,
+  startMlxKeepwarmLoop,
+  warmLocalChatModel,
+  mlxOnDemandPreWarm as _mlxOnDemandPreWarm,
+  mlxKeepwarmPing,
+  preflightMlxReset,
+  mlxIsCold as _mlxIsCold,
+  mlxRecordFirstToken as _mlxRecordFirstToken,
+  mlxEffectiveFirstTokenMs as _mlxEffectiveFirstTokenMs,
+  mlxPressureHigh as _mlxPressureHigh,
+  mlxWarmCacheTtlMs as _mlxWarmCacheTtlMs,
+  _MLX_WARM_STATE,
+} from "./lib/mlx-warmup.mjs";
+import {
+  initActorRegistry,
+  resolveDefaultActor,
+  resolveActor,
+  resolveActorContext,
+  buildVisibility,
+  _isLoopbackReq,
+  _hasLoopbackAdminToken,
+  _isAdminTokenKnowledgePath,
+  _isLoopbackAgentRunPath,
+  autoLinkLegacyOwnership,
+} from "./lib/actor.mjs";
+import {
+  initBrandRegistry,
+  BRAND_DEFAULTS,
+  brandFromEnv,
+  getBrand,
+  brandSync,
+  invalidateBrandCache,
+  safeSlug,
+} from "./lib/brand.mjs";
+import {
+  initWorkflowEngine,
+  startWorkflowRun,
+  resumeWorkflowRun,
+  cancelWorkflowRun,
+  getRunSteps,
+} from "./lib/workflow-engine.mjs";
+import { redactString, redactDeep, REDACTION_PLACEHOLDER } from "./lib/redaction.mjs";
+import { initWriteQueue } from "./lib/write-queue.mjs";
+import { initAuditFeed } from "./lib/audit-feed.mjs";
+import { ingestOnce as cveIngestOnce, startCveWatcher, ensureCveSchema } from "./lib/cve-watcher.mjs";
+import { buildDeepHealth } from "./lib/health-deep.mjs";
+import { runRetention, startRetentionScheduler } from "./lib/retention.mjs";
+import { ensureMigrationTable, applyMigration, rollbackMigration, listMigrations } from "./lib/migration-manifest.mjs";
+import { installAuditChain, verifyAuditChain, rebuildAuditChain } from "./lib/audit-chain.mjs";
+import { crawlUrl, presetConfig as crawlPresetConfig } from "./lib/url-crawler.mjs";
+import * as Planner from "./lib/plan-and-execute.mjs";
+import {
+  claimJob as sjClaim,
+  heartbeat as sjHeartbeat,
+  checkStop as sjCheckStop,
+  releaseJob as sjRelease,
+  requestStop as sjRequestStop,
+  reclaimStale as sjReclaim,
+  getActiveJob as sjActive,
+  listJobs as sjList,
+  ensureSchema as sjEnsureSchema,
+  getCurrentHost as sjHost,
+  getCurrentPid as sjPid,
+  JOB_TYPES as SJ_JOB_TYPES,
+} from "./lib/system-jobs.mjs";
+
+// v7 — Persistent MLX HTTP tunnel.
+// Tek keep-alive dispatcher; her chat isteğinde yeni TCP/handshake açmıyoruz.
+// MLX 8001 ile aramızdaki "damar yolu" — 3005 ↔ 8001 mühürlü tek tünel.
+function _buildMlxKeepAliveAgent() {
+  return new UndiciAgent({
+    keepAliveTimeout: 60_000,        // socket boştayken 60s daha tutulur
+    keepAliveMaxTimeout: 600_000,    // server hint olsa bile 10dk üst sınır
+    connections: 8,                  // host başına paralel socket havuzu
+    pipelining: 1,                   // streaming completion için güvenli
+    bodyTimeout: 0,                  // gövde timeout'unu watchdog yönetir
+    headersTimeout: 0,               // header timeout'unu watchdog yönetir
+  });
+}
+// 2026-05-28 — `let` çünkü MLX process kill'inden sonra eski keep-alive socket
+// havuzu (CLOSED/ESTABLISHED hayalet socket) yeni 8001 process'ine yanlış
+// pipe'lanabiliyor. Restart sırasında agent destroy + recreate ile damar
+// yolunu tamamen yeniliyoruz.
+let MLX_KEEPALIVE_AGENT = _buildMlxKeepAliveAgent();
+async function resetMlxKeepAliveAgent(reason = "restart") {
+  const old = MLX_KEEPALIVE_AGENT;
+  MLX_KEEPALIVE_AGENT = _buildMlxKeepAliveAgent();
+  try { await old?.destroy?.(); } catch {}
+  pushLog("server", `[mlx:tunnel] keep-alive agent recreated · reason=${reason}`);
+}
+// Kırılım 2a (2026-05-30): MLX_TRANSPORT artık `./lib/mlx-transport.mjs`'ten
+// import ediliyor (dosya başı). Property mutation'ları (inflight++, dirty=true,
+// lastActivityAt=Date.now()) imported referans üzerinden geçer — davranış aynı.
+// Eski 35 satırlık in-place declaration buradaydı; rollback için bkz.
+// mem://session/2026-05-30-mlx-transport-break-2a.md
+
+// Kırılım 4 (2026-05-30): recordMlxAbort + recordMlxActivity +
+// triggerMlxZombieSelfHeal + _runtimeBaseLooksLocal + _mlxSelfHealInFlight
+// `local-server/lib/mlx-transport.mjs → initMlxSelfHeal({...})` içine taşındı.
+// Buradaki üç wrapper, init sonrası kurulan `_selfHealApi`'ye forward eder.
+// Init PORT/queue/diag helper'ları hazır olunca (≈ line 1110) yapılır.
+// Davranış aynı; call-site'lar (recordMlxAbort, recordMlxActivity,
+// triggerMlxZombieSelfHeal) tek satır bile değişmez.
+// Anchor: mem://session/2026-05-30-mlx-transport-break-4.md
+let _selfHealApi = null;
+function _selfHealNotReady(fnName) {
+  // Boot-sıralaması ihlali; üretimde tetiklenmemeli. Sessiz kalmak yerine
+  // sade bir uyarı bırak; çağıran tarafta no-op gibi davran.
+  try { console.warn(`[mlx:self-heal] ${fnName} called before initMlxSelfHeal()`); } catch {}
+}
+function recordMlxAbort(reason) {
+  if (!_selfHealApi) return _selfHealNotReady("recordMlxAbort");
+  return _selfHealApi.recordMlxAbort(reason);
+}
+function recordMlxActivity() {
+  if (!_selfHealApi) return _selfHealNotReady("recordMlxActivity");
+  return _selfHealApi.recordMlxActivity();
+}
+async function triggerMlxZombieSelfHeal(reason, traceFn) {
+  if (!_selfHealApi) { _selfHealNotReady("triggerMlxZombieSelfHeal"); return { ok: false, skipped: true, reason: "not_initialized" }; }
+  // 2026-06-02 — Settings → Runtime knob gate. Default OFF, manuel "Restart
+  // Runtime" butonu hala çalışır; otomatik zombi süpürmesi kapalı.
+  try {
+    if (typeof RAG_SETTINGS !== "undefined" && RAG_SETTINGS?.mlxSelfHealEnabled !== true) {
+      try { traceFn?.("mlx.self_heal.gated", { reason: "knob_off" }); } catch {}
+      return { ok: false, skipped: true, reason: "knob_off" };
+    }
+  } catch { /* RAG_SETTINGS henüz hazır değilse: aşağıdaki çağrı çalışsın */ }
+  return _selfHealApi.triggerMlxZombieSelfHeal(reason, traceFn);
+}
+
+// ---------------------------------------------------------------------------
+// v11.2 — Cold-MLX first-token hardening + FAZ 24 keep-warm ping.
+// Tüm warmup hattı (helpers + warmLocalChatModel + mlxOnDemandPreWarm +
+// mlxKeepwarmPing + preflightMlxReset + keep-warm interval IIFE)
+// lib/mlx-warmup.mjs'e taşındı (2026-05-30, Tur A). DI init aşağıda,
+// `pushLog` + `mlxQueue` tanımlarından SONRA çağrılır (TDZ-safe).
+// ---------------------------------------------------------------------------
+// FAZ 25 — keep-warm IIFE, SYS_LOG_RING + pushLog tanımından SONRA başlatılır (TDZ fix).
+
+// --- System Engine: log ring + worker auto-spawn ----------------------------
+const __filename = fileURLToPath(import.meta.url);
+const __dirname  = path.dirname(__filename);
+const SYS_LOG_RING = [];
+const SYS_LOG_MAX  = 800;
+const SYS_LOG_SUBS = new Set();
+function pushLog(source, line) {
+  const text = String(line || "").replace(/\r/g, "");
+  for (const raw of text.split("\n")) {
+    const clean = raw.trimEnd();
+    if (!clean) continue;
+    const evt = { ts: Date.now(), source, line: clean };
+    SYS_LOG_RING.push(evt);
+    if (SYS_LOG_RING.length > SYS_LOG_MAX) SYS_LOG_RING.shift();
+    for (const sub of SYS_LOG_SUBS) { try { sub(evt); } catch {} }
+  }
+}
+
+// FAZ 25 — keep-warm interval lib/mlx-warmup.mjs → startMlxKeepwarmLoop().
+// initMlxWarmup({deps}) + startMlxKeepwarmLoop() çağrıları pushLog + mlxQueue
+// tanımlandıktan SONRA, _currentModelRender vb. de tanımlandıktan sonra
+// (boot wiring noktasında) yapılır. Bu satırın altında IIFE kalmadı.
+
+const CHAT_TRACE_RING = [];
+const CHAT_TRACE_MAX = 500;
+function chatTrace(traceId, stage, detail = {}, level = "info") {
+  const id = String(traceId || "trace-missing");
+  const evt = { traceId: id, stage: String(stage || "unknown"), detail, level, ts: Date.now() };
+  CHAT_TRACE_RING.push(evt);
+  if (CHAT_TRACE_RING.length > CHAT_TRACE_MAX) CHAT_TRACE_RING.shift();
+  pushLog("chat-trace", `[${id}] ${evt.stage} ${JSON.stringify(detail || {})}`);
+  return evt;
+}
+function chatTraceList(traceId = null) {
+  const id = traceId ? String(traceId) : null;
+  return id ? CHAT_TRACE_RING.filter((e) => e.traceId === id) : CHAT_TRACE_RING.slice(-100);
+}
+// Mirror console.log/warn/error into the ring so the cockpit sees server logs too.
+for (const lvl of ["log", "warn", "error"]) {
+  const orig = console[lvl].bind(console);
+  console[lvl] = (...args) => {
+    try { pushLog("server", args.map((a) => typeof a === "string" ? a : (() => { try { return JSON.stringify(a); } catch { return String(a); } })()).join(" ")); } catch {}
+    orig(...args);
+  };
+}
+
+const EMBED_WORKER_PORT = Number(process.env.EMBED_WORKER_PORT || 8082);
+const GATEWAY_PORT = Number(process.env.GATEWAY_PORT || 8002);
+const EMBED_WORKER_HOST = "127.0.0.1";
+const DEFAULT_EMBED_MODEL = "BAAI/bge-m3";
+if (!process.env.MLX_EMBED_MODEL) process.env.MLX_EMBED_MODEL = DEFAULT_EMBED_MODEL;
+// Force the worker URL so mlxEmbed() hits our auto-spawned worker instead of
+// the legacy default 8001. Operator can still override via env.
+if (!process.env.MLX_EMBED_BASE_URL && !process.env.MLX_BASE_URL) {
+  process.env.MLX_EMBED_BASE_URL = `http://${EMBED_WORKER_HOST}:${EMBED_WORKER_PORT}`;
+}
+let workerProc = null;
+let workerStatus = "down"; // down | starting | online-auto | online-external
+let workerStartedAt = 0;
+let workerLastError = null;
+let gatewayProc = null;
+let gatewayStatus = "down"; // down | starting | online-auto | online-external
+let gatewayStartedAt = 0;
+let gatewayLastError = null;
+
+// isPortOpen → lib/port-process.mjs (Block C Tur 1)
+
+// probeWorkerHealth / verifyEmbedAlive / warmEmbedWorker → lib/embed-worker-probe.mjs (Block C Tur 2)
+// resolvePythonCandidates → lib/python-resolver.mjs (Block C Tur 2)
+const WORKER_HEALTH_TIMEOUT_MS = Math.max(500, Number(process.env.WORKER_HEALTH_TIMEOUT_MS) || 3000);
+import { initEmbedWorkerProbe } from "./lib/embed-worker-probe.mjs";
+import { createPythonResolver } from "./lib/python-resolver.mjs";
+const { probeWorkerHealth, verifyEmbedAlive, warmEmbedWorker } = initEmbedWorkerProbe({
+  host: EMBED_WORKER_HOST,
+  port: EMBED_WORKER_PORT,
+  defaultModel: DEFAULT_EMBED_MODEL,
+  healthTimeoutMs: WORKER_HEALTH_TIMEOUT_MS,
+  pushLog: (src, line) => pushLog(src, line),
+});
+const resolvePythonCandidates = createPythonResolver({ serverDir: __dirname });
+
+// _ensureInflight / lastHealMs / respawnTimestamps / workerLocked
+// → lib/embed-worker/runtime.mjs (Tur 3b, module-private).
+// SELF_HEAL_COOLDOWN_MS + RESPAWN_MAX_IN_WINDOW server.mjs'te `let` kalır
+// (Runtime Watchdog cockpit canlı mutate ediyor); modül getter ile okur.
+let SELF_HEAL_COOLDOWN_MS = Number(process.env.WORKER_SELF_HEAL_COOLDOWN_MS ?? 120_000);
+let RESPAWN_MAX_IN_WINDOW = Number(process.env.WORKER_RESPAWN_MAX ?? 3);
+
+// ensureWorker / kickWorkerStart / killWorker / _trackRespawn / _ensureWorkerImpl
+// → lib/embed-worker/runtime.mjs (Tur 3b). State callbacks workerProc/Status/
+// LastError/StartedAt setter/getter ile bağlanır; SELF_HEAL_COOLDOWN_MS ve
+// RESPAWN_MAX_IN_WINDOW server.mjs'te kalır (cockpit watchdog mutate ediyor).
+// initEmbedWorkerRuntime() çağrısı initEmbedWorkerStore() bloğunun hemen
+// ardında — embedAndStoreChunks dep'i hazır olduğu anda.
+for (const sig of ["SIGINT", "SIGTERM"]) {
+  process.on(sig, () => { killWorker(); killGateway(); process.exit(0); });
+}
+process.on("exit", () => { killWorker(); killGateway(); });
+
+async function probeGatewayHealth() {
+  try {
+    const r = await fetch(`http://127.0.0.1:${GATEWAY_PORT}/health`, { signal: AbortSignal.timeout(900) });
+    if (!r.ok) return null;
+    return await r.json().catch(() => ({ ok: true }));
+  } catch { return null; }
+}
+
+let _gatewayEnsureInflight = null;
+async function ensureGateway() {
+  if (_gatewayEnsureInflight) return _gatewayEnsureInflight;
+  _gatewayEnsureInflight = (async () => {
+    try { return await _ensureGatewayImpl(); }
+    finally { _gatewayEnsureInflight = null; }
+  })();
+  return _gatewayEnsureInflight;
+}
+async function _ensureGatewayImpl() {
+  const health = await probeGatewayHealth();
+  if (health?.ok) { gatewayStatus = gatewayProc ? "online-auto" : "online-external"; return { spawned: false, status: gatewayStatus }; }
+  if (await isPortOpen(GATEWAY_PORT)) { gatewayStatus = "online-external"; return { spawned: false, status: gatewayStatus }; }
+  gatewayStatus = "starting";
+  const command = String(process.env.GATEWAY_CMD || "").trim();
+  const child = command
+    ? { file: command, args: [], opts: { shell: true } }
+    : { file: process.execPath, args: [path.join(__dirname, "gateway.mjs")], opts: {} };
+  pushLog("server", `[gateway:spawn] ${command || `${child.file} ${child.args.join(" ")}`} port=${GATEWAY_PORT}`);
+  try {
+    gatewayProc = spawn(child.file, child.args, {
+      cwd: __dirname,
+      env: { ...process.env, GATEWAY_PORT: String(GATEWAY_PORT), PORT: String(GATEWAY_PORT) },
+      stdio: ["ignore", "pipe", "pipe"],
+      ...child.opts,
+    });
+  } catch (e) {
+    gatewayStatus = "down"; gatewayLastError = String(e?.message || e);
+    pushLog("server", `[gateway:spawn-error] ${gatewayLastError}`);
+    return { spawned: false, status: gatewayStatus, error: gatewayLastError };
+  }
+  gatewayStartedAt = Date.now();
+  gatewayProc.stdout.on("data", (b) => pushLog("server", `[gateway] ${b.toString()}`));
+  gatewayProc.stderr.on("data", (b) => { gatewayLastError = b.toString().slice(-1500); pushLog("server", `[gateway] ${b.toString()}`); });
+  gatewayProc.on("exit", (code) => { pushLog("server", `[gateway:exit] code=${code}`); gatewayProc = null; gatewayStatus = "down"; });
+  const deadline = Date.now() + Number(process.env.GATEWAY_BOOT_TIMEOUT_MS || 30_000);
+  while (Date.now() < deadline) {
+    const h = await probeGatewayHealth();
+    if (h?.ok) { gatewayStatus = "online-auto"; return { spawned: true, status: gatewayStatus }; }
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  gatewayStatus = "down";
+  gatewayLastError = gatewayLastError || "gateway did not respond within boot window";
+  return { spawned: false, status: gatewayStatus, error: gatewayLastError };
+}
+
+function killGateway() {
+  if (gatewayProc) {
+    try { gatewayProc.kill("SIGTERM"); } catch {}
+    gatewayProc = null;
+  }
+  gatewayStatus = "down";
+}
+
+function startServiceWatchdog() {
+  // Faz F (2026-05): 10sn → 30sn. Sorgu kendisi 10sn üstüne çıkınca önceki
+  // bitmeden yenisi açılıyor, postgres pool tıkanıp RAM şişiyordu.
+  const interval = Math.max(15000, Number(process.env.SERVICE_WATCHDOG_MS || 30000));
+  let consecutiveFails = 0;
+  let sleepingUntil = 0;
+  setInterval(async () => {
+    if (Date.now() < sleepingUntil) return;
+    const gw = await probeGatewayHealth();
+    if (!gw?.ok) ensureGateway().catch((e) => pushLog("server", `[gateway:watchdog-error] ${e?.message || e}`));
+    try {
+      const pending = await countPendingEmbeddings();
+      consecutiveFails = 0;
+      if (pending > 0 || workerStatus === "online-auto") {
+        const wh = await probeWorkerHealth();
+        if (!wh?.ok && workerStatus !== "starting")
+          ensureWorker().catch((e) => pushLog("worker", `[watchdog-error] ${e?.message || e}`));
+      }
+    } catch (e) {
+      consecutiveFails++;
+      pushLog("server", `[watchdog] countPendingEmbeddings failed (${consecutiveFails}): ${e?.message || e}`);
+      if (consecutiveFails >= 3) {
+        pushLog("server", `[watchdog] 3 ardışık hata — watchdog 2 dk donduruldu`);
+        sleepingUntil = Date.now() + 120_000;
+        consecutiveFails = 0;
+      }
+    }
+  }, interval).unref?.();
+}
+
+// countPendingEmbeddings → lib/embed-worker/runtime.mjs (Tur 3b)
+
+// --- Liyakat (Role) Hierarchy --------------------------------------------------
+// Higher rank = more privilege. A user with rank >= file rank can read it.
+const ROLE_RANK = { Viewer: 1, Security: 2, Operator: 3, Admin: 4 };
+const VALID_ACCESS_LEVELS = new Set(Object.keys(ROLE_RANK));
+function normalizeAccessLevel(level) {
+  const v = String(level ?? "Viewer").trim();
+  return VALID_ACCESS_LEVELS.has(v) ? v : "Viewer";
+}
+function userCanRead(userRole, fileLevel) {
+  const u = ROLE_RANK[normalizeAccessLevel(userRole)] ?? 0;
+  const f = ROLE_RANK[normalizeAccessLevel(fileLevel)] ?? 99;
+  return u >= f;
+}
+
+// Pool destructure lib/db.mjs'e taşındı (Block E.2 Tur 1). pg import kalır
+// (başka modüller pg.types vs. ihtiyacı doğarsa diye).
+const PORT = Number(process.env.PORT ?? 3005);
+const HOST = "0.0.0.0";
+
+// Kırılım 4 (2026-05-30): MLX self-heal API'sini şimdi enjekte et. PORT
+// hazır; mlxQueue (line 131 import), pushLog (line 513), listPortPids/
+// Sockets/summarizeSocketStates (line 742+) zaten tanımlı. runtimeUpstreamBase
+// ve _activeRuntimePort fonksiyonları daha SONRA tanımlı — getter'lar lazy
+// resolve eder. Çağrı zinciri: recordMlxAbort/triggerMlxZombieSelfHeal
+// forwarder'ları `_selfHealApi`'ye delege eder.
+_selfHealApi = initMlxSelfHeal({
+  port: PORT,
+  pushLog: (source, line) => pushLog(source, line),
+  getMlxQueue: () => mlxQueue,
+  getRuntimeBase: () => (typeof runtimeUpstreamBase === "function" ? runtimeUpstreamBase() : (process.env.MLX_BASE_URL || "http://127.0.0.1:8001")),
+  getActiveRuntimePort: () => (typeof _activeRuntimePort === "function" ? _activeRuntimePort() : Number(process.env.MLX_RUNTIME_PORT || 8001)),
+  listPortPids: (p) => listPortPids(p),
+  listPortSockets: (p) => listPortSockets(p),
+  summarizeSocketStates: (s) => summarizeSocketStates(s),
+});
+// System Env first (launchd/plist), .env fallback. Re-read late so dotenv had its chance.
+let DATABASE_URL = process.env.DATABASE_URL;
+const _uploadRaw = process.env.UPLOAD_DIR ?? "./uploads";
+const UPLOAD_DIR = path.isAbsolute(_uploadRaw) ? _uploadRaw : path.resolve(__dirname, _uploadRaw);
+const BACKUP_DIR = path.join(UPLOAD_DIR, "backups");
+fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+fs.mkdirSync(BACKUP_DIR, { recursive: true });
+
+// 2026-05-30 Block E.2 Tur 1: bootstrap (waitForDatabaseUrl + sovereign
+// normalize + Pool kurulumu) lib/db.mjs'e taşındı. waitForDatabaseReady ve
+// pool.on("error") init* çağrılarından SONRA, aşağıda tetikleniyor.
+const {
+  pool,
+  databaseUrl: NORMALIZED_DATABASE_URL,
+  dbName: ELARA_DB_NAME,
+} = await bootstrapDatabase({ initialUrl: DATABASE_URL });
+DATABASE_URL = NORMALIZED_DATABASE_URL;
+
+// runtime-registry: hydrate fn needs the pool. Wire DI right after pool is built.
+initRuntimeRegistry({ pool });
+initActorRegistry({ pool });
+initBrandRegistry({ pool });
+
+// 2026-05-30 Tur A: MLX warmup hattı lib/mlx-warmup.mjs'e taşındı. Init burada
+// (pool hazır, fn-decl deps hoisted). Keep-warm interval startMlxKeepwarmLoop()
+// içinden; MLX_KEEPWARM_ENABLED=0 ise no-op döner.
+initMlxWarmup({
+  pool,
+  migrateReady: Promise.resolve(),
+  mlxQueue,
+  pushLog: (source, line) => pushLog(source, line),
+  getWatchdogCfg,
+  getRagSettings: () => RAG_SETTINGS,
+  injectSystemPrompt,
+  currentModelRender: _currentModelRender,
+  normaliseRender: _normaliseRender,
+  getMlxKeepAliveAgent: () => MLX_KEEPALIVE_AGENT,
+  resolveRuntimeSafety,
+});
+startMlxKeepwarmLoop();
+
+// Faz 2 — Session gate'i pool yaratılır yaratılmaz bağla. Middleware (üstte
+// app.use) artık DB'den oturumu doğrulayabilir; gate'i istenen endpoint'lerde
+// `requireSession()` ile aç.
+initSessionGate(pool);
+// Faz 3 — Unified capability registry + dispatcher. Pool'a bağlanır; gerçek
+// sync schema bootstrap'tan sonra (waitForDatabaseReady akabinde) tetiklenir.
+initCapabilityRegistry(pool);
+initDispatcher(pool);
+initToolAdapters(pool);
+initWorkflowEngine(pool);
+
+// Faz 6 — Planner v0 (opt-in). Tool çağrı kararlarını ayrı bir LLM step'inde
+// verir, sonuçları RAG'a EK olarak chat akışına iliştirir. Settings file-backed,
+// WebUI'dan toggle/mode/limits ayarlanabilir. Disabled iken tamamen no-op.
+Planner.initPlanner(pool, {
+  listCapabilities: (opts) => listCapabilities(opts),
+  getRagSettings: () => RAG_SETTINGS,
+  executeCapability: async (cap, args, ctx) => {
+    if (cap.kind === "tool") {
+      const toolId = cap.ref_id || cap.id;
+      return invokeTool({
+        toolId,
+        username: ctx?.username || null,
+        sessionId: ctx?.sessionId || null,
+        params: args || {},
+      });
+    }
+    // v0: skill/workflow/agent planner'dan otomatik tetiklenmez (frontend lane sahipleri).
+    return { ok: false, error: `planner_v0_does_not_run_${cap.kind}` };
+  },
+  llmChat: async ({ messages, maxTokens = 600, temperature = 0, timeoutMs = 4000, model: overrideModel, jsonMode = false }) => {
+    let row = null;
+    try {
+      const r = overrideModel
+        ? await pool.query("SELECT * FROM models WHERE id=$1", [overrideModel])
+        : await pool.query("SELECT * FROM models WHERE is_default=true ORDER BY updated_at DESC LIMIT 1");
+      row = r.rows[0] ?? null;
+    } catch { /* legacy fallback below */ }
+    const provider = String(row?.provider ?? RUNTIME_PROVIDER_CFG.provider ?? "");
+    const base = normalizeRuntimeBaseUrl(row?.base_url || runtimeBase() || "");
+    const mdl  = overrideModel ? _assertModelSlug(String(overrideModel).trim(), "planner.llmChat") : _mlxServingId(row, { ctx: "planner.llmChat" });
+    if (!base || !mdl) throw new Error("runtime_not_ready");
+    const isMlx = runtimeIsMlx(base, provider);
+    const upstream = runtimeUpstreamBase(base, provider);
+    // Yol C: MLX → /v1/completions (engine-agnostic; chat-prompt render katmanı)
+    const target = isMlx ? joinRuntimePath(upstream, "/v1/completions") : joinRuntimePath(upstream, "/api/generate");
+    const chatBody = { model: mdl, messages, stream: false, max_tokens: maxTokens, temperature, ...(jsonMode ? { response_format: { type: "json_object" } } : {}) };
+    const render = await _currentModelRender();
+    const body = isMlx
+      ? toCompletionBody(chatBody, render)
+      : { model: mdl, prompt: messages.map((m) => `[${m.role}] ${m.content}`).join("\n\n"), stream: false, options: { temperature, num_predict: maxTokens }, format: jsonMode ? "json" : undefined };
+    const r = await fetch(target, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (!r.ok) throw new Error(`llm_${r.status}`);
+    const j = await r.json().catch(() => null);
+    return String(isMlx ? (j?.choices?.[0]?.text || j?.choices?.[0]?.message?.content || "") : (j?.response || "")).trim();
+  },
+  logger: (...a) => pushLog("server", `[planner] ${a.join(" ")}`),
+});
+
+await waitForDatabaseReady(pool, { dbName: ELARA_DB_NAME });
+attachPoolErrorHandler(pool);
+// Periodic GC nudge after heavy bursts (only if --expose-gc).
+if (typeof global.gc === "function") {
+  setInterval(() => { try { global.gc(); } catch {} }, 5 * 60_000).unref();
+}
+const startedAt = Date.now();
+const pendingModelCache = new Map();
+
+// ---------------------------------------------------------------------------
+// SSE hot-path: disable Nagle + enable TCP keep-alive on every event-stream.
+// Helpers extracted to lib/sse.mjs (2026-05-30 Block B).
+// Re-export shim removed — call sites import directly.
+// ---------------------------------------------------------------------------
+
+// 2026-05-30 Block E.1: brand layer (BRAND_DEFAULTS / brandFromEnv / getBrand /
+// brandSync / invalidateBrandCache) ve safeSlug lib/brand.mjs'e taşındı.
+// initBrandRegistry pool kurulduktan sonra çağrılıyor (yukarıda).
+
+const createLocalId = () => randomUUID();
+const createPrefixedId = (prefix) => `${prefix}${Math.random().toString(36).substring(2, 10)}${Date.now().toString(36)}`;
+
+// 2026-05-30 Block D: resolveDefaultActor / resolveActor / resolveActorContext
+// (pool-bound) ve saf buildVisibility lib/actor.mjs'e taşındı. initActorRegistry
+// pool kurulduktan sonra çağrılıyor (yukarıda).
+// 2026-05-30 R-2: autoLinkLegacyOwnership da lib/actor.mjs'e taşındı; migrateReady
+// dep-injection ile geçiyor. Çağrı aşağıda boot wiring satırında.
+
+// --- Runtime Provider Switch (MLX / Legacy HTTP / Custom) ------------------------
+// 2026-05-30 Tur 2: state (RUNTIME_PROVIDER_CFG) + readers (runtimeBase/Model/
+// IsMlx/UpstreamBase, _safeRuntimeModel, _mlxServingId) + hydrateRuntimeProviderFromDb
+// moved to lib/runtime-registry.mjs. CFG is a live binding — Object.assign in the
+// /api/engine/runtime save handler mutates it in place; all readers see it.
+// initRuntimeRegistry({ pool }) is wired right after the pg pool is constructed.
+
+// --- Async write queue: never blocks the SSE socket -------------------------
+// Block F Tur 1 (2026-05-30): impl lib/write-queue.mjs'e taşındı. CRITICAL +
+// SIDE lane mantığı, redaksiyon ve drain davranışı aynı. pool DI ile bağlı.
+const { enqueueWrite, getWriteQueueDepths } = initWriteQueue({ pool });
+
+// --- Audit feed + checkpoint logger ----------------------------------------
+// Block F Tur 2 (2026-05-30): impl lib/audit-feed.mjs'e taşındı. SSE broadcast,
+// SIEM forward, redaction ve checkpoint write davranışı aynı; sseWrite + siem
+// + enqueueWrite DI ile bağlı.
+const { auditClients, broadcastAudit, logCheckpoint } = initAuditFeed({
+  sseWrite,
+  siem,
+  enqueueWrite,
+});
+// 2026-05-30 Block E.2 Tur 2: migrate() lib/migrate.mjs'e taşındı.
+// migrateReady Promise'i call-site'lar (8 yer) tarafından bekleniyor — burada
+// kurulup const olarak ihraç ediliyor.
+const migrateReady = runMigration({ pool });
+// Prime the brand cache once migrations have set up app_settings; ignore
+// errors so a fresh DB still boots — env defaults remain in effect.
+migrateReady.then(() => getBrand({ fresh: true })).catch(() => {});
+migrateReady.then(() => hydrateRuntimeProviderFromDb()).catch(() => {});
+
+// --- App --------------------------------------------------------------------
+const app = express();
+app.set("trust proxy", true);
+
+// Log every socket hit before CORS/routes so LAN clients prove they reached the bridge.
+app.use((req, _res, next) => {
+  const forwarded = String(req.headers["x-forwarded-for"] ?? "").split(",")[0].trim();
+  const clientIp = forwarded || req.ip || req.socket.remoteAddress || "unknown";
+  console.log(`[INCOMING] Request from: ${clientIp} | ${req.method} ${req.originalUrl}`);
+  next();
+});
+
+const corsOptions = {
+  origin: true,
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "Accept", "Origin", "X-Requested-With", "X-User", "x-user", "X-Session-Id", "x-session-id", "X-User-Role", "x-user-role", "Access-Control-Request-Private-Network"],
+  exposedHeaders: ["Content-Type", "Content-Length", "Access-Control-Allow-Private-Network"],
+  optionsSuccessStatus: 204,
+};
+app.use((req, res, next) => {
+  const headers = corsHeadersFor(req);
+  for (const [k, v] of Object.entries(headers)) res.setHeader(k, v);
+  if (req.method === "OPTIONS") return res.status(204).end();
+  next();
+});
+app.use(cors(corsOptions));
+app.options(/.*/, cors(corsOptions));
+// Faz 14.3 — body limit 8mb → 1mb. RAG/upload/webhook gibi büyük payload'lar
+// kendi route'larında `express.raw({ limit: ... })` ile ayrı limit alır
+// (örn. /api/webhooks/teams 20mb). 1mb genel API için yeterli; oversize
+// payload'lar 413 ile reddedilir, uncaught crash riski yok.
+app.use(express.json({ limit: "1mb" }));
+
+// Faz 17.4 — In-memory token-bucket rate limiter. Loopback (127.0.0.1/::1)
+// muaf — smoke + local tooling akışlarını boğmasın. Disk persist yok; restart
+// sayaçları sıfırlar (kabul edilen trade-off, local-host ölçeğinde yeterli).
+const __rl = new Map(); // key -> { tokens, last }
+function rateLimit({ capacity, refillPerSec, key }) {
+  return (req, res, next) => {
+    const ip = String(req.ip || req.socket?.remoteAddress || "").replace(/^::ffff:/, "");
+    if (ip === "127.0.0.1" || ip === "::1" || ip === "") return next();
+    const k = `${key}|${ip}|${typeof key === "function" ? key(req) : ""}`;
+    const now = Date.now();
+    let b = __rl.get(k);
+    if (!b) { b = { tokens: capacity, last: now }; __rl.set(k, b); }
+    const elapsed = (now - b.last) / 1000;
+    b.tokens = Math.min(capacity, b.tokens + elapsed * refillPerSec);
+    b.last = now;
+    if (b.tokens < 1) {
+      const retryAfter = Math.ceil((1 - b.tokens) / refillPerSec);
+      res.setHeader("Retry-After", String(retryAfter));
+      res.setHeader("X-RateLimit-Limit", String(capacity));
+      res.setHeader("X-RateLimit-Remaining", "0");
+      return res.status(429).json({ ok: false, code: "rate_limited", retryAfter });
+    }
+    b.tokens -= 1;
+    res.setHeader("X-RateLimit-Limit", String(capacity));
+    res.setHeader("X-RateLimit-Remaining", String(Math.floor(b.tokens)));
+    next();
+  };
+}
+// Periyodik temizlik — eski IP bucket'larını ay; bellek sızıntısı olmasın.
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, b] of __rl) if (now - b.last > 10 * 60_000) __rl.delete(k);
+}, 60_000).unref?.();
+const rlLogin  = rateLimit({ capacity: Number(process.env.RL_LOGIN_CAPACITY  || 30), refillPerSec: Number(process.env.RL_LOGIN_REFILL  || 0.5), key: "login"  });
+const rlInvoke = rateLimit({ capacity: Number(process.env.RL_INVOKE_CAPACITY || 60), refillPerSec: Number(process.env.RL_INVOKE_REFILL || 1.0), key: "invoke" });
+
+// --- Sovereign actor resolver ----------------------------------------------
+// Frontend sends `x-user: <username>` (lowercased on read). Empty/missing
+// = anonymous, sees only globals. Used for capability-scoped queries.
+app.use((req, _res, next) => {
+  const raw = String(req.headers["x-user"] ?? "").trim();
+  req.actor = raw ? raw.toLowerCase() : null;
+  next();
+});
+
+// Faz 2 — Session gate. Pool initialize edildikten sonra `initSessionGate(pool)`
+// çağrılıyor (aşağıda). Burada middleware her istekte sid'i DB ile doğrular ve
+// `req.session` doldurur. Gate `requireSession(...)` ile endpoint başına uygulanır.
+app.use(attachSessionContext());
+
+// Faz 2 — Blanket mutation guard.
+// Her POST/PUT/PATCH/DELETE `/api/*` çağrısı oturum ister. İstisnalar dar:
+//   - /api/auth/*        → login + provider test (public by design)
+//   - /api/sessions/*    → heartbeat + self-disconnect (kendi mantığı denetler)
+// Anonim biri LAN'dan dağ taş skill/agent/workflow/knowledge çağıramayacak.
+// Admin-only uçlar ayrıca `requireSession({roles:["admin"]})` ile sertleşir.
+const FAZ2_PUBLIC_MUTATION_PREFIXES = ["/api/auth/", "/api/sessions/"];
+const FAZ2_PUBLIC_MUTATION_PATHS = new Set([]);
+const FAZ2_MUTATION_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+// v10 — Worker servis yönetimi: sadece loopback'ten gelirse blanket guard'ı
+// atla. LAN'dan birinin worker'ı kapatması/açması engellenir; aynı makinedeki
+// restart script auth'a takılmaz. Token mutabakatı artık zorunlu değil.
+const FAZ2_LOOPBACK_ONLY_MUTATION_PATHS = new Set([
+  "/api/system/worker/start",
+  "/api/system/worker/stop",
+  "/api/system/restart-worker",
+  "/api/system/restart-mlx",
+  "/api/system/restart-runtime",
+  "/api/rag/brand-backfill",
+  "/api/rag/reprocess-oversized-html",
+  "/api/rag/dedupe-chunks",
+  "/api/rag/probe",
+  "/api/rag/retry-embeddings",
+  // TUR-6 — Agent→Tool dispatch. Handler kendi içinde isLoopback + X-Agent-Id
+  // + manifest gate uyguluyor; blanket session guard buraya kadar gelmemeli,
+  // aksi halde loopback'ten gelen agent çağrıları 401'e takılır (smoke 4/5/6).
+  "/api/agents/tool-call",
+  // 2026-05-29 — operator probe endpoint. Read-only MLX probe; loopback CLI
+  // (smoke/diag) ve UI Test Connection auth gate'ine takılmasın. Handler hiç
+  // yazma yapmaz; sadece runtime ping atar.
+  "/api/models/test",
+]);
+const FAZ2_ADMIN_TOKEN_MUTATION_PATHS = new Set([

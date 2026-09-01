@@ -1,0 +1,19 @@
+{
+  "file_scan_exclusions": [
+    "**/.git",
+    "**/.venv",
+    "**/node_modules",
+    "**/build",
+    "**/dist",
+    "**/*.log",
+    "**/logs",
+    "**/mem",
+    "**/.lockb",
+    "**/.eez",
+    "**/app.config.timestamp_*.js"
+  ],
+  "agent": {
+    "enable_all_context_servers": false
+  }
+}
+

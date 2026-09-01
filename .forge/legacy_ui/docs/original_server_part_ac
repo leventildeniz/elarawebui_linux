@@ -1,0 +1,1000 @@
+      const warmingNoticeMs = _safety.warmingNotice.value;
+      // Warmup/notice is UI-controlled. If both cold warmup and runtime watchdog
+      // are OFF, do not emit any "warming" frame while the real request waits for
+      // first token; that frame was misleading and looked like a hidden warmup.
+      const _coldEntry = _mlxIsCold();
+      const _warmupOn = RAG_SETTINGS?.mlxColdWarmupOnDemand === true;
+      const _runtimeNoticeOn = _warmupOn || RAG_SETTINGS?.runtimeWatchdogEnabled === true;
+      if (_coldEntry && _runtimeNoticeOn && typeof onWarming === "function") {
+        try { onWarming({ headersTimeoutMs, firstTokenTimeoutMs, cold: true }); } catch {}
+      }
+      // RAM güvenliği: cold warmup SADECE UI'da açıkça true ise tetiklenir.
+      // RAG_SETTINGS yüklenmemişse / boolean değilse güvenli default = KAPALI.
+      // Ek olarak transport dirty veya halihazırda inflight bir MLX isteği varsa
+      // paralel warmup açma — unified memory katlanır (120GB çakılma kök neden).
+      const _mlxBusyNow = MLX_TRANSPORT.dirty || (MLX_TRANSPORT.inflight > 0);
+      if (_coldEntry && _warmupOn && !_mlxBusyNow) {
+        // fire-and-forget — duplicate guard inflight içinde (_mlxOnDemandPreWarm)
+        _mlxOnDemandPreWarm().catch(() => {});
+      }
+
+      // Kırılım 2b (2026-05-30): fetch + AbortController + headers/warming/first-token/
+      // idle-delta watchdog + clean-vs-dirty cancel + inflight++ / finally inflight--
+      // bloğu lib/mlx-transport.mjs → streamMlxCompletion() içinde. Davranış aynı,
+      // kod yeri değişti. Pre-warm gate yukarıda kaldı; bu çağrı sadece upstream'i
+      // sürer ve token piece'lerini yield eder.
+      yield* streamMlxCompletion({
+        target,
+        payload,
+        timeoutSignal,
+        headersTimeoutMs,
+        firstTokenTimeoutMs,
+        idleDeltaTimeoutMs,
+        warmingNoticeMs,
+        onWarming: _runtimeNoticeOn ? onWarming : null,
+        modelLabel: row?.id || mdl,
+        intentHint,
+        promptSysLen: sysLen,
+        publicBase,
+        base,
+        loopGuard: row?.loop_guard ?? null,
+        onLoopGuard,
+        pushLog,
+        runtimeFetchError,
+        recordMlxAbort,
+        drainChatDeltaBuffer,
+      });
+      return;
+    }
+    const target = joinRuntimePath(base, "/api/chat");
+    const legacyPayload = { model: mdl, messages: wrappedMessages, stream: true, options: extraParams };
+    console.log(`[PAYLOAD TO LEGACY]: ${JSON.stringify(legacyPayload)}`);
+    const _legacySafety = resolveRuntimeSafety(row);
+    const timeoutSignal = withTimeoutSignal(signal, _legacySafety.streamTotal.value);
+    let r;
+    try {
+      r = await fetch(target, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(legacyPayload),
+        signal: timeoutSignal,
+      });
+    } catch (e) {
+      const detail = runtimeFetchError(e, { provider: "Legacy HTTP", target, publicBase, upstreamBase: base, model: mdl, phase: "stream" });
+      console.error(detail); pushLog("server", detail);
+      throw new Error(detail);
+    }
+    if (!r.ok || !r.body) throw new Error(`LLM ${r.status} ${r.statusText}: ${await r.text().catch(() => "")}`);
+    const reader = r.body.getReader();
+    const dec = new TextDecoder();
+    let buf = "";
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const drained = drainChatDeltaBuffer(buf);
+      buf = drained.rest;
+      for (const piece of drained.pieces) yield piece;
+      if (drained.done) return;
+    }
+    return;
+  }
+
+  throw new Error("No registered runtime base_url for this model. Register and test a real MLX/Legacy HTTP endpoint first.");
+}
+
+// warmLocalChatModel → lib/mlx-warmup.mjs (2026-05-30, Tur A).
+// Import üstte; init wiring boot bloğunda pushLog/mlxQueue/_currentModelRender
+// tanımlandıktan sonra yapılır.
+
+let localLlmRestartAt = 0;
+// Cache the last-known launchd label owning the runtime port. Port'un ölmesinden
+// (kill sonrası) hemen sonra kickstart komutu kurulabilsin diye.
+let _cachedMlxLaunchdLabel = null;
+let _cachedMlxRuntimePlist = null;
+let _cachedMlxSystemdUnit = null;
+let _cachedMlxSystemdFile = null;
+function _runtimePortFromBase(base, fallback = Number(process.env.MLX_RUNTIME_PORT || 8001)) {
+  try {
+    const u = new URL(String(base || ""));
+    const p = Number(u.port || (u.protocol === "https:" ? 443 : 80));
+    if (Number.isFinite(p) && p > 0) return p;
+  } catch {}
+  return fallback;
+}
+function _resolveMlxRuntimeTarget({ port, base, model } = {}) {
+  // 1) Env override — operatör istediği label'ı sabitleyebilir.
+  const envLabel = String(process.env.LLM_LAUNCHD_LABEL || "").trim();
+  if (envLabel) { _cachedMlxLaunchdLabel = envLabel; return { kind: "launchd", label: envLabel, source: "env" }; }
+  // 2) Aktif port'u tutan PID'den keşif.
+  try {
+    const live = discoverLaunchdLabelForPort(port || Number(process.env.MLX_RUNTIME_PORT || 8001));
+    if (live) { _cachedMlxLaunchdLabel = live; return { kind: "launchd", label: live, source: "port" }; }
+  } catch {}
+  // 3) Son bilinen cache.
+  if (_cachedMlxLaunchdLabel) return { kind: "launchd", label: _cachedMlxLaunchdLabel, plist: _cachedMlxRuntimePlist, source: "cache" };
+  // 4) Plist discovery — port boş olsa bile LaunchAgent dosyasından bul.
+  try {
+    const foundPlist = findLaunchdRuntimePlist({ port, baseUrl: base, model });
+    if (foundPlist?.label) {
+      _cachedMlxLaunchdLabel = foundPlist.label;
+      _cachedMlxRuntimePlist = foundPlist.plist || null;
+      return { kind: "launchd", label: foundPlist.label, plist: foundPlist.plist, source: "plist", score: foundPlist.score };
+    }
+  } catch {}
+  // 5) Pattern taraması — com.elara.{qwen|gemma|llama|mistral|mlx|llm}*.
+  try {
+    const found = findLaunchdLabelByPattern();
+    if (found) { _cachedMlxLaunchdLabel = found; return { kind: "launchd", label: found, source: "launchctl-list" }; }
+  } catch {}
+  // 6) Linux/systemd fallback — unit dosyası command/port/model'den keşfedilir.
+  try {
+    const unit = findSystemdRuntimeUnit({ port, baseUrl: base, model });
+    if (unit?.unit) {
+      _cachedMlxSystemdUnit = unit.unit;
+      _cachedMlxSystemdFile = unit.file || null;
+      return { kind: "systemd", unit: unit.unit, file: unit.file, source: "systemd-unit", score: unit.score };
+    }
+  } catch {}
+  if (_cachedMlxSystemdUnit) return { kind: "systemd", unit: _cachedMlxSystemdUnit, file: _cachedMlxSystemdFile, source: "cache" };
+  return null;
+}
+
+function _spawnDirectRuntimeFromLaunchdPlist(plistFile, reason) {
+  const recipe = readLaunchdPlistRuntimeCommand(plistFile);
+  if (!recipe?.file) return null;
+  const cwd = recipe.cwd || __dirname;
+  const child = spawn(recipe.file, recipe.args || [], {
+    cwd,
+    detached: true,
+    stdio: "ignore",
+    env: { ...process.env, ...(recipe.env || {}) },
+  });
+  child.unref?.();
+  pushLog("server", `[llm:restart] direct plist command dispatched · source=${plistFile} · reason=${reason}`);
+  return { ok: true, command: true, source: "direct:launchd-plist", file: recipe.file, args: recipe.args || [], plist: plistFile };
+}
+
+function _spawnDirectRuntimeFromSystemdFile(serviceFile, reason) {
+  const recipe = readSystemdServiceRuntimeCommand(serviceFile);
+  if (!recipe?.command) return null;
+  const child = spawn(recipe.command, [], {
+    shell: true,
+    cwd: recipe.cwd || __dirname,
+    detached: true,
+    stdio: "ignore",
+    env: process.env,
+  });
+  child.unref?.();
+  pushLog("server", `[llm:restart] direct systemd ExecStart dispatched · source=${serviceFile} · reason=${reason}`);
+  return { ok: true, command: true, source: "direct:systemd-service", service: serviceFile };
+}
+
+function restartLocalLlmRuntime(reason = "first-token-timeout", opts = {}) {
+  const now = Date.now();
+  if (now - localLlmRestartAt < 30_000) {
+    pushLog("server", `[llm:restart:skip] throttled · reason=${reason}`);
+    return { ok: false, throttled: true };
+  }
+  localLlmRestartAt = now;
+  const explicitCmd = String(process.env.LLM_RESTART_CMD || "").trim();
+  const base = String(opts.base || runtimeBase() || "").trim();
+  const port = Number(opts.port || _runtimePortFromBase(base));
+  const model = String(opts.model || runtimeModel() || "").trim();
+  try {
+    if (explicitCmd) {
+      const child = spawn(explicitCmd, [], { shell: true, detached: true, stdio: "ignore" });
+      child.unref?.();
+      pushLog("server", `[llm:restart] LLM_RESTART_CMD dispatched · reason=${reason}`);
+      return { ok: true, command: true, source: "env" };
+    }
+    // Dinamik runtime servis keşfi — servis adı hardcoded değil.
+    const target = _resolveMlxRuntimeTarget({ port, base, model });
+    if (target?.kind === "launchd" && target.label) {
+      const uid = String(process.getuid?.() ?? process.env.UID ?? "");
+      const domain = uid ? `gui/${uid}` : "gui/$UID";
+      const rawPlist = String(target.plist || _cachedMlxRuntimePlist || "");
+      const plist = rawPlist.replace(/'/g, "'\\''");
+      const cmd = plist
+        ? `launchctl kickstart -k ${domain}/${target.label} || launchctl bootstrap ${domain} '${plist}' || launchctl load -w '${plist}'`
+        : `launchctl kickstart -k ${domain}/${target.label}`;
+      const child = spawn(cmd, [], { shell: true, detached: true, stdio: "ignore" });
+      child.unref?.();
+      pushLog("server", `[llm:restart] launchd ${target.label} source=${target.source || "?"} port=${port} · reason=${reason}`);
+      if (rawPlist && String(process.env.LLM_DIRECT_FALLBACK_FROM_PLIST ?? "1") !== "0") {
+        setTimeout(() => {
+          try {
+            if (listPortPids(port).length === 0) _spawnDirectRuntimeFromLaunchdPlist(rawPlist, `${reason}:launchd-fallback`);
+          } catch (e) { pushLog("server", `[llm:restart:fallback-error] ${e?.message || e}`); }
+        }, Math.max(1000, Number(process.env.LLM_DIRECT_FALLBACK_DELAY_MS || 2500))).unref?.();
+      }
+      return { ok: true, command: true, source: `launchd:${target.source || "discovered"}`, label: target.label, plist: target.plist || null, fallback: rawPlist ? "direct-plist-if-port-empty" : null };
+    }
+    if (target?.kind === "systemd" && target.unit) {
+      const unit = String(target.unit).replace(/'/g, "'\\''");
+      const cmd = `systemctl --user restart '${unit}' || systemctl restart '${unit}'`;
+      const child = spawn(cmd, [], { shell: true, detached: true, stdio: "ignore" });
+      child.unref?.();
+      pushLog("server", `[llm:restart] systemd ${target.unit} source=${target.source || "?"} port=${port} · reason=${reason}`);
+      if (target.file && String(process.env.LLM_DIRECT_FALLBACK_FROM_SERVICE ?? "1") !== "0") {
+        setTimeout(() => {
+          try {
+            if (listPortPids(port).length === 0) _spawnDirectRuntimeFromSystemdFile(target.file, `${reason}:systemd-fallback`);
+          } catch (e) { pushLog("server", `[llm:restart:fallback-error] ${e?.message || e}`); }
+        }, Math.max(1000, Number(process.env.LLM_DIRECT_FALLBACK_DELAY_MS || 2500))).unref?.();
+      }
+      return { ok: true, command: true, source: `systemd:${target.source || "discovered"}`, unit: target.unit, file: target.file || null, fallback: target.file ? "direct-service-if-port-empty" : null };
+    }
+    if (_cachedMlxRuntimePlist) {
+      const direct = _spawnDirectRuntimeFromLaunchdPlist(_cachedMlxRuntimePlist, reason);
+      if (direct) return direct;
+    }
+    if (_cachedMlxSystemdFile) {
+      const direct = _spawnDirectRuntimeFromSystemdFile(_cachedMlxSystemdFile, reason);
+      if (direct) return direct;
+    }
+    pushLog("server", `[llm:restart:skip] no restart command/runtime service discovered for ${base || "unknown-runtime"} port=${port} model=${model || "?"} · reason=${reason}`);
+    return { ok: false, missingCommand: true };
+  } catch (e) {
+    pushLog("server", `[llm:restart:error] ${e?.message || e}`);
+    return { ok: false, error: String(e?.message || e) };
+  }
+}
+
+// --- Web scraper for Knowledge (RAG) ---------------------------------------
+// Lazy-loaded DOM toolchain. jsdom is heavy (~25MB resident), only paid on
+// first HTML ingest. Readability extracts the article body; turndown converts
+// remaining DOM → Markdown. Zero regex on raw HTML.
+let _htmlPipeline = null;
+async function _getHtmlPipeline() {
+  if (_htmlPipeline) return _htmlPipeline;
+  const [{ JSDOM }, { Readability, isProbablyReaderable }, TurndownMod] = await Promise.all([
+    import("jsdom"),
+    import("@mozilla/readability"),
+    import("turndown"),
+  ]);
+  const TurndownService = TurndownMod.default || TurndownMod;
+  const td = new TurndownService({
+    headingStyle: "atx", codeBlockStyle: "fenced", bulletListMarker: "-",
+    emDelimiter: "_", linkStyle: "inlined",
+  });
+  _htmlPipeline = { JSDOM, Readability, isProbablyReaderable, td };
+  return _htmlPipeline;
+}
+
+// Synchronous regex-free fallback — used only if jsdom toolchain throws
+// (extremely malformed input). Returns plain text via DOMParser-like split.
+function _htmlStripFallback(html) {
+  // Use DOMParser via jsdom-lite path is not safe here; instead split on tags
+  // using a single-pass scanner (no regex).
+  let out = "";
+  let depth = 0; // tracks <script>/<style>/<noscript> skip
+  let skipUntil = null;
+  let i = 0;
+  while (i < html.length) {
+    const ch = html[i];
+    if (ch === "<") {
+      // tag start
+      const end = html.indexOf(">", i + 1);
+      if (end < 0) break;
+      const tag = html.slice(i + 1, end).trim().toLowerCase();
+      const bareTag = tag.split(/\s/)[0].replace(/^\//, "");
+      if (skipUntil) {
+        if (tag.startsWith("/") && bareTag === skipUntil) skipUntil = null;
+      } else if (bareTag === "script" || bareTag === "style" || bareTag === "noscript") {
+        if (!tag.startsWith("/") && !tag.endsWith("/")) skipUntil = bareTag;
+      }
+      i = end + 1;
+      if (!skipUntil) out += " ";
+      continue;
+    }
+    if (!skipUntil) out += ch;
+    i++;
+  }
+  return out.replace(/\s+/g, " ").trim();
+}
+
+// htmlToText → lib/ingest/extract.mjs
+
+// Schema-aware walker: arrays, objects, REST collections, OpenAPI/Swagger.
+// No regex; pure JSON.parse + recursion. Returns markdown-shaped string.
+// Empty string means "could not extract" — callers MUST NOT fall back to raw.
+const _JSON_HIGH_WEIGHT_KEYS = new Set([
+  "title", "name", "summary", "description", "doc", "documentation",
+  "path", "endpoint", "url", "method", "operation", "operationid",
+  "parameters", "params", "request", "response", "schema", "example",
+  "note", "notes", "details", "body", "headers", "tags", "category",
+]);
+
+// jsonToSearchableText → lib/ingest/extract.mjs
+
+// /api/knowledge/fetch, /text, /file → lib/routes/knowledge-ingest.mjs (Block K-4b)
+// knowledgeFileUpload (multer) modülün içinde tanımlı.
+
+// --- Local Directory Indexer (incremental, permission-aware) ---------------
+// POST /api/knowledge/index-directory { path, recursive?, allowedRoles?, requireRole? }
+// Returns: { ok, scanned, indexed, skipped, removed, durationMs }
+// Multi-format extractors: text dosyalar utf8, PDF/DOCX/XLSX gerçek parser ile,
+// diğerleri (kod, config, log) plain-text olarak indexlenir.
+const TEXT_EXT = new Set([
+  ".txt", ".md", ".markdown", ".log", ".json", ".yaml", ".yml",
+  ".csv", ".html", ".htm", ".xml", ".py", ".js", ".ts", ".tsx", ".jsx",
+  ".sql", ".sh", ".bash", ".zsh", ".env", ".ini", ".conf", ".cfg",
+  ".rb", ".go", ".rs", ".java", ".c", ".cpp", ".h", ".cs", ".php",
+  ".swift", ".kt", ".scala", ".lua", ".pl", ".r", ".m", ".vue", ".svelte",
+  ".toml", ".dockerfile", ".gitignore", ".tf", ".hcl",
+]);
+const BINARY_DOC_EXT = new Set([
+  ".pdf", ".docx", ".doc", ".xlsx", ".xls",
+  ".pptx", ".ppt", ".odt", ".odp", ".ods", ".rtf",
+]);
+const IMAGE_EXT = new Set([".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tiff", ".tif", ".gif"]);
+const AUDIO_EXT = new Set([".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg", ".opus", ".wma"]);
+const VIDEO_EXT = new Set([".mp4", ".mov", ".mkv", ".avi", ".webm", ".wmv", ".flv", ".m4v", ".mpeg", ".mpg", ".3gp"]);
+const AV_EXT = new Set([...AUDIO_EXT, ...VIDEO_EXT]);
+const VISIO_EXT = new Set([".vsdx", ".vsdm", ".vstx", ".vstm", ".vsd", ".vss", ".vst"]);
+const INDEXABLE_EXT = new Set([...TEXT_EXT, ...BINARY_DOC_EXT, ...IMAGE_EXT, ...AV_EXT, ...VISIO_EXT]);
+// 300 MB single-file ceiling (large datasets / log files supported)
+const MAX_FILE_BYTES = 500 * 1024 * 1024;
+// Cap content stored in PG to keep tsvector + memory sane (~2 MB chars ≈ 500 K tokens)
+const MAX_INDEXED_CHARS = 2_000_000;
+// PostgreSQL tsvector has a 1MB output cap. Dense API/HTML path lists can
+// overflow even when the input is 900k chars, so FTS gets a smaller safe slice.
+// Full retrieval still uses per-chunk content; this only bounds FTS material.
+const FTS_INPUT_CHAR_LIMIT = 250_000;
+// Knowledge schema bootstrap — DI'lı modül (Block E.2 Tur 4).
+import { initKnowledgeSchema } from "./lib/schema-knowledge.mjs";
+const { ensureKnowledgeFilesTable, ensureKnowledgeChunksTable } =
+  initKnowledgeSchema({ pool, ftsCharLimit: FTS_INPUT_CHAR_LIMIT });
+// Library root is fully dynamic — operator can repoint it via the Vector Forge UI
+// (POST /api/knowledge/embeddings/library-path). The override is persisted to
+// local-server/.library-root so it survives restarts.
+// Resolution order:
+//   1. .library-root file       (UI override, sticky)
+//   2. BRAND_LIBRARY_ROOT env   (deploy default)
+//   3. brand.library_root in DB (operator-set default)
+//   4. ~/Documents/<short>/library (neutral fallback, brand-derived)
+const LIBRARY_ROOT_FILE = path.resolve(path.dirname(new URL(import.meta.url).pathname), ".library-root");
+// Expand a leading "~" to the user's home directory so operators can paste
+// "~/Documents/library/" in the UI without it being resolved relative to cwd
+// (which becomes /current/cwd/~/Documents/... and fails the "readable" check).
+function expandHome(p) {
+  const s = String(p || "").trim();
+  if (!s) return s;
+  if (s === "~") return os.homedir();
+  if (s.startsWith("~/") || s.startsWith("~\\")) return path.join(os.homedir(), s.slice(2));
+  return s;
+}
+function defaultLibraryRoot() {
+  const env = brandSync().library_root || process.env.BRAND_LIBRARY_ROOT;
+  if (env) return path.resolve(env);
+  const slug = safeSlug(brandSync().short_name || brandSync().app_name || "library");
+  return path.resolve(path.join(os.homedir(), "Documents", slug, "library"));
+}
+function loadPersistedLibraryRoot() {
+  try {
+    const raw = fs.readFileSync(LIBRARY_ROOT_FILE, "utf8").trim();
+    if (raw) return path.resolve(raw);
+  } catch { /* no override yet */ }
+  return defaultLibraryRoot();
+}
+let DEFAULT_LIBRARY_ROOT = loadPersistedLibraryRoot();
+function persistLibraryRoot(p) {
+  try { fs.writeFileSync(LIBRARY_ROOT_FILE, String(p), "utf8"); return true; }
+  catch (e) { console.warn("[library:persist]", e.message); return false; }
+}
+function envNumber(name, fallback) {
+  const n = Number(process.env[name]);
+  return Number.isFinite(n) ? n : fallback;
+}
+const DEFAULT_RAG_TRGM_THRESHOLD = envNumber("RAG_TRGM_THRESHOLD", 0.04);
+const DEFAULT_RAG_TRGM_MIN_SCORE = envNumber("RAG_TRGM_MIN_SCORE", 0.005);
+const DEFAULT_RAG_SEMANTIC_ASSIST_THRESHOLD = envNumber("RAG_SEMANTIC_ASSIST_THRESHOLD", 0.16);
+const DEEP_SYNC_TARGET_CHUNKS = envNumber("RAG_DEEP_SYNC_TARGET_CHUNKS", 5000);
+
+// --- Dynamic RAG settings (operator-tunable from Dashboard) -----------------
+// Persisted to local-server/data/rag-settings.json so survives restart and code syncs.
+// RAG_DEFAULTS + disk overlay loader extracted to lib/rag/defaults.mjs
+// (Tur 1, 2026-05-30). One-shot threshold migration + createRagUtil DI kept here.
+const RAG_SETTINGS_LEGACY_FILE = path.join(__dirname, ".rag-settings.json");
+const RAG_SETTINGS_DATA_FILE = path.join(__dirname, "data", "rag-settings.json");
+// HOME-isolated path: brand-aliases ile aynı code-sync izolasyonu.
+// Lovable code-pull `local-server/data/*` veya repo içi dotfile'ı ezebiliyor;
+// `~/.elara/state/rag-settings.json` runtime tek mercii.
+const { getRagSettingsPath, migrateRagSettingsIfNeeded } = await import("./lib/state-paths.mjs");
+const RAG_SETTINGS_FILE = getRagSettingsPath();
+const _ragSettingsMigration = migrateRagSettingsIfNeeded([RAG_SETTINGS_DATA_FILE, RAG_SETTINGS_LEGACY_FILE]);
+const RAG_DEFAULTS = buildRagDefaults({ envNumber, TIMEOUT_BUDGETS });
+
+let diagnoseChatTrace, _makeThinkStripper, _ragNumber, _ragBool, normalizeRagSettings, saveRagSettings, buildFreeAnswerMessages;
+let RAG_SETTINGS = { ...RAG_DEFAULTS };
+try { fs.mkdirSync(path.dirname(RAG_SETTINGS_FILE), { recursive: true }); } catch {}
+loadRagSettingsFromDisk({ fs, file: RAG_SETTINGS_FILE, target: RAG_SETTINGS });
+console.log(`[boot:rag-settings] path=${RAG_SETTINGS_FILE} productFilter=${RAG_SETTINGS.productFilter ?? "(default)"} productAutoExtract=${RAG_SETTINGS.productAutoExtract ?? "(default)"} migration=${_ragSettingsMigration.reason}${_ragSettingsMigration.migrated ? ` from=${_ragSettingsMigration.from}` : ""}`);
+// One-shot migration: eski 0.62/0.66 default'u modern hibrit RRF için fazla katı.
+if (Number(RAG_SETTINGS.injectThreshold) >= 0.60) {
+  RAG_SETTINGS.injectThreshold = 0.55;
+  try {
+    fs.writeFileSync(RAG_SETTINGS_FILE, JSON.stringify(RAG_SETTINGS, null, 2), "utf8");
+    console.log("[rag-settings] migrated injectThreshold -> 0.55 (eski default fazla katıydı)");
+  } catch (e) { console.warn("[rag-settings:migrate]", e.message); }
+}
+// _ragNumber/_ragBool/normalizeRagSettings/saveRagSettings moved to lib/rag/util.mjs (Tur A, 2026-05-30).
+({
+  diagnoseChatTrace,
+  _makeThinkStripper,
+  _ragNumber,
+  _ragBool,
+  normalizeRagSettings,
+  saveRagSettings,
+  buildFreeAnswerMessages,
+} = createRagUtil({
+  fs,
+  RAG_DEFAULTS,
+  RAG_SETTINGS_FILE,
+  getRagSettings: () => RAG_SETTINGS,
+  setRagSettings: (next) => { RAG_SETTINGS = next; },
+  makeThinkStripper,
+  brandSync,
+  brandDisplay: _brandDisplay,
+  stopAllWatchers,
+  bootstrapWatchers,
+}));
+
+// 2026-06-26 — Runtime Safety boot-apply: UI knob'larını canlı modüllere yansıt.
+// (mlxQueue concurrency, agent priority, transport reset). Default değerler
+// 72B-zamanı koruma katmanlarını KAPALI bırakır; UI ile açılır/kapanır.
+try {
+  const _norm = normalizeRagSettings(RAG_SETTINGS);
+  RAG_SETTINGS = _norm;
+  mlxQueue.setConcurrency(Number(_norm.mlxQueueConcurrency) || 2);
+  const { setAgentPriorityOverride, QUEUE_PRIORITY } = await import("./lib/queue-config.mjs");
+  setAgentPriorityOverride(_norm.agentQueueBehindChat ? QUEUE_PRIORITY.AGENT_LOW : QUEUE_PRIORITY.CHAT_DEFAULT);
+  const { MLX_TRANSPORT } = await import("./lib/mlx-transport.mjs");
+  MLX_TRANSPORT.resetEnabled = !!_norm.mlxPreflightResetEnabled;
+  console.log(`[boot:runtime-safety] queueConcurrency=${_norm.mlxQueueConcurrency} agentBehindChat=${_norm.agentQueueBehindChat} keepwarm=${_norm.mlxKeepwarmEnabled} preflightReset=${_norm.mlxPreflightResetEnabled}`);
+} catch (e) {
+  console.warn("[boot:runtime-safety] apply failed:", e?.message || e);
+}
+
+// _buildFtsOrQuery moved to lib/rag/retrieval.mjs (Tur 1b, 2026-05-30).
+
+// QueryEmbedCache — sha1(q.lower.trim()) → vector. 256 entry LRU.
+// "selam" 2. seferde embed çağrısı 0ms — RAG roketi.
+const QEMB_CACHE = new Map(); const QEMB_MAX = 256;
+function qembKey(q){ return createHash("sha1").update(String(q).toLowerCase().trim()).digest("hex"); }
+function qembGet(q){ const k = qembKey(q); const v = QEMB_CACHE.get(k); if (v) { QEMB_CACHE.delete(k); QEMB_CACHE.set(k, v); } return v || null; }
+function qembSet(q, vec){ const k = qembKey(q); QEMB_CACHE.set(k, vec); if (QEMB_CACHE.size > QEMB_MAX) QEMB_CACHE.delete(QEMB_CACHE.keys().next().value); }
+
+// ---------------------------------------------------------------------------
+// v11 Two-Layer Query Pipeline (Anthropic Contextual Retrieval — query side).
+// Layer 1: Extractor → deterministic clean query (LRU cached, SHA-256, TTL).
+// Layer 2: HyDE     → hypothetical technical passage for dense embed only.
+//
+// FTS + reranker ALWAYS see cleanQuery only (HyDE never leaks).
+// Smalltalk routing handled by probe gate + extractor empty check (no regex).
+// ---------------------------------------------------------------------------
+
+// Extractor LRU cache — SHA-256(rawInput.lower.trim()) → cleanQuery.
+// TTL drives expiry; max bounded to avoid leaks. HyDE is NEVER cached
+// (stochastic temp=0.3 output).
+const EXTRACTOR_CACHE = new Map(); const EXTRACTOR_MAX = 500;
+function _extKey(raw) {
+  return createHash("sha256").update(String(raw).toLowerCase().trim()).digest("hex");
+}
+function _extGet(raw) {
+  const k = _extKey(raw);
+  const entry = EXTRACTOR_CACHE.get(k);
+  if (!entry) return null;
+  const ttlMs = (Number(RAG_SETTINGS.extractorCacheTTL) || 24) * 3600 * 1000;
+  if (Date.now() - entry.at > ttlMs) { EXTRACTOR_CACHE.delete(k); return null; }
+  // LRU bump
+  EXTRACTOR_CACHE.delete(k); EXTRACTOR_CACHE.set(k, entry);
+  return entry.text;
+}
+function _extSet(raw, text) {
+  const k = _extKey(raw);
+  EXTRACTOR_CACHE.set(k, { text, at: Date.now() });
+  if (EXTRACTOR_CACHE.size > EXTRACTOR_MAX) EXTRACTOR_CACHE.delete(EXTRACTOR_CACHE.keys().next().value);
+}
+
+// _RAG_STOP defense-in-depth sterilizer. Extractor LLM may leak greeting tokens
+// ("selam", "lütfen") in clean output; this strips them via linguistic stop set
+// (NOT vendor whitelist). If <2 tokens survive, return original untouched.
+function _sterilizeWithRagStop(text) {
+  const parts = String(text || "").split(/\s+/).filter(Boolean);
+  const kept = [];
+  for (const raw of parts) {
+    const t = raw.toLowerCase().normalize("NFKD").replace(/[^\p{L}\p{N}.]+/gu, "");
+    if (!t) continue;
+    const ascii = t.replace(/ç/g,"c").replace(/ı/g,"i").replace(/ş/g,"s")
+                   .replace(/ğ/g,"g").replace(/ü/g,"u").replace(/ö/g,"o");
+    if (_RAG_STOP.has(t) || _RAG_STOP_ASCII.has(ascii)) continue;
+    if (/^\d{1,2}$/.test(t)) continue;
+    if (t.length < 2) continue;
+    kept.push(raw);
+  }
+  const sterilized = kept.join(" ").trim();
+  if (sterilized && sterilized.split(/\s+/).length >= 2) return sterilized;
+  return text;
+}
+
+// ---------------------------------------------------------------------------
+// Per-model chat-template profile (2026-06-20). UI = tek mercii (models tablo).
+// _currentModelRender(row) → renderChatPrompt/toCompletionBody'ye geçen opts
+// Boş satır = env LLM_CHAT_TEMPLATE fallback (chat-prompt.mjs DEFAULT_FAMILY).
+// Cache 60s; model değişimi POST /api/models tarafında invalidate eder.
+let _MODEL_RENDER_CACHE = { at: 0, key: "", value: null };
+function _normaliseRender(row) {
+  if (!row || typeof row !== "object") return null;
+  const family = String(row.template_family ?? row.templateFamily ?? "").trim().toLowerCase();
+  const prefix = String(row.prompt_prefix ?? row.promptPrefix ?? "").trim();
+  const stopRaw = row.stop_sequences ?? row.stopSequences;
+  let extraStop = [];
+  try {
+    const arr = typeof stopRaw === "string" ? JSON.parse(stopRaw) : stopRaw;
+    if (Array.isArray(arr)) extraStop = arr.map((s) => String(s)).filter(Boolean).slice(0, 8);
+  } catch { /* malformed JSON → ignore */ }
+  const kwargsRaw = row.chat_template_kwargs ?? row.chatTemplateKwargs;
+  let kwargs = null;
+  try {
+    const obj = typeof kwargsRaw === "string" ? JSON.parse(kwargsRaw) : kwargsRaw;
+    if (obj && typeof obj === "object" && !Array.isArray(obj)) kwargs = obj;
+  } catch { /* malformed JSON → ignore */ }
+  const out = {};
+  if (family) out.template = family;
+  if (prefix) out.prefix = prefix;
+  if (extraStop.length) out.extraStop = extraStop;
+  if (kwargs) out.kwargs = kwargs;
+  return Object.keys(out).length ? out : null;
+}
+async function _currentModelRender(forcedRow = null) {
+  if (forcedRow) return _normaliseRender(forcedRow) || {};
+  let row = null;
+  try {
+    const r = await pool.query("SELECT id, base_url, template_family, prompt_prefix, stop_sequences, chat_template_kwargs FROM models WHERE is_default=true ORDER BY updated_at DESC LIMIT 1");
+    row = r.rows[0] || null;
+  } catch { /* table missing → empty render = env fallback */ }
+  const key = `${row?.base_url || runtimeBase() || ""}|${row?.id || runtimeModel() || ""}`;
+  if (_MODEL_RENDER_CACHE.value !== null && _MODEL_RENDER_CACHE.key === key && (Date.now() - _MODEL_RENDER_CACHE.at) < 60_000) {
+    return _MODEL_RENDER_CACHE.value;
+  }
+  const value = _normaliseRender(row) || {};
+  _MODEL_RENDER_CACHE = { at: Date.now(), key, value };
+  return value;
+}
+function _invalidateModelRenderCache() { _MODEL_RENDER_CACHE = { at: 0, key: "", value: null }; }
+
+// ---------------------------------------------------------------------------
+// Per-model Runtime Safety resolver (2026-05-29). UI = tek mercii.
+// Karar sırası:
+//   1) models.<col>            (per-model UI değeri — null değilse kazanır)
+//   2) RUNTIME_WATCHDOG_CFG    (System Engine global cockpit)
+//   3) env / boot fallback     (LLM_*_TIMEOUT_MS ailesi)
+// Sadece streamFromLocalLLM ve warm/cold/stream timeout hesabı bunu çağırır.
+function _normaliseRuntimeSafety(row) {
+  if (!row || typeof row !== "object") return {};
+  const _int = (v) => {
+    if (v == null || v === "") return null;
+    const n = Math.floor(Number(v));
+    return Number.isFinite(n) ? n : null;
+  };
+  return {
+    headersMs:         _int(row.watchdog_headers_ms          ?? row.runtimeSafety?.headersMs),
+    firstTokenMs:      _int(row.watchdog_first_token_ms      ?? row.runtimeSafety?.firstTokenMs),
+    idleDeltaMs:       _int(row.watchdog_idle_delta_ms       ?? row.runtimeSafety?.idleDeltaMs),
+    warmingNoticeMs:   _int(row.watchdog_warming_notice_ms   ?? row.runtimeSafety?.warmingNoticeMs),
+    coldFirstTokenMs:  _int(row.watchdog_cold_first_token_ms ?? row.runtimeSafety?.coldFirstTokenMs),
+    streamTimeoutMs:   _int(row.stream_timeout_ms            ?? row.runtimeSafety?.streamTimeoutMs),
+    warmupTimeoutMs:   _int(row.warmup_timeout_ms            ?? row.runtimeSafety?.warmupTimeoutMs),
+  };
+}
+function resolveRuntimeSafety(row) {
+  const m = _normaliseRuntimeSafety(row);
+  const g = getWatchdogCfg();
+  const envInt = (k, fb) => {
+    const v = Math.floor(Number(process.env[k] ?? fb));
+    return Number.isFinite(v) ? v : fb;
+  };
+  const pick = (modelVal, globalVal, envVal, label) => {
+    if (modelVal != null) return { value: modelVal, source: "model", label };
+    if (globalVal != null) return { value: globalVal, source: "global", label };
+    return { value: envVal, source: "env", label };
+  };
+  return {
+    headers:        pick(m.headersMs,        g.headersMs,        envInt("LLM_HEADERS_TIMEOUT_MS",       120_000), "headersMs"),
+    firstToken:     pick(m.firstTokenMs,     g.firstTokenMs,     envInt("LLM_FIRST_TOKEN_TIMEOUT_MS",    60_000), "firstTokenMs"),
+    idleDelta:      pick(m.idleDeltaMs,      g.idleDeltaMs,      envInt("LLM_IDLE_DELTA_TIMEOUT_MS",     20_000), "idleDeltaMs"),
+    warmingNotice:  pick(m.warmingNoticeMs,  g.warmingNoticeMs,  envInt("LLM_WARMING_NOTICE_MS",          3_000), "warmingNoticeMs"),
+    coldFirstToken: pick(m.coldFirstTokenMs, g.coldFirstTokenMs, Math.max(60_000, Number(RAG_SETTINGS?.mlxColdFirstTokenMs) || envInt("LLM_COLD_FIRST_TOKEN_TIMEOUT_MS", 120_000)), "coldFirstTokenMs"),
+    streamTotal:    pick(m.streamTimeoutMs,  g.streamTimeoutMs,  Math.max(10_000, Number(RAG_SETTINGS?.mlxStreamTotalMs) || envInt("LLM_STREAM_TIMEOUT_MS", TIMEOUT_BUDGETS.MLX_STREAM_TOTAL_MS)), "streamTimeoutMs"),
+    warmup:         pick(m.warmupTimeoutMs,  g.warmupTimeoutMs,  envInt("LLM_WARMUP_TIMEOUT_MS",         45_000), "warmupTimeoutMs"),
+  };
+}
+function safetySummary(s) {
+  return [
+    `headers=${s.headers.value}(${s.headers.source})`,
+    `firstToken=${s.firstToken.value}(${s.firstToken.source})`,
+    `idleDelta=${s.idleDelta.value}(${s.idleDelta.source})`,
+    `warm=${s.warmingNotice.value}(${s.warmingNotice.source})`,
+    `cold=${s.coldFirstToken.value}(${s.coldFirstToken.source})`,
+    `stream=${s.streamTotal.value}(${s.streamTotal.source})`,
+    `warmup=${s.warmup.value}(${s.warmup.source})`,
+  ].join(" ");
+}
+// Cache invalidation hook for POST /api/models.
+function _invalidateModelRuntimeSafetyCache() { /* resolver stateless; placeholder for future cache */ }
+
+// Resolve MLX endpoint + model — used by both extractor and HyDE.
+// Cached for 10s so extractor + HyDE back-to-back don't re-probe runtime.
+let _MLX_EP_CACHE = { at: 0, value: null };
+async function _resolveMlxEndpoint() {
+  if (Date.now() - _MLX_EP_CACHE.at < 10_000 && _MLX_EP_CACHE.value) return _MLX_EP_CACHE.value;
+  await hydrateRuntimeProviderFromDb({ quiet: true });
+  let row = null;
+  try {
+    const r = await pool.query("SELECT * FROM models WHERE is_default=true ORDER BY updated_at DESC LIMIT 1");
+    row = r.rows[0] ?? null;
+  } catch { /* legacy fallback below */ }
+  const provider = String(row?.provider ?? RUNTIME_PROVIDER_CFG.provider ?? "");
+  const base = normalizeRuntimeBaseUrl(row?.base_url || row?.base || runtimeBase() || process.env.ELARA_MLX_BASE_URL || process.env.MLX_BASE_URL || "");
+  const mdl  = _mlxServingId(row, { assert: false });
+  const bound = !!String(row?.runtime_model_id ?? "").trim();
+  if (!mdl || (!bound && _isPathLikeModelId(mdl))) { _MLX_EP_CACHE = { at: Date.now(), value: null }; return null; }
+  if (!base || !mdl) { _MLX_EP_CACHE = { at: Date.now(), value: null }; return null; }
+  const isMlx = runtimeIsMlx(base, provider);
+  const upstream = runtimeUpstreamBase(base, provider);
+  // Yol C: MLX → /v1/completions (engine-agnostic; classifier+denoise paylaşır)
+  const target = isMlx ? joinRuntimePath(upstream, "/v1/completions") : joinRuntimePath(upstream, "/api/generate");
+  const render = await _currentModelRender();
+  const value = { target, mdl, isMlx, render };
+  _MLX_EP_CACHE = { at: Date.now(), value };
+  return value;
+}
+
+// Circuit breaker for extractor MLX calls. Cold MPS can stall first call for
+// many seconds; without a breaker every subsequent query also blocks. After
+// N consecutive failures, breaker opens for cooldownMs — extractor returns
+// instantly with raw input as fallback. First success closes the breaker.
+const _EXT_BREAKER = { fails: 0, openedAt: 0 };
+function _extBreakerIsOpen() {
+  const cd = Number(RAG_SETTINGS.extractorBreakerCooldownMs) || 30000;
+  if (_EXT_BREAKER.openedAt && (Date.now() - _EXT_BREAKER.openedAt) < cd) return true;
+  if (_EXT_BREAKER.openedAt) { _EXT_BREAKER.openedAt = 0; _EXT_BREAKER.fails = 0; } // cooldown expired
+  return false;
+}
+function _extBreakerRecordFailure() {
+  _EXT_BREAKER.fails += 1;
+  const th = Math.max(1, Number(RAG_SETTINGS.extractorBreakerThreshold) || 3);
+  if (_EXT_BREAKER.fails >= th && !_EXT_BREAKER.openedAt) {
+    _EXT_BREAKER.openedAt = Date.now();
+    console.warn(`[QUERY-EXTRACT] breaker OPEN (${_EXT_BREAKER.fails} consecutive failures) cooldown=${RAG_SETTINGS.extractorBreakerCooldownMs}ms`);
+  }
+}
+function _extBreakerRecordSuccess() {
+  if (_EXT_BREAKER.fails || _EXT_BREAKER.openedAt) {
+    console.log("[QUERY-EXTRACT] breaker CLOSED (success)");
+  }
+  _EXT_BREAKER.fails = 0; _EXT_BREAKER.openedAt = 0;
+}
+
+// Layer 1 — Extractor. Vendor-agnostic, deterministic, cache-backed.
+// Returns { text: cleanQuery, cacheHit: bool, ms: number, reject?: string }.
+// Fallback: raw input on any failure (pipeline never breaks).
+// extractTechnicalCore → lib/ingest/extract.mjs
+
+// Layer 2 — HyDE. Generates a hypothetical technical passage from cleanQuery.
+// Output is concatenated with cleanQuery for dense embed ONLY.
+// 2026-05-28: temperature=0 → DETERMINISTIC. Aynı sorgu → aynı pasaj → aynı
+// embedding → stabil probe top1. Bu, eşik bıçak-sırtında (tau~0.50) gözlenen
+// inject/skip salınımını (top1 0.498 ↔ 0.55) bitirir. RAG retrieval/rerank
+// mantığı DEĞİŞMEDİ. Returns { text, ms, reject? }. Fallback: "" (no HyDE).
+async function generateHydePassage(cleanQuery) {
+  const q = String(cleanQuery || "").trim();
+  if (!q) return { text: "", ms: 0, reject: "empty_input" };
+  if (!RAG_SETTINGS.queryHydeEnabled) return { text: "", ms: 0, reject: "disabled" };
+
+  const t0 = Date.now();
+  try {
+    const ep = await _resolveMlxEndpoint();
+    if (!ep) return { text: "", ms: 0, reject: "no_runtime" };
+    const _hydeFamily = String(ep.render?.template ?? "").toLowerCase();
+    const _hydeThinkOff = /^qwen/.test(_hydeFamily);
+    // 2026-06-03 (Tur 2) — UI knob `thinkOffPrefix` (default "/no_think\n"; "" → no prefix)
+    const _hydePrefix = _hydeThinkOff ? String(RAG_SETTINGS?.thinkOffPrefix ?? "") : "";
+    const sysMsg = _hydePrefix + resolveSystemPrompt(RAG_SETTINGS, "hydeSystemPrompt");
+    const prompt = `Write a single short (2-4 sentences) hypothetical technical paragraph that would appear in a real product or vendor document and would answer this question. Use precise technical terminology, command names, and parameter names that would naturally appear. Fix obvious typos in vendor names. Do not invent specific version numbers you are not sure about. Preserve language.\n\nQuestion: ${q}\nHypothetical passage:`;
+    const body = ep.isMlx
+      ? toCompletionBody({ model: ep.mdl, messages: [{ role: "system", content: sysMsg }, { role: "user", content: prompt }], stream: false, max_tokens: 120, temperature: 0, ...(_hydeThinkOff ? { chat_template_kwargs: { enable_thinking: false } } : {}) }, ep.render)
+      : { model: ep.mdl, prompt: `${sysMsg}\n\n${prompt}`, stream: false, options: { temperature: 0, num_predict: 120 } };
+    const r = await fetch(ep.target, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(Math.max(300, Math.min(5000, Number(RAG_SETTINGS.hydeTimeoutMs) || 1200))),
+    }).catch((e) => ({ __err: String(e?.name || e) }));
+    if (!r || r.__err || !r.ok) return { text: "", ms: Date.now() - t0, reject: r?.__err ? `fetch:${r.__err}` : `http_${r?.status || "x"}` };
+    const j = await r.json().catch(() => null);
+    let out = String(ep.isMlx ? (j?.choices?.[0]?.message?.content || j?.choices?.[0]?.text || "") : (j?.response || ""));
+    out = out.replace(/<think>[\s\S]*?<\/think>/gi, "").replace(/<\/?think>/gi, "");
+    out = out.trim().replace(/^["'`]+|["'`]+$/g, "").trim();
+    if (!out) return { text: "", ms: Date.now() - t0, reject: "empty_output" };
+    return { text: out.slice(0, 800), ms: Date.now() - t0 };
+  } catch (e) {
+    return { text: "", ms: Date.now() - t0, reject: `exception:${String(e?.message || e).slice(0, 80)}` };
+  }
+}
+
+// Citation confidence — pure math, no extra LLM call. Combines top-1 score,
+// top-1/top-4 gap, and source diversity into a 0-100 label.
+// _computeConfidence moved to lib/rag/scoring.mjs (Tur 1a).
+
+// ragProbeAndFetch moved to lib/rag/retrieval.mjs (Tur 1b, 2026-05-30).
+// _srcNonEmptyCache + _sourcesNonEmpty + FTS error state + _ftsHybridFallback
+// moved to lib/rag/retrieval.mjs (Tur 1b, 2026-05-30).
+
+// _RAG_STOP, _RAG_STOP_ASCII, _TR_SUFFIXES, _stripTurkishSuffix, _extractQueryTerms,
+// _metaTokenSet, _vendorBoost, _rrfFuse moved to lib/rag/scoring.mjs (Tur 1a).
+
+function normalizeDirRoot(value) {
+  const raw = String(value || "").trim();
+  if (!raw || raw === "/") return "";
+  return path.resolve(raw.replace(/^dir:/, "")).replace(/\/+$/, "");
+}
+
+function isSameOrUnderRoot(parent, candidate) {
+  const p = normalizeDirRoot(parent);
+  const c = normalizeDirRoot(candidate);
+  if (!p || !c) return false;
+  if (p === c) return true;
+  const rel = path.relative(p, c);
+  return !!rel && !rel.startsWith("..") && !path.isAbsolute(rel);
+}
+
+function canonicalizeKnowledgeRoot(value) {
+  const requested = normalizeDirRoot(value || DEFAULT_LIBRARY_ROOT);
+  const defaultRoot = normalizeDirRoot(DEFAULT_LIBRARY_ROOT);
+  if (requested && defaultRoot && requested !== defaultRoot && isSameOrUnderRoot(defaultRoot, requested)) {
+    return { root: defaultRoot, requested, nested: true };
+  }
+  return { root: requested, requested, nested: false };
+}
+
+function pathUnderRootExpr(column = "path") {
+  return `(${column} = $1 OR ${column} LIKE $1 || '/%')`;
+}
+
+function rootOrPathUnderRootExpr(rootColumn = "root", pathColumn = "path") {
+  return `((${rootColumn} = $1 OR ${rootColumn} LIKE $1 || '/%') OR ${pathUnderRootExpr(pathColumn)})`;
+}
+
+function quoteIdent(name) {
+  return `"${String(name).replace(/"/g, '""')}"`;
+}
+
+async function legacyPathDelete(client, tableName, target, { dryRun = false } = {}) {
+  const hasPath = await tableHasColumn(tableName, "path").catch(() => false);
+  if (!hasPath) return { table: tableName, exists: false, removed: 0 };
+  const hasRoot = await tableHasColumn(tableName, "root").catch(() => false);
+  const t = quoteIdent(tableName);
+  const where = hasRoot ? rootOrPathUnderRootExpr("root", "path") : pathUnderRootExpr("path");
+  const r = await client.query(`${dryRun ? "SELECT COUNT(*)::int AS n FROM" : "DELETE FROM"} ${t} WHERE ${where}`, [target]);
+  if (dryRun) return { table: tableName, exists: true, removed: 0, candidates: Number(r.rows?.[0]?.n || 0) };
+  return { table: tableName, exists: true, removed: r.rowCount || 0 };
+}
+
+async function tableColumnSet(db, tableName) {
+  const { rows } = await db.query(
+    `SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=$1`,
+    [tableName]
+  ).catch(() => ({ rows: [] }));
+  return new Set(rows.map((r) => String(r.column_name)));
+}
+
+async function legacyDocumentIdsUnderRoot(client, target) {
+  const cols = await tableColumnSet(client, "documents");
+  if (!cols.has("id") || !cols.has("path")) return [];
+  const where = cols.has("root") ? rootOrPathUnderRootExpr("root", "path") : pathUnderRootExpr("path");
+  const r = await client.query(`SELECT id::text AS id FROM documents WHERE ${where}`, [target]).catch(() => ({ rows: [] }));
+  return r.rows.map((row) => String(row.id)).filter(Boolean);
+}
+
+async function legacyEmbeddingDelete(client, target, documentIds, { dryRun = false } = {}) {
+  const cols = await tableColumnSet(client, "embeddings");
+  if (!cols.size) return { table: "embeddings", exists: false, removed: 0 };
+  const where = [];
+  const params = [target];
+  if (cols.has("path")) where.push(cols.has("root") ? rootOrPathUnderRootExpr("root", "path") : pathUnderRootExpr("path"));
+  const linkCols = ["document_id", "doc_id", "file_id", "source_id", "knowledge_file_id"].filter((c) => cols.has(c));
+  if (documentIds.length && linkCols.length) {
+    params.push(documentIds);
+    where.push(`(${linkCols.map((c) => `${quoteIdent(c)}::text = ANY($2::text[])`).join(" OR ")})`);
+  }
+  if (!where.length) return { table: "embeddings", exists: true, removed: 0 };
+  const sql = `${dryRun ? "SELECT COUNT(*)::int AS n FROM" : "DELETE FROM"} ${quoteIdent("embeddings")} WHERE ${where.join(" OR ")}`;
+  const r = await client.query(sql, params);
+  if (dryRun) return { table: "embeddings", exists: true, removed: 0, candidates: Number(r.rows?.[0]?.n || 0) };
+  return { table: "embeddings", exists: true, removed: r.rowCount || 0 };
+}
+
+async function purgeLegacyKnowledgeTables(client, target, opts = {}) {
+  const documentIds = await legacyDocumentIdsUnderRoot(client, target);
+  const embeddings = await legacyEmbeddingDelete(client, target, documentIds, opts);
+  const documents = await legacyPathDelete(client, "documents", target, opts);
+  return { documents, embeddings };
+}
+
+async function legacyDocumentIdsMatchingNeedles(client, needles) {
+  const cols = await tableColumnSet(client, "documents");
+  if (!cols.has("id")) return [];
+  const textCols = ["path", "root", "url", "name", "title", "source", "source_path"].filter((c) => cols.has(c));
+  if (!textCols.length) return [];
+  const patterns = needles.map((n) => `%${n}%`);
+  const where = textCols.map((c) => `${quoteIdent(c)}::text ILIKE ANY($1::text[])`).join(" OR ");
+  const r = await client.query(`SELECT id::text AS id FROM documents WHERE ${where}`, [patterns]).catch(() => ({ rows: [] }));
+  return r.rows.map((row) => String(row.id)).filter(Boolean);
+}
+
+async function deleteLegacyRowsMatchingNeedles(client, tableName, needles, { dryRun = false, documentIds = [] } = {}) {
+  const cols = await tableColumnSet(client, tableName);
+  if (!cols.size) return { table: tableName, exists: false, removed: 0 };
+  const textCols = ["path", "root", "url", "name", "title", "source", "source_path", "file_path"].filter((c) => cols.has(c));
+  const patterns = needles.map((n) => `%${n}%`);
+  const where = textCols.map((c) => `${quoteIdent(c)}::text ILIKE ANY($1::text[])`);
+  const params = [patterns];
+  const linkCols = ["document_id", "doc_id", "file_id", "source_id", "knowledge_file_id"].filter((c) => cols.has(c));
+  if (documentIds.length && linkCols.length) {
+    params.push(documentIds);
+    where.push(`(${linkCols.map((c) => `${quoteIdent(c)}::text = ANY($2::text[])`).join(" OR ")})`);
+  }
+  if (!where.length) return { table: tableName, exists: true, removed: 0 };
+  const sql = `${dryRun ? "SELECT COUNT(*)::int AS n FROM" : "DELETE FROM"} ${quoteIdent(tableName)} WHERE ${where.join(" OR ")}`;
+  const r = await client.query(sql, params);
+  if (dryRun) return { table: tableName, exists: true, removed: 0, candidates: Number(r.rows?.[0]?.n || 0) };
+  return { table: tableName, exists: true, removed: r.rowCount || 0 };
+}
+
+async function purgeLegacyGhostNeedles(client, needles, opts = {}) {
+  const documentIds = await legacyDocumentIdsMatchingNeedles(client, needles);
+  const embeddings = await deleteLegacyRowsMatchingNeedles(client, "embeddings", needles, { ...opts, documentIds });
+  const documents = await deleteLegacyRowsMatchingNeedles(client, "documents", needles, opts);
+  return { documents, embeddings };
+}
+
+async function purgeKnowledgeRoot(root, { dryRun = false } = {}) {
+  const target = normalizeDirRoot(root);
+  if (!target) return { root: target, removedFiles: 0, removedChunks: 0, removedSources: 0, affectedRoots: [] };
+  await ensureKnowledgeFilesTable();
+  await ensureKnowledgeChunksTable();
+  const client = await pool.connect();
+  try {
+    if (dryRun) {
+      // NOTE: parallel queries must go through the pool (each gets its own client).
+      // Running Promise.all on the same pooled client triggers the
+      // "client.query() while the client is already executing a query" deprecation.
+      const [f, c] = await Promise.all([
+        pool.query(`SELECT COUNT(*)::int AS n FROM knowledge_files WHERE ${rootOrPathUnderRootExpr("root", "path")}`, [target]),
+        pool.query(`SELECT COUNT(*)::int AS n FROM knowledge_chunks WHERE ${rootOrPathUnderRootExpr("root", "path")}`, [target]),
+      ]);
+      const legacy = await purgeLegacyKnowledgeTables(client, target, { dryRun: true });
+      return { root: target, dryRun: true, candidates: { files: Number(f.rows[0]?.n || 0), chunks: Number(c.rows[0]?.n || 0), documents: legacy.documents.candidates || 0, embeddings: legacy.embeddings.candidates || 0 }, legacy, affectedRoots: [target] };
+    }
+    await client.query("BEGIN");
+    const c = await client.query(`DELETE FROM knowledge_chunks WHERE ${rootOrPathUnderRootExpr("root", "path")}`, [target]);
+    const f = await client.query(`DELETE FROM knowledge_files WHERE ${rootOrPathUnderRootExpr("root", "path")}`, [target]);
+    const s = await client.query(
+      `DELETE FROM knowledge_sources
+        WHERE id::text=$1 OR name=$1 OR url=$1 OR name LIKE $1 || '/%' OR url LIKE $1 || '/%'`,
+      [target]
+    );
+    const graph = await purgeGraphOrphans(client).catch(() => ({ removedEdges: 0, removedEntities: 0 }));
+    const legacy = await purgeLegacyKnowledgeTables(client, target);
+    await client.query("COMMIT");
+    // v12 — purged root must release its fs.watch handle so nothing re-ingests.
+    try { stopWatchingRoot(target); } catch {}
+    console.log(`[knowledge:purge] target=${target} files=${f.rowCount || 0} chunks=${c.rowCount || 0} sources=${s.rowCount || 0} graphEdges=${graph.removedEdges} graphEntities=${graph.removedEntities} documents=${legacy.documents.removed || 0} embeddings=${legacy.embeddings.removed || 0}`);
+    return { root: target, removedFiles: f.rowCount || 0, removedChunks: c.rowCount || 0, removedSources: s.rowCount || 0, removedGraphEdges: graph.removedEdges, removedGraphEntities: graph.removedEntities, removedDocuments: legacy.documents.removed || 0, removedEmbeddings: legacy.embeddings.removed || 0, legacy, affectedRoots: [target] };
+  } catch (e) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+async function purgeGraphOrphans(client) {
+  const edges = await client.query(
+    `DELETE FROM knowledge_edges ed
+     WHERE ed.source_chunk_id IS NOT NULL
+       AND NOT EXISTS (SELECT 1 FROM knowledge_chunks kc WHERE kc.id=ed.source_chunk_id)`
+  );
+  const entities = await client.query(
+    `DELETE FROM knowledge_entities e
+     WHERE NOT EXISTS (
+       SELECT 1 FROM knowledge_edges ed WHERE ed.src_id=e.id OR ed.dst_id=e.id
+     )`
+  );
+  return { removedEdges: edges.rowCount || 0, removedEntities: entities.rowCount || 0 };
+}
+
+// Provenance-based cleanup (v8 — 2026-05-19).
+// Eski needle/suffix mantığı (KNOWLEDGE_GHOST_SUFFIXES, isim eşleştirme) tamamen
+// kaldırıldı; bu mantık Citrix/NetScaler gibi diskte var olan klasörleri yanlışlıkla
+// silebiliyordu. Yeni kural çok basit:
+//   - knowledge_files.root için fs.existsSync(root) === false → root'a ait
+//     dosyaları + chunk'ları sil (kaynak gerçekten kaybolmuş).
+//   - opsiyonel: deepFileCheck=true ise her dosya için (root + path) var mı bak,
+//     yoksa sadece o dosyayı sil.
+//   - knowledge_sources için otomatik silme YOK (URL HEAD probu ayrı endpoint'te).
+//   - Orphan knowledge_chunks (eşi olmayan file_id) her zaman temizlenir.
+// Hiçbir koşulda isim/string eşleşmesine bakılmaz — koruma listesine de gerek yoktur.
+// moved → lib/knowledge/maintenance.mjs (Tur B)
+
+// --- HTML / CSS / control-junk sanitizer ------------------------------------
+// Cleans content BEFORE it lands in PostgreSQL so vector + FTS work on signal,
+// not on <span style="..."> noise. Idempotent: safe to call on already-clean text.
+function sanitizeContent(input) {
+  if (input == null) return "";
+  let s = String(input);
+  // Strip script/style/noscript/template blocks entirely
+  s = s.replace(/<(script|style|noscript|template)[\s\S]*?<\/\1>/gi, " ");
+  // CSS declarations commonly survive bad PDF/HTML extraction without tags.
+  s = s.replace(/\b(?:font-family|font-size|font-weight|line-height|letter-spacing|color|background(?:-color)?|margin|padding|border|display|position|top|left|right|bottom|width|height)\s*:\s*[^;\n{}]{0,240};?/gi, " ");
+  // HTML comments
+  s = s.replace(/<!--[\s\S]*?-->/g, " ");
+  // Remaining tags
+  s = s.replace(/<\/?[a-zA-Z][^>]*>/g, " ");
+  // Common HTML entities
+  s = s.replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&").replace(/&lt;/gi, "<")
+       .replace(/&gt;/gi, ">").replace(/&quot;/gi, '"').replace(/&#39;|&apos;/gi, "'")
+       .replace(/&#(\d+);/g, (_, d) => { try { return String.fromCharCode(Number(d)); } catch { return " "; } });
+  // Inline CSS leftovers like  style="..."  or  font-family:...;
+  s = s.replace(/\bstyle\s*=\s*"(?:[^"\\]|\\.)*"/gi, " ")
+       .replace(/\bclass\s*=\s*"(?:[^"\\]|\\.)*"/gi, " ");
+  // Drop control chars except \t \n \r
+  s = s.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, " ");
+  // Collapse whitespace
+  s = s.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").replace(/[ \t]{2,}/g, " ");
+  return s.trim();
+}
+function resolveLibraryRoot(value) {
+  const raw = String(value ?? "").trim();
+  return path.resolve(raw || DEFAULT_LIBRARY_ROOT);
+}
+function isLikelyBinaryBuffer(buf) {
+  const sample = buf.subarray(0, Math.min(buf.length, 4096));
+  if (!sample.length) return false;
+  let zero = 0, control = 0;
+  for (const b of sample) {
+    if (b === 0) zero++;
+    else if (b < 9 || (b > 13 && b < 32)) control++;
+  }
+  return zero > 0 || control / sample.length > 0.12;
+}
+function printableBinarySummary(filePath, ext, buf) {
+  const strings = buf.toString("latin1").match(/[\x20-\x7E]{4,}/g) || [];
+  return `# Binary File: ${path.basename(filePath)}\nExtension: ${ext || "(none)"}\nSize: ${buf.length} bytes\n\n# Printable Strings\n${strings.slice(0, 20000).join("\n")}`;
+}
+
+// ---- Smart media URL ingestor (yt-dlp + whisper) -------------------------
+// Detects YouTube/Vimeo/Insta/TikTok/Udemy/direct .mp4/.mp3 links, downloads
+// the audio track, transcribes with whisper.cpp (if WHISPER_BIN/MODEL set),
+// and ingests as a video source. Returns { ok, id, url, title, chunks, ... }.
+// ingestMediaUrl → lib/ingest/pipeline.mjs
+
+// MLX Vision caption — uses local MLX VLM server (Apple Silicon native, OpenAI-compatible API)
+// Default endpoint: http://127.0.0.1:8011/v1/chat/completions  (override via MLX_VISION_BASE_URL)
+// Default model: mlx-community/Qwen2-VL-7B-Instruct-4bit         (override via MLX_VISION_MODEL)
+// NOT: 8001 text-completion engine'i VLM değil — fallback MLX_BASE_URL'ye DÜŞMEZ.
+// Vision disable iken (MLX_VISION_DISABLED=1) tamamen no-op.
+// mlxVisionCaption → lib/ingest/extract.mjs
+
+// extractFileContent → lib/ingest/extract.mjs
+
+// Chunking constants + isTableLine/isListLine/packAtomic → lib/ingest/extract.mjs
+
+// chunkText → lib/ingest/extract.mjs
+
+function chunkTextDetailed(text) {
+  const chunks = chunkText(text);
+  let activePage = null;

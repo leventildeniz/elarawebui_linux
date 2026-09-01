@@ -1,0 +1,26 @@
+{
+  "slug": "dns_lookup",
+  "input": {
+    "type": "object",
+    "required": ["name"],
+    "properties": {
+      "name": { "type": "string", "minLength": 1, "maxLength": 253 },
+      "types": { "type": "array", "items": { "type": "string" } },
+      "resolver": { "type": "string" },
+      "timeout_ms": { "type": "integer", "minimum": 1000, "maximum": 30000 }
+    }
+  },
+  "output": {
+    "type": "object",
+    "required": ["ok"],
+    "properties": {
+      "ok": { "type": "boolean" },
+      "name": { "type": "string" },
+      "resolver": { "type": "string" },
+      "records": { "type": "object" },
+      "errors": { "type": "object" },
+      "reason": { "type": "string" }
+    }
+  },
+  "dependencies": ["dnspython"]
+}

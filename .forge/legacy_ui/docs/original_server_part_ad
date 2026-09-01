@@ -1,0 +1,1000 @@
+  return chunks.map((content) => {
+    const matches = [...String(content).matchAll(/\[PDF_PAGE\s+(\d+)\]/gi)];
+    if (matches.length) activePage = Number(matches[matches.length - 1][1]);
+    return { content, page: Number.isFinite(activePage) ? activePage : null };
+  });
+}
+
+// Diagnostic endpoint: inspect a file's chunk shape from the terminal:
+//   curl ":3005/api/knowledge/chunk-preview?id=<file_id>"
+//   curl ":3005/api/knowledge/chunk-preview?path=<absolute_path>"
+// Returns chunk count, sizes, and whether tables/lists were preserved intact.
+// /api/knowledge/chunk-preview, /brand-audit, /chunk-report → lib/routes/knowledge-audit.mjs (Block K-4a)
+
+// ensureKnowledgeChunksTable → lib/schema-knowledge.mjs (Block E.2 Tur 4).
+
+// NOT: ensureKnowledgeChunksTable() boot listen callback'te (Promise.all içinde)
+// tek noktadan çağrılıyor — burada migrateReady.then ile ikinci kez tetiklemek
+// DDL yarışı yaratıp restart'ta RAM/CPU şişiriyordu.
+
+// brand = first sub-folder under root (e.g. /library/Checkpoint/x.pdf → "Checkpoint")
+function deriveBrand(root, filePath) {
+  if (!filePath || !filePath.startsWith(root)) return null;
+  const rel = filePath.slice(root.length).replace(/^[\/\\]+/, "");
+  const seg = rel.split(/[\/\\]/);
+  return seg.length > 1 ? seg[0] : null;
+}
+
+// Marka tespiti — DB'den gelen `knownBrands` (knowledge_chunks.brand DISTINCT)
+// üstünde case-insensitive substring + TR bitişik-ek toleranslı eşleşme.
+// Statik BRAND_ALIASES sözlüğü/whitelist'i YASAK (memory kuralı). Alias
+// ihtiyacı UI'daki brand-aliases.json → enrichment preamble hattıyla karşılanır;
+// burada runtime sözlük yok.
+function aliasMatchedBrands(q, knownBrands) {
+  const ql = String(q || "").toLowerCase();
+  const hits = new Set();
+  for (const b of knownBrands || []) {
+    if (!b) continue;
+    // Türkçe bitişik ek toleransı: "fortigatede", "checkpointtaki" eşleşsin.
+    const re = new RegExp(`\\b${String(b).replace(/[.*+?^${}()|[\\]\\\\]/g,"\\$&")}(?:[a-zçğıöşü]{1,6})?\\b`, "i");
+    if (re.test(ql)) hits.add(b);
+  }
+  return Array.from(hits);
+}
+
+function aliasMatchedBrand(q, knownBrands) {
+  const ql = String(q || "").toLowerCase();
+  // En uzun eşleşmeyi tercih et (örn. "Check Point" varsa "Check" değil "Check Point").
+  const sorted = [...(knownBrands || [])].filter(Boolean).sort((a,b) => String(b).length - String(a).length);
+  for (const b of sorted) {
+    const re = new RegExp(`\\b${String(b).replace(/[.*+?^${}()|[\\]\\\\]/g,"\\$&")}(?:[a-zçğıöşü]{1,6})?\\b`, "i");
+    if (re.test(ql)) return b;
+  }
+  return null;
+}
+
+// ---- Query expansion: split + light TR/EN synonym map -----------------------
+// Used to broaden FTS so "öncelik sırası" also matches "priority", "hierarchy"…
+const SYNONYMS = {
+  "öncelik": ["priority","precedence","hierarchy"],
+  "sıra":    ["order","sequence","priority"],
+  "kural":   ["rule","policy"],
+  "kurallar":["rules","policies"],
+  "politika":["policy","rule"],
+  "politikalar":["policies","rules"],
+  "güvenlik":["security"],
+  "ağ":      ["network"],
+  "yönlendirme":["routing","route"],
+  "arayüz": ["interface"],
+  "sürüm":  ["version","release"],
+  "yükseltme":["upgrade","update"],
+  "yedek":  ["backup","snapshot"],
+  "kullanıcı":["user","admin"],
+  "yetki":  ["permission","privilege","role"],
+  "lisans": ["license","licence"],
+};
+// Stopwords — generic filler words that add noise to RAG search.
+// Technical tokens (CVE-, R80, FortiGate vb.) zaten regex'le korunur:
+// stopword filtresi sadece UZUNLUĞU >=2 olan saf alfabetik kelimeleri eler.
+const STOPWORDS = new Set([
+  // TR
+  "ve","veya","ya","ile","de","da","ki","mi","mı","mu","mü","ne","ama","fakat","ancak",
+  "için","gibi","kadar","göre","sonra","önce","şu","bu","o","şey","bir","biraz","çok","az",
+  "her","hep","hiç","ben","sen","biz","siz","onlar","bana","sana","bize","size","onu","onun",
+  "var","yok","olan","olur","oldu","olmak","yapmak","etmek","mı","midir","değil","evet","hayır",
+  "lütfen","tamam","peki","acaba","sanki","yani","ise","eğer","çünkü","zaten","tabii",
+  // EN
+  "the","a","an","and","or","but","if","then","of","in","on","at","to","for","with","by",
+  "is","are","was","were","be","been","being","do","does","did","have","has","had",
+  "i","you","he","she","it","we","they","me","him","her","us","them","my","your","our",
+  "this","that","these","those","there","here","what","which","who","whom","why","how","when","where",
+  "not","no","yes","please","ok","okay","just","only","very","much","many","some","any","all"
+]);
+function expandQueryTerms(q) {
+  const raw = String(q || "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s\-_.]/gu, " ")
+    .split(/\s+/)
+    .map(t => t.trim())
+    .filter(t => t.length >= 2);
+  // Stopword cleaner — saf alfabetik & stopword'leri at, teknik token'lara dokunma.
+  const cleaned = raw.filter(t => {
+    if (/[\d_.\-]/.test(t)) return true;        // contains digit/punct → technical
+    if (t.length >= 8) return true;             // long words rarely stopwords
+    return !STOPWORDS.has(t);
+  });
+  const base = cleaned.length ? cleaned : raw;  // hepsi stopword'se ham listeye dön
+  const out = new Set(base);
+  for (const t of base) {
+    const syns = SYNONYMS[t];
+    if (syns) syns.forEach(s => out.add(s.toLowerCase()));
+  }
+  return Array.from(out).slice(0, 20);
+}
+function buildOrTsQuery(terms) {
+  // Build a `ts_query` string: term1 | term2 | term3
+  const lexemes = [];
+  for (const term of terms) {
+    const parts = String(term || "").toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(p => p.length >= 2);
+    for (const p of parts) lexemes.push(p.replace(/'/g, ""));
+  }
+  return Array.from(new Set(lexemes)).join(" | ");
+}
+function isTechnicalQuery(q, terms = []) {
+  const raw = String(q || "");
+  const text = `${raw} ${(terms || []).join(" ")}`;
+  return /\b(?:r\d{2,3}(?:\.\d+)?|maestro|forti\w+|gaia|smartconsole|cpuse|jhf|hotfix|take|pan-os|ios-xe|big-ip|cve-\d{4}-\d+)\b/i.test(text)
+    || /\b[A-Z]{2,}[A-Z0-9._-]*\d+[A-Z0-9._-]*\b/.test(raw)
+    || /\b[a-z]+\d{2,}[a-z0-9._-]*\b/i.test(raw);
+}
+
+// ---- Intent Classifier — SAF SEMANTIC (regex yasak) ------------------------
+// Niyet/sınıf/dil tespiti %100 embedding + cosine similarity üzerinden.
+// SMALLTALK_PATTERNS ve QUESTION_HINTS regex'leri terminalsiz söküldü.
+
+// Operator-tunable runtime config — controls how aggressive the intent
+// classifier is. forceRagMode lets the Architect override the router entirely.
+//   "auto"   → score-based gate (default)
+//   "always" → every query (even "selam") goes to RAG
+//   "never"  → RAG is disabled, model answers from memory
+// Semantic Intent Router — ELARA-native pipeline.
+// No phrase dictionary. Routing decisions come from:
+//   1) embedding cosine similarity between the query and two anchor concepts
+//      (technical/library vs casual/social), gated by `semanticThreshold`.
+//   2) optional LLM zero-shot classification via `classifierPrompt` (used when
+//      embeddings are unavailable or `classifierMode === "llm"`).
+// DEFAULT_CLASSIFIER_PROMPT + RUNTIME_INTENT_CFG + clampThreshold + clampSemanticThreshold
+// → lib/rag/intent-classifier.mjs (Tur B, 2026-05-30). Imported at top.
+
+// Engine routes mount — RUNTIME_INTENT_CFG ve DEFAULT_CLASSIFIER_PROMPT tanımı
+// burada hazır olduğu için mount call'ı bu noktaya alındı (TDZ fix, 2026-05-30).
+mountEngineRoutes(app, {
+  pool,
+  RUNTIME_INTENT_CFG, DEFAULT_CLASSIFIER_PROMPT,
+  RUNTIME_PROVIDER_CFG, RUNTIME_PROVIDER_PRESETS,
+  hydrateRuntimeProviderFromDb,
+  resolveProvider: _resolveProvider,
+  sanitizeModels: _sanitizeModels,
+  runtimeBase, runtimeUpstreamBase, runtimeModel, runtimeIsMlx,
+  getWatchdogCfg, setWatchdogCfg,
+  getWorkerSelfHealCfg, setWorkerSelfHealCfg,
+  persistWatchdogToDb,
+  getSelfHealCooldownMs: () => SELF_HEAL_COOLDOWN_MS,
+  getRespawnMaxInWindow: () => RESPAWN_MAX_IN_WINDOW,
+  getMlxTransportSnapshot,
+  mlxWarmCacheTtlMs: _mlxWarmCacheTtlMs,
+  MLX_TRANSPORT,
+});
+
+// Intent classifier (INTENT_ANCHORS, ensureAnchorVecs, semanticIntentGate,
+// llmIntentClassify, refineIntentSemantically, scoreTechnicalSignal, classifyIntent)
+// → lib/rag/intent-classifier.mjs (Tur B, 2026-05-30). initIntentClassifier wired after cosine def.
+
+// mlxEmbed + mlxRerank + error rings → lib/rag/mlx-embed-rerank.mjs (Tur C, 2026-05-30).
+// initMlxEmbedRerank wired after worker constants + ensureWorker defs (search for init below).
+
+function cosine(a, b) {
+  let dot = 0, na = 0, nb = 0;
+  const n = Math.min(a.length, b.length);
+  for (let i = 0; i < n; i++) { dot += a[i]*b[i]; na += a[i]*a[i]; nb += b[i]*b[i]; }
+  return na && nb ? dot / (Math.sqrt(na) * Math.sqrt(nb)) : 0;
+}
+// semanticSearch moved to lib/rag/retrieval.mjs (Tur 1b, 2026-05-30).
+const semanticFallback = semanticSearch;
+
+// ----- Dynamic library brand cache → lib/rag/brand-cache.mjs (Batch A, 2026-05-30)
+// Exports: getLibraryBrands, getActivePackBrandFilter, invalidatePackFilterCache,
+//          getAgentRagBrands, invalidateAgentBrandCache, _brandDisplay, detectLibraryMatch.
+// DI: pool + getRagSettings (RAG_SETTINGS reader, runtime-mutated by Dashboard).
+initBrandCache({ pool, getRagSettings: () => RAG_SETTINGS });
+initAgentRag({ getRagSettings: () => RAG_SETTINGS });
+initAgentEnv({ getRagSettings: () => RAG_SETTINGS });
+
+
+// mlxEmbed + mlxRerank transport wiring (Tur C, 2026-05-30).
+initMlxEmbedRerank({
+  pushLog,
+  getWorkerStatus: () => workerStatus,
+  kickWorkerStart,
+  ensureWorker,
+  getRagSettings: () => RAG_SETTINGS,
+  embedWorkerPort: EMBED_WORKER_PORT,
+  embedWorkerHost: EMBED_WORKER_HOST,
+});
+
+// Intent classifier wiring (Tur B, 2026-05-30) — after cosine + mlxEmbed defs.
+initIntentClassifier({
+  pool,
+  pushLog,
+  mlxEmbed,
+  currentModelRender: _currentModelRender,
+  cosine,
+  getRagSettings: () => RAG_SETTINGS,
+});
+scheduleIntentHydrate(500);
+
+// buildFreeAnswerMessages moved to lib/rag/util.mjs (Tur A, 2026-05-30).
+
+// ============================================================================
+// v4 İNFAZ: instantSmalltalkReply, TEMPLATES, isInstantSmalltalk,
+// SMALLTALK_SUBCLASS_ANCHORS, LOCALE_ANCHORS, pickSmalltalkSubclass,
+// pickLocale, burstText, streamSmalltalkFromEnvLLM — TERMİNALSİZ SİLİNDİ.
+// Şablon havuzu yasak. Tüm trafik streamFromLocalLLM → MLX 8001 hattından akar.
+// Geri eklemek için Komutan onayı + System Engine "BYPASS YASAK" rozetinin kaldırılması şart.
+// ============================================================================
+
+// ---- Entity extractor → lib/rag/entity-extractor.mjs (Batch A, 2026-05-30)
+// Exports: extractEntities, upsertEntity, linkEntitiesForChunk. DI: pool.
+initEntityExtractor({ pool });
+
+// rebuildChunksForFile → lib/ingest/pipeline.mjs
+
+// Embedding'leri batch'leyip pgvector kolonuna yaz. MLX yoksa sessizce çık.
+// Boyut env EMBED_DIM (default 1024) ile mühürlüdür; MLX modeli farklı boyut
+// dönerse satır 'error' damgası alır ve atlanır (sonsuz döngü yok).
+const EMBED_DIM_TARGET = Math.max(64, Math.min(4096, Number(process.env.EMBED_DIM) || 1024));
+// embedAndStoreChunks + getEmbeddingHealth → lib/embed-worker/store.mjs (Tur 3a)
+initEmbedWorkerStore({
+  pool, mlxEmbed, ensureWorker, pushLog,
+  tableHasColumn, ensureKnowledgeChunksTable,
+  // cleanupKnowledgeGhosts factory init'i ~line 5424'te (SYSTEM_ACTIONS sonrası).
+  // Wrapper geçiyoruz — dep-check truthy görür, gerçek çağrı geç-bind.
+  cleanupKnowledgeGhosts: (...a) => cleanupKnowledgeGhosts(...a),
+  inspectDirectoryAccess,
+  getLibraryRoot: () => DEFAULT_LIBRARY_ROOT,
+  getRagSettings: () => RAG_SETTINGS,
+  EMBED_DIM_TARGET,
+});
+
+// initAdaptersSchema → lib/schema-adapters.mjs (boot DDL seed).
+({ ensureAdapterDictionariesSeed } = initAdaptersSchema({ pool }));
+
+// initEmbedWorkerRuntime → lib/embed-worker/runtime.mjs (Tur 3b)
+// State callbacks: workerProc/Status/LastError/StartedAt server.mjs `let`
+// kalıyor (40+ reader); SELF_HEAL_COOLDOWN_MS + RESPAWN_MAX_IN_WINDOW
+// cockpit watchdog mutate ettiği için getter ile okunur.
+initEmbedWorkerRuntime({
+  pool,
+  spawn, isPortOpen, killPortOwnerAndWait, waitForPidExit: _waitForPidExit,
+  probeWorkerHealth, verifyEmbedAlive, warmEmbedWorker,
+  resolvePythonCandidates,
+  pushLog,
+  getRecentWorkerLogs: (limit = 60) => SYS_LOG_RING.filter((evt) => evt?.source === "worker").slice(-Math.max(1, Math.min(200, Number(limit) || 60))),
+  ensureKnowledgeChunksTable,
+  embedAndStoreChunks,
+  getRagSettings: () => RAG_SETTINGS,
+  getLastEmbedError,
+  EMBED_WORKER_HOST, EMBED_WORKER_PORT, DEFAULT_EMBED_MODEL,
+  serverDir: __dirname,
+  getProc: () => workerProc, setProc: (v) => { workerProc = v; },
+  getStatus: () => workerStatus, setStatus: (v) => { workerStatus = v; },
+  getLastError: () => workerLastError, setLastError: (v) => { workerLastError = v; },
+  setStartedAt: (v) => { workerStartedAt = v; },
+  getSelfHealCooldownMs: () => SELF_HEAL_COOLDOWN_MS,
+  getRespawnMax: () => RESPAWN_MAX_IN_WINDOW,
+});
+mountEmbedWorkerRoutes(app);
+startEmbedWorkerIntervals();
+
+// ---- Universal Ingestion (URL · Text · File · Directory · Messaging hepsi buradan akar)
+// ingestSource → lib/ingest/pipeline.mjs
+
+// ============================================================================
+// Recursive URL crawl helper — used by both global sync and per-source sync.
+// When a knowledge_sources row of type='url' has crawl_config.recursive=true,
+// this fans out to all same-origin pages (sitemap-first, BFS fallback) and
+// writes each page as a child knowledge_sources row (parent_id -> root id).
+// On re-sync we wipe old children first so the index reflects the live site.
+//
+// Returns: { visited, errors, bytes, durationMs, stoppedReason, written }
+// ============================================================================
+// __crawlMutex/withCrawlMutex/deriveChildSourceId → lib/ingest/pipeline.mjs
+
+// ============================================================================
+// Ingest cluster init — extract + pipeline. Factories return functions that we
+// bind to the `let` declarations near the top of this file. Extract MUST init
+// FIRST because pipeline deps reference htmlToText.
+// ============================================================================
+({
+  htmlToText,
+  jsonToSearchableText,
+  extractTechnicalCore,
+  mlxVisionCaption,
+  extractFileContent,
+  chunkText,
+} = createIngestExtract({
+  _getHtmlPipeline,
+  _htmlStripFallback,
+  _JSON_HIGH_WEIGHT_KEYS,
+  _extGet, _extSet,
+  _extBreakerIsOpen, _extBreakerRecordFailure, _extBreakerRecordSuccess,
+  _resolveMlxEndpoint,
+  toCompletionBody,
+  _sterilizeWithRagStop,
+  execCapture,
+  isLikelyBinaryBuffer,
+  printableBinarySummary,
+  sanitizeContent,
+  MAX_INDEXED_CHARS,
+  TEXT_EXT, IMAGE_EXT, AV_EXT, VISIO_EXT,
+  getRagSettings: () => RAG_SETTINGS,
+}));
+
+({
+  rebuildChunksForFile,
+  ingestSource,
+  ingestMediaUrl,
+  recrawlUrlSource,
+  withCrawlMutex,
+  deriveChildSourceId,
+} = createIngestPipeline({
+  pool,
+  getRagSettings: () => RAG_SETTINGS,
+  ensureKnowledgeChunksTable,
+  tableHasColumn,
+  sanitizeContent,
+  chunkTextDetailed,
+  enrichChunkContent,
+  linkEntitiesForChunk,
+  embedAndStoreChunks,
+  deriveBrand,
+  deriveBrandFromUrl,
+  htmlToText,
+  createLocalId,
+  MAX_INDEXED_CHARS,
+  crawlUrl,
+  crawlPresetConfig,
+}));
+
+// ensureKnowledgeFilesTable → lib/schema-knowledge.mjs (Block E.2 Tur 4).
+
+async function tableHasColumn(tableName, columnName) {
+  const { rows } = await pool.query(
+    `SELECT to_regclass($1) IS NOT NULL AS exists,
+            EXISTS (
+              SELECT 1 FROM information_schema.columns
+              WHERE table_schema='public' AND table_name=$2 AND column_name=$3
+            ) AS has_column`,
+    [`public.${tableName}`, tableName, columnName]
+  );
+  return !!rows[0]?.exists && !!rows[0]?.has_column;
+}
+
+function isTsVectorOverflowError(error) {
+  return /string is too long for tsvector/i.test(String(error?.message || error));
+}
+
+// moved → lib/knowledge/maintenance.mjs (Tur B)
+
+void migrateReady.then(async () => {
+  await ensureKnowledgeFilesTable();
+  await syncCanonicalLibraryPaths().catch((e) => console.warn("[library:path-sync]", e.message));
+});
+// scanDirectory — incremental, liyakatli (Senior RAG)
+// Per-folder access_level can be passed via req.body.folderAccessLevels
+// (e.g. { "/Users/levent/secret": "Admin", "/Users/levent/public": "Viewer" }).
+// Default access_level for the whole root: req.body.accessLevel ('Viewer' if omitted).
+async function inspectDirectoryAccess(root, opts = {}) {
+  const recursive = opts.recursive !== false;
+  const sampleLimit = Math.max(1, Math.min(100, Number(opts.sampleLimit) || 20));
+  const audit = { root, recursive, exists: false, isDirectory: false, readable: false, executable: false, visitedDirs: 0, filesSeen: 0, indexableSeen: 0, permissionErrors: [], errors: [], sampleFiles: [] };
+  try { const st = await fs.promises.stat(root); audit.exists = true; audit.isDirectory = st.isDirectory(); }
+  catch (e) { audit.errors.push({ path: root, code: e.code || "STAT", message: String(e.message || e) }); return audit; }
+  try { await fs.promises.access(root, fs.constants.R_OK); audit.readable = true; }
+  catch (e) { audit.permissionErrors.push({ path: root, code: e.code || "R_OK", message: String(e.message || e) }); }
+  try { await fs.promises.access(root, fs.constants.X_OK); audit.executable = true; }
+  catch (e) { audit.permissionErrors.push({ path: root, code: e.code || "X_OK", message: String(e.message || e) }); }
+  if (!audit.isDirectory || !audit.readable) return audit;
+  for await (const file of walkDir(root, recursive, audit)) {
+    if (INDEXABLE_EXT.has(path.extname(file).toLowerCase())) audit.indexableSeen += 1;
+    if (audit.sampleFiles.length < sampleLimit) audit.sampleFiles.push(file);
+  }
+  return audit;
+}
+
+async function* walkDir(root, recursive, audit = null) {
+  const stack = [root];
+  const skipRoots = []; // v8: needle/suffix kaldırıldı; tarama esnasında klasör atlanmaz
+  while (stack.length) {
+    const dir = stack.pop();
+    if (audit) audit.visitedDirs = (audit.visitedDirs || 0) + 1;
+    let entries;
+    try { entries = await fs.promises.readdir(dir, { withFileTypes: true }); }
+    catch (e) {
+      const item = { path: dir, code: e.code || "READDIR", message: String(e.message || e) };
+      if (audit) {
+        audit.errors?.push(item);
+        if (e.code === "EACCES" || e.code === "EPERM") audit.permissionErrors?.push(item);
+      }
+      console.warn(`[rag:walk] skip ${dir}: ${item.code} ${item.message}`);
+      continue;
+    }
+    for (const e of entries) {
+      if (e.name.startsWith(".")) continue;
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) {
+        if (skipRoots.some((r) => isSameOrUnderRoot(r, full))) {
+          if (audit) audit.errors?.push({ path: full, code: "EXCLUDED_SUBROOT", message: "nested ghost root excluded from recursive index" });
+          continue;
+        }
+        if (recursive) stack.push(full);
+        continue;
+      }
+      if (e.isFile()) { if (audit) audit.filesSeen = (audit.filesSeen || 0) + 1; yield full; }
+    }
+  }
+}
+
+function resolveFileAccessLevel(filePath, defaultLevel, folderMap) {
+  // Pick the longest matching folder prefix → most specific wins
+  if (folderMap && typeof folderMap === "object") {
+    let best = null;
+    for (const folder of Object.keys(folderMap)) {
+      if (filePath.startsWith(folder) && (!best || folder.length > best.length)) best = folder;
+    }
+    if (best) return normalizeAccessLevel(folderMap[best]);
+  }
+  return normalizeAccessLevel(defaultLevel);
+}
+
+// /api/knowledge/index-directory → lib/routes/knowledge-ingest.mjs (Block K-4b)
+
+// ---- Reindexer + Sync Jobs → lib/knowledge/reindexer.mjs (2026-05-30) -----
+const {
+  reindexRoot,
+  ragJobs,
+  createSyncOptions,
+  deriveStartedBy,
+  startSyncJob,
+  cancelSyncJob,
+  runSyncJob,        // exported for parity (was top-level in monolith)
+  runSourceSyncJob,  // exported for parity
+  hardResetRagDatabase,
+  getLastSyncJobId,
+} = initReindexer({
+  pool,
+  canonicalizeKnowledgeRoot, purgeKnowledgeRoot, inspectDirectoryAccess,
+  walkDir, normalizeAccessLevel,
+  ensureKnowledgeFilesTable, ensureKnowledgeChunksTable,
+  INDEXABLE_EXT, MAX_FILE_BYTES, FTS_INPUT_CHAR_LIMIT,
+  getDefaultLibraryRoot: () => DEFAULT_LIBRARY_ROOT,
+  DEEP_SYNC_TARGET_CHUNKS,
+  extractFileContent, sanitizeContent, chunkTextDetailed,
+  isTsVectorOverflowError, rebuildChunksForFile,
+  htmlToText, deriveBrandFromUrl, ingestSource,
+  recrawlUrlSource, withCrawlMutex,
+  startWatchingRoot: (root) => startWatchingRoot(root),
+  enqueueWrite, triggerSyncAutoReenrich,
+});
+
+// GET/POST /api/knowledge/sync — schedules async job, returns 202 + jobId immediately.
+mountKnowledgeSyncRoutes(app, {
+  pool, sseBegin,
+  ragJobs, getLastSyncJobId,
+  createSyncOptions, deriveStartedBy, startSyncJob, cancelSyncJob,
+  purgeKnowledgeRoot, purgeGraphOrphans,
+  invalidateSourcesCache,
+});
+
+// POST /api/knowledge/url-purge-all — 2026-05-26 (replaced url-rechunk-all).
+// Restore stratejisi iptal: tüm type='url' source'ları + chunk'ları siler.
+// Refetch kullanıcıya bırakılır (UI). PDF/file/JSON/MD ETKİLENMEZ.
+// Body: { dryRun?: boolean }
+mountKnowledgeMaintenanceRoutes(app, { pool, purgeGraphOrphans, cleanupKnowledgeGhosts: (...a) => cleanupKnowledgeGhosts(...a) });
+
+// Tur 2 (2026-05-30): system-misc routes — mounted here (after initReindexer
+// exposes ragJobs/cancelSyncJob) to avoid TDZ.
+mountSystemMiscRoutes(app, {
+  pool, requireSession,
+  sjClaim, sjRelease, sjHost, sjPid, sjList, sjActive, sjRequestStop, SJ_JOB_TYPES,
+  cveIngestOnce, runRetention,
+  ragJobs, cancelSyncJob,
+  listMigrations, applyMigration, rollbackMigration,
+  GATEWAY_PORT, EMBED_WORKER_PORT,
+  probeWorkerHealth, ensureGateway, ensureWorker, killGateway, killWorker,
+  getGatewayStatus: () => gatewayStatus,
+  getWorkerStatus: () => workerStatus,
+  getWorkerLastError: () => workerLastError,
+  serviceRestartLog, RESTART_WINDOW_MS,
+  authenticateLdap, probeLdap, authenticateRadius, probeRadius,
+  pushLog,
+  enqueueWrite, broadcastAudit, getWriteQueueDepths,
+  sseBegin, auditClients,
+  chatTraceList, diagnoseChatTrace,
+  upload, createLocalId, UPLOAD_DIR,
+});
+
+async function countGhostNeedles(needles = []) {
+  // v8: needle/suffix mantığı kaldırıldı. Bu fonksiyon yalnızca legacy
+  // diagnostic için duruyor — default boş needles ile total=0 döner.
+  if (!Array.isArray(needles) || needles.length === 0) return { total: 0, byTable: {}, needles: [] };
+  const patterns = needles.map((n) => `%${n}%`);
+  const client = await pool.connect();
+  try {
+    const tables = ["knowledge_chunks", "knowledge_files", "knowledge_sources", "documents", "embeddings"];
+    let total = 0; const byTable = {};
+    for (const table of tables) {
+      const cols = await tableColumnSet(client, table);
+      const textCols = ["path", "root", "url", "name", "title", "source", "source_path", "file_path"].filter((c) => cols.has(c));
+      if (!textCols.length) { byTable[table] = 0; continue; }
+      const where = textCols.map((c) => `${quoteIdent(c)}::text ILIKE ANY($1::text[])`).join(" OR ");
+      const r = await client.query(`SELECT COUNT(*)::int AS n FROM ${quoteIdent(table)} WHERE ${where}`, [patterns]).catch(() => ({ rows: [{ n: 0 }] }));
+      byTable[table] = Number(r.rows[0]?.n || 0); total += byTable[table];
+    }
+    return { total, byTable, needles };
+  } finally { client.release(); }
+}
+
+// sendRagStatus + GET /rag/status → lib/routes/rag-status.mjs (2026-05-30).
+const sendRagStatus = createSendRagStatus({ pool, getEmbeddingHealth, sjActive, sjHost });
+mountRagStatusRoute(app, sendRagStatus);
+// Tur 1b (2026-05-30): RAG retrieval core (ragProbeAndFetch+semanticSearch+
+// _ftsHybridFallback+_buildFtsOrQuery) lives in lib/rag/retrieval.mjs.
+// Init here — all deps (pool, RAG_SETTINGS, mlx*, brand helpers, breaker) are
+// defined upstream by this point.
+const _productCacheApi = initProductCache({ pool, getRagSettings: () => RAG_SETTINGS });
+initRagRetrieval({
+  pool,
+  getRagSettings: () => RAG_SETTINGS,
+  ROLE_RANK,
+  getActivePackBrandFilter,
+  getAgentRagBrands,
+  extractTechnicalCore,
+  isExtBreakerOpen: _extBreakerIsOpen,
+  getLibraryBrands,
+  detectLibraryMatch,
+  generateHydePassage,
+  qembGet,
+  qembSet,
+  mlxEmbed,
+  mlxRerank,
+  getLastRerankError,
+  getLastEmbedError,
+  expandQueryTerms,
+  cosine,
+  DEFAULT_RAG_TRGM_THRESHOLD,
+  DEFAULT_RAG_TRGM_MIN_SCORE,
+  detectProductFromQuery: _productCacheApi.detectProductFromQuery,
+});
+
+// /api/rag/health/status/debug/probe/self-audit/diagnose-join extracted 2026-05-30
+// → lib/routes/rag-readops.mjs (Tur A2+A3+A4). Init+mount here so all DI symbols
+// (pool/ROLE_RANK/intent/probe/fts helpers/sendRagStatus/last-error getters) are
+// already defined upstream.
+initRagReadOps({
+  pool,
+  env: process.env,
+  path,
+  getRagSettings: () => RAG_SETTINGS,
+  ROLE_RANK,
+  normalizeAccessLevel,
+  classifyIntent,
+  refineIntentSemantically,
+  ragProbeAndFetch,
+  _isLoopbackReq,
+  _ftsHybridFallback,
+  _buildFtsOrQuery,
+  sendRagStatus,
+  getLastEmbedError,
+  getLastFtsError,
+  getLastFtsChunkError,
+  getLastFtsSourceError,
+  getLastRerankError,
+  getLastRerankMs: () => _lastRerankMs,
+  getLastRerankAt: () => _lastRerankAt,
+  getWorkerStatus: () => (typeof workerStatus !== "undefined" ? workerStatus : "unknown"),
+});
+mountRagReadOpsRoutes({ app });
+
+// rag-diagnostics: verify-source + diagnose-html/corpus/query (Tur A5, 2026-05-30).
+initRagDiagnostics({
+  pool,
+  ROLE_RANK,
+  getRagSettings: () => RAG_SETTINGS,
+  _extractQueryTerms,
+  _buildFtsOrQuery,
+  _ftsHybridFallback,
+  _rrfFuse,
+  mlxEmbed,
+  mlxRerank,
+  getLastRerankError,
+});
+mountRagDiagnosticsRoutes({ app });
+
+// brand-aliases: GET/POST /api/rag/brand-aliases + reenrich (2026-05-30).
+initBrandAliases({
+  baseDir: __dirname,
+  pool,
+  getRagSettings: () => RAG_SETTINGS,
+  deriveBrandFromKnowledgeSource,
+});
+mountBrandAliasesRoutes({ app });
+// Boot-time alias audit — kullanıcı "aliasları silinmiş" derken normal reboot
+// mı yoksa code-swap restore mı olduğunu ayırt etmek için her boot'ta
+// brand-aliases.json'un boyut/mtime/sha kısa özetini logla.
+// 2026-06-04: dosya artık HOME altında (~/.elara/state) — code-sync ezmez.
+try {
+  const { getBrandAliasesPath } = await import("./lib/state-paths.mjs");
+  const _aliasPath = getBrandAliasesPath();
+  if (fs.existsSync(_aliasPath)) {
+    const _buf = fs.readFileSync(_aliasPath);
+    const _st = fs.statSync(_aliasPath);
+    const _sha = createHash("sha256").update(_buf).digest("hex").slice(0, 12);
+    let _brands = 0;
+    try { _brands = Object.keys(JSON.parse(_buf.toString("utf8") || "{}")).length; } catch {}
+    console.log(`[boot:brand-aliases] path=${_aliasPath} size=${_st.size} mtime=${_st.mtime.toISOString()} sha=${_sha} brands=${_brands}`);
+  } else {
+    console.log(`[boot:brand-aliases] MISSING ${_aliasPath}`);
+  }
+} catch (e) { console.warn(`[boot:brand-aliases] audit failed: ${e.message}`); }
+
+// /api/rag/nuke-reindex + reprocess-extensions → lib/routes/rag-ops.mjs
+// (Tur 1, 2026-05-30). Mount aşağıda, deps hazır olduktan sonra çağrılır.
+mountRagOpsRoutes(app, {
+  pool,
+  ragSelfAudit,
+  resolveJoinExpr,
+  deriveBrandFromUrl,
+  startSyncJob,
+  hardResetRagDatabase,
+  countGhostNeedles,
+  getEmbeddingHealth,
+  getDefaultLibraryRoot: () => DEFAULT_LIBRARY_ROOT,
+});
+
+// ---- fs.watch ingestion pipeline (live mühürleme) -----------------------
+// Extracted 2026-05-30 → lib/knowledge/watchers.mjs
+initWatchers({
+  pool,
+  getRagSettings: () => RAG_SETTINGS,
+  reindexRoot: (root) => reindexRoot(root),
+  enqueueWrite: (...a) => enqueueWrite(...a),
+  ensureKnowledgeFilesTable: () => ensureKnowledgeFilesTable(),
+  migrateReady,
+});
+
+// Hybrid search: full-text + role hierarchy filter (Liyakat-Aware)
+// User with rank R sees only files with access_level rank <= R.
+// Returns granted + denied counts so the UI can flag silent gates.
+function buildRoleSql(role) {
+  // Build "access_level IN (...)" of levels the role can read.
+  const userRank = ROLE_RANK[normalizeAccessLevel(role)] ?? 0;
+  const allowed = Object.entries(ROLE_RANK)
+    .filter(([, rank]) => rank <= userRank)
+    .map(([name]) => name);
+  if (!allowed.length) return { sql: "AND access_level = '__none__'", params: [] };
+  const placeholders = allowed.map((_, i) => `$${i + 100}`); // unique numbering
+  return { allowed, levels: allowed };
+}
+
+// Block K-3 → lib/routes/knowledge-retrieve.mjs (10 endpoints: search,
+// sources, source/:id/brand, library-brands, embeddings/{health,
+// library-path/validate, library-path, mark-pending, backfill}, retrieve).
+// __sourcesCache + invalidateSourcesCache live inside the module; the same
+// exported reference is reused by knowledge-sync mount above.
+mountKnowledgeRetrieveRoutes(app, {
+  pool, sseBegin,
+  ROLE_RANK, normalizeAccessLevel,
+  semanticSearch, semanticFallback,
+  ensureKnowledgeFilesTable, ensureKnowledgeChunksTable,
+  getLibraryBrands, getEmbeddingHealth,
+  expandHome, inspectDirectoryAccess,
+  getLibraryRoot: () => DEFAULT_LIBRARY_ROOT,
+  setLibraryRoot: (p) => { DEFAULT_LIBRARY_ROOT = p; },
+  persistLibraryRoot,
+  syncCanonicalLibraryPaths,
+  ensureWorker, pushLog, reindexRoot,
+  sjClaim, sjRelease, sjHeartbeat, sjCheckStop, sjHost, sjPid,
+  EMBED_WORKER_PORT, EMBED_DIM_TARGET,
+  ragSettings: () => RAG_SETTINGS,
+  embedAndStoreChunks,
+  expandQueryTerms, aliasMatchedBrand, buildOrTsQuery,
+  semanticAssistThreshold: () => DEFAULT_RAG_SEMANTIC_ASSIST_THRESHOLD,
+  isTechnicalQuery,
+});
+
+mountKnowledgeAuditRoutes(app, {
+  pool,
+  chunkTextDetailed, isTableLine, isListLine,
+  CHUNK_SIZE, CHUNK_OVERLAP,
+  aliasMatchedBrand,
+  ensureKnowledgeChunksTable, ensureKnowledgeFilesTable,
+  resolveLibraryRoot, inspectDirectoryAccess,
+  getDefaultLibraryRoot: () => DEFAULT_LIBRARY_ROOT,
+  resolveJoinExpr,
+});
+
+mountKnowledgeIngestRoutes(app, {
+  pool,
+  ingestSource, ingestMediaUrl, maybeAutoReenrich, _coerceBool,
+  deriveBrandFromUrl,
+  extractFileContent, htmlToText, sanitizeContent,
+  UPLOAD_DIR, MAX_INDEXED_CHARS, MAX_FILE_BYTES,
+  TEXT_EXT, BINARY_DOC_EXT, IMAGE_EXT, AV_EXT, VIDEO_EXT, VISIO_EXT,
+  INDEXABLE_EXT, FTS_INPUT_CHAR_LIMIT,
+  resolveLibraryRoot, canonicalizeKnowledgeRoot, purgeKnowledgeRoot,
+  ensureKnowledgeFilesTable, walkDir, normalizeAccessLevel,
+  resolveFileAccessLevel, isTsVectorOverflowError, rebuildChunksForFile,
+  enqueueWrite, startWatchingRoot,
+});
+
+// --- Model Identities (avatar mühürleme) -----------------------------------
+// ensureModelIdentitiesTable → lib/schema-identity.mjs (Block E.2 Tur 5).
+void migrateReady.then(ensureModelIdentitiesTable).catch(() => {});
+
+// /api/model-identities/* moved to lib/routes/models.mjs (B-1 / Tur 1.2).
+// The migrateReady→ensureModelIdentitiesTable hook above stays here because
+// `ensureModelIdentitiesTable` is declared in this file.
+
+// --- Database Ops · live PG inventory + load metrics -----------------------
+// Sources: pg_stat_user_tables (row counts), pg_total_relation_size (disk),
+// pg_stat_activity (active connections), pg_stat_database (xact + cache).
+// /api/database/stats → lib/routes/capabilities-runs.mjs (Tur 3, 2026-05-30)
+
+// --- Workflow persistence (live JSON graph) --------------------------------
+// Workflows CRUD extracted to lib/routes/workflows.mjs (T-2b, 2026-05-30).
+// Forge action library (helpers + endpoints) extracted to lib/routes/forge.mjs (T-2c, 2026-05-30).
+mountForgeRoutes(app, { pool, resolveActorContext });
+mountMetaForgeRoutes(app, { pool, resolveActorContext, hydrateAllowedAgentsFromDb });
+
+
+// SYSTEM_ACTIONS + SYS_DISK_TOOLS extracted to lib/registry/system-actions.mjs
+// (Tur 2, 2026-05-30). Pure const data; consumed by createKnowledgeMaintenance below.
+
+// cleanupKnowledgeGhosts + syncCanonicalLibraryPaths + seedForgeLibrary →
+// lib/knowledge/maintenance.mjs (Tur B, 2026-05-30). Init AFTER SYSTEM_ACTIONS
+// + SYS_DISK_TOOLS const block so factory deps resolve.
+({
+  cleanupKnowledgeGhosts,
+  syncCanonicalLibraryPaths,
+  seedForgeLibrary,
+} = createKnowledgeMaintenance({
+  pool,
+  migrateReady,
+  ensureKnowledgeFilesTable,
+  ensureKnowledgeChunksTable,
+  normalizeDirRoot,
+  rootOrPathUnderRootExpr,
+  purgeLegacyKnowledgeTables,
+  purgeGraphOrphans,
+  tableHasColumn,
+  getDefaultLibraryRoot: () => DEFAULT_LIBRARY_ROOT,
+  SYSTEM_ACTIONS,
+  SYS_DISK_TOOLS,
+  serverDirname: __dirname,
+}));
+seedForgeLibrary();
+
+// Forge endpoints mounted above via mountForgeRoutes (T-2c, 2026-05-30).
+
+// ============================================================
+// Capability Packs — sectoral templates (Cyber, Healthcare, etc.)
+// ============================================================
+// Tur-7.1 — packs may carry default model + python interpreter; agents
+// binding a pack inherit those when their own fields are blank.
+// SYSTEM_PACKS + seedCapabilityPacks → lib/capabilities/packs-seed.mjs (Tur P-1, 2026-05-30)
+import { seedCapabilityPacks } from "./lib/capabilities/packs-seed.mjs";
+seedCapabilityPacks({ pool, migrateReady, projectRoot: __dirname });
+
+mountCapabilityRoutes(app, {
+  pool,
+  requireSession,
+  resolveActorContext,
+  listCapabilities,
+  syncCapabilitiesFromSources,
+  invalidatePackFilterCache,
+  scanToolsDir, defaultToolsRoots,
+  scanSkillsDir, defaultSkillsRoots,
+  scanAgentsDir, defaultAgentsRoots,
+  repoRoot: path.resolve(__dirname, ".."),
+});
+
+// /api/dispatch/dry-run + /api/runs + /api/mlx-queue/* + /api/capability-packs
+// + /api/user-capabilities/* → lib/routes/capabilities-runs.mjs (Tur 3, 2026-05-30)
+mountCapabilitiesRunsRoutes(app, {
+  pool, requireSession, dispatchUserTurn, finishRun,
+  mlxQueue, MLX_TRANSPORT,
+  getMlxWarmState: () => _MLX_WARM_STATE,
+  getRagSettings: () => RAG_SETTINGS,
+  enqueueWrite,
+});
+
+// =============================================================================
+// Faz 5 — Tool Adapter / Policy endpoints
+// =============================================================================
+mountToolRoutes(app, {
+  pool,
+  requireSession,
+  rlInvoke,
+  invokeTool,
+  listPendingApprovals,
+  decideApproval,
+  ApprovalRequired,
+  ToolPolicyError,
+  isLoopback,
+  getAgentManifest,
+  reloadManifests,
+});
+
+// Workflow DAG run + workflow-runs endpoints extracted to lib/routes/workflows.mjs (T-2b, 2026-05-30).
+
+// /api/capability-packs + /api/user-capabilities/* mounted above via mountCapabilitiesRunsRoutes (Tur 3, 2026-05-30)
+
+// Mustache-lite template: {{ctx.foo}} / {{params.bar}}
+function tmpl(str, scope) {
+  if (typeof str !== "string") return str;
+  return str.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, path) => {
+    const parts = path.split(".");
+    let v = scope;
+    for (const p of parts) { v = v?.[p]; if (v == null) return ""; }
+    return typeof v === "object" ? JSON.stringify(v) : String(v);
+  });
+}
+
+// execNodeWithAction → lib/agents/runtime.mjs (Tur C)
+
+// Workflow trigger extracted to lib/routes/workflows.mjs (T-2b, 2026-05-30).
+
+// Workflow chains (orchestration layer) extracted to lib/routes/workflows.mjs (T-2b, 2026-05-30).
+
+// --- Encrypted secrets vault (AES-256-GCM) ---------------------------------
+const VAULT_KEY = scryptSync(process.env.VAULT_PASSPHRASE ?? "sovereign-default-passphrase", "sovereign-salt", 32);
+function encryptSecret(plain) {
+  const iv = randomBytes(12);
+  const c = createCipheriv("aes-256-gcm", VAULT_KEY, iv);
+  const enc = Buffer.concat([c.update(String(plain), "utf8"), c.final()]);
+  return { ciphertext: enc.toString("base64"), iv: iv.toString("base64"), tag: c.getAuthTag().toString("base64") };
+}
+function decryptSecret(ct, iv, tag) {
+  const d = createDecipheriv("aes-256-gcm", VAULT_KEY, Buffer.from(iv, "base64"));
+  d.setAuthTag(Buffer.from(tag, "base64"));
+  return Buffer.concat([d.update(Buffer.from(ct, "base64")), d.final()]).toString("utf8");
+}
+// Vault routes (POST/GET/DELETE /api/vault*, /api/vault-audit*) → lib/routes/vault.mjs (Tur 1.3).
+// vaultAudit helper geri döner — diğer modüller (varsa) kullanabilsin diye.
+const { vaultAudit } = mountVaultRoutes(app, {
+  pool, enqueueWrite, requireSession, redactDeep,
+  putSecretV2, getSecretAllFields, listSecretFieldNames, VAULT_KIND_FIELDS,
+  verifyAuditChain, rebuildAuditChain,
+});
+void vaultAudit;
+
+// --- Agents (Command Center) -----------------------------------------------
+const AGENT_BRIDGE_TIMEOUT_MS = Number(process.env.AGENT_BRIDGE_TIMEOUT_MS || 2000);
+const AGENT_RUN_TIMEOUT_MS = Number(process.env.AGENT_RUN_TIMEOUT_MS || 60_000);
+// Agent discovery: brand-derived defaults + repo agents/ dir; AGENT_DISCOVERY_ROOTS env wins.
+const _brandSlug = safeSlug(brandSync().short_name || brandSync().app_name || "ai");
+// Repo'daki agents/ kökü (NetSec, SocialMedia vb. squad'ları barındırır).
+// __dirname = local-server/, bir üst dizine çık.
+const _repoAgentsDir = path.resolve(__dirname, "..", "agents");
+const AGENT_DISCOVERY_ROOTS = (process.env.AGENT_DISCOVERY_ROOTS || [
+  _repoAgentsDir,
+  `${os.homedir()}/Documents/${_brandSlug}/Agents`,
+  `${os.homedir()}/Agents`,
+  `${os.homedir()}/Documents/Agents`,
+].join(":")).split(":").filter(Boolean);
+const AGENT_INTERPRETER_HINTS = (process.env.AGENT_INTERPRETERS || [
+  `${os.homedir()}/Documents/${_brandSlug}/.venv/bin/python`,
+  `${os.homedir()}/.venvs/vllm/bin/python`,
+  `${os.homedir()}/miniconda3/bin/python`,
+  `${os.homedir()}/anaconda3/bin/python`,
+  "/opt/homebrew/bin/python3",
+  "/usr/local/bin/python3",
+  "/usr/bin/python3",
+  "/usr/bin/python",
+].join(":")).split(":").filter(Boolean);
+
+// normalizeAgentRow → lib/agents/runtime.mjs (Tur C)
+
+// Tur-3b — Agent squads table (operator-managed groups, lazy-created on first
+// touch). Disk-derived squads (NetSec, SocialMedia, ...) are upserted by the
+// seeder with sort_order=DISK_SQUAD_SORT and are protected from deletion;
+// operator-created squads default to sort_order=100.
+const DISK_SQUAD_SORT = 10;
+import { initAgentsSchema } from "./lib/schema-agents.mjs";
+const { ensureAgentSquadsTable } = initAgentsSchema({ pool });
+
+// Agent discovery/seed/squads/browse/interpreters/validate/runs/run-history/cancel
+// routes are mounted from lib/routes/agents-extra.mjs (Tur 2C-α, 2026-05-30).
+mountAgentsExtraRoutes(app, {
+  pool,
+  AGENT_DISCOVERY_ROOTS,
+  _repoAgentsDir,
+  resolveActor,
+  hydrateAllowedAgentsFromDb,
+  ensureAgentSquadsTable,
+  DISK_SQUAD_SORT,
+  normalizeAgentRow,
+  execAsync,
+  AGENT_INTERPRETER_HINTS,
+  brandSync,
+  _brandSlug,
+  listAgentRuns,
+  liveCountsByAgent,
+  cancelAgentRun,
+  cancelAllRunsForAgent,
+});
+
+// Seed agents tablosunu repo `agents/` ağacından doldur.
+// Her squad alt klasörü (NetSec/, SocialMedia/, ...) bir squad sayılır;
+// içindeki her .py dosyası bir ajan satırı olarak upsert edilir.
+// Idempotent: mevcut satırların meta.systemPrompt'u, inference, model gibi
+// operatör tarafından düzenlenen alanları KORUNUR — sadece agent_path,
+// meta.script, meta.squad, meta.agentPath yenilenir.
+// İskelet ajanları (_shared, __init__, bridge_service vs.) atlanır.
+
+// ============= Tur-3b — Agent squad CRUD (operator-managed groups) =============
+// List effective squads = union(agent_squads table, distinct effective squads on agents).
+
+// Browse a real filesystem directory on the host. Returns directory entries
+// with separated folders / scripts so the UI can render a Finder-like picker.
+// Defaults to the user's home directory; supports ~ expansion.
+
+// List candidate Python interpreters on the host (legacy hints + primary).
+
+// Probe a manually-entered Python executable path. Returns version banner.
+mountPythonRoutes({ app, pool, execAsync });
+
+// Validate that a script (and optionally its interpreter) exists and is runnable.
+
+// ---------------------------------------------------------------------------
+// Telemetry probes — universal connector for HTTP/HTTPS/TCP/PING/REST-AUTH
+// ---------------------------------------------------------------------------
+// Loopback HTTPS probe'ları için: dev-tls-proxy self-signed cert kullanıyor.
+// Tarayıcı reddediyordu, server-side probe da Node fetch ile reddediyordu →
+// Health/Health Deep/MLX Queue gibi pinler "down" görünüyordu. Loopback'te
+// rejectUnauthorized:false güvenli (127.0.0.1 / localhost yalnız).
+const INSECURE_LOOPBACK_AGENT = new UndiciAgent({
+  connect: { rejectUnauthorized: false },
+});
+// 2026-05-20 — `lima.local` / `*.local` (mDNS) ve makinenin kendi LAN IP'lerini
+// de loopback say. Tarayıcı `https://lima.local:10443` üzerinden açıldığında
+// server-side probe self-signed cert reddini bypass etmeli.
+const LOCAL_HOSTNAMES = new Set(["127.0.0.1", "localhost", "::1", "0.0.0.0"]);
+try {
+  const h = os.hostname().toLowerCase();
+  LOCAL_HOSTNAMES.add(h);
+  if (!h.endsWith(".local")) LOCAL_HOSTNAMES.add(`${h}.local`);
+  const ifaces = os.networkInterfaces();
+  for (const list of Object.values(ifaces || {})) {
+    for (const i of list || []) {
+      if (i?.address) LOCAL_HOSTNAMES.add(String(i.address).toLowerCase());
+    }
+  }
+} catch { /* best-effort */ }
+function isLoopbackHttps(url) {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== "https:") return false;
+    const host = u.hostname.toLowerCase();
+    if (LOCAL_HOSTNAMES.has(host)) return true;
+    // mDNS — herhangi bir *.local adı loopback kabul edilir (LAN cert reddi yok).
+    if (host.endsWith(".local")) return true;
+    return false;
+  } catch { return false; }
+}
+// /api/telemetry/* + probeHttp/Tcp/Ping extracted to lib/routes/telemetry.mjs
+// (Tur 3, 2026-05-30). isLoopbackHttps lives inside the module (sole caller).
+mountTelemetryRoutes(app, {
+  pool, resolveActorContext, buildVisibility,
+  INSECURE_LOOPBACK_AGENT,
+});
+
+// -------------------------------------------------------------------------
+// Live agent run registry — UI uses this to show Stop buttons + sync state
+// with Command Center. Spawn-based runs register in agent-runs.mjs; this
+// pair (list + cancel) is the only public surface needed.
+// -------------------------------------------------------------------------
+
+// Persistent agent run history (post-exit). Merged with /api/agents/runs in UI.
+// Pack scope returns BOTH the agent runs bound to the pack AND the tool-call
+// invocations for the pack's tools (capability_packs.action_ids) — so a pack's
+// Run History reflects every activity its capabilities produced, not just
+// agents explicitly bound to it via the N-N table.
+
+// /api/agents/:id/run mounted from lib/routes/agent-run.mjs (Tur 2C-β, 2026-05-30).
+mountAgentRunRoute(app, {
+  pool,
+  coerceParams,
+  getSecretsForScope,
+  vaultAuditRuntime,

@@ -1,0 +1,1000 @@
+  "/api/knowledge/fetch",
+  "/api/knowledge/sync-source",
+]);
+// 2026-05-30 Block D: _isLoopbackReq / _hasLoopbackAdminToken /
+// _isAdminTokenKnowledgePath / _isLoopbackAgentRunPath lib/actor.mjs'e taşındı.
+// _isAdminTokenKnowledgePath ikinci arg olarak path set'i ister; aşağıda
+// FAZ2_ADMIN_TOKEN_MUTATION_PATHS geçiyoruz.
+// 2026-05-30 R-3: FAZ2 blanket mutation guard → lib/mutation-guard.mjs.
+// Path-set konfigürasyonu yukarıda kalır (tek mercii); middleware wiring
+// modüle taşındı. Davranış AYNI; env BRIDGE_BLANKET_GUARD=0 ile devre dışı.
+const FAZ2_BLANKET_GUARD = String(process.env.BRIDGE_BLANKET_GUARD ?? "1") !== "0";
+mountMutationGuard(app, {
+  enabled: FAZ2_BLANKET_GUARD,
+  sessionGate: requireSession(),
+  methods: FAZ2_MUTATION_METHODS,
+  publicPaths: FAZ2_PUBLIC_MUTATION_PATHS,
+  publicPrefixes: FAZ2_PUBLIC_MUTATION_PREFIXES,
+  loopbackOnlyPaths: FAZ2_LOOPBACK_ONLY_MUTATION_PATHS,
+  // Dynamic-id mutation endpoints (e.g. /api/workflows/:id/trigger) that should be
+  // session-required from LAN but exempt for loopback (smoke + local cron).
+  loopbackOnlyPrefixes: ["/api/workflows/", "/api/chains/", "/api/workflow-chains/", "/api/meta-forge/"],
+  adminTokenPaths: FAZ2_ADMIN_TOKEN_MUTATION_PATHS,
+  deps: {
+    isLoopbackReq: _isLoopbackReq,
+    hasLoopbackAdminToken: _hasLoopbackAdminToken,
+    isAdminTokenKnowledgePath: _isAdminTokenKnowledgePath,
+    isLoopbackAgentRunPath: _isLoopbackAgentRunPath,
+  },
+});
+
+// --- Request logger + simple breaker ---------------------------------------
+app.use((req, _res, next) => {
+  const t0 = Date.now();
+  _res.on("finish", () => {
+    console.log(`[PROXY] -> Method: ${req.method} | Target: ${PORT}${req.path} | Status: ${_res.statusCode} | ${Date.now() - t0}ms`);
+  });
+  next();
+});
+
+// Chat attachments: accept ALL file types. Size limit only.
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, `${Date.now()}_${createLocalId()}${ext}`);
+  },
+});
+const upload = multer({
+  storage,
+  // Allow up to 2 GiB per file (forensic images, memory dumps, large pcaps).
+  limits: { fileSize: 2 * 1024 * 1024 * 1024 },
+  // No fileFilter -> all extensions allowed.
+});
+
+// ---------------------------------------------------------------------------
+// Brand identity API — single source of truth for all UI / persona / archive
+// labelling. Every consumer (frontend brand store, system prompt builder,
+// backup filename generator) reads from here.
+// ---------------------------------------------------------------------------
+app.get("/api/brand", async (_req, res) => {
+  try { res.json(await getBrand({ fresh: true })); }
+  catch (e) { res.status(500).json({ error: String(e?.message || e) }); }
+});
+app.put("/api/brand", async (req, res) => {
+  try {
+    const allowed = ["app_name", "short_name", "persona_name", "owner_title", "default_locale", "tagline", "support_email", "library_root"];
+    const incoming = req.body && typeof req.body === "object" ? req.body : {};
+    const patch = {};
+    for (const k of allowed) {
+      if (incoming[k] !== undefined && incoming[k] !== null) patch[k] = String(incoming[k]).trim();
+    }
+    if (!Object.keys(patch).length) return res.status(400).json({ error: "no recognised brand keys in body" });
+    const current = await getBrand({ fresh: true });
+    const merged = { ...current, ...patch };
+    await pool.query(
+      `INSERT INTO app_settings(key, value, updated_at) VALUES ('brand', $1::jsonb, now())
+         ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=now()`,
+      [JSON.stringify(merged)]
+    );
+    invalidateBrandCache();
+    res.json(await getBrand({ fresh: true }));
+  } catch (e) { res.status(500).json({ error: String(e?.message || e) }); }
+});
+
+// LAN IPv4 discovery — lets the frontend pivot from `.local` to a numeric IP
+// when mDNS / Bonjour resolution flakes (Windows/Edge in particular). The
+// browser hits this once, caches the winner, and stops depending on DNS for
+// every subsequent API call.
+function lanIpv4Candidates() {
+  const out = [];
+  try {
+    const ifs = os.networkInterfaces();
+    for (const name of Object.keys(ifs)) {
+      for (const it of ifs[name] || []) {
+        if (!it || it.internal) continue;
+        if (String(it.family) !== "IPv4" && it.family !== 4) continue;
+        if (!it.address) continue;
+        out.push(it.address);
+      }
+    }
+  } catch {}
+  return [...new Set(out)];
+}
+app.get("/api/discovery", (_req, res) => {
+  const ips = lanIpv4Candidates();
+  res.json({
+    ok: true,
+    host: os.hostname(),
+    port: PORT,
+    candidates: ips.map((ip) => `http://${ip}:${PORT}`),
+    ips,
+  });
+});
+
+// Health — includes PostgreSQL handshake so the Web UI can prove :3005 can reach the DB.
+async function buildHealthResponse() {
+  const t0 = Date.now();
+  try {
+    const db = await pool.query("SELECT current_database() AS database, now() AS ts");
+    return { ok: true, status: "ok", host: os.hostname(), bind_host: HOST, port: PORT, pid: process.pid, started_at: new Date(startedAt).toISOString(), uptime_s: Math.round((Date.now() - startedAt) / 1000), db: { ok: true, database: db.rows[0]?.database, latencyMs: Date.now() - t0 } };
+  } catch (e) {
+    return { ok: false, status: "degraded", host: os.hostname(), bind_host: HOST, port: PORT, pid: process.pid, started_at: new Date(startedAt).toISOString(), db: { ok: false, error: String(e.message || e), latencyMs: Date.now() - t0 } };
+  }
+}
+app.get("/api/health", async (_req, res) => {
+  const h = await buildHealthResponse();
+  res.status(h.ok ? 200 : 503).json(h);
+});
+// /health alias — TLS proxy ve dış sağlık probları için aynı cevabı sade JSON olarak döner.
+app.get("/health", async (_req, res) => {
+  const h = await buildHealthResponse();
+  res.status(h.ok ? 200 : 503).json(h);
+});
+// Faz 9 — deep health: per-subsystem probe (db, mlx, mlx_queue, rbi, auth, cve,
+// redaction, schema). Bounded probes, never throws. Use for ops dashboards
+// and contract/smoke tests.
+async function deepHealthHandler(_req, res) {
+  try {
+    const h = await buildDeepHealth({
+      pool,
+      mlxQueue,
+      rbiTarget: null,
+      mlxBase: runtimeUpstreamBase() || process.env.MLX_BASE_URL || "http://127.0.0.1:8001",
+});
+    res.status(h.ok ? 200 : 503).json(h);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+}
+app.get("/health/deep", deepHealthHandler);
+app.get("/api/health/deep", deepHealthHandler);
+
+// --- Planner v0 (Faz 6) -----------------------------------------------------
+// Extracted 2026-05-30 → lib/routes/planner.mjs.
+mountPlannerRoutes({ app, Planner });
+
+// --- Dynamic RAG settings (Dashboard sliders) -------------------------------
+// Extracted 2026-05-30 → lib/routes/rag-settings.mjs (Tur A1).
+// Getter pattern: RAG_SETTINGS / normalizeRagSettings / saveRagSettings /
+// RAG_DEFAULTS are declared later in this file (TDZ-safe via deferred fns).
+mountRagSettingsRoutes({
+  app,
+  getRagSettings: () => RAG_SETTINGS,
+  setRagSettings: (next) => { RAG_SETTINGS = next; },
+  getRagDefaults: () => RAG_DEFAULTS,
+  normalizeRagSettings: (src) => normalizeRagSettings(src),
+  saveRagSettings: () => saveRagSettings(),
+});
+
+// /api/rag/health + getRagHealth extracted 2026-05-30 → lib/routes/rag-readops.mjs (Tur A3).
+
+// Brand Aliases (+ spawnBrandReenrich/maybeAutoReenrich/triggerSyncAutoReenrich
+// /_coerceBool) extracted 2026-05-30 → lib/routes/brand-aliases.mjs. Init+mount
+// happens below once pool/deriveBrandFromKnowledgeSource/RAG_SETTINGS are defined.
+
+// Diagnostic: tek istek halinde ragProbeAndFetch koş, reranker durumunu döndür.
+// Loopback-only (oturum/cookie gerekmez); LAN'dan reddedilir.
+// /api/rag/probe + self-audit + diagnose-join + ragSelfAudit + verifySourceReachability
+// + probeJoinHypotheses + _listColumns + resolveJoinExpr + _joinExprCache extracted
+// 2026-05-30 → lib/routes/rag-readops.mjs (Tur A4).
+//
+// /api/rag/verify-source + diagnose-html/corpus/query + diagnoseHtml + diagnoseCorpus
+// + diagnoseQuery extracted 2026-05-30 → lib/routes/rag-diagnostics.mjs (Tur A5).
+// Init + mount happens after all upstream symbols are defined (see initRagDiagnostics
+// block alongside initRagReadOps).
+
+// Boot-time health log (tek seferlik, çok kısa) — operatör log'da net görsün.
+setTimeout(() => {
+  getRagHealth().then(h => {
+    if (!h.ok) { console.warn("[rag:health] error:", h.error); return; }
+    const c = h.chunks || {};
+    const s = h.sources || {};
+    console.log(`[rag:health] chunks=${c.chunks} fts_null=${c.chunks_tsv_null} emb_ok=${c.embedding_ok} emb_pending=${c.embedding_pending} emb_error=${c.embedding_error} sources=${s.sources} parse_ok=${s.sources_ok} parse_low=${s.sources_low}`);
+    if (h.warnings?.length) h.warnings.forEach(w => console.warn(`[rag:health] ⚠ ${w}`));
+  }).catch(() => {});
+}, 5000).unref?.();
+
+setTimeout(() => {
+  ragSelfAudit().then(a => {
+    if (a.ok) { console.log("[rag:self-audit] OK"); return; }
+    console.warn("[rag:self-audit] FAILED");
+    for (const c of a.checks || []) if (!c.ok) console.warn(`[rag:self-audit] ✗ ${c.name}: ${c.info}`);
+  }).catch(e => console.warn("[rag:self-audit] error:", e?.message || e));
+}, 7000).unref?.();
+
+// ─── Embedding queue + auto-drain → lib/embed-worker/runtime.mjs (Tur 3b) ─
+// claimEmbeddingBatch + ragJanitor + ragAutoEmbedDrain + 60sn janitor +
+// 30sn drain interval'leri startEmbedWorkerIntervals() ile bağlanır.
+// Mimari notu (önceki): SKIP LOCKED claim, lease janitor, auto-drain her üç
+// çağırıcı için tek hat; aynı satır iki worker'a verilmez.
+
+// POST /api/rag/repair-fts — legacy compatibility endpoint. knowledge_chunks.tsv
+// is now a generated DB column; no UPDATE/backfill is allowed or needed.
+// Tur 1 (2026-05-30): 6 RAG bakım endpoint → lib/routes/rag-ops.mjs
+// (/api/rag/repair-fts, brand-backfill, dedupe-chunks,
+//  reprocess-oversized-html, nuke-reindex, reprocess-extensions).
+// POST /api/rag/retry-embeddings → lib/embed-worker/runtime.mjs (Tur 3b)
+// mountEmbedWorkerRoutes(app) ile bağlanır.
+
+// deriveBrandFromUrl — vendor-agnostic SLD extractor. No vendor list, no
+// regex. Returns the second-level label of the registrable domain. Multi-part
+// public suffixes (.co.uk, .com.tr, .com.au, …) are handled by a small,
+// extendable label set so "docs.example.co.uk" → "example".
+const _PUBLIC_SUFFIX_2 = new Set([
+  "co", "com", "net", "org", "gov", "edu", "ac", "or", "ne", "go",
+]);
+function deriveBrandFromUrl(url) {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    const parts = host.split(".").filter(Boolean);
+    if (parts.length < 2) return parts[0] || null;
+    const last = parts[parts.length - 1];
+    const second = parts[parts.length - 2];
+    // ccTLD with 2-letter country code AND 2nd-level public suffix
+    // (example.co.uk, example.com.tr) → return parts[-3] if present.
+    if (last.length === 2 && _PUBLIC_SUFFIX_2.has(second) && parts.length >= 3) {
+      return parts[parts.length - 3];
+    }
+    return second;
+  } catch { return null; }
+}
+
+function deriveBrandFromKnowledgeSource(source = {}) {
+  const type = String(source.type || "").toLowerCase();
+  if (type === "url" && source.url) return deriveBrandFromUrl(source.url);
+  const explicit = String(source.tag || "").trim();
+  if (explicit && !/^(uploaded file|inline text|web source|local directory)$/i.test(explicit)) return explicit.slice(0, 64);
+  const rawName = String(source.name || "").trim();
+  if (!rawName) return null;
+  const clean = rawName.replace(/\.[a-z0-9]{1,8}$/i, "").trim();
+  return clean ? clean.slice(0, 64) : null;
+}
+
+// /api/rag/brand-backfill + dedupe-chunks + reprocess-oversized-html
+// → lib/routes/rag-ops.mjs (Tur 1, 2026-05-30).
+
+// hydrateIntentConfigFromDb → lib/rag/intent-classifier.mjs (Tur B, 2026-05-30).
+// initIntentClassifier + scheduleIntentHydrate wired after cosine def.
+
+// --- Intent Guard Override + Agents Allowlist (cockpit-controlled) ---------
+// Komutan'ın "Execution Intent Guard Immunity" anahtarı. Auto (default):
+// length-heuristic/semantic-bypass kararı, execution-intent tespit edilirse
+// askıya alınır. Force-on: her zaman kontrol et. Force-off: eski yönlendirici
+// davranışını geri yükler (guard tamamen devre dışı).
+// Tur 2: Cockpit allowlist + intent-guard + bridge telemetry → lib/routes/cockpit-allowlist.mjs
+import { initCockpitAllowlist } from "./lib/routes/cockpit-allowlist.mjs";
+import { initEmbedWorkerStore, embedAndStoreChunks, getEmbeddingHealth } from "./lib/embed-worker/store.mjs";
+import {
+  initEmbedWorkerRuntime,
+  ensureWorker,
+  kickWorkerStart,
+  killWorker,
+  countPendingEmbeddings,
+  claimEmbeddingBatch,
+  ragJanitor,
+  ragAutoEmbedDrain,
+  startEmbedWorkerIntervals,
+  mountEmbedWorkerRoutes,
+  getRuntimeDiag as _getEmbedWorkerDiag,
+} from "./lib/embed-worker/runtime.mjs";
+const {
+  INTENT_GUARD,
+  broadcastBridge,
+  hydrateIntentGuardFromDb,
+  hydrateAllowedAgentsFromDb,
+  applyExecutionGuard,
+  getAllowedToolsList,
+  getDeniedToolsList,
+  isToolAllowed,
+  mountCockpitRoutes,
+} = initCockpitAllowlist({
+  pool,
+  getAllowedAgents,
+  setAllowedAgents,
+  setAgentsBaseDir,
+  detectExecutionIntent,
+});
+mountCockpitRoutes(app);
+setTimeout(() => {
+  void hydrateIntentGuardFromDb();
+  void migrateReady.then(() => hydrateAllowedAgentsFromDb()).catch(() => hydrateAllowedAgentsFromDb()).catch(() => {});
+}, 600);
+
+// --- Runtime Provider Switch endpoints (MLX / Legacy HTTP / Custom) -------------
+// /api/engine/runtime — moved to lib/routes/engine.mjs (mountEngineRoutes)
+
+// --- Tab-level RBAC (Architect ne görür, kim ne göremez) --------------------
+const ALL_TAB_IDS = [
+  "chat","dashboard","knowledge","agents","workflows","tools","skills","models",
+  "templates","orchestration","policies","security","users","middleware",
+  "system-engine","telemetry","reports","debug","settings","python","forge",
+  // Faz 18–20 operational surfaces — Approvals queue, CVE feed, Live Call console.
+  "approvals","cve","live-call",
+  // Faz 6 — Planner v0 control surface.
+  "planner",
+  // MCP — Model Context Protocol server/client control panel.
+  "mcp",
+];
+// ensureRbacTable + ensureModelIdentitiesTable → lib/schema-identity.mjs (Block E.2 Tur 5).
+import { initIdentitySchema } from "./lib/schema-identity.mjs";
+const { ensureRbacTable, ensureModelIdentitiesTable } =
+  initIdentitySchema({ pool, allTabIds: ALL_TAB_IDS });
+ensureRbacTable().catch((e) => console.warn("[rbac:init]", e?.message || e));
+
+// CVE GET/refresh → lib/routes/system-misc.mjs (Tur 2, 2026-05-30).
+migrateReady.then(() => ensureCveSchema(pool))
+  .then(() => startCveWatcher(pool))
+  .then((s) => console.log("[cve-watcher]", JSON.stringify(s)))
+  .catch((e) => console.warn("[cve-watcher init]", e?.message || e));
+
+// Faz 10 — Retention (admin-only run/dry-run + boot scheduler).
+// retention/run + system/host + system/jobs (3) → lib/routes/system-misc.mjs (Tur 2).
+
+// Faz 10 — Migration manifest endpoints (admin-only).
+//  - POST /api/migrations/apply   { id, description?, up, down, checksum?, backupRef? }
+//  - POST /api/migrations/rollback/:id
+//  - GET  /api/migrations
+migrateReady.then(() => ensureMigrationTable(pool)).catch((e) => console.warn("[migration-manifest init]", e?.message || e));
+
+// ─── agent_run_history (UI = single source of truth, persistent run log) ───
+// Spawn-based agent runs disappear from /api/agents/runs after exit. We
+// persist a compact row per run so the Run History tab can show past runs
+// across server restarts. Boot DDL self-heal (no manual migration needed).
+migrateReady.then(() => pool.query(`
+  CREATE TABLE IF NOT EXISTS agent_run_history (
+    run_id        text PRIMARY KEY,
+    agent_id      text,
+    script        text,
+    source        text DEFAULT 'spawn',
+    status        text NOT NULL,                 -- ok | error | cancelled
+    exit_code     int,
+    signal        text,
+    started_at    timestamptz NOT NULL,
+    finished_at   timestamptz NOT NULL DEFAULT now(),
+    duration_ms   int,
+    stdout_tail   text,
+    stderr_tail   text,
+    rag_meta      jsonb,
+    inference     jsonb
+  );
+  ALTER TABLE agent_run_history ADD COLUMN IF NOT EXISTS username text;
+  CREATE INDEX IF NOT EXISTS idx_agent_run_history_started ON agent_run_history(started_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_agent_run_history_agent ON agent_run_history(agent_id, started_at DESC);
+`)).catch((e) => console.warn("[agent_run_history init]", e?.message || e));
+
+async function recordAgentRunFinish(info) {
+  try {
+    const status = info.cancelled ? "cancelled" : (info.ok ? "ok" : "error");
+    await pool.query(
+      `INSERT INTO agent_run_history
+         (run_id, agent_id, script, source, status, exit_code, signal,
+          started_at, duration_ms, stdout_tail, stderr_tail, rag_meta, inference, username)
+       VALUES ($1,$2,$3,$4,$5,$6,$7, to_timestamp($8/1000.0), $9, $10, $11, $12::jsonb, $13::jsonb, $14)
+       ON CONFLICT (run_id) DO NOTHING`,
+      [
+        info.runId, info.agentId || null, info.script || null, info.source || "spawn",
+        status, info.code ?? null, info.signal ?? null,
+        info.startedAt, info.durationMs ?? null,
+        String(info.stdout || "").slice(-1200),
+        String(info.stderr || "").slice(-1200),
+        info.ragMeta ? JSON.stringify(info.ragMeta) : null,
+        info.inference ? JSON.stringify(info.inference) : null,
+        info.username || null,
+      ],
+    );
+  } catch (e) {
+    console.warn("[agent_run_history insert]", e?.message || e);
+  }
+}
+
+// migrations (GET + apply + rollback/:id) → lib/routes/system-misc.mjs (Tur 2).
+
+// 2026-05-30 R-1: /api/rbac/* (tabs GET/PUT + me GET) → lib/routes/rbac.mjs
+mountRbacRoutes(app, { pool, allTabIds: ALL_TAB_IDS });
+
+// Tur 2 (2026-05-30): mountSystemMiscRoutes moved below initReindexer
+// (depends on ragJobs/cancelSyncJob which are initialized ~line 4040).
+
+// --- KV Cache Flush helper (MLX kontekstini sıfırlar) -----------------------
+// MLX cache flush — mlx_lm.server'da endpoint sürümden sürüme farklı. Üç adayı
+// dener, hepsi 404 ise tek seferlik uyarı bas (her chat sonunda spam etmesin).
+let _flushUnsupportedLogged = false;
+let _flushSupportedUrl = null;
+async function flushModelKvCache(threadId) {
+  const base = (runtimeUpstreamBase() || process.env.MLX_BASE_URL || "http://127.0.0.1:8001").replace(/\/+$/, "");
+  const targets = _flushSupportedUrl
+    ? [_flushSupportedUrl]
+    : [`${base}/v1/cache/reset`, `${base}/cache/reset`, `${base}/reset`];
+  let saw404 = false;
+  for (const url of targets) {
+    try {
+      const r = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ thread_id: threadId ?? null }),
+        signal: AbortSignal.timeout(2500),
+      });
+      if (r.ok) { _flushSupportedUrl = url; return { ok: true, url }; }
+      if (r.status === 404) saw404 = true;
+    } catch { /* try next */ }
+  }
+  if (saw404 && !_flushUnsupportedLogged) {
+    _flushUnsupportedLogged = true;
+    pushLog("mlx", `[cache-flush] mlx_lm.server bu sürümde /cache/reset desteklemiyor (404). Cache şişmesi sürebilir — model restart gerekebilir.`);
+  }
+  return { ok: false, unsupported: saw404 };
+}
+
+// --- Background service status probes ---------------------------------------
+// probeUrl/probePostgres inlined in lib/routes/system-misc.mjs (Tur 2).
+const serviceRestartLog = new Map(); // key -> timestamp ms when "restart" issued
+const RESTART_WINDOW_MS = 15_000;
+
+// ---------- Models routes (system/local-models + /api/models/* + /api/model-identities/* + rename) ----------
+// Moved to lib/routes/models.mjs (B-1 / Tur 1.2, 2026-05-30).
+// `pendingModelCache` declared at top of file (line ~1043) is passed by ref;
+// chat hot-path _normalizeCacheRow still reads the same Map.
+mountModelsRoutes({
+  app, pool, pendingModelCache,
+  resolveActor, resolveActorContext, buildVisibility,
+  fallbackModelName, _isPathLikeModelId,
+  normalizeRuntimeBaseUrl, runtimeUpstreamBase, joinRuntimePath,
+  runtimeFetchError,
+  runtimeBase, RUNTIME_PROVIDER_CFG, _resolveProvider,
+  hydrateRuntimeProviderFromDb,
+  _invalidateModelRenderCache, _invalidateModelRuntimeSafetyCache,
+  pushLog,
+});
+
+// 2026-06-02 — Chat templates registry endpoint (UI dropdown source of truth).
+mountChatTemplatesRoute({ app });
+
+
+
+// system/hardware + auth/test/:provider → lib/routes/system-misc.mjs (Tur 2).
+
+// Generic child_process helpers — kept here because extractFileContent
+// (pdftotext) and mountPythonRoutes import them; everything else metrics-
+// related now lives in lib/metrics.mjs (T-2026-05-30).
+function execAsync(cmd, args, timeoutMs = 1500) {
+  return new Promise((resolve) => {
+    execFile(cmd, args, { timeout: timeoutMs, maxBuffer: 4 * 1024 * 1024 }, (err, stdout) => {
+      if (err) return resolve("");
+      resolve(String(stdout || ""));
+    });
+  });
+}
+function execCapture(cmd, args, timeoutMs = 120_000, maxBuffer = 128 * 1024 * 1024) {
+  return new Promise((resolve) => {
+    execFile(cmd, args, { timeout: timeoutMs, maxBuffer }, (err, stdout, stderr) => {
+      resolve({ ok: !err, error: err ? String(err.message || err) : null, stdout: String(stdout || ""), stderr: String(stderr || "") });
+    });
+  });
+}
+
+// macOS hardware sampler + /api/metrics/* + /api/system/info + hallucination
+// tracker + embed queue cache → lib/metrics.mjs (T-2026-05-30).
+const { recordChatSample, HEDGE_PATTERNS, getMetricsFrame, buildMetricsFrame, probeHardwareInfo } =
+  installMetrics({ app, pool, sseBegin, execAsync });
+void getMetricsFrame; void buildMetricsFrame; void probeHardwareInfo;
+
+// --- Threads / messages -----------------------------------------------------
+// UUID guard — kept here because chat-stream + /api/messages also import it.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const isUuid = (v) => typeof v === "string" && UUID_RE.test(v);
+
+// Thread routes extracted to lib/routes/threads.mjs (T-2a, 2026-05-30).
+mountThreadRoutes(app, { pool, isUuid, flushModelKvCache });
+
+mountMessagesRoutes({ app, pool, isUuid, enqueueWrite });
+
+// --- Logs / debug / uploads / STT → lib/routes/system-misc.mjs (Tur 2) ---
+// --- Streaming chat (SSE) → lib/routes/chat-stream.mjs (Block G-2b)
+
+// UI = TEK MERCİİ (2026-06-02). Backend artık kendi kafasına persona/dil/identity
+// cümlesi üretmez. models.system_prompt boş ise modele sistem mesajı GİTMEZ.
+// Operatör UI'da ne yazdıysa o gider; başka hiçbir metin kıyıda kalmaz.
+function brandDefaultSystemPrompt(_brand) { return ""; }
+
+// Legacy param name remap — UI used to expose `repeat_penalty` (llama.cpp
+// flavor) but MLX-LM expects `repetition_penalty`. DB rows saved before the
+// 2026-05-26 rename keep the old key; map at read time so the operator does
+// not have to edit existing model rows. New writes use the canonical name.
+const LEGACY_PARAM_RENAMES = Object.freeze({
+  repeat_penalty: "repetition_penalty",
+});
+function _canonicalParamName(name) {
+  return LEGACY_PARAM_RENAMES[name] || name;
+}
+function resolveModelParams(row) {
+  const list = Array.isArray(row?.params) ? row.params : [];
+  const out = {};
+  for (const p of list) {
+    const rawName = String(p?.name ?? "").trim();
+    if (!rawName) continue;
+    const name = _canonicalParamName(rawName);
+    const raw = p?.value;
+    const num = Number(raw);
+    out[name] = raw !== "" && !Number.isNaN(num) ? num : raw;
+  }
+  if (out.temperature === undefined) out.temperature = 0.7;
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Policy resolver — merges a sealed Agent's meta.inference with the active
+// Tool/Skill execution_policy. The merged params are physically stamped onto
+// the MLX payload so what's drawn in the UI is what hits the model.
+// Priority (later wins):  model defaults  <  agent.inference  <  tool/skill (only if enforce_strict)
+// ---------------------------------------------------------------------------
+function _kvParams(arr) {
+  const out = {};
+  if (!Array.isArray(arr)) return out;
+  for (const p of arr) {
+    const rawName = String(p?.name ?? "").trim();
+    if (!rawName) continue;
+    const k = _canonicalParamName(rawName);
+    const raw = p?.value;
+    const num = Number(raw);
+    out[k] = raw !== "" && !Number.isNaN(num) ? num : raw;
+  }
+  return out;
+}
+
+async function resolvePolicyContext({ agent_id, capability } = {}) {
+  if (!agent_id) return null;
+  let agentRow = null;
+  try {
+    const r = await pool.query("SELECT id, name, meta FROM agents WHERE id=$1", [agent_id]);
+    agentRow = r.rows[0] || null;
+  } catch (e) {
+    console.warn(`[policy] agent lookup failed: ${e.message}`);
+    return null;
+  }
+  if (!agentRow) return null;
+  const inf = (agentRow.meta && typeof agentRow.meta === "object" && agentRow.meta.inference) || {};
+  let cap = null;
+  if (capability && capability.kind && capability.id) {
+    try {
+      const tbl = capability.kind === "skill" ? "skills" : "action_library";
+      const r = await pool.query(`SELECT id, name, execution_policy FROM ${tbl} WHERE id=$1`, [capability.id]);
+      const row = r.rows[0];
+      if (row) cap = { kind: capability.kind, id: row.id, name: row.name, policy: row.execution_policy || {} };
+    } catch (e) {
+      console.warn(`[policy] capability lookup failed: ${e.message}`);
+    }
+  }
+  return { agent: { id: agentRow.id, name: agentRow.name, inference: inf }, capability: cap };
+}
+function mergeAndApplyPolicy(payload, ctx) {
+  if (!ctx) return { payload, enforced: false, summary: null };
+  const inf = ctx.agent.inference || {};
+  const out = { ...payload };
+  // 1) Agent inference seal
+  if (Number.isFinite(Number(inf.temperature))) out.temperature = Number(inf.temperature);
+  if (Number.isFinite(Number(inf.top_p))) out.top_p = Number(inf.top_p);
+  if (Number.isFinite(Number(inf.max_output_tokens))) out.max_tokens = Number(inf.max_output_tokens);
+  if (Array.isArray(inf.stop_sequences) && inf.stop_sequences.length) out.stop = inf.stop_sequences.slice(0, 8);
+  Object.assign(out, _kvParams(inf.custom_params));
+  // 2) Tool/Skill execution_policy strict overrides
+  const pol = ctx.capability?.policy || null;
+  let strict = false;
+  if (pol && pol.enforce_strict) {
+    strict = true;
+    if (pol.override_temperature_mode === "force_zero") out.temperature = 0;
+    else if (pol.override_temperature_mode === "safe_low") out.temperature = 0.01;
+    else if (pol.override_temperature_mode === "custom") {
+      const v = Number(pol.override_temperature_value);
+      if (Number.isFinite(v)) out.temperature = Math.max(0, Math.min(1, v));
+    }
+    if (Number.isFinite(Number(pol.override_top_p))) out.top_p = Number(pol.override_top_p);
+    Object.assign(out, _kvParams(pol.custom_params));
+  }
+  // UI = tek mercii. Sampling değerleri agent.meta.inference + (opsiyonel)
+  // tool/skill execution_policy enforce_strict overlay'inden gelir. Backend
+  // burada sessiz clamp UYGULAMAZ — bk. mem://decisions/ui-params-single-source-all-entities-2026-05-28.md
+  // Sadece deterministik tip dönüşümü ve stop dedupe yapılır.
+  if (Number.isFinite(Number(out.temperature))) out.temperature = Number(out.temperature);
+  if (Number.isFinite(Number(out.top_p))) out.top_p = Number(out.top_p);
+  if (Number.isFinite(Number(out.repetition_penalty))) out.repetition_penalty = Number(out.repetition_penalty);
+  if (Number.isFinite(Number(out.max_tokens))) out.max_tokens = Number(out.max_tokens);
+  const stops = (Array.isArray(out.stop) ? out.stop.map(String) : [])
+    .filter((s, i, arr) => s && arr.indexOf(s) === i)
+    .slice(0, 8);
+  if (stops.length) out.stop = stops; else delete out.stop;
+
+  const summary = {
+    agent: ctx.agent.name,
+    capability: ctx.capability ? `${ctx.capability.kind}:${ctx.capability.name}` : null,
+    enforced: strict,
+    temperature: out.temperature,
+    top_p: out.top_p,
+    max_tokens: out.max_tokens,
+    repetition_penalty: out.repetition_penalty,
+    stop: out.stop,
+  };
+  return { payload: out, enforced: strict, summary };
+}
+
+// UI = TEK MERCİİ (2026-06-02 revize). Eski davranış:
+//   - boş system_prompt'a brand fallback cümlesi basıyordu
+//   - `### Instruction: ... ###` wrapper'ını user mesajına FİZİKSEL yapıştırıyordu
+//   - nowPreamble'ı kendi kafasına system prompt'a ekliyordu
+// Hepsi söküldü. Artık SADECE:
+//   - UI'dan gelen model.system_prompt (boşsa hiç system mesajı yok)
+//   - Caller'ın eklediği system mesajları (RAG inspector vb.; bunların metni de UI knob'larıyla seçiliyor)
+// tek bir role:"system" bloğunda birleştirilir. nowPreamble parametresi kaldı
+// ama kullanılmıyor — eski çağrı imzasını kırmamak için. Boş gönderirseniz hiçbir
+// "şu an" cümlesi eklenmez. Tarih/saat lazımsa UI'daki system_prompt'a yazılır.
+function injectSystemPrompt(messages, systemPrompt, _nowPreamble = null) {
+  const list = Array.isArray(messages) ? [...messages] : [];
+  const baseSp = String(systemPrompt ?? "").trim();
+  const callerSystems = list
+    .filter((m) => m?.role === "system" && String(m?.content ?? "").trim().length)
+    .map((m) => String(m.content).trim());
+  const parts = [];
+  if (baseSp) parts.push(baseSp);
+  for (const c of callerSystems) parts.push(c);
+  const mergedSp = parts.join("\n\n");
+  const nonSystem = list.filter((m) => m?.role !== "system");
+  if (!mergedSp) return nonSystem;
+  return [{ role: "system", content: mergedSp }, ...nonSystem];
+}
+
+function withTimeoutSignal(signal, timeoutMs) {
+  const timeout = AbortSignal.timeout(Math.max(1000, Number(timeoutMs) || 300_000));
+  if (!signal) return timeout;
+  if (typeof AbortSignal.any === "function") return AbortSignal.any([signal, timeout]);
+  if (signal.aborted) return signal;
+  return timeout;
+}
+
+async function readNextWithHeartbeat(iterator, sse, timeoutMs) {
+  const limit = Math.max(0, Number(timeoutMs) || 0);
+  let timer = null;
+  let pulse = null;
+  try {
+    pulse = setInterval(() => sse?.keepAlive?.(), 1000);
+    if (limit <= 0) return await iterator.next();
+    return await Promise.race([
+      iterator.next(),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => {
+          const err = new Error(`First token timeout after ${limit}ms — upstream produced no bytes`);
+          err.code = "MLX_FIRST_TOKEN_TIMEOUT";
+          reject(err);
+        }, limit);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+    if (pulse) clearInterval(pulse);
+  }
+}
+
+function extractChatDelta(payload) {
+  if (!payload || payload === "[DONE]") return "";
+  try {
+    const j = typeof payload === "string" ? JSON.parse(payload) : payload;
+    return j.choices?.[0]?.delta?.content
+      ?? j.choices?.[0]?.message?.content
+      ?? j.choices?.[0]?.text
+      ?? j.delta
+      ?? j.message?.content
+      ?? j.response
+      ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function drainChatDeltaBuffer(buffer) {
+  const pieces = [];
+  let rest = String(buffer || "");
+  let done = false;
+  const findJsonEnd = (s, start) => {
+    let depth = 0, inString = false, escaped = false;
+    for (let i = start; i < s.length; i += 1) {
+      const ch = s[i];
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (ch === "\\") escaped = true;
+        else if (ch === '"') inString = false;
+        continue;
+      }
+      if (ch === '"') inString = true;
+      else if (ch === "{") depth += 1;
+      else if (ch === "}") {
+        depth -= 1;
+        if (depth === 0) return i;
+      }
+    }
+    return -1;
+  };
+  while (rest) {
+    const doneAt = rest.indexOf("[DONE]");
+    const jsonAt = rest.indexOf("{");
+    if (doneAt >= 0 && (jsonAt < 0 || doneAt < jsonAt)) { done = true; rest = rest.slice(doneAt + 6); break; }
+    if (jsonAt < 0) { rest = rest.slice(-16); break; }
+    const end = findJsonEnd(rest, jsonAt);
+    if (end < 0) { rest = rest.slice(jsonAt); break; }
+    const piece = extractChatDelta(rest.slice(jsonAt, end + 1));
+    if (piece) pieces.push(piece);
+    rest = rest.slice(end + 1);
+  }
+  return { pieces, rest, done };
+}
+
+// MLX Watchdog Cockpit — runtime override (System Engine üzerinden ayarlanır).
+
+// Env değerleri ilk boot fallback. Cockpit override DB'ye yazılır
+// (app_settings.runtime.watchdog) ve restart sonrası geri hydrate edilir —
+// UI'da girilen değer artık plist/env'e geri düşmüyor.
+const RUNTIME_WATCHDOG_CFG = {
+  headersMs: Math.max(90_000, Number(process.env.LLM_HEADERS_TIMEOUT_MS || 120_000)),
+  firstTokenMs: Math.max(30_000, Number(process.env.LLM_FIRST_TOKEN_TIMEOUT_MS || 60_000)),
+  idleDeltaMs: Math.max(5_000, Number(process.env.LLM_IDLE_DELTA_TIMEOUT_MS || 20_000)),
+  warmingNoticeMs: Math.max(1_000, Number(process.env.LLM_WARMING_NOTICE_MS || 3_000)),
+  coldFirstTokenMs: Math.max(60_000, Number(process.env.LLM_COLD_FIRST_TOKEN_TIMEOUT_MS || 120_000)),
+  streamTimeoutMs: Math.max(60_000, Number(process.env.LLM_STREAM_TIMEOUT_MS || 300_000)),
+  warmupTimeoutMs: Math.max(5_000, Number(process.env.LLM_WARMUP_TIMEOUT_MS || 45_000)),
+};
+function getWatchdogCfg() {
+  // Runtime Watchdog switch is a UI/notice control, not a safety-disable switch.
+  // Returning 24h caps here hid real first-token freezes and produced
+  // `86400s` wait messages while the MLX single slot was already stuck.
+  return { ...RUNTIME_WATCHDOG_CFG };
+}
+function getWorkerSelfHealCfg() {
+  return {
+    cooldownMs: SELF_HEAL_COOLDOWN_MS,
+    respawnMax: RESPAWN_MAX_IN_WINDOW,
+  };
+}
+function setWatchdogCfg(patch = {}) {
+  const clamp = (key, floor) => {
+    const v = Number(patch[key]);
+    if (Number.isFinite(v) && v >= floor) RUNTIME_WATCHDOG_CFG[key] = Math.floor(v);
+  };
+  clamp("headersMs", 90_000);
+  clamp("firstTokenMs", 30_000);
+  clamp("idleDeltaMs", 5_000);
+  clamp("warmingNoticeMs", 1_000);
+  clamp("coldFirstTokenMs", 60_000);
+  clamp("streamTimeoutMs", 60_000);
+  clamp("warmupTimeoutMs", 5_000);
+  return getWatchdogCfg();
+}
+function setWorkerSelfHealCfg(patch = {}) {
+  const cool = Number(patch.cooldownMs);
+  if (Number.isFinite(cool) && cool >= 30_000) SELF_HEAL_COOLDOWN_MS = Math.floor(cool);
+  const max = Number(patch.respawnMax);
+  if (Number.isFinite(max) && max >= 1 && max <= 10) RESPAWN_MAX_IN_WINDOW = Math.floor(max);
+  return getWorkerSelfHealCfg();
+}
+// Watchdog DB hydrate/persist → lib/watchdog.mjs (2026-05-30).
+const { hydrateWatchdogFromDb, persistWatchdogToDb } = createWatchdogPersistence({
+  pool,
+  getWatchdogCfg, setWatchdogCfg,
+  getWorkerSelfHealCfg, setWorkerSelfHealCfg,
+  getWatchdogSnapshot: () => ({
+    headers: RUNTIME_WATCHDOG_CFG.headersMs,
+    firstToken: RUNTIME_WATCHDOG_CFG.firstTokenMs,
+    idle: RUNTIME_WATCHDOG_CFG.idleDeltaMs,
+    cooldown: SELF_HEAL_COOLDOWN_MS,
+    respawnMax: RESPAWN_MAX_IN_WINDOW,
+  }),
+});
+// Boot hydrate — pool ready by this point (server.mjs init order).
+void hydrateWatchdogFromDb();
+
+// Cockpit endpoints (operatör kontrolü)
+// /api/engine/watchdog — moved to lib/routes/engine.mjs (mountEngineRoutes)
+
+// v7 — Transport cockpit. Operatör keep-alive damar yolunu ve preflight reset
+// durumunu canlı görür; reset URL'ini cockpit'ten mühürleyip kaldırabilir.
+// /api/engine/transport — moved to lib/routes/engine.mjs (mountEngineRoutes)
+// NOTE: mount call moved below RUNTIME_INTENT_CFG/DEFAULT_CLASSIFIER_PROMPT
+// definition (line ~8938) to avoid TDZ on those const symbols.
+
+async function* streamFromLocalLLM({ model, messages, signal, onWarming = null, onLoopGuard = null, policyCtx = null, intentHint = "query", nowPreamble = null }) {
+  await hydrateRuntimeProviderFromDb({ quiet: true });
+  let row = null;
+  // Cache satırı camelCase tutar (pendingModelCache). DB satırı snake_case.
+  // _mlxServingId ve diğer resolverlar snake_case bekliyor — fallback'te normalize et.
+  const _normalizeCacheRow = (c) => c ? {
+    id: c.id,
+    provider: c.provider,
+    base_url: c.base ?? c.base_url ?? "",
+    runtime_model_id: c.runtimeModelId ?? c.runtime_model_id ?? "",
+    template_family: c.templateFamily ?? c.template_family ?? "",
+    prompt_prefix: c.promptPrefix ?? c.prompt_prefix ?? "",
+    stop_sequences: c.stopSequences ?? c.stop_sequences ?? [],
+    chat_template_kwargs: c.chatTemplateKwargs ?? c.chat_template_kwargs ?? {},
+    system_prompt: c.systemPrompt ?? c.system_prompt ?? "",
+    params: c.params ?? [],
+    transport: c.transport ?? "mlx_local",
+    api_key_env: c.apiKeyEnv ?? c.api_key_env ?? "",
+  } : null;
+  if (model) {
+    try {
+      const r = await pool.query("SELECT * FROM models WHERE id=$1", [model]);
+      row = r.rows[0] ?? _normalizeCacheRow(pendingModelCache.get(model)) ?? null;
+    } catch (e) {
+      row = _normalizeCacheRow(pendingModelCache.get(model)) ?? null;
+      console.error(`[models] runtime lookup used cache: ${String(e.message || e)}`);
+    }
+  }
+  if (!row) {
+    try {
+      const r = await pool.query("SELECT * FROM models WHERE is_default=true ORDER BY updated_at DESC LIMIT 1");
+      row = r.rows[0] ?? null;
+    } catch { /* legacy fallback below */ }
+  }
+  // Models tablosu tek kaynak: chat/runtime önce seçilen veya default model
+  // satırının base_url + id değerini kullanır. app_settings.runtime.provider
+  // yalnızca eski kurulumlarda satır yoksa fallback'tir.
+  const provider = String(row?.provider ?? RUNTIME_PROVIDER_CFG.provider ?? "").toLowerCase();
+  const publicBase = normalizeRuntimeBaseUrl(row?.base_url || row?.base || runtimeBase() || "");
+  const base = runtimeUpstreamBase(publicBase, provider);
+  // 2026-05-30 — Tek mercii: chat'in seçtiği `model` parametresi yalnızca DB satırını
+  // bulmak için kullanılır. MLX'e giden gerçek serving ID HER ZAMAN row.runtime_model_id
+  // (varsa) → row.id sırasıyla _mlxServingId tarafından çözülür. Aksi halde UI'da
+  // bağlanan "MLX Serving ID" by-pass edilir ve MLX 404 döner.
+  const _selectedAlias = model ? String(model).trim() : (row?.id || "");
+  const mdl = row
+    ? _mlxServingId(row, { ctx: "streamFromLocalLLM" })
+    : _assertModelSlug(_selectedAlias, "streamFromLocalLLM");
+  if (_selectedAlias && mdl && _selectedAlias !== mdl) {
+    console.log(`[MLX-ROUTE] alias="${_selectedAlias}" → serving="${mdl}" (bound=${!!String(row?.runtime_model_id ?? "").trim()})`);
+  }
+  const systemPrompt = row?.system_prompt ?? row?.systemPrompt ?? "";
+  const extraParams = resolveModelParams(row);
+  const wrappedMessages = injectSystemPrompt(messages, systemPrompt, nowPreamble);
+  const _suppressSmalltalkSystems = intentHint === "smalltalk" && RAG_SETTINGS?.suppressToolManifestOnSmalltalk !== false;
+  // Preserve agent-manifest system blocks (meta/intro turns) even when
+  // smalltalk suppression strips other system messages. Tagged by
+  // lib/agents-manifest.mjs (meta.kind === "agent_manifest").
+  // 2026-07-05 — Meta-Forge protocol hint MUST also survive smalltalk
+  // stripping, otherwise the model never sees the `<forge>` contract on
+  // short creation requests like "phishing triage skill yaz" (intent
+  // classifier flips those to smalltalk lane).
+  const _keepInSmalltalk = (m) => m?.role !== "system"
+    || m?.meta?.kind === "agent_manifest"
+    || m?.meta?.kind === "meta_forge_hint"
+    || m?.meta?.kind === "capability_state";
+  const _effectiveMessages = _suppressSmalltalkSystems
+    ? injectSystemPrompt((Array.isArray(messages) ? messages : []).filter(_keepInSmalltalk), systemPrompt, nowPreamble)
+    : wrappedMessages;
+
+
+  // 2026-06-02 — Cloud transport branch. transport='openai_compatible' satırları
+  // MLX hattına HİÇ girmez: provider kendi /chat/completions endpoint'inde
+  // mesajları doğrudan yutar, chat template orada uygulanır. Bizim render
+  // katmanımız (chat-templates.mjs) atlanır — bu cloud için doğrudur.
+  const _transport = String(row?.transport ?? "mlx_local").toLowerCase();
+  if (_transport === "openai_compatible") {
+    const _cloudCap = intentHint === "smalltalk" ? 256 : intentHint === "rag" ? 4096 : 2048;
+    const _cloudMax = Math.max(64, Number(extraParams.max_tokens || _cloudCap));
+    const _cloudTemp = Number.isFinite(Number(extraParams.temperature)) ? Number(extraParams.temperature) : null;
+    const _cloudExtra = { ...extraParams };
+    delete _cloudExtra.max_tokens; delete _cloudExtra.temperature;
+    console.log(`[CLOUD-ROUTE] model="${row.id}" transport=openai_compatible base="${row.base_url}" maxTokens=${_cloudMax}`);
+    try {
+      yield* streamCloudCompletion({
+        row, servingModel: mdl, messages: _effectiveMessages, signal,
+        maxTokens: _cloudMax, temperature: _cloudTemp, extraParams: _cloudExtra,
+        onWarming, thinkOff: false,
+      });
+    } catch (e) {
+      // Surface API errors as a delta + done so the UI shows them in the
+      // assistant bubble rather than a silent abort. Matches existing MLX
+      // error-surfacing convention in this file.
+      yield { type: "delta", text: `\n\n_Cloud transport hatası:_ ${String(e?.message || e)}` };
+      yield { type: "done" };
+    }
+    return;
+  }
+
+
+
+  if (base) {
+    if (provider.includes("mlx") || /:8001\b/.test(base) || base.endsWith("/v1")) {
+      // Yol C: engine-agnostic /v1/completions. Chat template render katmanı
+      // toCompletionBody() içinde (lib/chat-prompt.mjs). Engine değişirse env
+      // LLM_CHAT_TEMPLATE yeter; bu dosyada değişiklik gerekmez.
+      const target = joinRuntimePath(base, "/v1/completions");
+      // FAZ 26 — Dil tekrar düzeltmesi: "veyaım", "FortiManagerManager" gibi token
+      // tekrar yapışmalarını kırmak için varsayılan repetition_penalty 1.18.
+      // MLX-LM hem `repetition_penalty` (legacy) hem `frequency_penalty` (OpenAI) okur;
+      // ikisini de gönderirsek hangi MLX sürümü olursa olsun honör eder.
+      // Operatör model satırından custom param verirse o kazanır (extraParams sonda).
+      // v15 — top_p/repetition_penalty/frequency_penalty SADECE model satırından
+      // (extraParams, spread sonda) gelir. RAG paneli artık bunları tutmaz.
+      // Buradaki değerler yalnız boot fallback (env) — model param yoksa devreye girer.
+      const repPen = Math.max(1.0, Math.min(2.0, Number(process.env.MLX_REPETITION_PENALTY ?? 1.25)));
+      const freqPen = Math.max(0, Math.min(2.0, Number(process.env.MLX_FREQUENCY_PENALTY ?? 0.3)));
+      // FAZ 27 — Loop hardening: top_p tail-cutoff + stop guard.
+      const topP = Math.max(0.1, Math.min(1.0, Number(process.env.MLX_TOP_P ?? 0.9)));
+
+      // Stop sequences: hardcoded 4-newline guard + UI-managed extras
+      // (RAG_SETTINGS.mlxStopSequences). UI knob lets operator add multilingual
+      // sentinels (e.g. "<|im_end|>", "</s>", "请提供") if the model leaks tokens
+      // into unexpected languages. Cap 8 per MLX OpenAI-compat spec.
+      const _uiStops = Array.isArray(RAG_SETTINGS?.mlxStopSequences) ? RAG_SETTINGS.mlxStopSequences : [];
+      const stopSeqs = ["\n\n\n\n", ..._uiStops].slice(0, 8);
+      // Intent-bazlı max_tokens tavanı (RAM/MPS koruması + smalltalk hız kazancı).
+      // extraParams.max_tokens (operatör override) HALA kazanır — spread sonda.
+      const _smallCap = Math.max(64,  Number(RAG_SETTINGS?.mlxSmalltalkMaxTokens ?? process.env.MLX_SMALLTALK_MAX_TOKENS ?? 220));
+      const _queryCap = Math.max(256, Number(RAG_SETTINGS?.mlxQueryMaxTokens     ?? process.env.MLX_QUERY_MAX_TOKENS     ?? 1000));
+      const _ragCap   = Math.max(512, Number(RAG_SETTINGS?.mlxRagMaxTokens       ?? process.env.MLX_RAG_MAX_TOKENS       ?? 2000));
+      const intentMaxTokens = intentHint === "smalltalk" ? _smallCap : intentHint === "rag" ? _ragCap : _queryCap;
+      // Qwen reasoning modeli: smalltalk'ta /no_think — düşünme bloğu kapanır,
+      // "Selam Elara" 9sn'lik içsel reasoning'e takılmadan ~1-2sn'de döner.
+      // İki katmanlı koruma:
+      const _disableThinkSmalltalk = (typeof RAG_SETTINGS?.disableThinkOnSmalltalk === "boolean")
+        ? RAG_SETTINGS.disableThinkOnSmalltalk
+        : String(process.env.MLX_DISABLE_THINK_SMALLTALK ?? "1") !== "0";
+      const _disableThinkQuery = (typeof RAG_SETTINGS?.disableThinkOnQuery === "boolean")
+        ? RAG_SETTINGS.disableThinkOnQuery
+        : String(process.env.MLX_DISABLE_THINK_QUERY ?? "1") !== "0";
+      const _disableThinkRag = (typeof RAG_SETTINGS?.disableThinkOnRag === "boolean")
+        ? RAG_SETTINGS.disableThinkOnRag
+        : String(process.env.MLX_DISABLE_THINK_RAG ?? "1") !== "0";
+      // Thinking-off intent başına: smalltalk / query / rag ayrı knob.
+      // 72B teknik sorularda ~50-60s içsel reasoning üretiyordu → TTFT patlıyordu.
+      const _thinkOffIntent =
+        (intentHint === "smalltalk" && _disableThinkSmalltalk) ||
+        (intentHint === "query"     && _disableThinkQuery) ||
+        (intentHint === "rag"       && _disableThinkRag);
+      // /no_think + chat_template_kwargs.enable_thinking=false Qwen-only sentinel'lerdir.
+      // Gemma/Llama/Mistral chat template'leri bunları tanımaz; düz metin "/no_think"
+      // user'a sızar ve modeli kafalar. Family gate.
+      const _renderOpts = _normaliseRender(row) || (await _currentModelRender());
+      const _tplFamily = String(_renderOpts?.template ?? "").toLowerCase();
+      // 2026-06-29 — Gemma 4 native template ALSO honors enable_thinking via
+      // chat_template_kwargs (see lib/chat-templates.mjs:_renderGemma4). Without
+      // this, Gemma 4 reasoning models burn 30-50s on internal <|think|> blocks
+      // for trivial meta/intro turns even though `disableThinkOnQuery` is true.
+      const _familyAcceptsThinkOff = /^qwen/.test(_tplFamily) || _tplFamily === "gemma4";
+      const _thinkOff = _thinkOffIntent && _familyAcceptsThinkOff;
+      // UI = TEK MERCİİ (2026-06-02). Smalltalk guard + /no_think text guard
+      // hardcoded bloklar SÖKÜLDÜ. Eskiden burada modele "kurallar 1/2/3 …" diye
+      // backend-yazımı talimat enjekte ediliyordu — UI'da bunun düğmesi yoktu.
+      // Artık: think-off davranışı SADECE chat_template_kwargs.enable_thinking=false
+      // flag'i (aşağıdaki payload'da) ile uygulanır; bu flag bir prompt metni değil,
+      // chat template protokol parametresi. /no_think text prefix isteniyorsa
+      // models.prompt_prefix UI alanına yazılır (chat-prompt.mjs render'da uygular).
+      let payload = toCompletionBody({ model: mdl, messages: _effectiveMessages, stream: true, max_tokens: intentMaxTokens, repetition_penalty: repPen, frequency_penalty: freqPen, top_p: topP, stop: stopSeqs, ...(_thinkOff ? { chat_template_kwargs: { enable_thinking: false } } : {}), ...extraParams }, _renderOpts);
+      // Diagnostic: show effective sampling params + whether each came from UI (extraParams) or env default.
+      // Helps trace "UI değiştirdim ama sampling değişmedi" raporlarını tek bakışta.
+      const _paramSrc = (name, envVal) => Object.prototype.hasOwnProperty.call(extraParams, name) ? `ui-model=${extraParams[name]}` : `env-default=${envVal}`;
+      console.log(`[MLX PARAMS] repetition_penalty=${payload.repetition_penalty}(${_paramSrc("repetition_penalty", repPen)}) top_p=${payload.top_p}(${_paramSrc("top_p", topP)}) frequency_penalty=${payload.frequency_penalty}(${_paramSrc("frequency_penalty", freqPen)}) temperature=${payload.temperature ?? "(unset)"}${Object.prototype.hasOwnProperty.call(extraParams, "temperature") ? "(ui)" : "(mlx-default)"} max_tokens=${payload.max_tokens}${Object.prototype.hasOwnProperty.call(extraParams, "max_tokens") ? "(ui-override)" : "(intent-cap)"}`);
+      console.log(`[MLX-THINK] intentHint=${intentHint} thinkOff=${_thinkOff} maxTokens=${intentMaxTokens} prefixNoThink=${_thinkOff}`);
+
+      // Agent + Tool/Skill policy seal — merge inference defaults and strict overrides.
+      const merged = mergeAndApplyPolicy(payload, policyCtx);
+      payload = merged.payload;
+      if (merged.summary) console.log(`[POLICY] ${JSON.stringify(merged.summary)}`);
+      // Per-model Runtime Safety (2026-05-29). Resolver: model > global > env.
+      // Model değiştiğinde davranış da modelle gelir; server.mjs içinde kapalı kutu kalmaz.
+      const _safety = resolveRuntimeSafety(row);
+      const timeoutSignal = withTimeoutSignal(signal, _safety.streamTotal.value);
+      // Detailed RAG audit log so the operator can verify Inspector + sources
+      // are physically embedded in the system role before MLX sees them.
+      const sysMsg = _effectiveMessages.find(m => m.role === "system");
+      const sysLen = sysMsg ? String(sysMsg.content || "").length : 0;
+      const sysPreview = sysMsg ? String(sysMsg.content).slice(0, 600).replace(/\s+/g, " ") : "(no system message)";
+      console.log(`[MLX → ${target}] system_role_chars=${sysLen} smalltalkSystemsSuppressed=${_suppressSmalltalkSystems} preview="${sysPreview}…"`);
+      console.log(`[MLX PAYLOAD]\n${JSON.stringify(payload, null, 2).slice(0, 4000)}`);
+      console.log(`[MLX-SAFETY model=${row?.id || mdl}] ${safetySummary(_safety)}`);
+      let r;
+      const headersTimeoutMs = _safety.headers.value;
+      // v11.2 — Adaptive first-token cap: cold yolda model coldFirstToken / RAG_SETTINGS.mlxColdFirstTokenMs,
+      // warm yolda model firstToken / global firstToken. Karar tek noktadan (_safety).
+      const _coldNow = _mlxIsCold();
+      const firstTokenTimeoutMs = _coldNow
+        ? Math.max(_safety.firstToken.value, _safety.coldFirstToken.value)
+        : _safety.firstToken.value;
+      const idleDeltaTimeoutMs = _safety.idleDelta.value;

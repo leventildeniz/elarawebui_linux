@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ELARA Frontend launchd unit · port 8080.
+  MOD: vite dev (HMR). RAM zemini ~1.5-2 GB.
+
+  ROLLBACK NEDENİ: Production build + `vite preview` denemesi TanStack Start
+  + Cloudflare plugin ile uyumsuz çıktı — build worker bundle üretiyor,
+  `dist/server/server.js` yok → `ERR_MODULE_NOT_FOUND`. Script adı korundu
+  (`serve-prod-frontend.sh`) ama içerik `bun run dev` çağırıyor.
+
+  HMR cache sorunu (silinmiş endpoint'e 401): tarayıcıda hard refresh
+  (Cmd+Shift+R) veya DevTools → Application → Clear site data.
+
+  RAM'i düşürmek için seçenekler (ayrı iş): Cloudflare plugin'i devre dışı
+  bırakıp SPA build, ya da wrangler ile worker'ı local'de çalıştırmak.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.elara.vite</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>__PROJECT_ROOT__/local-server/scripts/serve-prod-frontend.sh</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>__PROJECT_ROOT__</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>HOME</key>
+    <string>__HOME__</string>
+    <key>PORT</key>
+    <string>8080</string>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+    <key>Crashed</key>
+    <true/>
+  </dict>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+
+  <key>StandardOutPath</key>
+  <string>/tmp/elara-vite.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/elara-vite.err.log</string>
+</dict>
+</plist>

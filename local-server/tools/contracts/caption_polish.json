@@ -1,0 +1,34 @@
+{
+  "slug": "caption_polish",
+  "input": {
+    "type": "object",
+    "required": ["text", "platform"],
+    "properties": {
+      "text":         { "type": "string", "minLength": 1, "maxLength": 6000 },
+      "platform":     { "type": "string", "enum": ["instagram", "linkedin", "x", "tiktok"] },
+      "tone":         { "type": "string", "enum": ["neutral", "playful", "pro"] },
+      "max_length":   { "type": "integer", "minimum": 10, "maximum": 6000 },
+      "strip_excess": { "type": "boolean" }
+    }
+  },
+  "output": {
+    "type": "object",
+    "required": ["ok"],
+    "properties": {
+      "ok":              { "type": "boolean" },
+      "platform":        { "type": "string" },
+      "tone":            { "type": "string" },
+      "original_len":    { "type": "integer" },
+      "polished":        { "type": "string" },
+      "polished_len":    { "type": "integer" },
+      "hashtag_count":   { "type": "integer" },
+      "emoji_count":     { "type": "integer" },
+      "warnings":        { "type": "array",  "items": { "type": "string" } },
+      "stripped":        { "type": "object" },
+      "hard_cap":        { "type": "integer" },
+      "recommended_len": { "type": "integer" },
+      "reason":          { "type": "string" }
+    }
+  },
+  "dependencies": []
+}

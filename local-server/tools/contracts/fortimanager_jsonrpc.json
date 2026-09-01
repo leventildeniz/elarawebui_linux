@@ -1,0 +1,72 @@
+{
+  "slug": "fortimanager_jsonrpc",
+  "input": {
+    "type": "object",
+    "required": [
+      "host",
+      "url"
+    ],
+    "properties": {
+      "host": {
+        "type": "string"
+      },
+      "method": {
+        "type": "string",
+        "enum": [
+          "get",
+          "set",
+          "add",
+          "update",
+          "delete",
+          "exec",
+          "move",
+          "clone"
+        ]
+      },
+      "url": {
+        "type": "string"
+      },
+      "data": {},
+      "verify_tls": {
+        "type": "boolean"
+      },
+      "timeout_ms": {
+        "type": "integer",
+        "minimum": 1000,
+        "maximum": 120000
+      },
+      "port": {
+        "type": "integer"
+      }
+    }
+  },
+  "output": {
+    "type": "object",
+    "required": [
+      "ok"
+    ],
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      },
+      "status": {
+        "type": "integer"
+      },
+      "headers": {
+        "type": "object"
+      },
+      "body": {
+        "type": "string"
+      },
+      "json": {},
+      "reason": {
+        "type": "string"
+      }
+    }
+  },
+  "dependencies": [],
+  "secrets": [
+    "FORTIMANAGER_USER",
+    "FORTIMANAGER_PASSWORD"
+  ]
+}
