@@ -31,7 +31,6 @@ export function OwnerChip({
 }) {
   const band = visibilityOf(record);
   const Icon = ICONS[band];
-  const mine = Boolean(record?.ownerId && record.ownerId === ctx.userId);
   const tone = VISIBILITY_TONE[band];
 
   return (
@@ -48,11 +47,7 @@ export function OwnerChip({
       }}
     >
       <Icon className="size-3" strokeWidth={1.6} />
-      {band === "system"
-        ? "system"
-        : mine
-          ? VISIBILITY_LABELS[band]
-          : record?.ownerName || VISIBILITY_LABELS[band]}
+      {VISIBILITY_LABELS[band] || "MINE"}
     </span>
   );
 }

@@ -323,7 +323,7 @@ export function useSkills() {
           stats: { calls: 0, success: 100, latencyMs: 0 },
         }));
 
-        const activeRuns = runsData || localRuns;
+        const activeRuns = Array.isArray(runsData) ? runsData : [];
 
         const runCounts = activeRuns.reduce((acc: any, r: any) => {
           const id = r.skill_id || r.skillId;

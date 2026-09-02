@@ -41,6 +41,7 @@ export function MetaForgeApprovalCard({
   status = "pending",
 }: MetaForgeApprovalCardProps) {
   const [selfOpen, setSelfOpen] = useState(defaultOpen);
+  const [submitting, setSubmitting] = useState(false);
   const isOpen = open ?? selfOpen;
 
   const close = () => {
@@ -75,13 +76,11 @@ export function MetaForgeApprovalCard({
           />
 
           <header className="flex items-center gap-2">
-            <motion.span
-              whileHover={{ scale: 1.05 }}
-              transition={{ duration: 0.16, ease: "easeInOut" }}
-              className="inline-flex h-5 w-5 items-center justify-center rounded-md bg-sapphire/12"
+            <span
+              className="inline-flex h-5 w-5 items-center justify-center rounded-md bg-sapphire/12 transition-transform hover:scale-105"
             >
               <Gem className="h-3.5 w-3.5 text-sapphire" strokeWidth={1.6} />
-            </motion.span>
+            </span>
             <span className="font-mono text-[10.5px] uppercase tracking-[0.24em] text-muted-foreground/65">
               metaforge · {id}
             </span>
@@ -120,26 +119,41 @@ export function MetaForgeApprovalCard({
             ) : (
               <>
                 <button
-                  onClick={() => {
-                    onReject?.();
-                    close();
+                  disabled={submitting}
+                  onClick={async () => {
+                    setSubmitting(true);
+                    try {
+                      await onReject?.();
+                      close();
+                    } finally {
+                      setSubmitting(false);
+                    }
                   }}
-                  className="h-9 rounded-lg px-4 font-mono text-[11.5px] uppercase tracking-[0.18em] text-muted-foreground/70 transition-colors hover:bg-raised/70 hover:text-foreground"
+                  className={cn(
+                    "h-9 rounded-lg px-4 font-mono text-[11.5px] uppercase tracking-[0.18em] text-muted-foreground/70 transition-colors hover:bg-raised/70 hover:text-foreground",
+                    submitting && "opacity-50 pointer-events-none cursor-not-allowed"
+                  )}
                 >
                   {rejectLabel}
                 </button>
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  transition={{ duration: 0.16, ease: "easeInOut" }}
-                  onClick={() => {
-                    onApprove?.();
-                    close();
+                <button
+                  disabled={submitting}
+                  onClick={async () => {
+                    setSubmitting(true);
+                    try {
+                      await onApprove?.();
+                      close();
+                    } finally {
+                      setSubmitting(false);
+                    }
                   }}
-                  className="h-9 rounded-lg border border-[color-mix(in_oklab,var(--emerald)_38%,transparent)] bg-[color-mix(in_oklab,var(--emerald)_12%,transparent)] px-5 font-mono text-[11.5px] uppercase tracking-[0.18em] text-emerald shadow-[0_0_26px_-12px_var(--emerald)] transition-shadow hover:shadow-[0_0_34px_-8px_var(--emerald)]"
+                  className={cn(
+                    "h-9 rounded-lg border border-[color-mix(in_oklab,var(--emerald)_38%,transparent)] bg-[color-mix(in_oklab,var(--emerald)_12%,transparent)] px-5 font-mono text-[11.5px] uppercase tracking-[0.18em] text-emerald shadow-[0_0_26px_-12px_var(--emerald)] transition-all hover:brightness-110 hover:shadow-[0_0_34px_-8px_var(--emerald)] active:scale-[0.98]",
+                    submitting && "opacity-50 pointer-events-none cursor-not-allowed"
+                  )}
                 >
-                  {approveLabel}
-                </motion.button>
+                  {submitting ? "APPLYING..." : approveLabel}
+                </button>
               </>
             )}
           </footer>

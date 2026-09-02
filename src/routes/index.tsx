@@ -262,14 +262,14 @@ function SovereignChat() {
     if (e.key === "End") stick.current = true;
   };
   useEffect(() => {
-    if (!stick.current) return;
+    if (!stick.current || !streaming) return;
     const id = requestAnimationFrame(() => {
       const el = scrollRef.current;
       if (!el || !stick.current) return;
       el.scrollTop = el.scrollHeight;
     });
     return () => cancelAnimationFrame(id);
-  });
+  }, [messages, streaming]);
   /** Late layout (cards, code blocks) settles after the stream ends. */
   useEffect(() => {
     if (streaming || !stick.current) return;
@@ -1304,7 +1304,7 @@ function SovereignChat() {
                             { label: "scope", value: "orchestration" },
                             { label: "risk", value: "low" },
                             { label: "rollback", value: "instant" },
-                            { label: "author", value: m.forge_plan.requestedBy || "admin" },
+                            { label: "author", value: m.forge_plan.requestedBy && !m.forge_plan.requestedBy.includes("00000000") && m.forge_plan.requestedBy !== "system" ? m.forge_plan.requestedBy : (currentAccount()?.username || currentAccount()?.name || "admin") },
                           ]}
                           open={true}
                           status={(m.forge_plan.status as any) || "pending"}
@@ -1326,7 +1326,8 @@ function SovereignChat() {
                                 setMessages(updatedMessages);
 
                                 // Wake up the model silently without rendering an ugly user bubble
-                                const approvalMsg = `[SYSTEM_NOTE] The MetaForge plan has been APPROVED by the user. The new capability is now available in the directory. Please use 'sys_execute_tool' or 'sys_delegate_to_agent' to complete the user's request.`;
+                                const appliedList = (m.forge_plan?.plan?.create || []).map((c: any) => `${c.kind}: "${c.name || c.slug}" (${c.slug})`).join(', ');
+                                const approvalMsg = `[SYSTEM_NOTE] The MetaForge plan (${m.forge_plan.id}) has been APPROVED and applied by the user. Created artifacts: [${appliedList}]. The new capabilities and workflows are now registered in the system. Please proceed with answering or completing the user's request using the actual registered names.`;
                                 const baseForOrch: Msg[] = [
                                   ...updatedMessages,
                                   { role: "user", text: approvalMsg, hidden: true }

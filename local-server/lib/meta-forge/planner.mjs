@@ -3,7 +3,7 @@
 // planning agent (Meta/forge_master) produces the ForgePlan and POSTs it to
 // /api/meta-forge/plan. This module only validates shape and persists.
 
-const VALID_KINDS = new Set(["skill", "pack", "tool", "agent"]);
+const VALID_KINDS = new Set(["skill", "pack", "tool", "agent", "workflow", "chain", "orchestration", "webhook"]);
 
 export function validateForgePlan(plan) {
   if (!plan || typeof plan !== "object") throw new Error("plan must be object");
@@ -86,7 +86,7 @@ export function extractForgeJson(text) {
  * Uses direct pool queries (no HTTP hop) since we're already in-process.
  */
 export async function buildInventory(pool) {
-  const [agents, tools, skills, packs, mcp] = await Promise.all([
+  const [agents, tools, skills, packs, mcp, workflows, chains] = await Promise.all([
     pool.query(`SELECT id AS slug, name, COALESCE(description,'') AS description
                 FROM agents ORDER BY id`).catch(() => ({ rows: [] })),
     pool.query(`SELECT id AS slug, name, COALESCE(description,'') AS description, category
@@ -97,6 +97,8 @@ export async function buildInventory(pool) {
                 FROM capability_packs ORDER BY id`).catch(() => ({ rows: [] })),
     pool.query(`SELECT kind, slug FROM mcp_exposures WHERE enabled=true`)
       .catch(() => ({ rows: [] })),
+    pool.query(`SELECT id AS slug, name FROM workflows ORDER BY id`).catch(() => ({ rows: [] })),
+    pool.query(`SELECT id AS slug, name FROM orchestrations ORDER BY id`).catch(() => ({ rows: [] })),
   ]);
   return {
     agents: agents.rows,
@@ -104,11 +106,15 @@ export async function buildInventory(pool) {
     skills: skills.rows,
     packs: packs.rows,
     mcp_exposed: mcp.rows,
+    workflows: workflows.rows,
+    chains: chains.rows,
     counts: {
       agents: agents.rows.length,
       tools: tools.rows.length,
       skills: skills.rows.length,
       packs: packs.rows.length,
+      workflows: workflows.rows.length,
+      chains: chains.rows.length,
     },
   };
 }

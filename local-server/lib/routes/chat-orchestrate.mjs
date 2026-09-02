@@ -882,7 +882,15 @@ When the user asks you a question or assigns a task, intelligently apply the fol
 
 [HONESTY & ANTI-HALLUCINATION MANDATE]:
 - NEVER invent, simulate, or hallucinate dynamic external state (such as live trading prices, live API responses, live socket certificates, or remote hardware states) without executing a tool.
-- If a tool or web search execution fails or returns an error, report the failure honestly. NEVER pretend a failed tool succeeded.`,
+- If a tool or web search execution fails or returns an error, report the failure honestly. NEVER pretend a failed tool succeeded.
+- When asked about existing workflows, pipelines, orchestrations, tools, or agents in the system, use 'sys_get_directory' to inspect the actual registered records.
+- Report exact artifact names and IDs from the directory or MetaForge plan. NEVER invent or hallucinate alternative names for registered workflows, chains, or tools.
+
+[METAFORGE PRESENTATION & ARTIFACT NAMING DIRECTIVE]:
+- When presenting proposed capabilities or created workflows/tools to the user in chat (and answering what was created):
+  * Use the human 'name' (e.g. "SSL Expiry Monitor Workflow") as the primary title in text and tables.
+  * In tables, include the human name in the 'İsim' (Name) column and the technical identifier in the 'ID / Slug' column (e.g. 'ssl-monitor-workflow' or 'wf_ssl-monitor-workflow').
+  * When referring to a workflow in conversation, use its human display name so it matches 1:1 with what the user sees on the '/flows' Canvas tab and in the Studio catalog.`,
       ];
 
       if (useRag) {
@@ -1043,11 +1051,11 @@ When the user asks you a question or assigns a task, intelligently apply the fol
               type: "function",
               function: {
                   name: "sys_get_directory",
-                  description: "Lists all available specialized agents, tools, skills, and MCP (Model Context Protocol) servers in the system. Use this when you need a specific expert or external integration.",
+                  description: "Lists all available specialized agents, tools, skills, MCP servers, workflows, orchestrations, and webhooks in the system. Use this when you need to inspect existing capabilities, registered pipelines, or external endpoints.",
                   parameters: {
                       type: "object",
                       properties: {
-                          intent: { type: "string", description: "What kind of agent/tool are you looking for? (e.g. 'network security', 'web search')" }
+                          intent: { type: "string", description: "What kind of agent/tool/workflow/webhook are you looking for?" }
                       },
                       required: []
                   }
@@ -1378,6 +1386,21 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                              `SELECT id, name, description, params FROM skills WHERE enabled = true AND (${skillClause})`,
                              skillParams
                           );
+                          const { clause: wfClause, params: wfParams } = deps.buildVisibility(actorCtx, 1, 'owner_id');
+                          const wfRes = await pool.query(
+                             `SELECT id, name, trigger, status FROM workflows WHERE ${wfClause} ORDER BY updated_at DESC`,
+                             wfParams
+                          );
+                          const { clause: orcClause, params: orcParams } = deps.buildVisibility(actorCtx, 1, 'owner_id');
+                          const orcRes = await pool.query(
+                             `SELECT id, name, trigger, status FROM orchestrations WHERE ${orcClause} ORDER BY created_at DESC`,
+                             orcParams
+                          );
+                          const { clause: whClause, params: whParams } = deps.buildVisibility(actorCtx, 1, 'owner_id');
+                          const whRes = await pool.query(
+                             `SELECT id, name, slug, description, category, connection, enabled FROM webhooks WHERE enabled = true AND (${whClause}) ORDER BY created_at DESC`,
+                             whParams
+                          ).catch(() => ({ rows: [] }));
                           const mcpRes = await pool.query(
                              `SELECT slug, name, tools_cache FROM mcp_client_servers WHERE enabled = true`
                           );
@@ -1410,7 +1433,10 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                           toolResultStr = JSON.stringify({
                               agents: agtRes.rows,
                               tools: [...standardTools, ...skillsList, ...mcpTools],
-                              message: "Directory loaded. Use 'sys_delegate_to_agent' to delegate to an agent_id, or 'sys_execute_tool' to run a tool_id with the required params."
+                              workflows: wfRes.rows.map(w => ({ id: w.id, name: w.name, trigger: w.trigger, status: w.status })),
+                              orchestrations: orcRes.rows.map(o => ({ id: o.id, name: o.name, trigger: o.trigger, status: o.status })),
+                              webhooks: whRes.rows.map(w => ({ id: w.id, name: w.name, slug: w.slug, description: w.description, connection: w.connection })),
+                              message: "Directory loaded. Contains available agents, tools, skills, MCP servers, workflows, orchestrations, and webhooks."
                           });
                       } else if (realToolId === "sys_delegate_to_agent") {
                           const targetAgentId = parsedArgs.agent_id;
@@ -1675,7 +1701,13 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                                           toolResultStr = JSON.stringify({
                                               success: true,
                                               message: "MetaForge generated a plan and is waiting for user approval. Do NOT proceed until the user approves or rejects it. Inform the user that the plan has been proposed.",
-                                              plan_id: planId
+                                              plan_id: planId,
+                                              proposed_artifacts: (validated.create || []).map(c => ({
+                                                  kind: c.kind,
+                                                  name: c.name || c.slug,
+                                                  slug: c.slug,
+                                                  description: c.description || ""
+                                              }))
                                           });
                                       } catch (valErr) {
                                           toolResultStr = JSON.stringify({ error: `MetaForge generated an invalid plan: ${valErr.message}` });

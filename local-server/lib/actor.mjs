@@ -89,26 +89,22 @@ export async function autoLinkLegacyOwnership({ migrateReady } = {}) {
 export function buildVisibility(ctx, paramIndexStart = 1, ownerCol = "owner_id") {
   if (ctx.isAdmin) return { clause: "1=1", params: [] };
   
-  if (ctx.userId) {
-    let clause = `(${ownerCol} = $${paramIndexStart} OR visibility = 'workspace' OR ${ownerCol} IS NULL OR COALESCE(is_system,false)=true`;
-    let params = [ctx.userId];
+  const userMatches = [ctx.userId, ctx.username, ctx.actor, ctx.user?.name].filter(Boolean);
+  if (userMatches.length > 0) {
+    let placeholders = userMatches.map((_, i) => `$${paramIndexStart + i}`).join(', ');
+    let clause = `(${ownerCol} = ANY(ARRAY[${placeholders}]::text[]) OR lower(${ownerCol}) = ANY(ARRAY[${placeholders}]::text[]) OR visibility = 'workspace' OR ${ownerCol} IS NULL`;
+    let params = [...userMatches];
     
     if (ctx.groupIds && ctx.groupIds.length > 0) {
-      const groupChecks = ctx.groupIds.map((g, i) => `shared_with ? $${paramIndexStart + i + 1}`).join(' OR ');
+      const groupStart = paramIndexStart + userMatches.length;
+      const groupChecks = ctx.groupIds.map((g, i) => `shared_with ? $${groupStart + i}`).join(' OR ');
       clause += ` OR (visibility = 'shared' AND (${groupChecks}))`;
       params.push(...ctx.groupIds);
     }
     clause += ')';
     return { clause, params };
   }
-  
-  if (ctx.actor) {
-    return {
-      clause: `(lower(owner_user_id) = $${paramIndexStart} OR owner_user_id IS NULL OR COALESCE(is_system,false)=true)`,
-      params: [ctx.actor],
-    };
-  }
-  return { clause: `(${ownerCol} IS NULL OR COALESCE(is_system,false)=true)`, params: [] };
+  return { clause: `(${ownerCol} IS NULL OR visibility = 'workspace')`, params: [] };
 }
 
 export function _isLoopbackReq(req) {

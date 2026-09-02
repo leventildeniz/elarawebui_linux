@@ -113,11 +113,15 @@ export function mountMetaForgeRoutes(app, deps) {
     );
     if (!rows.length) return res.status(404).json({ error: "plan not found" });
     const p = rows[0];
+    if (p.status === "applied") {
+      return res.json({ ok: true, status: "applied", message: "plan already applied" });
+    }
     if (p.status !== "pending" && p.status !== "approved" && p.status !== "failed" && p.status !== "rolled_back") {
       return res.status(409).json({ error: `plan status is ${p.status}` });
     }
     try {
-      const result = await applyForgePlan({ pool, planId: p.id, plan: p.plan_json });
+      const operatorUser = ctx?.username || ctx?.user?.name || req.session?.username || req.actor || "system";
+      const result = await applyForgePlan({ pool, planId: p.id, plan: p.plan_json, forgedBy: operatorUser });
       const finalStatus = result.failed.length && !result.applied.length ? "failed" : "applied";
       await pool.query(
         `UPDATE forge_plans SET status=$2, rolled_back_at=now(), note=$3 WHERE id=$1`,

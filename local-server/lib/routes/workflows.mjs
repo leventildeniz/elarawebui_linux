@@ -59,20 +59,22 @@ export function mountWorkflowRoutes(app, deps) {
     try {
       const ctx = await deps.resolveActorContext(req);
       const vis = deps.buildVisibility(ctx, 1, 'owner_id');
-      const { rows } = await pool.query(`SELECT id, name, status, trigger, runs, nodes, edges, color, visibility, shared_with, updated_at FROM workflows WHERE ${vis.clause} ORDER BY updated_at DESC`, vis.params);
+      const { rows } = await pool.query(`SELECT id, name, status, trigger, runs, nodes, edges, color, visibility, shared_with, owner_id, owner_name, updated_at FROM workflows WHERE ${vis.clause} ORDER BY updated_at DESC`, vis.params);
       res.json(rows.map(r => ({
         id: r.id, name: r.name, updated_at: r.updated_at, visibility: r.visibility, shared_with: r.shared_with,
+        owner_id: r.owner_id, owner_name: r.owner_name,
         graph: { status: r.status, trigger: r.trigger, runs: r.runs, nodes: r.nodes, edges: r.edges, color: r.color || 'sapphire' }
       })));
     } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
   });
   app.get("/api/workflows/:id", async (req, res) => {
     try {
-      const { rows } = await pool.query("SELECT id, name, status, trigger, runs, nodes, edges, color, visibility, shared_with, updated_at FROM workflows WHERE id=$1", [req.params.id]);
+      const { rows } = await pool.query("SELECT id, name, status, trigger, runs, nodes, edges, color, visibility, shared_with, owner_id, owner_name, updated_at FROM workflows WHERE id=$1", [req.params.id]);
       if (!rows[0]) return res.status(404).end();
       const r = rows[0];
       res.json({
         id: r.id, name: r.name, updated_at: r.updated_at, visibility: r.visibility, shared_with: r.shared_with,
+        owner_id: r.owner_id, owner_name: r.owner_name,
         graph: { status: r.status, trigger: r.trigger, runs: r.runs, nodes: r.nodes, edges: r.edges, color: r.color || 'sapphire' }
       });
     } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
@@ -423,9 +425,10 @@ export function mountWorkflowRoutes(app, deps) {
     try {
       const ctx = await deps.resolveActorContext(req);
       const vis = deps.buildVisibility(ctx, 1, 'owner_id');
-      const { rows } = await pool.query(`SELECT id, name, status, trigger, runs, nodes, edges, color, visibility, shared_with, created_at as updated_at FROM orchestrations WHERE ${vis.clause} ORDER BY created_at DESC`, vis.params);
+      const { rows } = await pool.query(`SELECT id, name, status, trigger, runs, nodes, edges, color, visibility, shared_with, owner_id, owner_name, created_at as updated_at FROM orchestrations WHERE ${vis.clause} ORDER BY created_at DESC`, vis.params);
       res.json(rows.map(r => ({
         id: r.id, name: r.name, updated_at: r.updated_at, visibility: r.visibility, shared_with: r.shared_with,
+        owner_id: r.owner_id, owner_name: r.owner_name,
         graph: { status: r.status, trigger: r.trigger, runs: r.runs, nodes: r.nodes, edges: r.edges, color: r.color || 'ruby' }
       })));
     } catch (e) { res.status(500).json({ error: String(e.message || e) }); }

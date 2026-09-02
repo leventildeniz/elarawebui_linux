@@ -344,12 +344,43 @@ Bu fazda, yetkilendirme (Role-Based Access Control) ve mülkiyet (Ownership) omu
 - **Backend Silme & Düzenleme Koruması (Immutability Gate):** `DELETE /api/agents/:id` ve `PUT /api/agents/:id` endpointlerine güvenlik kilidi eklendi. `agt.forge_master` ve `sys.*` sistem çekirdek ajanlarının doğrudan silinmesi veya bozulması HTTP 403 ile engellendi.
 - **Dahili Kod Düzeyi Motor Güvencesi:** MetaForge master motoru (`seed.mjs` ve `planner.mjs`) doğrudan backend sürecinde yerleşik (built-in) olarak korunarak, DB'de kayıt olmasa dahi kendi kendini iyileştiren (self-healing) bir altyapı servisi haline getirildi.
 
-## 45. UP NEXT (Phase 45) - MetaForge Autonomous Workflow & Orchestration (DAG Synthesis)
-- **Vizyon & Hedef:** MetaForge'un sadece tekil araç (`tool`) veya yetenek (`skill`) değil; birden fazla adımı, koşulu (if/else), ajanları ve çıktı bağlayıcılarını içeren tam otonom **Workflow (DAG Grafı)** ve **Orchestration Chains** sentezlemesi sağlanacak.
-- **Entegrasyon Alanları:**
-  - `workflows`, `workflow_nodes` (trigger, tool, agent, skill, condition, output) ve `workflow_edges` tablolarıyla JSON AST plan eşleşmesi.
-  - `/workflows` ve `/orchestration` Canvas arayüzlerinde sentezlenen grafın otomatik çizilmesi ve görselleştirilmesi.
-  - `workflow-engine.mjs` üzerinden çok adımlı zincirlerin (Multi-step DAG) insan onayıyla otonom yürütülmesi.
+## 45. Completed (Phase 45) - MetaForge Autonomous Workflow, Webhook & DAG Synthesis Engine
+- **Workflow DB & Canvas Görsel Eşleşmesi (`apply.mjs` & `workflows.mjs`):** `applyWorkflowCreate` motoru, `nodes` ve `edges` dizilerini `workflows` tablosuna `visibility = 'private'` (`MINE` - Zero-Trust Kurumsal Güvenlik) ve `owner_id = forgedBy` ile kaydeder. Plan içinde düğümler eksikse dahi otomatik olarak Trigger $\rightarrow$ Tool $\rightarrow$ Condition $\rightarrow$ Output düğümlerini sentezleyip `/workflows` Canvas arayüzünde canlı çizilmesini sağlar.
+- **Görünürlük Rozeti Standartlaştırması (`OwnerChip` / `ownership-controls.tsx`):** `OwnerChip` bileşenindeki isim karmaşası giderildi. Rozet üzerinde ham kullanıcı adı yerine her zaman yetki seviyesi etiketleri (`MINE`, `GROUP`, `WORKSPACE`, `SYSTEM`) standart olarak basılır.
+- **Orchestration Zincirleri Doğrulaması (`/api/chains` & `orchestrations`):** Çoklu iş akışı zincirleri `buildVisibility` ve `owner_id/owner_name` eşleşmesiyle test edilip doğrulandı. Canvas ve veritabanı uçtan uca uyumlu hale getirildi.
+- **Thinking Taşması Nihai Koruması (`rich-message.tsx`):** `parseBlocks` fonksiyonuna regex temizleyici eklenerek ekranda render edilmeden önce olası tüm `<think>` ve `<thought>` blokları metinden arındırıldı.
+- **Plan Doğrulama Genişletmesi (`planner.mjs`):** MetaForge plan doğrulayıcısına `workflow`, `chain`, `orchestration` ve `webhook` tipleri eklendi. Envanter tarayıcısına (`buildInventory`) mevcut `workflows` ve `orchestrations` tabloları dahil edildi.
+- **Workflow & Chain İcra ve Kayıt Motoru (`apply.mjs`):**
+  - `applyWorkflowCreate`: MetaForge tarafından önerilen Trigger $\rightarrow$ Tool/Agent/Skill $\rightarrow$ Logic/Condition $\rightarrow$ Output düğümlerini doğrudan `workflows` tablosuna kaydeder.
+  - `applyChainCreate`: Çoklu iş akışlarını birbirine bağlayan orkestrasyon zincirlerini `orchestrations` tablosuna işler.
+  - `rollbackForgePlan`: Onaylanan workflow, chain veya webhook'ları tek tıkla geri alma desteği sağlandı.
 
-## 46. UP NEXT (Phase 46) - Agentic RAG & Knowledge Hub Validation
+## 46. Completed (Phase 46) - Autonomous Workflow & Orchestration Synthesis Fixes
+MetaForge tarafından sentezlenen çok adımlı Workflow (DAG) ve Orchestration zincirlerinin arayüzde görünmeme, kaydedilmeme ve isim halüsinasyonu sorunları uçtan uca çözüldü.
+
+### Tespit Edilen Kök Sebepler & Yapılan Düzeltmeler:
+1. **Budget Cap (3 Turn) Budama Sorunu (`apply.mjs`):**
+   - **Kök Sebep:** `DEFAULT_MAX_ITEMS_PER_TURN = 3` olarak sınırlandığı için, modelin 3 Python aracı + 1 Workflow DAG içeren 4 elemanlı planlarında son sıradaki `workflow` nesnesi `deferred` listesine atılıp veritabanına yazılmadan sessizce budanıyordu.
+   - **Çözüm:** Limit karmaşık iş akışları ve orkestrasyon zincirlerini kapsayacak şekilde `25`'e yükseltildi. Artık tüm DAG akışları eksiksiz kaydediliyor.
+2. **Slug / ID Prefix Standardizasyonu (`apply.mjs`):**
+   - **Kök Sebep:** Model `slug: "wf.my-pipeline"` veya `slug: "orc.my-chain"` ürettiğinde `wf_wf.my-pipeline` gibi çift önekli veya noktalı ID'ler oluşabiliyordu.
+   - **Çözüm:** `cleanSlug` ile `wf.`, `workflow.`, `orc.`, `chain.` önekleri temizlenip standart `wf_<slug>` ve `orc_<slug>` ID üretimi sağlandı.
+3. **DAG Düğüm & Kenar Normalizasyonu (`apply.mjs`):**
+   - Modelden gelen `source.nodes`, `source.edges` ve `config` nesneleri temizlenerek Canvas arayüzünün doğrudan anlayacağı `from`/`to` ve koordinat formatına (`x`, `y`) normalize edildi. Canvas üzerinde "SSL Monitor Workflow" düğümleriyle (Trigger -> Tool -> Logic -> Tool/Output) hatasız çizildi.
+4. **İsim Uyuşmazlığı ve Dizin Farkındalığı (`chat-orchestrate.mjs` & `index.tsx`):**
+   - **Kök Sebep:** Model plandaki teknik slug (`ssl-monitor-workflow`) ile insanın gördüğü başlık adını (`SSL Expiry Monitor Workflow`) karıştırıyor, tabloda isim yerine slug yazıyordu.
+   - **Çözüm:** `chat-orchestrate.mjs` prompt direktiflerine İsim ve Slug ayrımı (`| Tür | İsim | ID / Slug | Açıklama |`) eklendi. Modelin sohbette ve tablolarda insan dostu başlık adını (`SSL Expiry Monitor Workflow`) esas alması sağlandı.
+5. **Onay Kartı Hover Titreme / Titreşim Sorunu (`index.tsx` & `metaforge-approval-card.tsx`):**
+   - **Kök Sebep:** `src/routes/index.tsx` içerisindeki `requestAnimationFrame` scroll takip efekti bağımlılık dizisi olmadan (`[]` eksik) her render'da tetikleniyordu. Kartın üzerine gelindiğinde oluşan hover state'i scroll tetikliyor, bu da sonsuz bir layout/hover titreme döngüsüne (jitter) yol açıyordu.
+   - **Çözüm:** Scroll efekti yalnızca `[messages, streaming]` değiştiğinde çalışacak şekilde sınırlandı. `metaforge-approval-card.tsx` içindeki buton ve ikon hover transformasyonları reflow oluşturmayan pürüzsüz CSS geçişlerine (`transition-all`) dönüştürüldü.
+6. **Plan Onaylama 409 (Conflict) ve Çift Tıklama Koruması (`meta-forge.mjs` & `metaforge-approval-card.tsx`):**
+   - **Kök Sebep:** Kullanıcı "APPROVE" butonuna bastığında network gecikmesi veya çift tıklama durumunda ilk istek planı `applied` durumuna alıyor, milisaniye sonra giden ikinci istek ise `plan status is applied` diyerek HTTP 409 dönüyordu.
+   - **Çözüm:** `/api/meta-forge/plans/:id/apply` endpoint'i idempotent hale getirildi (`status === "applied"` ise 200 OK döner). Kart butonlarına `submitting` durumu eklenerek mükerrer tıklamalar kilitlendi.
+
+## 47. IN FOCUS / DEVİR PLANI (Phase 47) - Autonomous Workflow & Orchestration Pipeline Hardening
+- **Frontend Canvas & Tab Otomatik Odaklanma:** Onaylanan yeni `wf_...` veya `orc_...` akışının `/flows` ve `/orchestration` Canvas'ında otomatik seçilmesi.
+- **DAG İcra Doğrulaması (`workflow-engine.mjs` & `workflows.mjs`):** Sentezlenen düğümlerin "Run Workflow" ile adım adım yürütülmesi.
+- **Template Literal Backtick Koruması (`chat-orchestrate.mjs`):** Direktif metinleri içindeki ters tırnaklar temizlendi; JS template literal evaluation hatası (`flows is not defined`) giderildi.
+
+## 48. UP NEXT (Phase 48) - Agentic RAG & Knowledge Hub Validation
 - Dondurulan RAG entegrasyonu, departman bazlı space izolasyonu (`rag_space_id`), dosya indeksleme ve reranker testleri devreye alınacak.

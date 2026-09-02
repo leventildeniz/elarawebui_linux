@@ -92,7 +92,11 @@ export function visibilityOf(rec: Owned | undefined | null): Visibility {
 }
 
 export function isMine(rec: Owned | undefined | null, ctx: OwnerCtx): boolean {
-  return Boolean(rec?.ownerId && ctx.userId && rec.ownerId === ctx.userId);
+  if (!rec) return false;
+  if (rec.ownerId && ctx.userId && rec.ownerId === ctx.userId) return true;
+  if (rec.ownerId && ctx.name && rec.ownerId.toLowerCase() === ctx.name.toLowerCase()) return true;
+  if (rec.ownerName && ctx.name && rec.ownerName.toLowerCase() === ctx.name.toLowerCase()) return true;
+  return false;
 }
 
 /** May this principal see the record at all? */

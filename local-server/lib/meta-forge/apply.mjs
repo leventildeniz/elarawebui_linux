@@ -29,7 +29,7 @@ const AGENTS_DIR = path.join(PROJECT_ROOT, "agents");
 const TRASH_DIR = path.join(PROJECT_ROOT, ".forge-trash");
 
 const AUTO_LIVE_CONFIDENCE_MIN = 0.7;
-const DEFAULT_MAX_ITEMS_PER_TURN = 3;
+const DEFAULT_MAX_ITEMS_PER_TURN = 25;
 
 function safeFileSlug(raw) {
   const slug = String(raw || "").replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 64);
@@ -74,6 +74,33 @@ function clampConfidence(raw) {
 }
 
 // Look up existing capability by intent_hash or exact slug/kind. Returns row or null.
+async function resolveDbOwner(pool, forgedBy) {
+  let ownerId = null;
+  let ownerName = forgedBy || "admin";
+  if (forgedBy) {
+    try {
+      const u = await pool.query(
+        "SELECT id, username FROM app_users WHERE id = $1 OR lower(username) = lower($1) LIMIT 1",
+        [forgedBy]
+      );
+      if (u.rows.length > 0) {
+        ownerId = u.rows[0].id;
+        ownerName = u.rows[0].username;
+      }
+    } catch { /* ignore */ }
+  }
+  if (!ownerId) {
+    try {
+      const adminU = await pool.query("SELECT id, username FROM app_users WHERE lower(role) = 'admin' ORDER BY created_at ASC LIMIT 1");
+      if (adminU.rows.length > 0) {
+        ownerId = adminU.rows[0].id;
+        if (!ownerName) ownerName = adminU.rows[0].username;
+      }
+    } catch { /* ignore */ }
+  }
+  return { ownerId, ownerName };
+}
+
 async function findDuplicateByHash(pool, intentHash, item = {}) {
   if (!intentHash && !item?.slug) return null;
   try {
@@ -121,13 +148,16 @@ async function applySkillCreate(pool, planId, item, meta) {
   const instructions = String(item.body || item.instructions || item.source || "").slice(0, 20000);
   const description = String(item.description || "").slice(0, 500);
   if (!instructions.trim()) throw new Error(`skill ${slug}: body/instructions required`);
+  const { ownerId, ownerName } = await resolveDbOwner(pool, meta.forgedBy);
   const r = await pool.query(
-    `INSERT INTO skills (id, name, description, instructions, type, system)
-     VALUES ($1, $2, $3, $4, 'native', false)
+    `INSERT INTO skills (id, name, description, instructions, type, system, owner_id, owner_name, visibility)
+     VALUES ($1, $2, $3, $4, 'native', false, $5, $6, 'workspace')
      ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name,
-       description=EXCLUDED.description, instructions=EXCLUDED.instructions
+       description=EXCLUDED.description, instructions=EXCLUDED.instructions,
+       owner_id=COALESCE(skills.owner_id, EXCLUDED.owner_id),
+       owner_name=COALESCE(skills.owner_name, EXCLUDED.owner_name)
      RETURNING id`,
-    [slug, name, description, instructions],
+    [slug, name, description, instructions, ownerId, ownerName],
   );
   await pool.query(
     `INSERT INTO forge_artifacts (plan_id, kind, slug, db_row_id)
@@ -136,6 +166,203 @@ async function applySkillCreate(pool, planId, item, meta) {
   );
   await stampCapabilityMeta(pool, { slug, kind: "skill", ...meta });
   return { kind: "skill", slug, id: r.rows[0].id, ...meta };
+}
+
+async function applyWorkflowCreate(pool, planId, item, meta) {
+  const cleanSlug = String(item.slug || "")
+    .replace(/^(wf[._]|workflow[._])+/i, "")
+    .replace(/[^a-zA-Z0-9_-]/g, "_")
+    .slice(0, 64);
+  const wfId = `wf_${cleanSlug || Date.now().toString(36)}`;
+  const name = String(item.name || cleanSlug || wfId).slice(0, 120);
+  const trigger = String(item.trigger || "Manual");
+  
+  let nodes = Array.isArray(item.nodes) ? item.nodes : [];
+  let edges = Array.isArray(item.edges) ? item.edges : [];
+  if (!nodes.length && typeof item.source === "object" && item.source !== null) {
+    nodes = Array.isArray(item.source?.nodes) ? item.source.nodes : [];
+    edges = Array.isArray(item.source?.edges) ? item.source.edges : [];
+  }
+  if (!nodes.length && typeof item.source === "string") {
+    try {
+      const parsed = JSON.parse(item.source);
+      nodes = Array.isArray(parsed?.nodes) ? parsed.nodes : [];
+      edges = Array.isArray(parsed?.edges) ? parsed.edges : [];
+    } catch {}
+  }
+
+  // Synthesize default DAG nodes if empty so canvas displays connected nodes
+  if (!nodes.length) {
+    nodes = [
+      { id: "node_1", kind: "trigger", label: `${trigger} Trigger`, meta: "inbound", x: 100, y: 160 },
+      { id: "node_2", kind: "tool", label: item.action_label || name, meta: item.tool_id || `tool.${cleanSlug}`, x: 380, y: 160 },
+      { id: "node_3", kind: "logic", label: "condition", meta: "logic.if", x: 660, y: 160 },
+      { id: "node_4", kind: "output", label: "Markdown Report", meta: "report.markdown", x: 940, y: 160 },
+    ];
+    edges = [
+      { id: "e1", from: "node_1", to: "node_2" },
+      { id: "e2", from: "node_2", to: "node_3" },
+      { id: "e3", from: "node_3", to: "node_4" },
+    ];
+  } else {
+    // Normalize nodes & edges for consistent canvas rendering
+    nodes = nodes.map((n, idx) => ({
+      id: String(n.id || `node_${idx + 1}`),
+      kind: n.kind || n.type || "tool",
+      label: n.label || n.name || `Node ${idx + 1}`,
+      meta: n.meta || n.ref_id || n.tool_id || "",
+      x: Number.isFinite(n.x) ? n.x : 100 + idx * 240,
+      y: Number.isFinite(n.y) ? n.y : 160,
+      ...(n.config ? { config: n.config } : {})
+    }));
+    edges = edges.map((e, idx) => ({
+      id: String(e.id || `e_${idx + 1}`),
+      from: String(e.from || e.source || nodes[idx]?.id || `node_${idx + 1}`),
+      to: String(e.to || e.target || nodes[idx + 1]?.id || `node_${idx + 2}`),
+      ...(e.condition ? { condition: e.condition } : {}),
+      ...(e.label ? { label: e.label } : {})
+    }));
+  }
+
+  const { ownerId, ownerName } = await resolveDbOwner(pool, meta.forgedBy);
+  const r = await pool.query(
+    `INSERT INTO workflows (id, name, status, trigger, runs, nodes, edges, color, visibility, shared_with, owner_id, owner_name, updated_at)
+     VALUES ($1, $2, 'draft', $3, 0, $4::jsonb, $5::jsonb, 'sapphire', 'private', '[]'::jsonb, $6, $7, now())
+     ON CONFLICT (id) DO UPDATE SET
+       name = EXCLUDED.name,
+       trigger = EXCLUDED.trigger,
+       nodes = EXCLUDED.nodes,
+       edges = EXCLUDED.edges,
+       visibility = COALESCE(workflows.visibility, 'private'),
+       owner_id = COALESCE(workflows.owner_id, EXCLUDED.owner_id),
+       owner_name = COALESCE(workflows.owner_name, EXCLUDED.owner_name),
+       updated_at = now()
+     RETURNING id`,
+    [wfId, name, trigger, JSON.stringify(nodes), JSON.stringify(edges), ownerId, ownerName],
+  );
+
+  await pool.query(
+    `INSERT INTO forge_artifacts (plan_id, kind, slug, db_row_id)
+     VALUES ($1, 'workflow', $2, $3) ON CONFLICT DO NOTHING`,
+    [planId, cleanSlug, r.rows[0].id],
+  );
+  await stampCapabilityMeta(pool, { slug: cleanSlug, kind: "workflow", ...meta });
+  return { kind: "workflow", slug: cleanSlug, id: r.rows[0].id, ...meta };
+}
+
+async function applyChainCreate(pool, planId, item, meta) {
+  const cleanSlug = String(item.slug || "")
+    .replace(/^(orc[._]|chain[._]|orchestration[._])+/i, "")
+    .replace(/[^a-zA-Z0-9_-]/g, "_")
+    .slice(0, 64);
+  const chainId = `orc_${cleanSlug || Date.now().toString(36)}`;
+  const name = String(item.name || cleanSlug || chainId).slice(0, 120);
+  const trigger = String(item.trigger || "Manual");
+  
+  let nodes = Array.isArray(item.nodes) ? item.nodes : [];
+  let edges = Array.isArray(item.edges) ? item.edges : [];
+  if (!nodes.length && typeof item.source === "object" && item.source !== null) {
+    nodes = Array.isArray(item.source?.nodes) ? item.source.nodes : [];
+    edges = Array.isArray(item.source?.edges) ? item.source.edges : [];
+  }
+  if (!nodes.length && typeof item.source === "string") {
+    try {
+      const parsed = JSON.parse(item.source);
+      nodes = Array.isArray(parsed?.nodes) ? parsed.nodes : [];
+      edges = Array.isArray(parsed?.edges) ? parsed.edges : [];
+    } catch {}
+  }
+
+  if (!nodes.length) {
+    nodes = [
+      { id: "node_1", kind: "workflow", label: "Pipeline Stage 1", meta: "workflow", x: 140, y: 160 },
+      { id: "node_2", kind: "logic", label: "branch-condition", meta: "control", x: 420, y: 160 },
+      { id: "node_3", kind: "output", label: "Executive Digest", meta: "output", x: 700, y: 160 },
+    ];
+    edges = [
+      { id: "e1", from: "node_1", to: "node_2" },
+      { id: "e2", from: "node_2", to: "node_3" },
+    ];
+  } else {
+    nodes = nodes.map((n, idx) => ({
+      id: String(n.id || `node_${idx + 1}`),
+      kind: n.kind || n.type || "workflow",
+      label: n.label || n.name || `Stage ${idx + 1}`,
+      meta: n.meta || n.ref_id || "",
+      x: Number.isFinite(n.x) ? n.x : 140 + idx * 280,
+      y: Number.isFinite(n.y) ? n.y : 160,
+      ...(n.config ? { config: n.config } : {})
+    }));
+    edges = edges.map((e, idx) => ({
+      id: String(e.id || `e_${idx + 1}`),
+      from: String(e.from || e.source || nodes[idx]?.id || `node_${idx + 1}`),
+      to: String(e.to || e.target || nodes[idx + 1]?.id || `node_${idx + 2}`),
+      ...(e.condition ? { condition: e.condition } : {}),
+      ...(e.label ? { label: e.label } : {})
+    }));
+  }
+
+  const { ownerId, ownerName } = await resolveDbOwner(pool, meta.forgedBy);
+  const r = await pool.query(
+    `INSERT INTO orchestrations (id, name, status, trigger, runs, nodes, edges, color, visibility, shared_with, owner_id, owner_name, updated_at)
+     VALUES ($1, $2, 'draft', $3, 0, $4::jsonb, $5::jsonb, 'amethyst', 'private', '[]'::jsonb, $6, $7, now())
+     ON CONFLICT (id) DO UPDATE SET
+       name = EXCLUDED.name,
+       trigger = EXCLUDED.trigger,
+       nodes = EXCLUDED.nodes,
+       edges = EXCLUDED.edges,
+       visibility = COALESCE(orchestrations.visibility, 'private'),
+       owner_id = COALESCE(orchestrations.owner_id, EXCLUDED.owner_id),
+       owner_name = COALESCE(orchestrations.owner_name, EXCLUDED.owner_name),
+       updated_at = now()
+     RETURNING id`,
+    [chainId, name, trigger, JSON.stringify(nodes), JSON.stringify(edges), ownerId, ownerName],
+  );
+
+  await pool.query(
+    `INSERT INTO forge_artifacts (plan_id, kind, slug, db_row_id)
+     VALUES ($1, 'chain', $2, $3) ON CONFLICT DO NOTHING`,
+    [planId, cleanSlug, r.rows[0].id],
+  );
+  await stampCapabilityMeta(pool, { slug: cleanSlug, kind: "chain", ...meta });
+  return { kind: "chain", slug: cleanSlug, id: r.rows[0].id, ...meta };
+}
+
+async function applyWebhookCreate(pool, planId, item, meta) {
+  const cleanSlug = String(item.slug || "")
+    .replace(/^(wh[._]|webhook[._])+/i, "")
+    .replace(/[^a-zA-Z0-9_-]/g, "_")
+    .slice(0, 64);
+  const whId = `wh.${cleanSlug || Date.now().toString(36)}`;
+  const name = String(item.name || cleanSlug || whId).slice(0, 120);
+  const description = String(item.description || "").slice(0, 500);
+  const category = String(item.category || "webhook");
+  const connection = String(item.connection || "http_inbound");
+  const runner = String(item.runner || "express");
+
+  const { ownerId, ownerName } = await resolveDbOwner(pool, meta.forgedBy);
+  const r = await pool.query(
+    `INSERT INTO webhooks (id, name, description, tags, category, connection, runner, vault_scope, vault_name, vault_field, config, risk, requires_approval, enabled, slug, url_override, ingest_to_rag, rag_space_id, owner_id, owner_name, visibility, shared_with, created_at, updated_at)
+     VALUES ($1, $2, $3, '[]'::jsonb, $4, $5, $6, 'none', null, null, '{}'::jsonb, 'low', false, true, $7, null, true, null, $8, $9, 'workspace', '[]'::jsonb, now(), now())
+     ON CONFLICT (id) DO UPDATE SET
+       name = EXCLUDED.name,
+       description = EXCLUDED.description,
+       slug = EXCLUDED.slug,
+       visibility = COALESCE(webhooks.visibility, 'workspace'),
+       owner_id = COALESCE(webhooks.owner_id, EXCLUDED.owner_id),
+       owner_name = COALESCE(webhooks.owner_name, EXCLUDED.owner_name),
+       updated_at = now()
+     RETURNING id`,
+    [whId, name, description, category, connection, runner, cleanSlug, ownerId, ownerName],
+  );
+
+  await pool.query(
+    `INSERT INTO forge_artifacts (plan_id, kind, slug, db_row_id)
+     VALUES ($1, 'webhook', $2, $3) ON CONFLICT DO NOTHING`,
+    [planId, cleanSlug, r.rows[0].id],
+  );
+  await stampCapabilityMeta(pool, { slug: cleanSlug, kind: "webhook", ...meta });
+  return { kind: "webhook", slug: cleanSlug, id: r.rows[0].id, ...meta };
 }
 
 async function applyPackCreate(pool, planId, item, meta) {
@@ -342,10 +569,13 @@ export async function applyForgePlan({ pool, planId, plan, maxItems = DEFAULT_MA
 
     try {
       let res;
-      if (item.kind === "skill")      res = await applySkillCreate(pool, planId, item, meta);
-      else if (item.kind === "pack")  res = await applyPackCreate(pool, planId, item, meta);
-      else if (item.kind === "tool")  res = await applyToolCreate(pool, planId, item, meta);
-      else if (item.kind === "agent") res = await applyAgentCreate(pool, planId, item, meta);
+      if (item.kind === "skill")           res = await applySkillCreate(pool, planId, item, meta);
+      else if (item.kind === "pack")       res = await applyPackCreate(pool, planId, item, meta);
+      else if (item.kind === "tool")       res = await applyToolCreate(pool, planId, item, meta);
+      else if (item.kind === "agent")      res = await applyAgentCreate(pool, planId, item, meta);
+      else if (item.kind === "workflow")   res = await applyWorkflowCreate(pool, planId, item, meta);
+      else if (item.kind === "chain" || item.kind === "orchestration") res = await applyChainCreate(pool, planId, item, meta);
+      else if (item.kind === "webhook")    res = await applyWebhookCreate(pool, planId, item, meta);
       else {
         failed.push({ kind: item.kind, slug: item.slug, reason: `unknown kind: ${item.kind}` });
         processed++;
@@ -372,8 +602,7 @@ export async function applyForgePlan({ pool, planId, plan, maxItems = DEFAULT_MA
         `UPDATE forge_plans
             SET applied_files = $2::jsonb,
                 smoke_report  = $3::jsonb,
-                intent_hash   = COALESCE($4, intent_hash),
-                updated_at    = now()
+                intent_hash   = COALESCE($4, intent_hash)
           WHERE id = $1`,
         [
           planId,
@@ -450,6 +679,15 @@ export async function rollbackForgePlan({ pool, planId }) {
       } else if (a.kind === "pack" && a.db_row_id) {
         await pool.query(`DELETE FROM capability_packs WHERE id=$1 AND system=false`, [a.db_row_id]);
         removed.push({ kind: "pack", slug: a.slug });
+      } else if (a.kind === "workflow" && a.db_row_id) {
+        await pool.query(`DELETE FROM workflows WHERE id=$1`, [a.db_row_id]);
+        removed.push({ kind: "workflow", slug: a.slug });
+      } else if (a.kind === "chain" && a.db_row_id) {
+        await pool.query(`DELETE FROM orchestrations WHERE id=$1`, [a.db_row_id]);
+        removed.push({ kind: "chain", slug: a.slug });
+      } else if (a.kind === "webhook" && a.db_row_id) {
+        await pool.query(`DELETE FROM webhooks WHERE id=$1`, [a.db_row_id]);
+        removed.push({ kind: "webhook", slug: a.slug });
       } else if ((a.kind === "tool" || a.kind === "agent") && a.disk_path) {
         const abs = path.resolve(PROJECT_ROOT, a.disk_path);
         const baseDir = a.kind === "tool" ? TOOLS_DIR : AGENTS_DIR;

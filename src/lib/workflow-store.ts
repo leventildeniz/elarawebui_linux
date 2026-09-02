@@ -77,6 +77,8 @@ export function useWorkflows() {
             nodes: w.graph?.nodes || [],
             edges: w.graph?.edges || [],
             jewel: w.graph?.color || "sapphire",
+            ownerId: w.owner_id || w.ownerId,
+            ownerName: w.owner_name || w.ownerName,
             visibility: w.visibility || "private",
             sharedWith: typeof w.shared_with === "string" ? JSON.parse(w.shared_with) : (w.shared_with || []),
             createdAt: new Date(w.updated_at).getTime(),

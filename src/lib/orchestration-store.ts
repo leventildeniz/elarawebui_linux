@@ -74,6 +74,8 @@ export function useChains() {
             nodes: c.graph?.nodes || [],
             edges: c.graph?.edges || [],
             jewel: c.graph?.color || "sapphire",
+            ownerId: c.owner_id || c.ownerId,
+            ownerName: c.owner_name || c.ownerName,
             visibility: c.visibility || "private",
             sharedWith: typeof c.shared_with === "string" ? JSON.parse(c.shared_with) : (c.shared_with || []),
             createdAt: new Date(c.updated_at).getTime(),

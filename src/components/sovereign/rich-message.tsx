@@ -11,7 +11,12 @@ type Block =
   | { type: "text"; text: string };
 
 export function parseBlocks(src: string): Block[] {
-  const lines = src.split("\n");
+  // Strip any raw <think>...</think> or <thought>...</thought> tags from display text
+  const cleanSrc = src
+    .replace(/<think>[\s\S]*?<\/think>/gi, "")
+    .replace(/<thought>[\s\S]*?<\/thought>/gi, "")
+    .trim();
+  const lines = cleanSrc.split("\n");
   const blocks: Block[] = [];
   let buf: string[] = [];
 
