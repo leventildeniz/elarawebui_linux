@@ -373,14 +373,44 @@ MetaForge tarafından sentezlenen çok adımlı Workflow (DAG) ve Orchestration 
 5. **Onay Kartı Hover Titreme / Titreşim Sorunu (`index.tsx` & `metaforge-approval-card.tsx`):**
    - **Kök Sebep:** `src/routes/index.tsx` içerisindeki `requestAnimationFrame` scroll takip efekti bağımlılık dizisi olmadan (`[]` eksik) her render'da tetikleniyordu. Kartın üzerine gelindiğinde oluşan hover state'i scroll tetikliyor, bu da sonsuz bir layout/hover titreme döngüsüne (jitter) yol açıyordu.
    - **Çözüm:** Scroll efekti yalnızca `[messages, streaming]` değiştiğinde çalışacak şekilde sınırlandı. `metaforge-approval-card.tsx` içindeki buton ve ikon hover transformasyonları reflow oluşturmayan pürüzsüz CSS geçişlerine (`transition-all`) dönüştürüldü.
-6. **Plan Onaylama 409 (Conflict) ve Çift Tıklama Koruması (`meta-forge.mjs` & `metaforge-approval-card.tsx`):**
-   - **Kök Sebep:** Kullanıcı "APPROVE" butonuna bastığında network gecikmesi veya çift tıklama durumunda ilk istek planı `applied` durumuna alıyor, milisaniye sonra giden ikinci istek ise `plan status is applied` diyerek HTTP 409 dönüyordu.
-   - **Çözüm:** `/api/meta-forge/plans/:id/apply` endpoint'i idempotent hale getirildi (`status === "applied"` ise 200 OK döner). Kart butonlarına `submitting` durumu eklenerek mükerrer tıklamalar kilitlendi.
+7. **Zero-Trust & MINE (`private`) Görünürlük Standardizasyonu (`apply.mjs`):**
+   - MetaForge tarafından sentezlenen tüm varlıkların (`agent`, `skill`, `tool`, `webhook`, `workflow`, `orchestration`) varsayılan görünürlüğü kurumsal güvenlik gereği strictly `'private'` (`MINE`) olarak kilitlendi. Yalnızca oturum açan kullanıcı ve yetkili operatörler görür.
+8. **Chat Tablo Stream Titreme & Jitter Çözümü (`rich-message.tsx`):**
+   - `parseBlocks` içerisindeki tablo ayrıştırıcı streaming dostu hale getirildi. Satırların akış esnasında `<p>` ve `<table>` arasında sürekli gidip gelmesi (flicker) engellendi.
+9. **Meta-Forge Ledger SSR Hydration Mismatch Onarımı (`metaforge-store.ts` & `meta-forge.tsx`):**
+   - Sunucu tarafında (SSR) `0 applied` render edilirken istemcide localStorage'dan `1 applied` gelmesinden kaynaklanan React hydration hatası çözüldü; store ve route bileşeni güvenli hydration döngüsüne bağlandı.
+10. **Birleşik Rollback & Reset Ledger Mimarisi (`meta-forge.mjs`, `metaforge-store.ts`, `meta-forge.tsx`):**
+   - **`reapply` Endpoint'i:** Geri alınmış (`rolled_back`) planların tek tıkla (`RE-APPLY`) tüm dosyaları, araçları ve workflow'larıyla eksiksiz yeniden ayağa kaldırılması sağlandı.
+   - **Reset Ledger Seçenek Modalı:** "Reset Ledger" tıklandığında operatöre 2 açık ve seçilebilir seçenek sunulur (1. seçenek varsayılan seçili):
+     1. *Clear History Only (Log Purge):* Sistemdeki aktif araç ve iş akışlarına dokunmadan yalnızca defter geçmişini temizler.
+     2. *Clean Sweep & Rollback (Factory Reset):* Tüm otonom varlıkları geri alıp `.forge-trash`'e taşır, veritabanını temizler ve defteri sıfırlar.
+11. **Orchestration Chain ve Çok Adımlı Akış Yönlendirmesi (`chat-orchestrate.mjs` & `seed.mjs`):**
+   - Kullanıcı "Orchestration Zinciri (Chain)" veya "Workflow DAG" istediğinde modelin metinsel yanıt uydurması engellendi; `sys_delegate_to_metaforge` aracı ve TIER 3 direktifleri çoklu iş akışlarını kapsayacak şekilde zorunlu kılındı. `agt.forge_master` ajanına orchestration chain örnek şablonu işlendi.
+12. **Orchestration Chain DB Kolon Şema Uyumsuzluğu (`apply.mjs`):**
+   - `applyChainCreate` fonksiyonunda `orchestrations` tablosuna `updated_at` kolonu yazılmaya çalışıldığı için (`column "updated_at" of relation "orchestrations" does not exist`) zincir kaydı atlanıyordu; sorgu `v2_master_schema.sql` standardına (`created_at`) uyumlu hale getirilerek `orc_sec_compliance_audit` 6 düğüm ve 6 kenarla başarıyla kaydedildi.
+13. **Orphan & Trash Hub (Arşiv Çekmecesi) Mimarisi (`meta-forge.mjs`, `metaforge-store.ts`, `meta-forge.tsx`):**
+   - **Trash API:** `.forge-trash` dizinindeki tüm Python araç ve ajanlarını listeleyen (`GET /api/meta-forge/trash`), tek tıkla geri yükleyen (`POST /api/meta-forge/trash/:fileName/restore`) ve kalıcı silen (`DELETE`) API uçları eklendi.
+   - **Rollback Guard:** Rollback butonuna basıldığında kazara silmeleri önlemek için onay dialogu (`confirmAction`) bağlandı.
+   - **Meta-Forge Trash Drawer:** `/meta-forge` arayüzüne **"Trash & Archive"** butonu ve arşiv modalı eklendi. Defter sıfırlansa dahi geri alınmış tüm varlıklar bu çekmeceden tek tıkla kurtarılabilir hale getirildi.
+14. **Yerel Model (Gemma 4 / LLaMA) Pseudo-Tool Call Ayrıştırıcı (`chat-orchestrate.mjs`):**
+   - Yerel modellerin OpenAI JSON tool-call formatı yerine metin akışı içinde ürettiği `<call:sys_delegate_to_metaforge intent="..." />` ve `<tool_call>...</tool_call>` etiketleri arka planda yakalanarak canlı fonksiyon çağrısına dönüştürüldü; metinden temizlenerek onay kartının fırlatılması sağlandı.
+15. **MetaForge & Agentic ReAct Hız Optimizasyonları (`chat-orchestrate.mjs`):**
+   - **Adaptive Turn Effort:** İlk turda kullanıcının seçtiği effort ("high") kullanılır; araç çalıştırma sonrası turlarda (Turn 2+) modelin eldeki sonuç üzerine dakikalarca gereksiz düşünce döngüsüne girmemesi için effort adapte edildi ("low"/"none").
+   - **Sub-Agent Hızlandırması (`sys_delegate_to_agent`):** Alt ajan çağrıları `effort: "low"` moduna çekilerek yanıt süreleri saniyeler seviyesine indirildi.
+   - **Payload Truncation Guard:** `crt.sh` gibi devasa veri dönen araçların 20.000+ karakterlik ham çıktıları context şişmesi ve yerel modelde 1 tok/s darboğazı yaratmaması için güvenli özetleme notuyla sınırlandırıldı.
+   - **Enterprise ReAct Tavanı (15 Tur):** Kurumsal seviyedeki çok adımlı, karmaşık ve çoklu araç zincirleme operasyonlarına tam özgürlük tanımak amacıyla döngü tavanı 15 tur olarak korundu. Adaptive effort ve payload guard sayesinde bu turlar takılmadan akıcı işler.
 
-## 47. IN FOCUS / DEVİR PLANI (Phase 47) - Autonomous Workflow & Orchestration Pipeline Hardening
-- **Frontend Canvas & Tab Otomatik Odaklanma:** Onaylanan yeni `wf_...` veya `orc_...` akışının `/flows` ve `/orchestration` Canvas'ında otomatik seçilmesi.
-- **DAG İcra Doğrulaması (`workflow-engine.mjs` & `workflows.mjs`):** Sentezlenen düğümlerin "Run Workflow" ile adım adım yürütülmesi.
-- **Template Literal Backtick Koruması (`chat-orchestrate.mjs`):** Direktif metinleri içindeki ters tırnaklar temizlendi; JS template literal evaluation hatası (`flows is not defined`) giderildi.
+## 47. IN FOCUS / DEVİR PLANI (Phase 47) - Autonomous Pipeline Polish & Latency Profiling
+Bu aşamada MetaForge ve Chat orkestrasyonundaki kalan 2 kritik başlığa ve icra doğrulamasına odaklanılacaktır:
+
+### Çözülecek 2 Kritik Başlık:
+1. **Onay Kartının Render Zamanlaması ve Yerleşimi (`chat-orchestrate.mjs` & `index.tsx`):**
+   - **Sorun:** Model araç çağrısını (`sys_delegate_to_metaforge`) tamamlar tamamlamaz kartı gönderiyor. Model 2. turda açıklama metnini ve tablosunu yazarken kart ekranda duruyor ve metin kartın üzerine/çevresine akıyor.
+   - **Hedef:** Model önce tüm açıklama metnini ve tablosunu eksiksiz tamamlamalı ("onayınızı bekliyorum" cümlesi dahil), metin akışı bittiği anda onay kartı en altta zarif bir şekilde belirmelidir.
+2. **Orchestration & MetaForge Yerel Model Gecikme Optimizasyonu:**
+   - **Sorun:** Yerel modellerde (Gemma 4 31B vb.) orkestrasyon ve MetaForge sentez süreçlerinde yaşanan bekleme sürelerinin profilini çıkarmak ve TTFT (Time-to-first-token) ile token akışını optimize etmek.
+3. **Uçtan Uca DAG İcra Doğrulaması (`workflow-engine.mjs` & `workflows.mjs`):**
+   - Sentezlenen düğümlerin "Run Workflow" ve Webhook tetikleyicisiyle adım adım yürütülmesi (`Trigger ➔ Tool ➔ Logic ➔ Output`).
 
 ## 48. UP NEXT (Phase 48) - Agentic RAG & Knowledge Hub Validation
 - Dondurulan RAG entegrasyonu, departman bazlı space izolasyonu (`rag_space_id`), dosya indeksleme ve reranker testleri devreye alınacak.

@@ -4,9 +4,18 @@
 // Naming: "meta-forge" to avoid collision with existing forge.mjs
 // (action library editor). Mounted at /api/meta-forge/*.
 
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { buildInventory, validateForgePlan } from "../meta-forge/planner.mjs";
 import { applyForgePlan, rollbackForgePlan } from "../meta-forge/apply.mjs";
 import { refreshCapabilitiesAfterForgeApply } from "../meta-forge/refresh.mjs";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const PROJECT_ROOT = path.resolve(__dirname, "..", "..", "..");
+const TRASH_DIR = path.join(PROJECT_ROOT, ".forge-trash");
+const TOOLS_DIR = path.join(PROJECT_ROOT, "tools");
+const AGENTS_DIR = path.join(PROJECT_ROOT, "agents");
 
 const ENSURE_SQL = ``;
 
@@ -158,10 +167,36 @@ export function mountMetaForgeRoutes(app, deps) {
     try {
       const result = await rollbackForgePlan({ pool, planId: req.params.id });
       await pool.query(
-        `UPDATE forge_plans SET status='rolled_back', note=COALESCE(note,'') || ' [rolled back]' WHERE id=$1`,
+        `UPDATE forge_plans SET status='rolled_back', rolled_back_at=now(), note=COALESCE(note,'') || ' [rolled back]' WHERE id=$1`,
         [req.params.id],
       );
       res.json({ ok: true, ...result });
+    } catch (e) {
+      res.status(500).json({ error: String(e?.message || e) });
+    }
+  });
+
+  app.post("/api/meta-forge/plans/:id/reapply", async (req, res) => {
+    const ctx = await requireAdmin(req, res); if (!ctx) return;
+    const { rows } = await pool.query(
+      `SELECT id, jsonb_build_object('create', actions) AS plan_json, status FROM forge_plans WHERE id=$1`,
+      [req.params.id],
+    );
+    if (!rows.length) return res.status(404).json({ error: "plan not found" });
+    const p = rows[0];
+    try {
+      const operatorUser = ctx?.username || ctx?.user?.name || req.session?.username || req.actor || "system";
+      const result = await applyForgePlan({ pool, planId: p.id, plan: p.plan_json, forgedBy: operatorUser });
+      const finalStatus = result.failed.length && !result.applied.length ? "failed" : "applied";
+      await pool.query(
+        `UPDATE forge_plans SET status=$2, rolled_back_at=null, note=null WHERE id=$1`,
+        [p.id, finalStatus],
+      );
+      let refresh = null;
+      if (finalStatus === "applied") {
+        try { refresh = await refreshCapabilitiesAfterForgeApply({ pool, plan: p.plan_json }); } catch {}
+      }
+      res.json({ ok: true, status: finalStatus, refresh, ...result });
     } catch (e) {
       res.status(500).json({ error: String(e?.message || e) });
     }
@@ -186,8 +221,124 @@ export function mountMetaForgeRoutes(app, deps) {
 
   app.delete("/api/meta-forge/plans", async (req, res) => {
     const ctx = await requireAdmin(req, res); if (!ctx) return;
+    const mode = String(req.query?.mode || "logs_only");
     try {
+      if (mode === "clean_sweep") {
+        const { rows } = await pool.query("SELECT id FROM forge_plans WHERE status IN ('applied', 'pending')");
+        for (const r of rows) {
+          await rollbackForgePlan({ pool, planId: r.id }).catch(() => {});
+        }
+      }
+      await pool.query("DELETE FROM forge_artifacts");
       await pool.query("DELETE FROM forge_plans");
+      res.json({ ok: true, mode });
+    } catch (e) {
+      res.status(500).json({ error: String(e?.message || e) });
+    }
+  });
+
+  // ---- TRASH & ARCHIVE HUB ------------------------------------------------
+  // List archived/trashed artifacts
+  app.get("/api/meta-forge/trash", async (req, res) => {
+    try {
+      if (!fs.existsSync(TRASH_DIR)) {
+        return res.json({ ok: true, items: [] });
+      }
+      const files = fs.readdirSync(TRASH_DIR).filter((f) => f.endsWith(".py"));
+      const items = [];
+      for (const fileName of files) {
+        try {
+          const filePath = path.join(TRASH_DIR, fileName);
+          const stats = fs.statSync(filePath);
+          const m = fileName.match(/^(tool|agent)-(.*?)-(\d{4}-\d{2}-\d{2}T.*?)\.py$/);
+          const kind = m ? m[1] : (fileName.startsWith("agent-") ? "agent" : "tool");
+          let slug = m ? m[2] : fileName.replace(/\.py$/, "");
+          slug = slug.replace(/^(tool_|agent_|tool\.|agent\.)+/i, "");
+
+          let description = "";
+          try {
+            const content = fs.readFileSync(filePath, "utf8").slice(0, 1000);
+            const descMatch = content.match(/#\s*@description:\s*(.*)$/m);
+            if (descMatch) description = descMatch[1].trim();
+          } catch {}
+
+          items.push({
+            fileName,
+            kind,
+            slug,
+            trashedAt: stats.mtimeMs,
+            sizeBytes: stats.size,
+            description,
+          });
+        } catch {}
+      }
+      items.sort((a, b) => b.trashedAt - a.trashedAt);
+      res.json({ ok: true, items });
+    } catch (e) {
+      res.status(500).json({ error: String(e?.message || e) });
+    }
+  });
+
+  // Restore a trashed artifact
+  app.post("/api/meta-forge/trash/:fileName/restore", async (req, res) => {
+    const ctx = await requireAdmin(req, res); if (!ctx) return;
+    const fileName = req.params.fileName;
+    const filePath = path.join(TRASH_DIR, fileName);
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: "file not found in trash" });
+    }
+    try {
+      const m = fileName.match(/^(tool|agent)-(.*?)-(\d{4}-\d{2}-\d{2}T.*?)\.py$/);
+      const kind = m ? m[1] : (fileName.startsWith("agent-") ? "agent" : "tool");
+      let slug = m ? m[2] : fileName.replace(/\.py$/, "");
+      slug = slug.replace(/^(tool_|agent_|tool\.|agent\.)+/i, "");
+
+      const targetDir = kind === "agent" ? AGENTS_DIR : TOOLS_DIR;
+      fs.mkdirSync(targetDir, { recursive: true });
+      const targetPath = path.join(targetDir, `${slug}.py`);
+
+      fs.copyFileSync(filePath, targetPath);
+      fs.unlinkSync(filePath);
+
+      let refresh = null;
+      try {
+        refresh = await refreshCapabilitiesAfterForgeApply({ pool, plan: { create: [{ kind, slug }] } });
+      } catch (e) {
+        refresh = { error: String(e?.message || e) };
+      }
+
+      res.json({ ok: true, restored: slug, kind, targetPath, refresh });
+    } catch (e) {
+      res.status(500).json({ error: String(e?.message || e) });
+    }
+  });
+
+  // Delete a specific trashed artifact
+  app.delete("/api/meta-forge/trash/:fileName", async (req, res) => {
+    const ctx = await requireAdmin(req, res); if (!ctx) return;
+    const fileName = req.params.fileName;
+    const filePath = path.join(TRASH_DIR, fileName);
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: "file not found in trash" });
+    }
+    try {
+      fs.unlinkSync(filePath);
+      res.json({ ok: true, deleted: fileName });
+    } catch (e) {
+      res.status(500).json({ error: String(e?.message || e) });
+    }
+  });
+
+  // Empty trash entirely
+  app.delete("/api/meta-forge/trash", async (req, res) => {
+    const ctx = await requireAdmin(req, res); if (!ctx) return;
+    try {
+      if (fs.existsSync(TRASH_DIR)) {
+        const files = fs.readdirSync(TRASH_DIR);
+        for (const file of files) {
+          try { fs.unlinkSync(path.join(TRASH_DIR, file)); } catch {}
+        }
+      }
       res.json({ ok: true });
     } catch (e) {
       res.status(500).json({ error: String(e?.message || e) });

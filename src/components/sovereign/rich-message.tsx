@@ -42,16 +42,21 @@ export function parseBlocks(src: string): Block[] {
       continue;
     }
 
-    const isRow = (s?: string) => !!s && s.trim().startsWith("|") && s.trim().endsWith("|");
-    const isSep = (s?: string) => !!s && /^\s*\|[\s:|-]+\|\s*$/.test(s);
+    const isRow = (s?: string) => {
+      if (!s) return false;
+      const t = s.trim();
+      return t.startsWith("|") && (t.endsWith("|") || t.includes("|"));
+    };
+    const isSep = (s?: string) => !!s && /^\s*\|?[\s:|-]+\|?\s*$/.test(s.trim()) && s.includes("-");
+    const cells = (s: string) => {
+      let trimmed = s.trim();
+      if (trimmed.startsWith("|")) trimmed = trimmed.slice(1);
+      if (trimmed.endsWith("|")) trimmed = trimmed.slice(0, -1);
+      return trimmed.split("|").map((c) => c.trim());
+    };
+
     if (isRow(line) && isSep(lines[i + 1])) {
       flush();
-      const cells = (s: string) =>
-        s
-          .trim()
-          .slice(1, -1)
-          .split("|")
-          .map((c) => c.trim());
       const head = cells(line);
       const rows: string[][] = [];
       i += 2;

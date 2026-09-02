@@ -1,7 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { CheckCircle2, Gem, RotateCcw, Undo2, XCircle } from "lucide-react";
+import { Archive, Check, CheckCircle2, Clock, Gem, RotateCcw, Trash2, Undo2, X, XCircle } from "lucide-react";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { Shell } from "@/components/sovereign/shell";
 import { useForgePlans, type ForgeActionKind, type ForgePlan } from "@/lib/metaforge-store";
 import { useApprovalAuthority } from "@/lib/approver-gate";
@@ -48,8 +50,11 @@ const statusTone: Record<ForgePlan["status"], string> = {
 const FILTERS = ["all", "pending", "applied", "rejected", "rolled_back"] as const;
 
 function MetaForge() {
-  const { plans, approve, reject, rollback, reapply, reset, restore } = useForgePlans();
+  const { plans, trash, hydrated, approve, reject, rollback, reapply, reset, restore, fetchTrash, restoreTrash, purgeTrash, emptyTrash } = useForgePlans();
   const auth = useApprovalAuthority();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const [trashOpen, setTrashOpen] = useState(false);
 
   /** Every ledger mutation runs through the RBAC `approve` verb. */
   const guard = async (verb: string, planId: string, run: () => void) => {
@@ -70,6 +75,7 @@ function MetaForge() {
   };
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("all");
   const [confirmReset, setConfirmReset] = useState(false);
+  const [resetMode, setResetMode] = useState<"logs_only" | "clean_sweep">("logs_only");
 
   const list = useMemo(
     () =>
@@ -101,10 +107,20 @@ function MetaForge() {
               off, and a rollback for anything already applied.
             </p>
           </div>
-          <div className="ml-auto flex items-center gap-4 font-mono text-[11px] tracking-[0.12em] text-muted-foreground/60">
-            <span className="text-topaz">{counts.pending} pending</span>
-            <span className="text-emerald">{counts.applied} applied</span>
-            <span className="text-ruby">{counts.rolled_back} rolled back</span>
+          <div className="ml-auto flex items-center gap-3 font-mono text-[11px] tracking-[0.12em] text-muted-foreground/60">
+            <span className="text-topaz">{mounted ? counts.pending : 0} pending</span>
+            <span className="text-emerald">{mounted ? counts.applied : 0} applied</span>
+            <span className="text-ruby">{mounted ? counts.rolled_back : 0} rolled back</span>
+            <button
+              onClick={() => {
+                fetchTrash();
+                setTrashOpen(true);
+              }}
+              className="flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 transition-colors hover:text-foreground hover:border-amethyst/50"
+            >
+              <Archive className="h-3 w-3 text-amethyst" strokeWidth={1.6} />
+              trash ({trash.length})
+            </button>
             <button
               onClick={() => setConfirmReset(true)}
               className="flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 transition-colors hover:text-foreground"
@@ -115,30 +131,219 @@ function MetaForge() {
         </header>
 
         {confirmReset && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-            <div className="w-[min(420px,90vw)] rounded-[14px] border border-border bg-panel p-5 shadow-2xl">
-              <h2 className="font-mono text-[12px] uppercase tracking-[0.2em] text-foreground/90">
-                reset ledger
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <div className="w-[min(480px,94vw)] rounded-[14px] border border-border bg-panel p-6 shadow-2xl">
+              <h2 className="font-mono text-[13px] uppercase tracking-[0.2em] text-foreground">
+                Reset Forge Ledger
               </h2>
-              <p className="mt-2 text-[13.5px] leading-relaxed text-muted-foreground">
-                This clears every forge plan from the ledger. You can bring the original demo ledger
-                back afterwards.
+              <p className="mt-2.5 text-[13.5px] leading-relaxed text-muted-foreground">
+                Choose how you want to reset the Meta-Forge evolution ledger:
               </p>
-              <div className="mt-5 flex justify-end gap-2">
+
+              <div className="mt-5 space-y-3">
                 <button
-                  onClick={() => setConfirmReset(false)}
-                  className="rounded-md border border-border px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.16em] text-muted-foreground transition-colors hover:text-foreground"
+                  type="button"
+                  onClick={() => setResetMode("logs_only")}
+                  className={cn(
+                    "w-full text-left rounded-xl border p-3.5 transition-all duration-150 relative",
+                    resetMode === "logs_only"
+                      ? "border-sapphire/70 bg-sapphire/[0.12] shadow-[0_0_24px_-10px_var(--sapphire)]"
+                      : "border-white/[0.08] bg-raised/30 hover:border-white/20 hover:bg-raised/50"
+                  )}
                 >
-                  cancel
+                  <div className="flex items-center justify-between">
+                    <div className="font-mono text-[12px] font-semibold uppercase tracking-[0.14em] text-sapphire">
+                      1. Clear History Only (Log Purge)
+                    </div>
+                    <div className={cn(
+                      "h-4 w-4 rounded-full border flex items-center justify-center transition-colors",
+                      resetMode === "logs_only"
+                        ? "border-sapphire bg-sapphire text-white"
+                        : "border-white/20 bg-transparent"
+                    )}>
+                      {resetMode === "logs_only" && <Check className="h-2.5 w-2.5 stroke-[3]" />}
+                    </div>
+                  </div>
+                  <p className="mt-1 text-[12px] text-muted-foreground pr-5">
+                    Removes plan records from the ledger. All active tools, workflows and webhooks remain deployed and functioning.
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setResetMode("clean_sweep")}
+                  className={cn(
+                    "w-full text-left rounded-xl border p-3.5 transition-all duration-150 relative",
+                    resetMode === "clean_sweep"
+                      ? "border-ruby/70 bg-ruby/[0.12] shadow-[0_0_24px_-10px_var(--ruby)]"
+                      : "border-white/[0.08] bg-raised/30 hover:border-white/20 hover:bg-raised/50"
+                  )}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="font-mono text-[12px] font-semibold uppercase tracking-[0.14em] text-ruby">
+                      2. Clean Sweep & Rollback (Factory Reset)
+                    </div>
+                    <div className={cn(
+                      "h-4 w-4 rounded-full border flex items-center justify-center transition-colors",
+                      resetMode === "clean_sweep"
+                        ? "border-ruby bg-ruby text-white"
+                        : "border-white/20 bg-transparent"
+                    )}>
+                      {resetMode === "clean_sweep" && <Check className="h-2.5 w-2.5 stroke-[3]" />}
+                    </div>
+                  </div>
+                  <p className="mt-1 text-[12px] text-muted-foreground pr-5">
+                    Rolls back all generated tools and workflows (moves files to .forge-trash, clears DB records) and purges the ledger.
+                  </p>
+                </button>
+              </div>
+
+              <div className="mt-6 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setConfirmReset(false)}
+                  className="rounded-md border border-border px-4 py-1.5 font-mono text-[11px] uppercase tracking-[0.16em] text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  Cancel
                 </button>
                 <button
+                  type="button"
                   onClick={() => {
-                    reset();
+                    reset(resetMode);
                     setConfirmReset(false);
                   }}
-                  className="rounded-md border border-ruby/45 bg-ruby/10 px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.16em] text-ruby transition-colors hover:bg-ruby/20"
+                  className={cn(
+                    "rounded-md border px-4 py-1.5 font-mono text-[11px] uppercase tracking-[0.16em] transition-all",
+                    resetMode === "clean_sweep"
+                      ? "border-ruby/50 bg-ruby/20 text-ruby hover:bg-ruby/30 shadow-[0_0_18px_-6px_var(--ruby)]"
+                      : "border-sapphire/50 bg-sapphire/20 text-sapphire hover:bg-sapphire/30 shadow-[0_0_18px_-6px_var(--sapphire)]"
+                  )}
                 >
-                  reset
+                  Confirm Reset
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {trashOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 backdrop-blur-sm p-4">
+            <div className="w-[min(640px,96vw)] max-h-[85vh] flex flex-col rounded-[16px] border border-border bg-panel p-6 shadow-2xl">
+              <div className="flex items-center justify-between pb-3 border-b border-white/[0.07]">
+                <div className="flex items-center gap-2.5">
+                  <Archive className="h-4 w-4 text-amethyst" strokeWidth={1.8} />
+                  <h2 className="font-mono text-[13px] uppercase tracking-[0.2em] text-foreground">
+                    Archived Artifacts (.forge-trash)
+                  </h2>
+                  <span className="rounded-full bg-amethyst/15 text-amethyst px-2 py-0.5 font-mono text-[10.5px]">
+                    {trash.length} files
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setTrashOpen(false)}
+                  className="rounded-md p-1 text-muted-foreground/60 hover:text-foreground hover:bg-raised/50 transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <p className="mt-3 text-[13px] text-muted-foreground">
+                Python tools and agents backed up here during plan rollbacks. You can restore any artifact back to the active catalog or permanently purge it.
+              </p>
+
+              <div className="mt-4 flex-1 overflow-y-auto space-y-2 max-h-[460px] pr-1 divide-y divide-white/[0.04]">
+                {trash.map((item) => (
+                  <div
+                    key={item.fileName}
+                    className="pt-2.5 first:pt-0 flex items-center justify-between gap-3 group"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className={cn(
+                          "rounded-[4px] px-1.5 py-0.5 font-mono text-[10px] uppercase font-semibold",
+                          item.kind === "agent" ? "bg-topaz/15 text-topaz border border-topaz/30" : "bg-sapphire/15 text-sapphire border border-sapphire/30"
+                        )}>
+                          {item.kind}
+                        </span>
+                        <span className="font-mono text-[12.5px] font-medium text-foreground truncate" title={item.fileName}>
+                          {item.slug}
+                        </span>
+                      </div>
+                      {item.description && (
+                        <p className="mt-0.5 text-[11.5px] text-muted-foreground/75 truncate">
+                          {item.description}
+                        </p>
+                      )}
+                      <div className="mt-1 flex items-center gap-3 font-mono text-[10px] text-muted-foreground/50">
+                        <span className="flex items-center gap-1">
+                          <Clock size={10} /> {new Date(item.trashedAt).toLocaleString()}
+                        </span>
+                        <span>{(item.sizeBytes / 1024).toFixed(1)} KB</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await restoreTrash(item.fileName);
+                          toast.success(`Restored ${item.slug} back to active catalog!`);
+                        }}
+                        className="rounded-md border border-emerald/40 bg-emerald/10 px-2.5 py-1 font-mono text-[11px] uppercase tracking-[0.14em] text-emerald transition-all hover:bg-emerald/20 hover:shadow-[0_0_12px_-4px_var(--emerald)]"
+                      >
+                        Restore
+                      </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await purgeTrash(item.fileName);
+                          toast("Permanently purged artifact.");
+                        }}
+                        title="Delete permanently"
+                        className="rounded-md border border-border p-1.5 text-muted-foreground/50 transition-colors hover:text-ruby hover:border-ruby/40 hover:bg-ruby/10"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                {trash.length === 0 && (
+                  <div className="py-12 text-center font-mono text-[12px] text-muted-foreground/45">
+                    Trash is empty. No archived artifacts found.
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-5 pt-3 border-t border-white/[0.07] flex items-center justify-between">
+                {trash.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const ok = await confirmAction({
+                        title: "Empty all trash?",
+                        body: "This will permanently delete all files in .forge-trash. This action cannot be undone.",
+                        confirmLabel: "Empty Trash",
+                        tone: "ruby",
+                      });
+                      if (ok) {
+                        await emptyTrash();
+                        toast("Emptied all trash.");
+                      }
+                    }}
+                    className="rounded-md border border-ruby/30 bg-ruby/[0.06] px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.14em] text-ruby transition-colors hover:bg-ruby/15"
+                  >
+                    Empty Trash
+                  </button>
+                ) : <div />}
+
+                <button
+                  type="button"
+                  onClick={() => setTrashOpen(false)}
+                  className="rounded-md border border-border px-4 py-1.5 font-mono text-[11px] uppercase tracking-[0.16em] text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  Close
                 </button>
               </div>
             </div>
@@ -171,23 +376,33 @@ function MetaForge() {
         </div>
 
         <div className="mt-4 divide-y divide-border/60 rounded-[14px] border border-border/70 bg-panel/45 backdrop-blur-md">
-          <AnimatePresence initial={false}>
-            {list.map((p) => (
-              <PlanRow
-                key={p.id}
-                plan={p}
-                locked={!auth.canApprove}
-                onApprove={() => guard("approve", p.id, () => approve(p.id))}
-                onReject={() => guard("reject", p.id, () => reject(p.id))}
-                onRollback={() => guard("roll back", p.id, () => rollback(p.id))}
-                onReapply={() => guard("re-apply", p.id, () => reapply(p.id))}
-              />
-            ))}
-          </AnimatePresence>
-          {list.length === 0 && (
+          {mounted && (
+            <AnimatePresence initial={false}>
+              {list.map((p) => (
+                <PlanRow
+                  key={p.id}
+                  plan={p}
+                  locked={!auth.canApprove}
+                  onApprove={() => guard("approve", p.id, () => approve(p.id))}
+                  onReject={() => guard("reject", p.id, () => reject(p.id))}
+                  onRollback={async () => {
+                    const ok = await confirmAction({
+                      title: "Rollback this forge plan?",
+                      body: `This will move generated tools to .forge-trash and remove workflows/chains from the active studio. You can restore or re-apply at any time from the ledger or trash hub.`,
+                      confirmLabel: "Rollback",
+                      tone: "ruby",
+                    });
+                    if (ok) guard("roll back", p.id, () => rollback(p.id));
+                  }}
+                  onReapply={() => guard("re-apply", p.id, () => reapply(p.id))}
+                />
+              ))}
+            </AnimatePresence>
+          )}
+          {(!mounted || list.length === 0) && (
             <div className="px-5 py-10 text-center">
               <p className="font-mono text-[12px] text-muted-foreground/50">
-                {plans.length === 0 ? "ledger is empty" : "no plans in this state"}
+                {!mounted ? "loading ledger..." : plans.length === 0 ? "ledger is empty" : "no plans in this state"}
               </p>
             </div>
           )}

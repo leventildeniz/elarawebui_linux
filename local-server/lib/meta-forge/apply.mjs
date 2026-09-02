@@ -151,11 +151,12 @@ async function applySkillCreate(pool, planId, item, meta) {
   const { ownerId, ownerName } = await resolveDbOwner(pool, meta.forgedBy);
   const r = await pool.query(
     `INSERT INTO skills (id, name, description, instructions, type, system, owner_id, owner_name, visibility)
-     VALUES ($1, $2, $3, $4, 'native', false, $5, $6, 'workspace')
+     VALUES ($1, $2, $3, $4, 'native', false, $5, $6, 'private')
      ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name,
        description=EXCLUDED.description, instructions=EXCLUDED.instructions,
        owner_id=COALESCE(skills.owner_id, EXCLUDED.owner_id),
-       owner_name=COALESCE(skills.owner_name, EXCLUDED.owner_name)
+       owner_name=COALESCE(skills.owner_name, EXCLUDED.owner_name),
+       visibility=COALESCE(skills.visibility, 'private')
      RETURNING id`,
     [slug, name, description, instructions, ownerId, ownerName],
   );
@@ -304,7 +305,7 @@ async function applyChainCreate(pool, planId, item, meta) {
 
   const { ownerId, ownerName } = await resolveDbOwner(pool, meta.forgedBy);
   const r = await pool.query(
-    `INSERT INTO orchestrations (id, name, status, trigger, runs, nodes, edges, color, visibility, shared_with, owner_id, owner_name, updated_at)
+    `INSERT INTO orchestrations (id, name, status, trigger, runs, nodes, edges, color, visibility, shared_with, owner_id, owner_name, created_at)
      VALUES ($1, $2, 'draft', $3, 0, $4::jsonb, $5::jsonb, 'amethyst', 'private', '[]'::jsonb, $6, $7, now())
      ON CONFLICT (id) DO UPDATE SET
        name = EXCLUDED.name,
@@ -313,8 +314,7 @@ async function applyChainCreate(pool, planId, item, meta) {
        edges = EXCLUDED.edges,
        visibility = COALESCE(orchestrations.visibility, 'private'),
        owner_id = COALESCE(orchestrations.owner_id, EXCLUDED.owner_id),
-       owner_name = COALESCE(orchestrations.owner_name, EXCLUDED.owner_name),
-       updated_at = now()
+       owner_name = COALESCE(orchestrations.owner_name, EXCLUDED.owner_name)
      RETURNING id`,
     [chainId, name, trigger, JSON.stringify(nodes), JSON.stringify(edges), ownerId, ownerName],
   );
@@ -343,12 +343,12 @@ async function applyWebhookCreate(pool, planId, item, meta) {
   const { ownerId, ownerName } = await resolveDbOwner(pool, meta.forgedBy);
   const r = await pool.query(
     `INSERT INTO webhooks (id, name, description, tags, category, connection, runner, vault_scope, vault_name, vault_field, config, risk, requires_approval, enabled, slug, url_override, ingest_to_rag, rag_space_id, owner_id, owner_name, visibility, shared_with, created_at, updated_at)
-     VALUES ($1, $2, $3, '[]'::jsonb, $4, $5, $6, 'none', null, null, '{}'::jsonb, 'low', false, true, $7, null, true, null, $8, $9, 'workspace', '[]'::jsonb, now(), now())
+     VALUES ($1, $2, $3, '[]'::jsonb, $4, $5, $6, 'none', null, null, '{}'::jsonb, 'low', false, true, $7, null, true, null, $8, $9, 'private', '[]'::jsonb, now(), now())
      ON CONFLICT (id) DO UPDATE SET
        name = EXCLUDED.name,
        description = EXCLUDED.description,
        slug = EXCLUDED.slug,
-       visibility = COALESCE(webhooks.visibility, 'workspace'),
+       visibility = COALESCE(webhooks.visibility, 'private'),
        owner_id = COALESCE(webhooks.owner_id, EXCLUDED.owner_id),
        owner_name = COALESCE(webhooks.owner_name, EXCLUDED.owner_name),
        updated_at = now()
@@ -438,6 +438,20 @@ async function applyToolCreate(pool, planId, item, meta) {
     reviewStatus: canAutoLive ? "approved" : "pending_review",
   };
 
+  const { ownerId, ownerName } = await resolveDbOwner(pool, meta.forgedBy);
+  const toolId = `tool.${slug}`;
+  await pool.query(
+    `INSERT INTO tools (id, label, description, source, enabled, risk, owner_id, owner_name, visibility)
+     VALUES ($1, $2, $3, 'python', true, $4, $5, $6, 'private')
+     ON CONFLICT (id) DO UPDATE SET
+       label = EXCLUDED.label,
+       description = EXCLUDED.description,
+       owner_id = COALESCE(tools.owner_id, EXCLUDED.owner_id),
+       owner_name = COALESCE(tools.owner_name, EXCLUDED.owner_name),
+       visibility = COALESCE(tools.visibility, 'private')`,
+    [toolId, item.name || slug, item.description || "", item.risk || "low", ownerId, ownerName]
+  ).catch(() => {});
+
   await pool.query(
     `INSERT INTO forge_artifacts (plan_id, kind, slug, disk_path)
      VALUES ($1, 'tool', $2, $3) ON CONFLICT DO NOTHING`,
@@ -463,6 +477,21 @@ async function applyAgentCreate(pool, planId, item, meta) {
     throw new Error(`agent file exists: ${rel} (set overwrite:true to replace)`);
   }
   fs.writeFileSync(filePath, source, { mode: 0o644 });
+  const { ownerId, ownerName } = await resolveDbOwner(pool, meta.forgedBy);
+  const agentId = `agt.${slug}`;
+  await pool.query(
+    `INSERT INTO agents (id, name, squad, role, description, script_path, enabled, owner_id, owner_name, visibility)
+     VALUES ($1, $2, 'Custom', 'Specialist', $3, $4, true, $5, $6, 'private')
+     ON CONFLICT (id) DO UPDATE SET
+       name = EXCLUDED.name,
+       description = EXCLUDED.description,
+       script_path = EXCLUDED.script_path,
+       owner_id = COALESCE(agents.owner_id, EXCLUDED.owner_id),
+       owner_name = COALESCE(agents.owner_name, EXCLUDED.owner_name),
+       visibility = COALESCE(agents.visibility, 'private')`,
+    [agentId, item.name || slug, item.description || "", rel, ownerId, ownerName]
+  ).catch(() => {});
+
   await pool.query(
     `INSERT INTO forge_artifacts (plan_id, kind, slug, disk_path)
      VALUES ($1, 'agent', $2, $3) ON CONFLICT DO NOTHING`,

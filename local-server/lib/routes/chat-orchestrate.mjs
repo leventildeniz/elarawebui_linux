@@ -875,10 +875,11 @@ When the user asks you a question or assigns a task, intelligently apply the fol
    - For current events, public news, documentation lookup, general web queries, or factual real-time search:
    - Use 'sys_web_search' to query the live internet via search engines (Tavily / SearXNG / DuckDuckGo).
 
-3. TIER 3 — SPECIALIZED CAPABILITIES & METAFORGE (External Infrastructure & Custom APIs):
-   - For live network socket checks (SSL, DNS probe), private/public API interactions (Docker Hub, CoinGecko, GitHub, Jira), device integrations, or custom system actions:
-   - First, inspect your catalog via 'sys_get_directory' to see if an existing tool (e.g. 'tool.api_json_fetcher', 'tool.http_probe') can handle the task. If available, call 'sys_execute_tool'.
-   - If NO suitable tool or agent exists in the system to connect to the external endpoint or perform the specialized action, call 'sys_delegate_to_metaforge' with a clear 'intent' so MetaForge can autonomously synthesize and deploy the missing capability.
+3. TIER 3 — SPECIALIZED CAPABILITIES, WORKFLOWS, CHAINS & METAFORGE:
+   - For live network socket checks (SSL, DNS probe), private/public API interactions (Docker Hub, CoinGecko, GitHub, Jira), device integrations, custom Python scripts, or ANY request to CREATE/SYNTHESIZE a new tool, skill, agent, automated WORKFLOW (DAG), or ORCHESTRATION CHAIN:
+   - First, inspect your catalog via 'sys_get_directory' to see if existing tools or workflows can satisfy the request.
+   - If the user asks to CREATE, SYNTHESIZE, or REGISTER a new tool, skill, agent, workflow (DAG), or orchestration chain (or if required capabilities are missing), you MUST CALL 'sys_delegate_to_metaforge' with a detailed 'intent' explaining the pipeline, workflows, and branch logic.
+   - NEVER fabricate or invent a fake plan ID (e.g. 'mf_...') in text without calling 'sys_delegate_to_metaforge'. An approval card is ONLY generated when you invoke the 'sys_delegate_to_metaforge' function.
 
 [HONESTY & ANTI-HALLUCINATION MANDATE]:
 - NEVER invent, simulate, or hallucinate dynamic external state (such as live trading prices, live API responses, live socket certificates, or remote hardware states) without executing a tool.
@@ -1088,11 +1089,11 @@ When the user asks you a question or assigns a task, intelligently apply the fol
               type: "function",
               function: {
                   name: "sys_delegate_to_metaforge",
-                  description: "Use this tool ONLY when you lack the required agents, skills, or tools to fulfill the user's request. It will trigger MetaForge (an autonomous engineer) to synthesize and deploy the missing capability into the system. You must provide a clear intent of what is missing.",
+                  description: "Triggers MetaForge (the autonomous engineer) to synthesize, generate, and propose new tools, skills, agents, automated Workflows (DAG), or Orchestration Chains. Call this whenever the user asks to create/register a new capability or multi-step workflow/chain into the system.",
                   parameters: {
                       type: "object",
                       properties: {
-                          intent: { type: "string", description: "Detailed description of the tool or agent you need created." }
+                          intent: { type: "string", description: "Detailed description of the tool, agent, workflow DAG, or orchestration chain you need created." }
                       },
                       required: ["intent"]
                   }
@@ -1171,12 +1172,15 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                       send({ phase: "policy", meta: { source: `provider:${fallbackSourceName}`, model: fallbackModelStr } });
                   }
                   
+                  // Adaptive Effort: Tur 1'de kullanıcının seçtiği effort kullanılır;
+                  // Sonraki turlarda (tool sonuçları geldikten sonra) modelin gereksiz sonsuz düşünme döngüsüne girmemesi için effort adapte edilir.
+                  const turnEffort = iteration === 1 ? effort : (effort === "high" ? "low" : effort);
                   it = await streamFromProvider({
                       provider: currentProv,
                       messages: formattedMessages,
                       tools: openAiTools.length > 0 ? openAiTools : undefined,
                       signal: requestAbort.signal,
-                      effort: effort
+                      effort: turnEffort
                   });
                   
                   // Eğer buraya ulaştıysa istek başarılıdır, döngüden çık.
@@ -1282,7 +1286,71 @@ When the user asks you a question or assigns a task, intelligently apply the fol
              }
           }
 
-          const toolCalls = Object.values(toolCallsBuffer);
+          let toolCalls = Object.values(toolCallsBuffer);
+
+          // FALLBACK FOR LOCAL MODELS (Gemma 4, Mistral, LLaMA) emitting text-based tool calls:
+          if (toolCalls.length === 0 && assembled) {
+              // Pattern 1: <call:funcName key="val" key2="val2" /> or <call:funcName key="val">...</call:funcName>
+              const callMatches = [...assembled.matchAll(/<call:([a-zA-Z0-9_.-]+)([\s\S]*?)(?:\/>|>([\s\S]*?)<\/call:\1>|>)/gi)];
+              if (callMatches.length > 0) {
+                  for (const match of callMatches) {
+                      const rawTag = match[0];
+                      const funcName = match[1];
+                      const rawAttrs = match[2] || "";
+                      const innerText = match[3] || "";
+                      
+                      const argsObj = {};
+                      // Parse key="value" or key='value'
+                      const attrRegex = /([a-zA-Z0-9_-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g;
+                      let attrMatch;
+                      while ((attrMatch = attrRegex.exec(rawAttrs)) !== null) {
+                          const key = attrMatch[1];
+                          const val = attrMatch[2] ?? attrMatch[3] ?? attrMatch[4] ?? "";
+                          argsObj[key] = val;
+                      }
+                      if (innerText.trim() && !argsObj.query && !argsObj.intent && !argsObj.prompt && !argsObj.instructions) {
+                          if (funcName === "sys_delegate_to_metaforge") argsObj.intent = innerText.trim();
+                          else if (funcName === "sys_web_search") argsObj.query = innerText.trim();
+                          else if (funcName === "sys_delegate_to_agent") argsObj.instructions = innerText.trim();
+                      }
+
+                      toolCalls.push({
+                          id: `call_${Math.random().toString(36).substring(2, 9)}`,
+                          type: "function",
+                          function: {
+                              name: funcName,
+                              arguments: JSON.stringify(argsObj)
+                          }
+                      });
+                      
+                      // Strip the raw tag from the user-facing text
+                      assembled = assembled.replace(rawTag, "").trim();
+                  }
+              }
+
+              // Pattern 2: <tool_call>\n{"name": "...", "arguments": {...}}\n</tool_call>
+              const toolCallBlockMatches = [...assembled.matchAll(/<tool_call>([\s\S]*?)<\/tool_call>/gi)];
+              if (toolCallBlockMatches.length > 0) {
+                  for (const match of toolCallBlockMatches) {
+                      const rawBlock = match[0];
+                      const rawJson = match[1].trim();
+                      try {
+                          const parsed = JSON.parse(rawJson);
+                          if (parsed.name) {
+                              toolCalls.push({
+                                  id: `call_${Math.random().toString(36).substring(2, 9)}`,
+                                  type: "function",
+                                  function: {
+                                      name: parsed.name,
+                                      arguments: typeof parsed.arguments === "object" ? JSON.stringify(parsed.arguments) : String(parsed.arguments || "{}")
+                                  }
+                              });
+                              assembled = assembled.replace(rawBlock, "").trim();
+                          }
+                      } catch {}
+                  }
+              }
+          }
           
           // CRITICAL FIX 1: Ensure every tool call has an ID (Local models like Gemma 4 might omit it, causing socket hang up)
           // CRITICAL FIX 2: Share Google's thought_signature across parallel tool calls to prevent 400 INVALID_ARGUMENT
@@ -1523,7 +1591,7 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                                   messages: subMessages,
                                   tools: undefined,
                                   signal: requestAbort.signal,
-                                  effort: effort
+                                  effort: "low"
                               });
                               
                               let subAnswer = "";
@@ -1595,6 +1663,12 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                                   toolStatus = "failed";
                               }
                               toolResultStr = JSON.stringify(outputRes);
+                              // Payload Truncation Guard (Büyük çıktılarda KV cache şişmesini ve 1 tok/s yavaşlamasını engeller)
+                              if (toolResultStr.length > 20000) {
+                                  const originalLen = toolResultStr.length;
+                                  const sample = toolResultStr.slice(0, 18000);
+                                  toolResultStr = `${sample}\n\n[SYSTEM NOTE: Output truncated from ${originalLen} chars to fit context safely. Summarize the findings based on the provided sample.]`;
+                              }
                           }
                       } else if (realToolId === "sys_delegate_to_metaforge") {
                           const intentText = parsedArgs.intent;
@@ -1650,7 +1724,7 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                                       messages: forgeMessages,
                                       tools: undefined,
                                       signal: requestAbort.signal,
-                                      effort: "high"
+                                      effort: "none"
                                   });
 
                                   let subAnswer = "";

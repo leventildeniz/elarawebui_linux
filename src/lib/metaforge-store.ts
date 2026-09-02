@@ -12,6 +12,15 @@ export type ForgeAction = {
   name: string;
 };
 
+export type TrashedArtifact = {
+  fileName: string;
+  kind: "tool" | "agent" | string;
+  slug: string;
+  trashedAt: number;
+  sizeBytes: number;
+  description?: string;
+};
+
 export type ForgePlanStatus = "pending" | "applied" | "rejected" | "rolled_back";
 
 export type ForgePlan = {
@@ -131,9 +140,62 @@ function read(): ForgePlan[] {
 import { fetchApi } from "./api";
 
 export function useForgePlans() {
-  const [plans, setPlans] = useState<ForgePlan[]>(read);
+  const [plans, setPlans] = useState<ForgePlan[]>([]);
+  const [trash, setTrash] = useState<TrashedArtifact[]>([]);
+  const [hydrated, setHydrated] = useState(false);
+
+  const fetchTrash = useCallback(async () => {
+    try {
+      const res = await fetchApi("/api/meta-forge/trash");
+      if (res && Array.isArray(res.items)) {
+        setTrash(res.items);
+      }
+    } catch (err) {
+      console.error("Failed to fetch trash artifacts", err);
+    }
+  }, []);
+
+  const restoreTrash = useCallback(
+    async (fileName: string) => {
+      try {
+        await fetchApi(`/api/meta-forge/trash/${encodeURIComponent(fileName)}/restore`, { method: "POST" });
+        await fetchTrash();
+        window.dispatchEvent(new CustomEvent(EVT));
+      } catch (err) {
+        console.error("Failed to restore trash artifact", err);
+      }
+    },
+    [fetchTrash],
+  );
+
+  const purgeTrash = useCallback(
+    async (fileName: string) => {
+      try {
+        await fetchApi(`/api/meta-forge/trash/${encodeURIComponent(fileName)}`, { method: "DELETE" });
+        await fetchTrash();
+      } catch (err) {
+        console.error("Failed to purge trash artifact", err);
+      }
+    },
+    [fetchTrash],
+  );
+
+  const emptyTrash = useCallback(async () => {
+    try {
+      await fetchApi(`/api/meta-forge/trash`, { method: "DELETE" });
+      setTrash([]);
+    } catch (err) {
+      console.error("Failed to empty trash", err);
+    }
+  }, []);
 
   useEffect(() => {
+    setHydrated(true);
+    const cached = read();
+    if (cached.length > 0) {
+      setPlans(cached);
+    }
+
     const sync = async () => {
       try {
         const data = await fetchApi("/api/meta-forge/plans");
@@ -158,18 +220,21 @@ export function useForgePlans() {
       } catch (err) {
         console.error("Failed to fetch meta-forge plans", err);
       }
-      // Fallback
       setPlans([]);
     };
     
     sync();
+    fetchTrash();
 
-    const onEvt = () => sync();
+    const onEvt = () => {
+      sync();
+      fetchTrash();
+    };
     window.addEventListener(EVT, onEvt);
     return () => window.removeEventListener(EVT, onEvt);
   }, []);
 
-  const apply = useCallback(async (id: string, action: "apply" | "reject" | "rollback" | "undo") => {
+  const apply = useCallback(async (id: string, action: "apply" | "reject" | "rollback" | "undo" | "reapply") => {
     try {
       await fetchApi(`/api/meta-forge/plans/${id}/${action}`, { method: "POST" });
       window.dispatchEvent(new CustomEvent(EVT));
@@ -180,15 +245,13 @@ export function useForgePlans() {
 
   const approve = useCallback((id: string) => apply(id, "apply"), [apply]);
   const reject = useCallback((id: string) => apply(id, "reject"), [apply]);
-  const rollback = useCallback((id: string) => apply(id, "undo"), [apply]);
-  // Note: reapply doesn't easily map to the backend API which requires submitting a new plan.
-  // For the UI, we'll route it back to apply, but it might fail depending on backend state.
-  const reapply = useCallback((id: string) => apply(id, "apply"), [apply]);
+  const rollback = useCallback((id: string) => apply(id, "rollback"), [apply]);
+  const reapply = useCallback((id: string) => apply(id, "reapply"), [apply]);
 
-  /** Clears the ledger entirely. (Mocked for UI reset logic only) */
-  const reset = useCallback(async () => {
+  /** Clears the ledger with mode: 'logs_only' (history only) or 'clean_sweep' (rollback all artifacts). */
+  const reset = useCallback(async (mode: "logs_only" | "clean_sweep" = "logs_only") => {
     try {
-      await fetchApi("/api/meta-forge/plans", { method: "DELETE" });
+      await fetchApi(`/api/meta-forge/plans?mode=${mode}`, { method: "DELETE" });
       setPlans([]);
       window.localStorage.removeItem(KEY);
       window.dispatchEvent(new CustomEvent(EVT));
@@ -203,5 +266,5 @@ export function useForgePlans() {
     // window.dispatchEvent(new CustomEvent(EVT));
   }, []);
 
-  return { plans, approve, reject, rollback, reapply, reset, restore };
+  return { plans, trash, hydrated, approve, reject, rollback, reapply, reset, restore, fetchTrash, restoreTrash, purgeTrash, emptyTrash };
 }

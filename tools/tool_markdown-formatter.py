@@ -1,14 +1,9 @@
 #!/usr/bin/env python3
 # @tool: tool.markdown-formatter
-# @description: Generates a Markdown report for SSL status.
-# @args: {"domain": "string", "expiry_date": "string", "days_remaining": "number", "alert_status": "string"}
+# @description: Formats SSL expiry data into a markdown report.
+# @args: {"domain": "string", "expiry_date": "string", "days_remaining": "number"}
 import sys, json
 
-def main():
-    try:
-        args = json.loads(sys.argv[1])
-        report = f"# SSL Expiry Report\n\n- **Domain**: {args['domain']}\n- **Expiry Date**: {args['expiry_date']}\n- **Days Remaining**: {args['days_remaining']}\n- **Status**: {args['alert_status']}"
-        print(json.dumps({"markdown": report}))
-    except Exception as e:
-        print(json.dumps({"error": str(e)}))
-if __name__ == '__main__': main()
+input_data = json.load(sys.stdin)
+msg = f"# SSL Alert\nDomain: {input_data['domain']}\nExpiry: {input_data['expiry_date']}\nDays Remaining: {input_data['days_remaining']}"
+print(json.dumps({"markdown": msg}))

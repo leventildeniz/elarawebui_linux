@@ -1,43 +1,39 @@
-2__root.tsx:40 ReferenceError: useEffect is not defined
-    at AgentDetail (agents.tsx:472:3)
-    at Object.react_stack_bottom_frame (react-dom-client.development.js:25904:20)
-    at renderWithHooks (react-dom-client.development.js:7662:22)
-    at updateFunctionComponent (react-dom-client.development.js:10166:19)
-    at beginWork (react-dom-client.development.js:11778:18)
-    at runWithFiberInDEV (react-dom-client.development.js:871:30)
-    at performUnitOfWork (react-dom-client.development.js:17641:22)
-    at workLoopSync (react-dom-client.development.js:17469:41)
-    at renderRootSync (react-dom-client.development.js:17450:11)
-    at performWorkOnRoot (react-dom-client.development.js:16504:11)
-ErrorComponent @ __root.tsx:40
-2__root.tsx:40 ReferenceError: useEffect is not defined
-    at AgentDetail (agents.tsx:472:3)
-    at Object.react_stack_bottom_frame (react-dom-client.development.js:25904:20)
-    at renderWithHooks (react-dom-client.development.js:7662:22)
-    at updateFunctionComponent (react-dom-client.development.js:10166:19)
-    at beginWork (react-dom-client.development.js:11778:18)
-    at runWithFiberInDEV (react-dom-client.development.js:871:30)
-    at performUnitOfWork (react-dom-client.development.js:17641:22)
-    at workLoopSync (react-dom-client.development.js:17469:41)
-    at renderRootSync (react-dom-client.development.js:17450:11)
-    at performWorkOnRoot (react-dom-client.development.js:16583:35)
-ErrorComponent @ __root.tsx:40
-react-dom-client.development.js:9410 ReferenceError: useEffect is not defined
-    at AgentDetail (agents.tsx:472:3)
-    at Object.react_stack_bottom_frame (react-dom-client.development.js:25904:20)
-    at renderWithHooks (react-dom-client.development.js:7662:22)
-    at updateFunctionComponent (react-dom-client.development.js:10166:19)
-    at beginWork (react-dom-client.development.js:11778:18)
-    at runWithFiberInDEV (react-dom-client.development.js:871:30)
-    at performUnitOfWork (react-dom-client.development.js:17641:22)
-    at workLoopSync (react-dom-client.development.js:17469:41)
-    at renderRootSync (react-dom-client.development.js:17450:11)
-    at performWorkOnRoot (react-dom-client.development.js:16583:35)
+react-dom-client.development.js:5238
+ Uncaught Error: Hydration failed because the server rendered text didn't match the client. As a result this tree will be regenerated on the client. This can happen if a SSR-ed Client Component used:
 
-The above error occurred in the <AgentDetail> component.
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
 
-React will try to recreate this component tree from scratch using the error boundary you provided, CatchBoundaryImpl.
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
 
-defaultOnCaughtError @ react-dom-client.development.js:9410
-Match.tsx:195 Warning: Error in route match: __root__/
-(anonymous) @ Match.tsx:195
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <SafeFragment fallback={null}>
+      <SafeFragment getResetKey={function getResetKey} errorComponent={function ErrorComponent} ...>
+        <SafeFragment fallback={function fallback}>
+          <MatchInnerImpl matchId="/meta-forg...">
+            <Lazy>
+              <MetaForge>
+                <Shell crumb="Meta-Forge">
+                  <div className="relative f...">
+                    <CommandPalette>
+                    <motion.aside>
+                    <div className="studio-sta...">
+                      <header>
+                      <main className="relative z...">
+                        <div className="mx-auto h-...">
+                          <header className="flex flex-...">
+                            <div>
+                            <div className="ml-auto fl...">
+                              <span>
+                              <span className="text-emerald">
++                               1
+-                               0
+                                ...
+                              ...
+                          ...
+                    ...

@@ -70,6 +70,28 @@ Example — user asks "SSL kontrol workflow / otomasyon iş akışı oluştur":
     }
   ]
 
+Example — user asks "Güvenlik taraması ve SSL denetimini ardışık çalıştıran bir Orchestration Zinciri (Chain) oluştur":
+  create: [
+    {
+      kind: "chain",
+      slug: "security-compliance-chain",
+      name: "Security Compliance Chain",
+      description: "Orchestration chain wiring vulnerability scan and SSL audit workflows with branch condition",
+      trigger: "Manual",
+      nodes: [
+        { id: "stage_1", kind: "workflow", label: "Vulnerability Scan", meta: "wf_vuln_scan", x: 140, y: 160 },
+        { id: "stage_2", kind: "workflow", label: "SSL Expiry Monitor", meta: "wf_ssl_expiry_monitor", x: 440, y: 160 },
+        { id: "stage_3", kind: "logic", label: "Branch on High Risk", meta: "logic.if", x: 740, y: 160 },
+        { id: "stage_4", kind: "output", label: "Security Report Digest", meta: "output.report", x: 1040, y: 160 }
+      ],
+      edges: [
+        { id: "e1", from: "stage_1", to: "stage_2" },
+        { id: "e2", from: "stage_2", to: "stage_3" },
+        { id: "e3", from: "stage_3", to: "stage_4" }
+      ]
+    }
+  ]
+
 Only skip a layer when it clearly isn't needed (e.g. a pure prompt-only refactor skill needs no tool).
 
 Output ONE JSON object. No explanations before or after. No \`\`\`json fences. DO NOT USE MARKDOWN BLOCK TAGS LIKE \`\`\`json. JUST START WITH { AND END WITH }.`;

@@ -1295,7 +1295,12 @@ function SovereignChat() {
                     )}
 
                     {m.forge_plan && (
-                      <div className="mt-6">
+                      <motion.div
+                        initial={{ opacity: 0, y: 12, filter: "blur(4px)" }}
+                        animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                        transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+                        className="mt-6"
+                      >
                         <MetaForgeApprovalCard
                           id={m.forge_plan.id?.replace("mf.plan.", "mf.cap.") || "mf.proposal"}
                           title={`New capability: ${m.forge_plan.intent || "adaptive fleet router"}`}
@@ -1354,19 +1359,12 @@ function SovereignChat() {
                                 return { ...msg, streaming: false };
                               });
                               setMessages(updatedMessages);
-
-                              const rejectionMsg = `[SYSTEM_NOTE] The user REJECTED the MetaForge plan. Do not attempt to use the proposed capability. Proceed with existing tools or inform the user.`;
-                              const baseForOrch: Msg[] = [
-                                ...updatedMessages,
-                                { role: "user", text: rejectionMsg, hidden: true }
-                              ];
-                              runOrchestration(baseForOrch, undefined, rejectionMsg, { tools: [], skills: [], mcp: [] }, undefined, webSearch);
                             } catch(e: any) {
-                              toast.error(`Error rejecting plan: ${e.message}`);
+                              toast.error(`Error: ${e.message}`);
                             }
                           }}
                         />
-                      </div>
+                      </motion.div>
                     )}
 
                     {m.proposals && (
