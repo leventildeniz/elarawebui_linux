@@ -231,7 +231,7 @@ function Inline({ text }: { text: string }) {
   return (
     <>
       {parts.map((p, i) => {
-        if (p.startsWith("`") && p.endsWith("`"))
+        if (p.startsWith("`") && p.endsWith("`") && p.length >= 2)
           return (
             <code
               key={i}
@@ -240,12 +240,20 @@ function Inline({ text }: { text: string }) {
               {p.slice(1, -1)}
             </code>
           );
-        if (p.startsWith("**") && p.endsWith("**"))
+        if (p.startsWith("**") && p.endsWith("**") && p.length >= 4)
           return (
             <strong key={i} className="font-semibold text-foreground">
               {p.slice(2, -2)}
             </strong>
           );
+        // Streaming unclosed bold fallback at tail (e.g. "**Durum: ") to prevent jumping
+        if (p.startsWith("**") && !p.slice(2).includes("**")) {
+          return (
+            <strong key={i} className="font-semibold text-foreground">
+              {p.slice(2)}
+            </strong>
+          );
+        }
         return <span key={i}>{p}</span>;
       })}
     </>

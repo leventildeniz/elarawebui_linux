@@ -3,7 +3,7 @@
 // planning agent (Meta/forge_master) produces the ForgePlan and POSTs it to
 // /api/meta-forge/plan. This module only validates shape and persists.
 
-const VALID_KINDS = new Set(["skill", "pack", "tool", "agent", "workflow", "chain", "orchestration", "webhook"]);
+const VALID_KINDS = new Set(["skill", "pack", "tool", "agent", "workflow", "chain", "orchestration", "webhook", "mcp"]);
 
 export function validateForgePlan(plan) {
   if (!plan || typeof plan !== "object") throw new Error("plan must be object");
@@ -86,33 +86,50 @@ export function extractForgeJson(text) {
  * Uses direct pool queries (no HTTP hop) since we're already in-process.
  */
 export async function buildInventory(pool) {
-  const [agents, tools, skills, packs, mcp, workflows, chains] = await Promise.all([
+  const [agents, tools, skills, packs, mcpExposed, mcpClients, workflows, chains] = await Promise.all([
     pool.query(`SELECT id AS slug, name, COALESCE(description,'') AS description
-                FROM agents ORDER BY id`).catch(() => ({ rows: [] })),
+                FROM agents WHERE id != 'agt.forge_master' ORDER BY id`).catch(() => ({ rows: [] })),
     pool.query(`SELECT id AS slug, name, COALESCE(description,'') AS description, category
-                FROM tools WHERE enabled=true ORDER BY id`).catch(() => ({ rows: [] })),
+                FROM action_library WHERE COALESCE((runtime->>'orphan')::boolean, false) = false ORDER BY id`).catch(() => ({ rows: [] })),
     pool.query(`SELECT id AS slug, name, COALESCE(description,'') AS description
-                FROM skills ORDER BY id`).catch(() => ({ rows: [] })),
+                FROM skills WHERE enabled=true ORDER BY id`).catch(() => ({ rows: [] })),
     pool.query(`SELECT id AS slug, name, COALESCE(description,'') AS description
                 FROM capability_packs ORDER BY id`).catch(() => ({ rows: [] })),
     pool.query(`SELECT kind, slug FROM mcp_exposures WHERE enabled=true`)
       .catch(() => ({ rows: [] })),
+    pool.query(`SELECT slug, name, tools_cache FROM mcp_client_servers WHERE enabled=true`)
+      .catch(() => ({ rows: [] })),
     pool.query(`SELECT id AS slug, name FROM workflows ORDER BY id`).catch(() => ({ rows: [] })),
     pool.query(`SELECT id AS slug, name FROM orchestrations ORDER BY id`).catch(() => ({ rows: [] })),
   ]);
+
+  const mcpTools = [];
+  for (const server of mcpClients.rows) {
+    const list = Array.isArray(server.tools_cache) ? server.tools_cache : [];
+    for (const t of list) {
+      mcpTools.push({
+        slug: `mcp.${server.slug}.${t.name}`,
+        name: `[MCP: ${server.name}] ${t.name}`,
+        desc: (t.description || "").slice(0, 100)
+      });
+    }
+  }
+
   return {
-    agents: agents.rows,
-    tools: tools.rows,
-    skills: skills.rows,
-    packs: packs.rows,
-    mcp_exposed: mcp.rows,
-    workflows: workflows.rows,
-    chains: chains.rows,
+    agents: agents.rows.map(a => ({ slug: a.slug, name: a.name, desc: (a.description || "").slice(0, 100) })),
+    tools: tools.rows.map(t => ({ slug: t.slug, name: t.name, desc: (t.description || "").slice(0, 100), cat: t.category })),
+    skills: skills.rows.map(s => ({ slug: s.slug, name: s.name, desc: (s.description || "").slice(0, 100) })),
+    packs: packs.rows.map(p => ({ slug: p.slug, name: p.name })),
+    mcp_tools: mcpTools,
+    mcp_exposed: mcpExposed.rows,
+    workflows: workflows.rows.map(w => ({ slug: w.slug, name: w.name })),
+    chains: chains.rows.map(c => ({ slug: c.slug, name: c.name })),
     counts: {
       agents: agents.rows.length,
       tools: tools.rows.length,
       skills: skills.rows.length,
       packs: packs.rows.length,
+      mcp_tools: mcpTools.length,
       workflows: workflows.rows.length,
       chains: chains.rows.length,
     },

@@ -190,6 +190,15 @@ function hydrate() {
   void pull();
 }
 
+let writeDeskTimeout: ReturnType<typeof setTimeout> | null = null;
+function debouncedWriteDesk(key: string, data: any, delayMs = 350) {
+  if (writeDeskTimeout) clearTimeout(writeDeskTimeout);
+  writeDeskTimeout = setTimeout(() => {
+    writeDeskTimeout = null;
+    writeDesk(key, data);
+  }, delayMs);
+}
+
 function commit(next: ChatThread[], sync?: "create" | "messages" | "files" | "patch" | "delete", syncId?: string) {
   // Asla sıfır chat durumuna izin verme! Kullanıcı son chati silerse anında yepyeni, boş bir chat üret.
   if (next.length === 0) {
@@ -199,7 +208,16 @@ function commit(next: ChatThread[], sync?: "create" | "messages" | "files" | "pa
   
   state = next;
   if (!state.some((c) => c.id === activeId)) activeId = state[0]?.id ?? "";
-  writeDesk(KEY, next);
+  
+  if (sync === "messages") {
+    debouncedWriteDesk(KEY, next, 350);
+  } else {
+    if (writeDeskTimeout) {
+      clearTimeout(writeDeskTimeout);
+      writeDeskTimeout = null;
+    }
+    writeDesk(KEY, next);
+  }
   rememberActive();
   emit();
 

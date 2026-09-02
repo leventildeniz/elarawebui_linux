@@ -717,21 +717,49 @@ export async function rollbackForgePlan({ pool, planId }) {
       } else if (a.kind === "webhook" && a.db_row_id) {
         await pool.query(`DELETE FROM webhooks WHERE id=$1`, [a.db_row_id]);
         removed.push({ kind: "webhook", slug: a.slug });
-      } else if ((a.kind === "tool" || a.kind === "agent") && a.disk_path) {
-        const abs = path.resolve(PROJECT_ROOT, a.disk_path);
-        const baseDir = a.kind === "tool" ? TOOLS_DIR : AGENTS_DIR;
-        assertInside(baseDir, abs);
-        if (fs.existsSync(abs)) {
-          fs.mkdirSync(TRASH_DIR, { recursive: true });
-          const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-          const trashPath = path.join(TRASH_DIR, `${a.kind}-${a.slug}-${stamp}.py`);
-          fs.renameSync(abs, trashPath);
+      } else if (a.kind === "tool") {
+        // Clean from action_library and tools tables
+        const toolIds = [a.db_row_id, `tool.${a.slug}`, a.slug].filter(Boolean);
+        await pool.query(`DELETE FROM action_library WHERE id = ANY($1) OR (slug = $2 AND is_system = false)`, [toolIds, a.slug]);
+        await pool.query(`DELETE FROM tools WHERE id = ANY($1) OR name = $2`, [toolIds, a.slug]);
+        
+        // Move file to .forge-trash if disk_path exists
+        if (a.disk_path) {
+          const abs = path.resolve(PROJECT_ROOT, a.disk_path);
+          assertInside(TOOLS_DIR, abs);
+          if (fs.existsSync(abs)) {
+            fs.mkdirSync(TRASH_DIR, { recursive: true });
+            const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+            const trashPath = path.join(TRASH_DIR, `tool-${a.slug}-${stamp}.py`);
+            fs.renameSync(abs, trashPath);
+          }
+          removed.push({ kind: "tool", slug: a.slug, disk_path: a.disk_path });
+        } else {
+          removed.push({ kind: "tool", slug: a.slug });
         }
-        removed.push({ kind: a.kind, slug: a.slug, disk_path: a.disk_path });
+      } else if (a.kind === "agent") {
+        // Clean from agents table (protecting system agents)
+        const agentIds = [a.db_row_id, `agt.${a.slug}`, a.slug].filter(Boolean);
+        await pool.query(`DELETE FROM agents WHERE (id = ANY($1) OR name = $2) AND id != 'agt.forge_master' AND squad != 'System'`, [agentIds, a.slug]);
+
+        // Move file to .forge-trash if disk_path exists
+        if (a.disk_path) {
+          const abs = path.resolve(PROJECT_ROOT, a.disk_path);
+          assertInside(AGENTS_DIR, abs);
+          if (fs.existsSync(abs)) {
+            fs.mkdirSync(TRASH_DIR, { recursive: true });
+            const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+            const trashPath = path.join(TRASH_DIR, `agent-${a.slug}-${stamp}.py`);
+            fs.renameSync(abs, trashPath);
+          }
+          removed.push({ kind: "agent", slug: a.slug, disk_path: a.disk_path });
+        } else {
+          removed.push({ kind: "agent", slug: a.slug });
+        }
       }
-      // Also clean the capability row (any origin) for this slug/kind.
+      // Clean the capability row for this slug/kind.
       try {
-        await pool.query(`DELETE FROM capabilities WHERE slug=$1 AND kind=$2 AND origin='auto_forge'`, [a.slug, a.kind]);
+        await pool.query(`DELETE FROM capabilities WHERE (slug=$1 OR id=$1 OR ref_id=$1) AND kind=$2`, [a.slug, a.kind]);
       } catch { /* */ }
     } catch (e) {
       removed.push({ kind: a.kind, slug: a.slug, error: String(e?.message || e) });

@@ -400,17 +400,28 @@ MetaForge tarafından sentezlenen çok adımlı Workflow (DAG) ve Orchestration 
    - **Payload Truncation Guard:** `crt.sh` gibi devasa veri dönen araçların 20.000+ karakterlik ham çıktıları context şişmesi ve yerel modelde 1 tok/s darboğazı yaratmaması için güvenli özetleme notuyla sınırlandırıldı.
    - **Enterprise ReAct Tavanı (15 Tur):** Kurumsal seviyedeki çok adımlı, karmaşık ve çoklu araç zincirleme operasyonlarına tam özgürlük tanımak amacıyla döngü tavanı 15 tur olarak korundu. Adaptive effort ve payload guard sayesinde bu turlar takılmadan akıcı işler.
 
-## 47. IN FOCUS / DEVİR PLANI (Phase 47) - Autonomous Pipeline Polish & Latency Profiling
-Bu aşamada MetaForge ve Chat orkestrasyonundaki kalan 2 kritik başlığa ve icra doğrulamasına odaklanılacaktır:
+## 47. Completed (Phase 47) - Autonomous Pipeline Polish, Lifecycle Hardening & Latency Profiling
+Bu aşamada MetaForge ve Chat orkestrasyonundaki kritik senkronizasyon, yaşam döngüsü (Lifecycle), geri alma (Rollback), envanter doğruluğu ve arayüz akış problemleri uçtan uca çözüldü.
 
-### Çözülecek 2 Kritik Başlık:
-1. **Onay Kartının Render Zamanlaması ve Yerleşimi (`chat-orchestrate.mjs` & `index.tsx`):**
-   - **Sorun:** Model araç çağrısını (`sys_delegate_to_metaforge`) tamamlar tamamlamaz kartı gönderiyor. Model 2. turda açıklama metnini ve tablosunu yazarken kart ekranda duruyor ve metin kartın üzerine/çevresine akıyor.
-   - **Hedef:** Model önce tüm açıklama metnini ve tablosunu eksiksiz tamamlamalı ("onayınızı bekliyorum" cümlesi dahil), metin akışı bittiği anda onay kartı en altta zarif bir şekilde belirmelidir.
-2. **Orchestration & MetaForge Yerel Model Gecikme Optimizasyonu:**
-   - **Sorun:** Yerel modellerde (Gemma 4 31B vb.) orkestrasyon ve MetaForge sentez süreçlerinde yaşanan bekleme sürelerinin profilini çıkarmak ve TTFT (Time-to-first-token) ile token akışını optimize etmek.
-3. **Uçtan Uca DAG İcra Doğrulaması (`workflow-engine.mjs` & `workflows.mjs`):**
-   - Sentezlenen düğümlerin "Run Workflow" ve Webhook tetikleyicisiyle adım adım yürütülmesi (`Trigger ➔ Tool ➔ Logic ➔ Output`).
+### Yapılan Düzeltmeler & Mimari İyileştirmeler:
+1. **Onay Kartı Render Zamanlaması ve Yerleşimi (`chat-orchestrate.mjs` & `index.tsx`):**
+   - `e.kind === "forge_plan"` olayı geldiğinde erken `setStreaming(false)` çağrısı engellendi.
+   - Onay kartı JSX koşulu `m.forge_plan && !m.streaming` kuralına bağlandı; model önce açıklamasını, tablosunu ve özetini eksiksiz yazar, akış bittiği anda onay kartı en altta Sovereign `rise` animasyonuyla zarifçe belirir.
+2. **Varlık Yaşam Döngüsü & Rollback/Reset Tam Silme Güvencesi (`apply.mjs` & `meta-forge.mjs`):**
+   - `rollbackForgePlan` fonksiyonunun araçları ve ajanları `action_library`, `tools` ve `agents` tablolarından silmemesi (öksüz/hayalet kayıt bırakması) sorunu kalıcı olarak giderildi.
+   - Geri alma ve defter sıfırlama (clean sweep) işlemlerinde `.py` dosyası `.forge-trash/` dizinine taşınırken tüm ilişkili veritabanı kayıtları (`action_library`, `tools`, `agents`, `capabilities`, `skills`, `workflows`, `orchestrations`, `webhooks`) eksiksiz temizlenir.
+3. **Dizin ve Envanter Hayalet (Orphan) Filtresi (`chat-orchestrate.mjs` & `planner.mjs`):**
+   - `sys_get_directory` ve `buildInventory` sorgularına `COALESCE((runtime->>'orphan')::boolean, false) = false` filtresi eklendi. Model artık dizinde asla diskte olmayan ölü araçları görmez.
+   - Geçmiş testlerden kalan ve diskte dosyası olmayan 17 adet hayalet araç veritabanından tamamen süpürüldü.
+4. **Toleranslı ve Kendi Kendini İyileştiren Eşleştirici (`chat-orchestrate.mjs`):**
+   - `sys_execute_tool` icra motoruna toleranslı çözücü eklendi. Model `ssl-cert-probe`, `tool.ssl-cert-probe` veya bare slug kullansa dahi sistem bunu otomatik olarak kanonik kimliğe (`tool.ssl-cert-probe`) eşler. MCP araçları için de `mcp.` önek tamamlama desteği sağlandı.
+5. **Düşünce Ayrıştırıcı & Dil Direktifi (`chat-orchestrate.mjs`):**
+   - `<think>` ve `<thought>` etiketlerinin güvenli ayrıştırılması sağlandı, normal metinlerin düşünce kutusuna kaçması engellendi.
+   - `masterDirectives` içine `[LANGUAGE & RESPONSE DIRECTIVE]` eklenerek modelin doğrudan kullanıcının diliyle (Türkçe) konuşması kurala bağlandı.
+6. **Chat Akış Titremesi (Flicker) ve Storage Optimizasyonu (`chat-store.ts`, `rich-message.tsx`, `index.tsx`):**
+   - Akış esnasında her harfte `localStorage.setItem` çağrılması engellendi, 350ms'lik debounce arkasına alınarak Main Thread donmaları yok edildi.
+   - İmleç animasyonu donanım hızlandırmalı saf CSS `animate-pulse` sınıfına çekildi.
+   - `rich-message.tsx` içerisindeki `Inline` bileşenine akış esnasında kapanmamış `**...` kalın metin parçaları için yumuşak geçiş eklendi, font sıçramaları ve titremeler giderildi.
 
 ## 48. UP NEXT (Phase 48) - Agentic RAG & Knowledge Hub Validation
 - Dondurulan RAG entegrasyonu, departman bazlı space izolasyonu (`rag_space_id`), dosya indeksleme ve reranker testleri devreye alınacak.

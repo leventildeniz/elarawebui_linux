@@ -49676,3 +49676,75 @@ Node.js v22.22.1
 [Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
 [Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
 [Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[TCP-KILLER] Request Error to 192.168.0.18:8001: Client Aborted
+[Orchestrate] Araç çalıştırma hatası (sys_delegate_to_metaforge) - Gerçek ID (sys_delegate_to_metaforge): Error: Client Aborted
+    at AbortSignal.<anonymous> (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:74:33)
+    at [nodejs.internal.kHybridDispatch] (node:internal/event_target:843:20)
+    at AbortSignal.dispatchEvent (node:internal/event_target:776:26)
+    at runAbort (node:internal/abort_controller:486:10)
+    at abortSignal (node:internal/abort_controller:457:3)
+    at AbortController.abort (node:internal/abort_controller:505:5)
+    at AbortSignal.<anonymous> (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:632:28)
+    at [nodejs.internal.kHybridDispatch] (node:internal/event_target:843:20)
+    at AbortSignal.dispatchEvent (node:internal/event_target:776:26)
+    at runAbort (node:internal/abort_controller:486:10)
+[Orchestrate] Provider Gemma 4 31B Local failed: Connection to LLM failed: Aborted before request started
+[Orchestrate] Provider Gemini 3.1 Pro failed: Connection to LLM failed: Aborted before request started
+[TCP-KILLER] Request Error to 192.168.0.18:8001: Aborted before request started
+[TCP-KILLER] Request Error to generativelanguage.googleapis.com:443: Aborted before request started
+[Orchestrate] Provider Claude 3.7 Sonnet failed: Connection to LLM failed: Aborted before request started
+[TCP-KILLER] Request Error to api.anthropic.com:443: Aborted before request started
+[Orchestrate] Provider GPT-4o failed: Connection to LLM failed: Aborted before request started
+[TCP-KILLER] Request Error to api.openai.com:443: Aborted before request started
+[Orchestrate] Provider Gemini 3.7 Flash failed: Connection to LLM failed: Aborted before request started
+[TCP-KILLER] Request Error to generativelanguage.googleapis.com:443: Aborted before request started
+[Orchestrate] Provider Gemini Flash Lite failed: Connection to LLM failed: Aborted before request started
+[TCP-KILLER] Request Error to generativelanguage.googleapis.com:443: Aborted before request started
+[Orchestrate] Provider Gemini 3.1 Flash Lite failed: Connection to LLM failed: Aborted before request started
+[Orchestrate] Provider Gemma 4 31B Local (Provider Fallback) failed: Connection to LLM failed: Aborted before request started
+[TCP-KILLER] Request Error to generativelanguage.googleapis.com:443: Aborted before request started
+[TCP-KILLER] Request Error to 192.168.0.18:8001: Aborted before request started
+[Orchestrate] Provider Gemini 3.1 Flash Lite (Provider Fallback) failed: Connection to LLM failed: Aborted before request started
+[TCP-KILLER] Request Error to generativelanguage.googleapis.com:443: Aborted before request started
+[TCP-KILLER] Request Error to 192.168.0.18:8001: Client Aborted
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[capabilities] sp_skills skipped: column "slug" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[capabilities] sp_skills skipped: column "slug" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[capabilities] sp_skills skipped: column "slug" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Araç çalıştırma hatası (sys_execute_tool) - Gerçek ID (sys_execute_tool): Error: disk-runner: file not found: /home/levent/ELARA_PROJECT/Elara_WebUi/tools/tool_ssl-probe.py (ENOENT: no such file or directory, stat '/home/levent/ELARA_PROJECT/Elara_WebUi/tools/tool_ssl-probe.py')
+    at runDiskScript (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/disk-runner.mjs:40:21)
+    at Object.python (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/tool-adapters.mjs:295:38)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async invokeTool (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/tool-adapters.mjs:417:20)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1647:49
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[TCP-KILLER] Request Error to 192.168.0.18:8001: Client Aborted
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function

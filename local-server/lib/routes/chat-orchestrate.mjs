@@ -394,11 +394,42 @@ export async function mountChatOrchestrateRoutes(app, deps) {
     return (async function* () {
       const decoder = new TextDecoder();
       const reader = res.body?.getReader?.();
-      
-      try {
-        let isGemini = requestUrl.includes("generativelanguage.googleapis.com");
-        let geminiInThought = false;
+      let inThought = false;
 
+      function* handleContent(content) {
+        if (!content || content === "null") return;
+
+        if (content.includes("<think>")) {
+          inThought = true;
+          content = content.replace("<think>", "");
+        }
+        if (content.includes("</think>")) {
+          inThought = false;
+          const parts = content.split("</think>");
+          if (parts[0]) yield JSON.stringify({ type: "think", delta: parts[0] });
+          if (parts[1]) yield JSON.stringify({ type: "out", delta: parts[1] });
+          return;
+        }
+        if (content.includes("<thought>")) {
+          inThought = true;
+          content = content.replace("<thought>", "");
+        }
+        if (content.includes("</thought>")) {
+          inThought = false;
+          const parts = content.split("</thought>");
+          if (parts[0]) yield JSON.stringify({ type: "think", delta: parts[0] });
+          if (parts[1]) yield JSON.stringify({ type: "out", delta: parts[1] });
+          return;
+        }
+
+        if (inThought) {
+          yield JSON.stringify({ type: "think", delta: content });
+        } else {
+          yield JSON.stringify({ type: "out", delta: content });
+        }
+      }
+
+      try {
         if (reader) {
            let buffer = "";
            while (true) {
@@ -428,60 +459,9 @@ export async function mountChatOrchestrateRoutes(app, deps) {
                        yield JSON.stringify({ type: "think", delta: deltaObj.reasoning_content });
                      }
                    
-                     let content = deltaObj.content || parsed.message?.content || parsed.content || "";
+                     const content = deltaObj.content || parsed.message?.content || parsed.content || "";
                      if (content && content !== "null") {
-                       // Thought Parsing: Extract <think> or <thought> from regular content
-                       let remainingContent = "";
-                       let searchIndex = 0;
-                       
-                       while (searchIndex < content.length) {
-                           if (!geminiInThought) {
-                               const thinkIdx = content.indexOf("<think>", searchIndex);
-                               const thoughtIdx = content.indexOf("<thought>", searchIndex);
-                               let startIdx = -1;
-                               let tagLen = 0;
-                               if (thinkIdx !== -1 && (thoughtIdx === -1 || thinkIdx < thoughtIdx)) {
-                                   startIdx = thinkIdx;
-                                   tagLen = 7;
-                               } else if (thoughtIdx !== -1) {
-                                   startIdx = thoughtIdx;
-                                   tagLen = 9;
-                               }
-                               if (startIdx !== -1) {
-                                   remainingContent += content.substring(searchIndex, startIdx);
-                                   geminiInThought = true;
-                                   searchIndex = startIdx + tagLen;
-                               } else {
-                                   remainingContent += content.substring(searchIndex);
-                                   break;
-                               }
-                           } else {
-                               const endThinkIdx = content.indexOf("</think>", searchIndex);
-                               const endThoughtIdx = content.indexOf("</thought>", searchIndex);
-                               let endIdx = -1;
-                               let tagLen = 0;
-                               if (endThinkIdx !== -1 && (endThoughtIdx === -1 || endThinkIdx < endThoughtIdx)) {
-                                   endIdx = endThinkIdx;
-                                   tagLen = 8;
-                               } else if (endThoughtIdx !== -1) {
-                                   endIdx = endThoughtIdx;
-                                   tagLen = 10;
-                               }
-                               if (endIdx !== -1) {
-                                   yield JSON.stringify({ type: "think", delta: content.substring(searchIndex, endIdx) });
-                                   geminiInThought = false;
-                                   searchIndex = endIdx + tagLen;
-                               } else {
-                                   yield JSON.stringify({ type: "think", delta: content.substring(searchIndex) });
-                                   break;
-                               }
-                           }
-                       }
-                       content = remainingContent;
-                       
-                       if (content) {
-                           yield JSON.stringify({ type: "out", delta: content });
-                       }
+                       yield* handleContent(content);
                      }
                    } catch (e) {}
                  }
@@ -516,60 +496,9 @@ export async function mountChatOrchestrateRoutes(app, deps) {
                        yield JSON.stringify({ type: "think", delta: deltaObj.reasoning_content });
                      }
                    
-                     let content = deltaObj.content || parsed.message?.content || parsed.content || "";
+                     const content = deltaObj.content || parsed.message?.content || parsed.content || "";
                      if (content && content !== "null") {
-                       // Thought Parsing: Extract <think> or <thought> from regular content
-                       let remainingContent = "";
-                       let searchIndex = 0;
-                       
-                       while (searchIndex < content.length) {
-                           if (!geminiInThought) {
-                               const thinkIdx = content.indexOf("<think>", searchIndex);
-                               const thoughtIdx = content.indexOf("<thought>", searchIndex);
-                               let startIdx = -1;
-                               let tagLen = 0;
-                               if (thinkIdx !== -1 && (thoughtIdx === -1 || thinkIdx < thoughtIdx)) {
-                                   startIdx = thinkIdx;
-                                   tagLen = 7;
-                               } else if (thoughtIdx !== -1) {
-                                   startIdx = thoughtIdx;
-                                   tagLen = 9;
-                               }
-                               if (startIdx !== -1) {
-                                   remainingContent += content.substring(searchIndex, startIdx);
-                                   geminiInThought = true;
-                                   searchIndex = startIdx + tagLen;
-                               } else {
-                                   remainingContent += content.substring(searchIndex);
-                                   break;
-                               }
-                           } else {
-                               const endThinkIdx = content.indexOf("</think>", searchIndex);
-                               const endThoughtIdx = content.indexOf("</thought>", searchIndex);
-                               let endIdx = -1;
-                               let tagLen = 0;
-                               if (endThinkIdx !== -1 && (endThoughtIdx === -1 || endThinkIdx < endThoughtIdx)) {
-                                   endIdx = endThinkIdx;
-                                   tagLen = 8;
-                               } else if (endThoughtIdx !== -1) {
-                                   endIdx = endThoughtIdx;
-                                   tagLen = 10;
-                               }
-                               if (endIdx !== -1) {
-                                   yield JSON.stringify({ type: "think", delta: content.substring(searchIndex, endIdx) });
-                                   geminiInThought = false;
-                                   searchIndex = endIdx + tagLen;
-                               } else {
-                                   yield JSON.stringify({ type: "think", delta: content.substring(searchIndex) });
-                                   break;
-                               }
-                           }
-                       }
-                       content = remainingContent;
-                       
-                       if (content) {
-                           yield JSON.stringify({ type: "out", delta: content });
-                       }
+                       yield* handleContent(content);
                      }
                    } catch (e) {}
                  }
@@ -863,6 +792,7 @@ export async function mountChatOrchestrateRoutes(app, deps) {
       // 3.1. Master System Directives (Sovereignty, Tri-Tier Autonomy, MetaForge, Search & Honesty)
       const masterDirectives = [
         `[SOVEREIGN CORE DIRECTIVE]: You are ELARA, an enterprise-grade autonomous AI engine. You operate with absolute technical accuracy, intelligence, zero guessing, and adaptive execution.`,
+        `[LANGUAGE & RESPONSE DIRECTIVE]: Always respond in the same language as the user's prompt (e.g. Turkish if the user writes in Turkish). Maintain a clear, professional, and structured tone.`,
         `[DECISION HIERARCHY & TASK ROUTING]:
 When the user asks you a question or assigns a task, intelligently apply the following 3-tier decision framework:
 
@@ -1173,8 +1103,8 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                   }
                   
                   // Adaptive Effort: Tur 1'de kullanıcının seçtiği effort kullanılır;
-                  // Sonraki turlarda (tool sonuçları geldikten sonra) modelin gereksiz sonsuz düşünme döngüsüne girmemesi için effort adapte edilir.
-                  const turnEffort = iteration === 1 ? effort : (effort === "high" ? "low" : effort);
+                  // Sonraki turlarda (tool sonuçları geldikten sonra) modelin gereksiz sonsuz düşünme döngüsüne girmemesi için effort 'none' moduna adapte edilir.
+                  const turnEffort = iteration === 1 ? effort : "none";
                   it = await streamFromProvider({
                       provider: currentProv,
                       messages: formattedMessages,
@@ -1446,7 +1376,7 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                           );
                           const { clause: actClause, params: actParams } = deps.buildVisibility(actorCtx, 1, 'owner_user_id');
                           const actRes = await pool.query(
-                             `SELECT id, name, category, description, params FROM action_library WHERE (${actClause}) AND is_system = false`,
+                             `SELECT id, name, category, description, params FROM action_library WHERE (${actClause}) AND is_system = false AND COALESCE((runtime->>'orphan')::boolean, false) = false`,
                              actParams
                           );
                           const { clause: skillClause, params: skillParams } = deps.buildVisibility(actorCtx, 1, 'owner_id');
@@ -1473,8 +1403,22 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                              `SELECT slug, name, tools_cache FROM mcp_client_servers WHERE enabled = true`
                           );
 
-                          const standardTools = actRes.rows.map(t => ({ id: t.id, name: t.name, desc: t.description, params: typeof t.params === 'string' ? JSON.parse(t.params) : t.params }));
-                          const skillsList = skillRes.rows.map(s => ({ id: s.id, name: s.name, desc: s.description, params: s.params }));
+                          const standardTools = actRes.rows.map(t => {
+                             let pKeys = [];
+                             try {
+                               const p = typeof t.params === 'string' ? JSON.parse(t.params) : t.params;
+                               pKeys = Array.isArray(p) ? p.map(x => x.name || x.key || x.id) : (p && typeof p === 'object' ? Object.keys(p.properties || p) : []);
+                             } catch(e) {}
+                             return { id: t.id, name: t.name, desc: (t.description || "").slice(0, 120), params: pKeys };
+                          });
+                          const skillsList = skillRes.rows.map(s => {
+                             let pKeys = [];
+                             try {
+                               const p = typeof s.params === 'string' ? JSON.parse(s.params) : s.params;
+                               pKeys = Array.isArray(p) ? p.map(x => x.name || x.key || x.id) : (p && typeof p === 'object' ? Object.keys(p.properties || p) : []);
+                             } catch(e) {}
+                             return { id: s.id, name: s.name, desc: (s.description || "").slice(0, 120), params: pKeys };
+                          });
                           const mcpTools = [];
                           for (const server of mcpRes.rows) {
                              const tools = Array.isArray(server.tools_cache) ? server.tools_cache : [];
@@ -1482,8 +1426,8 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                                 mcpTools.push({
                                    id: `mcp.${server.slug}.${t.name}`,
                                    name: `[MCP: ${server.name}] ${t.name}`,
-                                   desc: t.description || "",
-                                   params: t.inputSchema || {}
+                                   desc: (t.description || "").slice(0, 120),
+                                   params: t.inputSchema?.properties ? Object.keys(t.inputSchema.properties) : []
                                 });
                              }
                           }
@@ -1494,16 +1438,16 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                                   id: "sys_web_search",
                                   name: "Live Web Search",
                                   desc: "Performs a live internet search using DuckDuckGo to get up-to-date information, news, dates, and facts.",
-                                  params: { type: "object", properties: { query: { type: "string", description: "The search query to look up on the internet." } }, required: ["query"] }
+                                  params: ["query"]
                               });
                           }
 
                           toolResultStr = JSON.stringify({
-                              agents: agtRes.rows,
+                              agents: agtRes.rows.map(a => ({ id: a.id, name: a.name, squad: a.squad, desc: (a.description || "").slice(0, 120) })),
                               tools: [...standardTools, ...skillsList, ...mcpTools],
                               workflows: wfRes.rows.map(w => ({ id: w.id, name: w.name, trigger: w.trigger, status: w.status })),
                               orchestrations: orcRes.rows.map(o => ({ id: o.id, name: o.name, trigger: o.trigger, status: o.status })),
-                              webhooks: whRes.rows.map(w => ({ id: w.id, name: w.name, slug: w.slug, description: w.description, connection: w.connection })),
+                              webhooks: whRes.rows.map(w => ({ id: w.id, name: w.name, slug: w.slug, description: (w.description || "").slice(0, 120) })),
                               message: "Directory loaded. Contains available agents, tools, skills, MCP servers, workflows, orchestrations, and webhooks."
                           });
                       } else if (realToolId === "sys_delegate_to_agent") {
@@ -1613,16 +1557,32 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                               });
                           }
                       } else if (realToolId === "sys_execute_tool") {
-                          const targetToolId = parsedArgs.tool_id;
+                          const targetToolId = parsedArgs.tool_id || "";
                           const targetParams = parsedArgs.params || {};
 
-                          // Check permission dynamically
+                          // Resilient / Tolerant ID resolution (auto-resolve prefixes, protect from orphans)
+                          let canonicalId = targetToolId;
                           let isAllowed = false;
 
-                          if (targetToolId.startsWith("mcp.")) {
+                          let isMcp = targetToolId.startsWith("mcp.");
+                          let serverSlug = "";
+                          if (isMcp) {
+                              serverSlug = targetToolId.slice(4).split(".")[0];
+                          } else if (targetToolId.includes(".")) {
+                              const firstPart = targetToolId.split(".")[0];
+                              const mcpServerCheck = await pool.query(
+                                  `SELECT slug FROM mcp_client_servers WHERE slug = $1 AND enabled = true`,
+                                  [firstPart]
+                              );
+                              if (mcpServerCheck.rows.length > 0) {
+                                  isMcp = true;
+                                  serverSlug = firstPart;
+                                  canonicalId = `mcp.${targetToolId}`;
+                              }
+                          }
+
+                          if (isMcp) {
                               // It's an MCP tool
-                              const parts = targetToolId.slice(4).split(".");
-                              const serverSlug = parts[0];
                               const mcpRow = await pool.query(
                                   `SELECT id FROM mcp_client_servers WHERE slug = $1 AND enabled = true`,
                                   [serverSlug]
@@ -1630,28 +1590,37 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                               if (mcpRow.rows.length > 0) isAllowed = true;
                           } else if (targetToolId.startsWith("sk.") || targetToolId.startsWith("skill.")) {
                               // It's a skill
-                              const { clause: skillClause, params: skillParams } = deps.buildVisibility(actorCtx, 2, 'owner_id');
+                              const cleanSkillId = targetToolId.startsWith("sk.") ? targetToolId : `sk.${targetToolId.replace(/^skill\./, '')}`;
+                              const { clause: skillClause, params: skillParams } = deps.buildVisibility(actorCtx, 3, 'owner_id');
                               const skillRow = await pool.query(
-                                  `SELECT id FROM skills WHERE id = $1 AND enabled = true AND (${skillClause})`,
-                                  [targetToolId, ...skillParams]
+                                  `SELECT id FROM skills WHERE (id = $1 OR id = $2) AND enabled = true AND (${skillClause})`,
+                                  [targetToolId, cleanSkillId, ...skillParams]
                               );
-                              if (skillRow.rows.length > 0) isAllowed = true;
+                              if (skillRow.rows.length > 0) {
+                                  isAllowed = true;
+                                  canonicalId = skillRow.rows[0].id;
+                              }
                           } else {
-                              // Standard Tool
-                              const { clause: actClause, params: actParams } = deps.buildVisibility(actorCtx, 2, 'owner_user_id');
+                              // Standard Tool: check with or without "tool." prefix, and strictly exclude orphans
+                              const cleanToolId = targetToolId.startsWith("tool.") ? targetToolId : `tool.${targetToolId}`;
+                              const bareToolId = targetToolId.replace(/^tool\./, '');
+                              const { clause: actClause, params: actParams } = deps.buildVisibility(actorCtx, 4, 'owner_user_id');
                               const toolRow = await pool.query(
-                                 `SELECT id FROM action_library WHERE id = $1 AND (${actClause}) AND is_system = false`,
-                                 [targetToolId, ...actParams]
+                                 `SELECT id FROM action_library WHERE (id = $1 OR id = $2 OR slug = $3) AND (${actClause}) AND is_system = false AND COALESCE((runtime->>'orphan')::boolean, false) = false`,
+                                 [targetToolId, cleanToolId, bareToolId, ...actParams]
                               );
-                              if (toolRow.rows.length > 0) isAllowed = true;
+                              if (toolRow.rows.length > 0) {
+                                  isAllowed = true;
+                                  canonicalId = toolRow.rows[0].id;
+                              }
                           }
 
                           if (!isAllowed) {
-                              toolResultStr = JSON.stringify({ error: `Tool/MCP/Skill '${targetToolId}' not found or permission denied.` });
+                              toolResultStr = JSON.stringify({ error: `Tool/MCP/Skill '${targetToolId}' not found, missing from disk (orphan), or permission denied.` });
                               toolStatus = "failed";
                           } else {
                               const invokeRes = await invokeTool({
-                                  toolId: targetToolId,
+                                  toolId: canonicalId,
                                   params: targetParams,
                                   sessionId: thread_id,
                                   agentId: agent_id
@@ -1774,7 +1743,7 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                                           
                                           toolResultStr = JSON.stringify({
                                               success: true,
-                                              message: "MetaForge generated a plan and is waiting for user approval. Do NOT proceed until the user approves or rejects it. Inform the user that the plan has been proposed.",
+                                              message: "MetaForge plan synthesized and waiting for approval. Briefly list the proposed artifacts in a clean Markdown table (using columns: Tür, İsim, ID/Slug, Açıklama), state that an interactive approval card is provided below, and conclude your response so the user can review it.",
                                               plan_id: planId,
                                               proposed_artifacts: (validated.create || []).map(c => ({
                                                   kind: c.kind,

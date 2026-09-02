@@ -266,7 +266,9 @@ function SovereignChat() {
     const id = requestAnimationFrame(() => {
       const el = scrollRef.current;
       if (!el || !stick.current) return;
-      el.scrollTop = el.scrollHeight;
+      if (Math.abs(el.scrollTop - el.scrollHeight) > 2) {
+        el.scrollTop = el.scrollHeight;
+      }
     });
     return () => cancelAnimationFrame(id);
   }, [messages, streaming]);
@@ -591,9 +593,7 @@ function SovereignChat() {
         }
         if (e.kind === "forge_plan") {
           forgePlan = e.plan;
-          act.phase = "done";
-          setStreaming(false);
-          paint(false);
+          paint(true);
           return;
         }
         if (e.kind === "error") {
@@ -1265,10 +1265,8 @@ function SovereignChat() {
                         )}
                         <RichMessage text={m.text} />
                         {m.streaming && (!m.activity || m.activity.phase !== "done") && (
-                          <motion.span
-                            className="ml-0.5 inline-block h-4 w-[7px] bg-sapphire/80 align-middle"
-                            animate={{ opacity: [1, 0.15, 1] }}
-                            transition={{ duration: 0.9, repeat: Infinity }}
+                          <span
+                            className="ml-0.5 inline-block h-4 w-[7px] bg-sapphire/80 align-middle animate-pulse"
                           />
                         )}
                         {!m.streaming && m.retrieval && <RetrievalCard r={m.retrieval} />}
@@ -1294,7 +1292,7 @@ function SovereignChat() {
                       </div>
                     )}
 
-                    {m.forge_plan && (
+                    {m.forge_plan && !m.streaming && (
                       <motion.div
                         initial={{ opacity: 0, y: 12, filter: "blur(4px)" }}
                         animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
