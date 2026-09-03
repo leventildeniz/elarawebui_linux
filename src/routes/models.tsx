@@ -20,6 +20,7 @@ import { AvatarPicker, EntityAvatar } from "@/components/sovereign/identity";
 import { VaultKeyField } from "@/components/sovereign/vault-key-field";
 
 import { avatarSeedGallery } from "@/lib/avatar-library";
+import { fetchApi } from "@/lib/api";
 import {
   emptyModel,
   useModelGroups,
@@ -802,30 +803,23 @@ function TestConnection({ draft }: { draft: Draft }) {
 
   const run = async () => {
     setState({ phase: "testing" });
-    const started = performance.now();
-    await new Promise((r) => setTimeout(r, 900));
-
-    if (!draft.baseUrl.trim()) {
-      setState({ phase: "fail", reason: "base url is empty" });
-      return;
-    }
-    let host = "";
     try {
-      host = new URL(draft.baseUrl).host;
-    } catch {
-      setState({ phase: "fail", reason: "base url is not a valid endpoint" });
-      return;
+      const res = await fetchApi("/api/models/probe", {
+        method: "POST",
+        body: JSON.stringify({
+          baseUrl: draft.baseUrl,
+          apiKeyRef: draft.apiKeyRef,
+          modelId: draft.modelId,
+        })
+      });
+      if (res?.ok) {
+        setState({ phase: "ok", latency: res.latency ?? 100 });
+      } else {
+        setState({ phase: "fail", reason: res?.error || "Connection failed" });
+      }
+    } catch (e: any) {
+      setState({ phase: "fail", reason: e.message || "Network error" });
     }
-    if (!draft.apiKeyRef.trim()) {
-      setState({ phase: "fail", reason: "no api key reference bound" });
-      return;
-    }
-    if (!draft.modelId.trim()) {
-      setState({ phase: "fail", reason: "model id missing" });
-      return;
-    }
-    void host;
-    setState({ phase: "ok", latency: Math.round(performance.now() - started) });
   };
 
   return (

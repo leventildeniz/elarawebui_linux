@@ -15,9 +15,9 @@ function mapJsonSchemaType(t) {
 }
 
 // --- NATIVE STREAM REQUEST (TCP KILLER) ---
-// Node.js'in standart fetch/undici'si keep-alive ve draining yüzünden soketi anında öldürmez.
-// Llama.cpp ve Gemma gibi modeller soket ölmediği için token üretmeye devam eder.
-// Bu fonksiyon, "Abort" sinyali geldiğinde alt seviyedeki TCP soketini KESİNLİKLE kopartır.
+// Standard Node.js fetch does not immediately tear down sockets on abort due to draining.
+// Local engines (Llama.cpp / Gemma) continue token generation unless the TCP socket is forcefully killed.
+// This wrapper sends an immediate TCP RST destruction when an abort signal is received.
 async function nativeStreamRequest(urlStr, options, payloadStr, signal) {
   return new Promise((resolve, reject) => {
     try {
@@ -25,15 +25,14 @@ async function nativeStreamRequest(urlStr, options, payloadStr, signal) {
       const lib = parsedUrl.protocol === 'https:' ? https : http;
       
       if (payloadStr) {
-        // HTTP spesifikasyonu gereği POST isteklerinde payload varsa Content-Length ZORUNLUDUR.
-        // Llama.cpp ve türevi local server'lar bu eksikse anında "socket hang up" (bağlantı koparma) yapar!
+        // Enforce Content-Length header on POST payloads to prevent socket hang up on strict servers
         options.headers['Content-Length'] = Buffer.byteLength(payloadStr);
       }
 
-      console.log(`\n[TCP-KILLER] ➔ İstek Başlıyor: ${options.method || 'POST'} ${urlStr}`);
+      console.log(`\n[TCP-KILLER] ➔ Request Dispatching: ${options.method || 'POST'} ${urlStr}`);
       console.log(`[TCP-KILLER] ➔ Headers:`, JSON.stringify(options.headers));
       if (payloadStr) {
-         console.log(`[TCP-KILLER] ➔ Payload (ilk 300 kar.):`, payloadStr.substring(0, 300) + (payloadStr.length > 300 ? '...' : ''));
+         console.log(`[TCP-KILLER] ➔ Payload (first 300 chars):`, payloadStr.substring(0, 300) + (payloadStr.length > 300 ? '...' : ''));
       }
 
       const reqOptions = {
@@ -46,12 +45,10 @@ async function nativeStreamRequest(urlStr, options, payloadStr, signal) {
             "User-Agent": "Elara-Orchestrator/1.0",
             ...options.headers
         },
-        agent: false // CLOUDCODE POINT 3: KESİNLİKLE Keep-Alive havuzunu (pool) kullanma, her istek taze açılsın.
+        agent: false // Spawn fresh request connections without pooling
       };
 
       let responseObj = null;
-
-      // CLOUDCODE POINT 1: Express req objesiyle çakışma/gölgeleme (shadowing) ihtimaline karşı llmReq olarak adlandırdık.
       const llmReq = lib.request(reqOptions, (llmRes) => {
         responseObj = llmRes;
         resolve({
@@ -62,7 +59,7 @@ async function nativeStreamRequest(urlStr, options, payloadStr, signal) {
              for await (const chunk of llmRes) body += chunk;
              return body;
           },
-          body: llmRes // res, Node.js 'IncomingMessage' (async iterable) olduğundan "for await" ile doğrudan okunabilir.
+          body: llmRes
         });
       });
 
@@ -77,14 +74,12 @@ async function nativeStreamRequest(urlStr, options, payloadStr, signal) {
           return reject(new Error('Aborted before request started'));
         }
         signal.addEventListener('abort', () => {
-          console.log(`\n🚨 [TCP-KILLER] 🚨 ABORT SIGNAL ALINDI! -> ${parsedUrl.hostname} için TCP Soketi PARÇALANIYOR!`);
+          console.log(`\n🚨 [TCP-KILLER] 🚨 ABORT SIGNAL RECEIVED -> Destroying TCP socket for ${parsedUrl.hostname}!`);
           
           if (responseObj) {
             responseObj.destroy(new Error("Client Aborted"));
           }
           if (llmReq.socket) {
-             // CLOUDCODE/TCP MANTIĞI: socket.end() çağrısı TCP FIN (Zarif kapanış) gönderir, RST değil. 
-             // O yüzden end() çağrısını kaldırıyoruz. Doğrudan destroy() ile acımasız RST gönderiyoruz.
              llmReq.socket.destroy(); 
           }
           llmReq.destroy(new Error("Client Aborted"));
@@ -105,17 +100,17 @@ export async function mountChatOrchestrateRoutes(app, deps) {
   const { pool, getRagSettings, approxTokens, calculateAIQuality, recordUsage, trace, invokeTool } = deps;
   console.log("[Chat Orchestrate] approxTokens available:", !!approxTokens);
 
-  // GLOBAL STREAM MAP: UI'dan gelen manuel STOP (cancel) isteklerini dinlemek için.
+  // GLOBAL STREAM MAP: Track in-flight streams for explicit cancel/stop signals
   const activeStreams = new Map();
 
   app.post("/api/chat/cancel", (req, res) => {
     const thread_id = req.body?.thread_id || req.body?.threadId;
     if (thread_id && activeStreams.has(thread_id)) {
       console.log(`\n========================================================`);
-      console.log(`🛑 [EXPLICIT CANCEL] UI DOĞRUDAN İPTAL İSTEĞİ ATTI! Thread: ${thread_id}`);
+      console.log(`🛑 [EXPLICIT CANCEL] UI requested abort! Thread: ${thread_id}`);
       console.log(`========================================================\n`);
       const abortCtrl = activeStreams.get(thread_id);
-      abortCtrl.abort(); // Bu sinyal doğrudan TCP-KILLER'a gider!
+      abortCtrl.abort();
       activeStreams.delete(thread_id);
       res.json({ success: true, message: "Stream explicitly aborted" });
     } else {
@@ -123,17 +118,15 @@ export async function mountChatOrchestrateRoutes(app, deps) {
     }
   });
 
-  // --- LLM ŞİVE (DIALECT) ADAPTÖRLERİ ---
+  // --- LLM DIALECT ADAPTERS ---
 
-  // Anthropic (Claude) API'si standart dışı olduğu için kendi formatına çeviririz.
-  async function fetchAnthropicStream(baseUrl, apiKey, targetModel, messages, tools, signal) {
-    // Anthropic "system" rolünü messages dizisinde değil, üst düzeyde bekler.
+  // Anthropic (Claude) API dialect adapter
+  async function fetchAnthropicStream(provider, baseUrl, apiKey, targetModel, messages, tools, signal) {
     let systemPrompt = "";
     const anthropicMessages = [];
   
     for (const m of messages) {
       if (m.role === "system") {
-        // Sistem mesajı düz metin (string) olmak zorunda
         let textContent = Array.isArray(m.content) ? m.content.find(c => c.type === 'text')?.text || "" : m.content;
         systemPrompt += (systemPrompt ? "\n" : "") + textContent;
       } else {
@@ -215,19 +208,36 @@ export async function mountChatOrchestrateRoutes(app, deps) {
         }));
     }
 
+    const temp = provider?.temperature !== undefined && provider?.temperature !== null ? Number(provider.temperature) : 0.7;
+    const topP = provider?.top_p !== undefined && provider?.top_p !== null ? Number(provider.top_p) : undefined;
+    const maxTokens = provider?.max_tokens !== undefined && provider?.max_tokens !== null ? Number(provider.max_tokens) : 4096;
+
     const payload = {
         model: targetModel,
         system: systemPrompt || undefined,
         messages: consolidatedMessages,
-        max_tokens: 4096,
+        max_tokens: maxTokens,
         stream: true,
-        temperature: 0.7
+        temperature: temp,
+        ...(topP !== undefined ? { top_p: topP } : {})
     };
 
-    // TOOL KONTROLÜ İPTAL EDİLDİ - SADECE TEST İÇİN YORUMA ALINDI
-    // if (Array.isArray(anthropicTools) && anthropicTools.length > 0) {
-    //    payload.tools = anthropicTools;
-    // }
+    if (Array.isArray(anthropicTools) && anthropicTools.length > 0) {
+        payload.tools = anthropicTools;
+    }
+
+    // Stop Sequences
+    if (provider?.stop_sequences) {
+        let stops = [];
+        if (Array.isArray(provider.stop_sequences)) {
+            stops = provider.stop_sequences;
+        } else if (typeof provider.stop_sequences === "string") {
+            try { stops = JSON.parse(provider.stop_sequences); } catch { stops = provider.stop_sequences.split(/[\n,]/).map(s => s.trim()).filter(Boolean); }
+        }
+        if (stops.length > 0) {
+            payload.stop_sequences = stops;
+        }
+    }
 
     const res = await nativeStreamRequest(`${baseUrl}/messages`, {
       method: "POST",
@@ -349,11 +359,24 @@ export async function mountChatOrchestrateRoutes(app, deps) {
         }
     }
 
+    const temp = provider?.temperature !== undefined && provider?.temperature !== null ? Number(provider.temperature) : 0.7;
+    const topP = provider?.top_p !== undefined && provider?.top_p !== null ? Number(provider.top_p) : undefined;
+    const topK = provider?.top_k !== undefined && provider?.top_k !== null ? Number(provider.top_k) : undefined;
+    const repPenalty = provider?.repetition_penalty !== undefined && provider?.repetition_penalty !== null ? Number(provider.repetition_penalty) : undefined;
+    const maxTokens = provider?.max_tokens !== undefined && provider?.max_tokens !== null ? Number(provider.max_tokens) : 4096;
+
+    // Detect if target endpoint is a local engine (Llama.cpp / vLLM / Ollama)
+    const isLocalEngine = baseUrl.includes("127.0.0.1") || baseUrl.includes("localhost") || baseUrl.includes("192.168.") || baseUrl.includes(":8000") || baseUrl.includes(":8001") || baseUrl.includes(":11434");
+
     const payload = {
       model: targetModel,
       messages,
       stream: true,
-      temperature: 0.7
+      temperature: temp,
+      max_tokens: maxTokens,
+      ...(topP !== undefined ? { top_p: topP } : {}),
+      ...(isLocalEngine && topK !== undefined ? { top_k: topK } : {}),
+      ...(isLocalEngine && repPenalty !== undefined ? { repetition_penalty: repPenalty, repeat_penalty: repPenalty } : {})
     };
 
     // OpenAI o1 ve Gemini 3.1+ gibi reasoning modellerine özel effort parametresi desteği
@@ -386,6 +409,19 @@ export async function mountChatOrchestrateRoutes(app, deps) {
         }
     }
 
+    // Stop Sequences (Durdurma Dizilimleri)
+    if (provider.stop_sequences) {
+        let stops = [];
+        if (Array.isArray(provider.stop_sequences)) {
+            stops = provider.stop_sequences;
+        } else if (typeof provider.stop_sequences === "string") {
+            try { stops = JSON.parse(provider.stop_sequences); } catch { stops = provider.stop_sequences.split(/[\n,]/).map(s => s.trim()).filter(Boolean); }
+        }
+        if (stops.length > 0) {
+            payload.stop = stops;
+        }
+    }
+
     if (Array.isArray(tools) && tools.length > 0) {
        payload.tools = tools;
     }
@@ -397,6 +433,7 @@ export async function mountChatOrchestrateRoutes(app, deps) {
 
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
+      console.error(`[fetchOpenAIStream] ❌ LLM API returned ${res.status} for ${targetModel} at ${requestUrl}:`, errText);
       throw new Error(`LLM API returned ${res.status}: ${errText}`);
     }
 
@@ -528,20 +565,18 @@ export async function mountChatOrchestrateRoutes(app, deps) {
     const baseUrl = (provider.model_base_url || provider.base_url || "http://127.0.0.1:8000/v1").replace(/\/$/, "");
     let apiKeyRef = provider.model_api_key || provider.secret_id || "dummy-key"; 
     
-    // YENİ: Merkezi Resolver (raw:// ve vault:// prefixleri ile tek satırda çözüm)
+    // Resolve credentials via Vault URI or raw prefix
     let apiKey = await resolveCredential(pool, apiKeyRef, "api_key");
 
-    // Son güvenlik kontrolü
     if (!apiKey || apiKey.trim() === "") {
         apiKey = "dummy-key";
     }
 
     const targetModel = provider.model_id || provider.model || "default";
-    console.log(`[Streamer] API Key Status for ${targetModel}:`, apiKey === "dummy-key" ? "Dummy" : (apiKey.startsWith("AIza") ? "Valid Google Key Detected" : "Valid Key"));
+    console.log(`[Streamer] API Key Status for ${targetModel}:`, apiKey === "dummy-key" ? "Dummy" : "Valid Key");
 
     let finalMessages = messages.filter(m => {
         if (!m) return false;
-        // Tool çağrıları veya sonuçları content olmadan da geçerlidir
         if (m.tool_calls && m.tool_calls.length > 0) return true;
         if (m.role === "tool") return true;
         
@@ -553,9 +588,7 @@ export async function mountChatOrchestrateRoutes(app, deps) {
         finalMessages = [ { role: "system", content: provider.system_prompt }, ...finalMessages ];
     }
 
-    // CLOUDCODE: Local LLM'ler (Llama.cpp vb.) tool schemaları ile devasa promp'lara
-    // maruz kalınca TTFT (Time To First Token) 15 saniyeyi kolayca aşabilir.
-    // Bu yüzden buradaki hardcoded TTFB timeout'u 120 saniyeye yükseltildi.
+    // Extended timeout (120s) for cold local LLM prompt ingestion
     const timeoutMs = 120000;
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeoutMs);
@@ -573,18 +606,17 @@ export async function mountChatOrchestrateRoutes(app, deps) {
     }
 
     try {
-        console.log(`[Streamer] İstek atılıyor: ${baseUrl} (Model: ${targetModel})`);
+        console.log(`[Streamer] Dispatching request to: ${baseUrl} (Model: ${targetModel})`);
       
         let iterator;
-        // Anthropic orijinal API tespiti
         if (baseUrl.includes("api.anthropic.com")) {
-           iterator = await fetchAnthropicStream(baseUrl, apiKey, targetModel, finalMessages, tools, controller.signal);
+           iterator = await fetchAnthropicStream(provider, baseUrl, apiKey, targetModel, finalMessages, tools, controller.signal);
         } else {
            iterator = await fetchOpenAIStream(provider, baseUrl, apiKey, targetModel, finalMessages, tools, controller.signal, effort);
         }
 
         clearTimeout(id);
-        console.log(`[Streamer] İstek başarılı, Stream başlıyor...`);
+        console.log(`[Streamer] Connection established, stream starting...`);
         return iterator;
       
     } catch (err) {
@@ -598,7 +630,7 @@ export async function mountChatOrchestrateRoutes(app, deps) {
     const agent_id = req.body?.agent_id || req.body?.agentId;
     const { model, messages = [], capabilities, web_search, useRag, routing_mode, effort = "high", context: threadContext } = req.body ?? {};
 
-    // RBAC Security Context'i Yakalama (Meta-Forge ve DB sorguları için)
+    // RBAC Security Context resolution
     let actorId = null;
     let actorCtx = null;
     if (deps.resolveActorContext) {
@@ -643,7 +675,7 @@ export async function mountChatOrchestrateRoutes(app, deps) {
     const abortHandler = () => {
         clearInterval(heartbeat);
         if (!requestAbort.signal.aborted) {
-            console.log("🛑 [Orchestrate] UI'DAN STOP (ABORT) SİNYALİ GELDİ!");
+            console.log("🛑 [Orchestrate] UI Stop signal received!");
             requestAbort.abort();
         }
         if (thread_id) activeStreams.delete(thread_id);
@@ -652,9 +684,8 @@ export async function mountChatOrchestrateRoutes(app, deps) {
     
     res.on("close", () => {
         clearInterval(heartbeat);
-        // Sunucu tarafından normal kapatılmamışsa iptal et
         if (!res.writableEnded && !requestAbort.signal.aborted) {
-            console.log("🛑 [Orchestrate] CLIENT DISCONNECTED ANORMALLY!");
+            console.log("🛑 [Orchestrate] Client disconnected abnormally!");
             requestAbort.abort();
         }
         if (thread_id) activeStreams.delete(thread_id);
@@ -669,19 +700,20 @@ export async function mountChatOrchestrateRoutes(app, deps) {
       let prov = null;
       let availableModels = [];
 
-      // Tüm aktif modelleri çekiyoruz
+      // Query all active studio models
       const dbRes = await pool.query(`
         SELECT
           m.id as model_pk, m.name as model_name, m.model_id, m.base_url as model_base_url, m.api_key_ref as model_api_key, m.system_prompt,
           m.input_cost, m.output_cost, m.provider_id, m.advanced, m.think_enabled, m.think_statement,
+          m.temperature, m.top_p, m.top_k, m.repetition_penalty, m.max_tokens, m.context_window,
+          m.stop_sequences, m.chat_template,
           p.id as provider_pk, p.name as provider_name, p.base_url, p.secret_id, p.priority
         FROM models m
         LEFT JOIN ai_providers p ON m.provider_id = p.id
         WHERE m.enabled = true AND (p.active IS NULL OR p.active = true)
       `);
       
-      // Buna ek olarak, modellerle eşleşmeyen ama Settings -> Providers ekranına 
-      // "Yedek (Fallback)" olarak eklenmiş saf AI Provider'larını da zincire katıyoruz!
+      // Query fallback AI Providers from settings
       const fallbackProvidersRes = await pool.query(`
         SELECT 
           id as provider_pk, name as provider_name, base_url, secret_id, priority, model as model_id
@@ -691,11 +723,11 @@ export async function mountChatOrchestrateRoutes(app, deps) {
 
       availableModels = [...dbRes.rows];
       
-      // Saf provider'ları (Eğer içlerinde bir model stringi varsa) models dizisine sanki bir modelmiş gibi uydurarak ekle
+      // Map standalone AI providers into model candidates
       for (const fp of fallbackProvidersRes.rows) {
           if (!fp.model_id) continue;
           availableModels.push({
-             model_pk: fp.provider_pk, // Benzersizlik için provider id veriyoruz
+             model_pk: fp.provider_pk,
              model_name: fp.provider_name + " (Provider Fallback)",
              model_id: fp.model_id,
              model_base_url: fp.base_url,
@@ -705,7 +737,16 @@ export async function mountChatOrchestrateRoutes(app, deps) {
              output_cost: 0,
              provider_id: fp.provider_pk,
              provider_name: fp.provider_name,
-             priority: fp.priority || 50
+             priority: fp.priority || 50,
+             temperature: 0.7,
+             top_p: 0.85,
+             top_k: 40,
+             repetition_penalty: 1.1,
+             max_tokens: 4096,
+             context_window: 8192,
+             stop_sequences: [],
+             chat_template: "",
+             advanced: []
           });
       }
 
@@ -717,7 +758,7 @@ export async function mountChatOrchestrateRoutes(app, deps) {
       console.log(`\n===========================================`);
       console.log(`[Orchestrate] Request Model ID: ${model}, UI Routing Mode: ${routing_mode}, Effort: ${effort}`);
 
-      // Global System Routing Policy'yi Çek
+      // Fetch global system routing policy
       let sysRoutingMode = "failover";
       let allowOverride = true;
       try {
@@ -729,33 +770,29 @@ export async function mountChatOrchestrateRoutes(app, deps) {
           }
       } catch(e) { }
 
-      // Kullanıcının UI'dan yolladığı ayarı kullanabilmesi için hem yollamış olması hem de admin'in izin vermiş olması lazım
       const finalRoutingMode = (routing_mode && allowOverride) ? routing_mode : sysRoutingMode;
       console.log(`[Orchestrate] Final Routing Mode Applied: ${finalRoutingMode} (SysMode: ${sysRoutingMode}, OverrideAllowed: ${allowOverride})`);
 
-      // Routing Logic - Bize denenecek "modeller listesi (chain)" dönecek
+      // Provider chain resolution
       let providerChain = [];
       if (finalRoutingMode === "manual_only" || finalRoutingMode === "single") {
           const m = availableModels.find(m => m.model_pk === model || m.model_id === model);
           if (m) providerChain.push(m);
       } else if (finalRoutingMode === "cheapest_first" || finalRoutingMode === "cheapest") {
-          // Ucuzdan pahalıya tüm modelleri sıralayıp zincire ekle
           availableModels.sort((a, b) => (Number(a.input_cost) + Number(a.output_cost)) - (Number(b.input_cost) + Number(b.output_cost)));
           providerChain = availableModels;
       } else if (finalRoutingMode === "round_robin") {
           global._elaraRrIndex = (global._elaraRrIndex || 0) + 1;
           const startIndex = global._elaraRrIndex % availableModels.length;
-          // Sıradaki modelden başlayarak tüm modelleri zincire dolaştır
           providerChain = [
               ...availableModels.slice(startIndex),
               ...availableModels.slice(0, startIndex)
           ];
       } else {
-          // Default: failover. Önce istenen model, o çökerse priority'si en iyi olandan kötüye doğru dene.
+          // Default: failover. Requested model first, then sorted by priority.
           availableModels.sort((a, b) => Number(a.priority) - Number(b.priority));
           const reqModel = availableModels.find(m => m.model_pk === model || m.model_id === model);
           if (reqModel) providerChain.push(reqModel);
-          // Geri kalanları priority sırasına göre zincire ekle (Kopya eklememek için filtrele)
           for (const m of availableModels) {
               if (reqModel && m.model_pk === reqModel.model_pk) continue;
               providerChain.push(m);
@@ -766,8 +803,6 @@ export async function mountChatOrchestrateRoutes(app, deps) {
           throw new Error(`Model ${model} requested but not found or inactive, and routing mode is strict (${finalRoutingMode}).`);
       }
 
-      // Döngü burada değil, asıl "stream" isteği atılırken kullanılacak. 
-      // Ancak UI'a yollanan initial (ilk) verileri 1. modele (Primary) göre ayarlıyoruz.
       prov = providerChain[0];
       const usedModel = prov.model_id || prov.model || model || "gpt-3.5-turbo";
       const sourceName = prov.provider_name || "Custom/Local";
@@ -776,18 +811,15 @@ export async function mountChatOrchestrateRoutes(app, deps) {
       console.log(`[Orchestrate] Final URL: ${prov.model_base_url || prov.base_url}`);
       console.log(`===========================================\n`);
       
-      // UI'a hangi modelin seçildiğini yolluyoruz (Eğer failover olursa döngü içinde tekrar yollayacağız)
       send({ phase: "policy", meta: { source: `provider:${sourceName}`, model: usedModel } });
       
-      // 3. Format Messages & LLM Uyumluluğu (Vision / Array Desteği)
+      // 3. Format messages and multimodal support
       const formattedMessages = messages.map(m => {
         let safeRole = m.role || "user";
         if (safeRole === "agent") safeRole = "assistant";
 
         let safeContent = m.content || m.text || "";
 
-        // Eğer arayüz (UI) resmi veya çoklu içeriği array (dizi) olarak yolluyorsa bozmadan al.
-        // Vision (Resim okuma) desteği için bu şarttır.
         if (Array.isArray(m.content)) {
             safeContent = m.content;
         }
@@ -889,28 +921,28 @@ When the user asks you a question or assigns a task, intelligently apply the fol
         content: masterDirectives.join("\n\n")
       });
 
-      // 3.5. Capabilities (Tools & Skills) Hazırlığı
+      // 3.5. Prepare Capabilities (Tools, Skills, MCP)
       const openAiTools = [];
-      const toolMap = {}; // Tool'ların LLM güvenli isminden (Örn: tool_xyz) gerçek ID'sine (mcp.xyz) ulaşmak için.
-      
+      const toolMap = {}; // Map LLM-safe function names (e.g. tool_xyz) to canonical database IDs
+
       let finalToolIds = [];
       try {
-          // Sistemdeki (Native + Workspace) temel araçları DB'den topla (Örn: Date, Weather, Search vs)
+          // Collect global native tools from action_library
           const systemToolsRes = await pool.query(
              `SELECT id FROM action_library WHERE (visibility = 'workspace' OR is_system = true) AND COALESCE((runtime->>'orphan')::boolean, false) = false`
           );
           const systemToolIds = systemToolsRes.rows.map(r => r.id);
           
-          // Arayüzden gelenlerle sistemden gelenleri birleştir (Unique yap)
+          // Merge user-requested capabilities with global workspace tools
           finalToolIds = [...new Set([...requestedTools, ...requestedMcp, ...systemToolIds])];
       } catch (err) {
-          console.warn("[Orchestrate] Global sistem tool'ları çekilirken hata:", err.message);
+          console.warn("[Orchestrate] Failed to query global system tools:", err.message);
           finalToolIds = [...requestedTools, ...requestedMcp];
       }
 
       if (capabilities || finalToolIds.length > 0) {
          try {
-             // 1. /Tool (Action Library): Hem kullanıcının seçtikleri hem Zero-Shot araçları
+             // 1. /Tool (Action Library): Both explicitly selected and Zero-Shot tools
              const dbToolIds = finalToolIds.filter(id => !id.startsWith("mcp."));
              if (dbToolIds.length > 0) {
                  const cleanToolIds = dbToolIds.map(id => id.startsWith("tool.") ? id : `tool.${id}`);
@@ -963,7 +995,7 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                  }
              }
 
-             // 2. !Skill (Skills tablosundan istenen yetenekleri topla)
+             // 2. !Skill (Skills table)
              if (capabilities?.skills && capabilities.skills.length > 0) {
                  const cleanSkillIds = capabilities.skills.map(id => id.startsWith("sk.") ? id : `sk.${id.replace(/^skill\./, '')}`);
                  const bareSkillIds = capabilities.skills.map(id => id.replace(/^(sk\.|skill\.)/, ''));
@@ -1012,7 +1044,7 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                      });
                  }
              }
-             // 3. #MCP (MCP tablosundan istenen yetenekleri topla)
+             // 3. #MCP (MCP client servers tools)
              if (requestedMcp && requestedMcp.length > 0) {
                  const mcpServerRes = await pool.query(`SELECT slug, name, tools_cache FROM mcp_client_servers WHERE enabled = true`);
                  
@@ -1039,12 +1071,12 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                  }
              }
          } catch(err) {
-             console.warn("[Orchestrate] Capability (Tool/Skill) şemaları çekilemedi:", err.message);
+             console.warn("[Orchestrate] Failed to extract capability schemas:", err.message);
          }
       }
 
-      // 3.6. META-FORGE Otonomi (Asker ve Yetenek Keşfi)
-      // "Beyin" her zaman alt ajanlara veya directory'e erişebilsin diye Zero-Code Meta-Tool'lar eklenir.
+      // 3.6. META-FORGE Autonomy & System Tools
+      // Inject zero-shot system tools so the core engine can inspect directory, delegate, or execute tools
       if (!toolMap["sys_get_directory"]) {
           openAiTools.push({
               type: "function",
@@ -1144,7 +1176,7 @@ When the user asks you a question or assigns a task, intelligently apply the fol
       let isDone = false;
       let finalProviderUsed = prov;
 
-      // === RE-ACT AGENTIC LOOP BAŞLANGICI ===
+      // === RE-ACT AGENTIC LOOP START ===
       while (iteration < maxIterations && !isDone) {
           iteration++;
 
@@ -1152,14 +1184,14 @@ When the user asks you a question or assigns a task, intelligently apply the fol
               send({ phase: "streaming" });
           } else {
               send({ phase: "agent_loop", iteration });
-              console.log(`\n[Orchestrate] --- Agent Döngüsü Başlıyor: Tur ${iteration} ---`);
+              console.log(`\n[Orchestrate] --- Agent Loop Start: Turn ${iteration} ---`);
           }
 
           let it = null;
           let hopIndex = 0;
           let hopError = null;
 
-          // Failover Retry Loop (Otomatik Model Sıçraması)
+          // Failover Retry Loop (Automatic Model Hopping)
           while (hopIndex < providerChain.length) {
               const currentProv = providerChain[hopIndex];
               try {
@@ -1170,8 +1202,7 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                       send({ phase: "policy", meta: { source: `provider:${fallbackSourceName}`, model: fallbackModelStr } });
                   }
                   
-                  // Adaptive Effort: Tur 1'de kullanıcının seçtiği effort kullanılır;
-                  // Sonraki turlarda (tool sonuçları geldikten sonra) modelin gereksiz sonsuz düşünme döngüsüne girmemesi için effort 'none' moduna adapte edilir.
+                  // Adaptive Effort: Turn 1 uses user effort; Turn 2+ adapts to 'none' to avoid redundant deliberation
                   const turnEffort = iteration === 1 ? effort : "none";
                   it = await streamFromProvider({
                       provider: currentProv,
@@ -1181,33 +1212,31 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                       effort: turnEffort
                   });
                   
-                  // Eğer buraya ulaştıysa istek başarılıdır, döngüden çık.
                   finalProviderUsed = currentProv;
                   break;
               } catch (err) {
                   hopError = err;
                   console.error(`[Orchestrate] ❌ Provider ${currentProv.model_name} failed:`, err.stack || err.message);
-                  hopIndex++; // Bir sonraki modele geç
+                  hopIndex++;
               }
           }
 
           if (!it) {
-              // Hiçbir model cevap vermedi (Bütün zincir koptu)
               throw new Error(`All providers in the routing chain failed. Last error: ${hopError?.message}`);
           }
 
           let assembled = "";
           let assembledThinking = "";
           let chunkCount = 0;
-          let toolCallsBuffer = {}; // { index: { id, type, function: { name, arguments } } }
+          let toolCallsBuffer = {};
 
-          console.log(`[Orchestrate] Stream okumaya başlanıyor (Tur ${iteration})...`);
+          console.log(`[Orchestrate] Stream reading started (Turn ${iteration})...`);
 
           try {
             for await (const piece of it) {
               if (!tFirstToken && iteration === 1) {
                 tFirstToken = Date.now();
-                console.log(`[Orchestrate] İlk token alındı! (${tFirstToken - t0}ms)`);
+                console.log(`[Orchestrate] First token received! (${tFirstToken - t0}ms)`);
               }
 
               chunkCount++;
@@ -1233,16 +1262,12 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                              const lastTool = toolCallsBuffer[lastIdx];
                              
                              if (delta.function?.name) {
-                                 // If the last tool already started receiving arguments, and we receive a new name,
-                                 // it is definitely a new tool call.
                                  if (lastTool && lastTool.function.arguments.length > 0) {
                                      idx = lastIdx + 1;
                                  } else {
-                                     // Otherwise, it might be a chunked name or the very first tool.
                                      idx = lastIdx;
                                  }
                              } else {
-                                 // If there's no name in the delta, it's just arguments for the current tool.
                                  idx = lastIdx;
                              }
                          }
@@ -1258,25 +1283,22 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                      if (delta.function?.arguments) toolCallsBuffer[idx].function.arguments += delta.function.arguments;
                      // Google Compatibility: Keep extra_content for thought_signatures (Gemini Flash Lite etc)
                      if (delta.extra_content) toolCallsBuffer[idx].extra_content = delta.extra_content;
-                     // console.log(`[Orchestrate] Tool Call Delta (Index: ${idx}) Name so far: ${toolCallsBuffer[idx].function.name}`);
                  } else if (parsedPiece.type === "think") {
                      assembledThinking += (parsedPiece.delta || "");
                      send({ type: "think", delta: parsedPiece.delta });
                  } else if (parsedPiece.type === "out") {
                      assembled += parsedPiece.delta;
-                     // UI'ın hem eski "runAgent" (delta bekleyen) hem de yeni "runOrchestration" 
-                     // (text bekleyen) parser'ları ile aynı anda uyumlu çalışabilmesi için ikisini de gönderiyoruz.
+                     // Dual output format for both delta and text listeners
                      send({ type: "out", delta: parsedPiece.delta, text: parsedPiece.delta });
                  }
               } catch(e) {
-                 // Fallback if not json
                  assembled += piece;
                  send({ type: "out", delta: piece, text: piece });
               }
             }
           } catch (streamError) {
              if (requestAbort.signal.aborted || streamError.message?.includes("Aborted") || streamError.message?.includes("socket hang up")) {
-                console.log(`[Orchestrate] Stream kasıtlı olarak sonlandırıldı (STOP).`);
+                console.log(`[Orchestrate] Stream intentionally stopped (STOP).`);
                 isDone = true;
                 break;
              } else {
@@ -1924,7 +1946,7 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                               toolStatus = "failed";
                           }
                       } else if (isMapped) {
-                          // Gerçek çalıştırma motorunu (Execution Engine) çağır!
+                          // Invoke execution engine
                           const invokeRes = await invokeTool({
                               toolId: realToolId,
                               params: parsedArgs,
@@ -1937,7 +1959,6 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                           if (!outputRes || (typeof outputRes === 'string' && outputRes.trim() === "") || (Array.isArray(outputRes) && outputRes.length === 0)) {
                                outputRes = "[SYSTEM_WARNING: TOOL_FAILED_OR_EMPTY] The tool executed but returned no useful data. You MUST explicitly inform the user that the tool failed.";
                           }
-                          // Tool sonucu JSON'a çevrilip string olarak verilir.
                           toolResultStr = JSON.stringify(outputRes);
                       } else {
                           toolResultStr = JSON.stringify({ error: "Tool execution failed: Unmapped capability name." });
@@ -1945,7 +1966,7 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                           toolDetail = "Unmapped capability name.";
                       }
                   } catch (err) {
-                      console.error(`[Orchestrate] Araç çalıştırma hatası (${funcName}) - Gerçek ID (${realToolId}):`, err.stack || err.message);
+                      console.error(`[Orchestrate] Tool execution error (${funcName}) - Real ID (${realToolId}):`, err.stack || err.message);
                       toolResultStr = JSON.stringify({ error: err.message });
                       toolStatus = "failed";
                       toolDetail = err.message;
@@ -1957,10 +1978,9 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                       statusPayload.detail = toolDetail;
                   }
                   
-                  // UI'a statü: "github bitti!" veya "hata"
                   send(statusPayload);
 
-                  // 4. Sonucu mesaj geçmişine (LLM'e) "tool" rolüyle ekle
+                  // 4. Append tool result to conversation history
                   formattedMessages.push({
                       role: "tool",
                       tool_call_id: tc.id,
@@ -1969,11 +1989,10 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                   });
               }
 
-              // Döngü burada kırılmaz (isDone = false), başa döner.
-              // LLM bu kez araçların sonucunu görerek nihai metni üretecektir.
+              // Multi-turn continuation: loop back so LLM reviews tool results and synthesizes final answer
 
           } else {
-              // Tool çağrısı yok, o halde asistan asıl cevabını verdi ve işimiz bitti.
+              // Final turn: LLM produced final conversational answer
               isDone = true;
 
               const totalMs = Date.now() - t0;
@@ -1991,7 +2010,7 @@ When the user asks you a question or assigns a task, intelligently apply the fol
               const usedModelStr = finalProviderUsed.model_id || finalProviderUsed.model || model || "gpt-3.5-turbo";
               const sourceNameStr = finalProviderUsed.provider_name || "Custom/Local";
 
-              // MEMORY WORKING SET (Canlı Hafıza Bloğu Kaydı)
+              // Persist working memory block
               if (thread_id) {
                   try {
                       // O anki cevabı (Veya düşünce sürecini) bir "Hafıza Bloğu" olarak kaydediyoruz

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   ArrowUp,
@@ -26,10 +26,11 @@ import {
   Sparkles,
   Square,
   BrushCleaning,
+  Trash2,
+  Video,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { composerAgents, composerEmojis, composerSkills, composerTools } from "@/mocks";
 import { useModels } from "@/lib/model-store";
 import { useAgents } from "@/lib/agent-store";
 import { useSkills } from "@/lib/skill-store";
@@ -185,6 +186,37 @@ function ContextGauge({ used, total }: { used: number; total: number }) {
   );
 }
 
+const EMOJI_PICKER_LIST = Array.from(new Set([
+  // faces
+  "🙂", "😊", "😉", "😎", "🤔", "😮", "😅", "😂", "🥳", "🤩", "😴", "😡", "🥶", "🤯", "🤠", "🫡",
+  // gestures
+  "👍", "👎", "👌", "🤌", "🤝", "🙌", "👏", "🫶", "🤞", "✌️", "🤟", "🤘", "👋", "🖖", "💪", "🙏",
+  // people / roles
+  "🧑‍💻", "👨‍🚀", "👩‍🔬", "🕵️", "🧙", "🧌", "🤖", "👾", "👽",
+  // nature
+  "🌌", "🌠", "🌙", "☀️", "🔥", "❄️", "💧", "☁️", "🌊", "⚡", "🌈", "🌿", "🍀", "🌵", "🌸", "🌺",
+  // animals
+  "🦅", "🦉", "🦇", "🐺", "🦊", "🦁", "🐉", "🐍", "🐙", "🦑", "🦋", "🐝", "🐜", "🦗",
+  // food / drink
+  "☕", "🍵", "🧋", "🍺", "🍷", "🍾", "🥃", "🍜", "🍕", "🍔", "🥗", "🍣", "🍱", "🍪", "🍫", "🍿",
+  // objects / tech
+  "💻", "🖥️", "⌨️", "🖱️", "🖨️", "📱", "📡", "🛰️", "🔭", "🔬", "🧬", "⚗️", "🧲", "🔋", "🔌", "💡", "🔦", "🕯️",
+  // work / office
+  "📎", "📌", "📍", "✂️", "🖊️", "🖋️", "📝", "📅", "📊", "📈", "📉", "📁", "📂", "🗂️", "🗃️", "📦",
+  // security / sovereign
+  "🔐", "🔒", "🔓", "🔑", "🗝️", "🛡️", "⚔️", "🚨", "🚔", "🛂", "🛃", "🗳️", "⚖️", "🏛️", "👑", "💎",
+  // symbols
+  "✅", "❌", "⭕", "🚫", "⚠️", "❗", "❓", "‼️", "⁉️", "➡️", "⬅️", "⬆️", "⬇️", "↗️", "↘️", "↙️", "↖️", "♻️", "🔁", "🔂", "▶️", "⏸️", "⏹️", "⏺️", "⏭️", "⏮️", "🔀", "🔃",
+  // math / shapes
+  "🔢", "➕", "➖", "✖️", "➗", "🟰", "∞", "≠", "≈", "✓", "✗", "★", "☆", "✦", "✧", "●", "○", "■", "□", "▲", "▼",
+  // stars / sparkle
+  "⭐", "🌟", "✨", "💫", "⚡", "🎇", "🎆", "🎊", "🎉", "🎖️", "🏆", "🥇", "🥈", "🥉",
+  // transport / time
+  "🚀", "🛸", "🚁", "🛩️", "🛫", "🛬", "⏰", "⏱️", "⌚", "🕰️", "⏳", "⌛",
+  // music / media
+  "🎵", "🎶", "🎼", "🎹", "🥁", "🎸", "🎺", "📣", "🔈", "🔊", "📢", "🎤", "🎧", "📹", "📷",
+]));
+
 export function Composer({
   value,
   onChange,
@@ -233,7 +265,7 @@ export function Composer({
   webSearch?: boolean;
   onWebSearchToggle?: () => void;
   /** Pass the active model ID from the parent to sync the context window gauge */
-  activeModelId?: string;
+  activeModelId?: string | undefined;
 }) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -263,20 +295,22 @@ export function Composer({
   const { snippets, add: addSnippet, remove: removeSnippet } = useSnippets();
   
   /** `#server` exposures offered by registered MCP clients. */
-  const mcpTools = mcpClients
-    .filter((c) => c.enabled) // REMOVED status restriction so all enabled clients show up
-    .map((c) => ({
-      id: `mcp.${(c as any).slug || c.id}`,
-      name: c.name,
-      meta: `${c.tools} tools`,
-      tone: "topaz",
-    }));
+  const mcpTools = useMemo(() => {
+    return mcpClients
+      .filter((c) => c.enabled)
+      .map((c) => ({
+        id: `mcp.${(c as any).slug || c.id}`,
+        name: c.name,
+        meta: `${c.tools} tools`,
+        tone: "topaz" as const,
+      }));
+  }, [mcpClients]);
 
   const registryData = useRegistry();
   const { models, defaultId } = useModels();
   const activeModels = models.filter((m: any) => m.enabled);
   const [modelId, setModelId] = useState<string | null>(null);
-  const model = activeModels.find((m: any) => m.id === (modelId ?? defaultId)) ?? activeModels[0];
+  const model = activeModels.find((m: any) => m.id === (modelId ?? activeModelId ?? defaultId)) ?? activeModels[0];
   const [effortSub, setEffortSub] = useState(false);
   const { providers, routing } = useProviders();
   const { sovereign } = useAccess();
@@ -344,6 +378,10 @@ export function Composer({
 
   /** Detect a trailing `@agent`, `/tool`, `!skill`, `#mcp` or `>snippet` token. */
   const syncTrigger = (next: string) => {
+    if (!next.includes('@') && !next.includes('/') && !next.includes('!') && !next.includes('#') && !next.includes('>')) {
+      if (trigger) setTrigger(null);
+      return;
+    }
     const match = /(^|\s)([@/!#>])([\w.-]*)$/.exec(next);
     if (!match) {
       setTrigger(null);
@@ -371,7 +409,7 @@ export function Composer({
   const lists: Record<
     Exclude<MenuTab, "attachment" | "snippet">,
     readonly { id: string; name: string; meta: string; tone: string }[]
-  > = {
+  > = useMemo(() => ({
     agent: (agents || []).filter(a => a && a.enabled).map(a => ({
       id: a.id,
       name: a.name || "",
@@ -391,18 +429,21 @@ export function Composer({
       tone: s.jewel || "emerald"
     })),
     mcp: mcpTools || [],
-  };
+  }), [agents, tools, skills, mcpTools]);
 
   const pickQuery = (trigger?.query || search).trim().toLowerCase();
-  const visibleSnippets = snippets.filter((s) =>
+  const visibleSnippets = useMemo<typeof snippets>(() => snippets.filter((s) =>
     pickQuery
       ? s.name.toLowerCase().includes(pickQuery) || s.body.toLowerCase().includes(pickQuery)
       : true,
-  );
-  const visibleList =
+  ), [snippets, pickQuery]);
+
+  const visibleList = useMemo<{ id: string; name: string; meta: string; tone: string }[]>(() =>
     tab === "attachment" || tab === "snippet"
       ? []
-      : lists[tab].filter((i) => (pickQuery ? i.name.toLowerCase().includes(pickQuery) : true));
+      : lists[tab].filter((i) => (pickQuery ? i.name.toLowerCase().includes(pickQuery) : true)),
+    [tab, lists, pickQuery]
+  );
 
   // --- Live Camera Capture Logic ---
   const startCamera = async () => {
@@ -811,7 +852,7 @@ export function Composer({
           >
             <div className="h-[288px] overflow-y-auto pr-1">
               <div className="grid grid-cols-8 gap-1">
-                {composerEmojis.map((e: string) => (
+                {EMOJI_PICKER_LIST.map((e: string) => (
                   <button
                     key={e}
                     onClick={() => insertEmoji(e)}

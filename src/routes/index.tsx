@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { motion, AnimatePresence } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Check,
   FileText,
@@ -70,14 +70,13 @@ import {
 } from "@/lib/orchestrate-stream";
 import { buildWireMessages, encodeAttachments } from "@/lib/attachment-encode";
 import { useChats } from "@/lib/chat-store";
-import {
-  agentReplyText,
-  agentThinkingText,
-  chatGreeting,
-  chatSuggestions,
-  metaForgeApprovalSeed,
-  proposalSeed,
-} from "@/mocks";
+
+const DEFAULT_SUGGESTIONS = [
+  "Route this workload across the fleet",
+  "Audit last night's policy decisions",
+  "Summarize spend by model",
+];
+const DEFAULT_GREETING_STATUS = "fleet nominal · 6 agents online · policy enforced";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -187,11 +186,11 @@ function SovereignChat() {
   const [dragging, setDragging] = useState(false);
   const [streaming, setStreaming] = useState(false);
   const [effort, setEffort] = useState<Effort>("high");
-  const [model, setModel] = useState("sovereign-1");
+  const [model, setModel] = useState<string>("");
   const enabledModels = models.filter((m) => m.enabled);
   /** the model currently selected in the composer — drives the reply identity */
   const activeModel =
-    enabledModels.find((m) => m.id === model) ??
+    (model ? enabledModels.find((m) => m.id === model) : null) ??
     enabledModels.find((m) => m.id === defaultId) ??
     enabledModels[0];
   const [pending, setPending] = useState<string | null>(null);
@@ -216,7 +215,7 @@ function SovereignChat() {
     timer.current = null;
   };
 
-  // FETCH ABORT CONTROLLER'I EKLİYORUZ
+  // Setup Fetch AbortController
   const abortCtrl = useRef<AbortController | null>(null);
   const orchCancel = useRef<(() => void) | null>(null);
   const resume = useRef<{ base: Msg[]; agent: StudioAgent | undefined; query: string } | null>(null);
@@ -320,11 +319,11 @@ function SovereignChat() {
     
     setMessages([...base, aiMsg]);
 
-    // Yeni fetch işlemi başlarken eskisini iptal et ve yeni bir controller oluştur
+    // Cancel prior in-flight fetch before spawning a new stream
     if (abortCtrl.current) abortCtrl.current.abort();
     abortCtrl.current = new AbortController();
 
-    console.log("[UI] Backend'e fetch atılıyor...");
+    console.log("[UI] Dispatching fetch to backend...");
     try {
       const res = await fetch("/api/chat/orchestrate", {
         method: "POST",
@@ -338,7 +337,7 @@ function SovereignChat() {
           messages: buildWireMessages(base as any, active?.context),
           model: (agent?.modelId && agent.modelId !== "system_default") ? agent.modelId : (activeModel?.id ?? model),
           agent_id: agent?.id,
-          // Ekstra Tool ve MCP çağrılarını backend'e paslıyoruz
+          // Forward capability mentions to backend
           capabilities: {
              skills: [...query.matchAll(/(?:^|\s)!([a-z0-9][\w.-]*)/gi)].map(m => m[1] ? m[1].toLowerCase() : ""),
              mcp: [...query.matchAll(/(?:^|\s)#([a-z0-9][\w.-]*)/gi)].map(m => m[1] ? `mcp.${m[1].toLowerCase()}` : ""),
@@ -347,7 +346,7 @@ function SovereignChat() {
         }),
       });
 
-      console.log(`[UI] Fetch sonucu: ${res.status} ${res.statusText}`);
+      console.log(`[UI] Fetch result: ${res.status} ${res.statusText}`);
       if (!res.ok) throw new Error(`Engine returned ${res.status}`);
       if (!res.body) throw new Error("No readable stream body");
 
@@ -366,7 +365,7 @@ function SovereignChat() {
         buffer += decoder.decode(value, { stream: true });
         
         let lines = buffer.split('\n');
-        // Son eleman tam bir satır olmayabilir (henüz \n gelmemiştir), onu buffer'da tut
+        // Keep incomplete trailing line in buffer
         buffer = lines.pop() || "";
         
         for (const rawLine of lines) {
@@ -384,16 +383,16 @@ function SovereignChat() {
           try {
             const parsed = JSON.parse(dataStr);
 
-            // 1. Düşünme balonu (Thinking phase)
+            // 1. Thinking phase
             if (parsed.type === "think" && parsed.delta) {
               aiMsg.thinking = (aiMsg.thinking || "") + parsed.delta;
             } 
-            // 2. Mesaj metni (Text phase)
+            // 2. Text output phase
             else if (parsed.delta) {
               aiMsg.text = (aiMsg.text || "") + parsed.delta;
             }
 
-            // 3. RAG Sonuçları (Retrieval)
+            // 3. RAG Retrieval results
             if (parsed.rag) {
               aiMsg.retrieval = {
                  citations: parsed.rag.sources || [],
@@ -406,7 +405,7 @@ function SovereignChat() {
               };
             }
 
-            // 4. MetaForge Kartı (Proposals)
+            // 4. MetaForge plan proposal
             if (parsed.forge_plan) {
               aiMsg.forge_plan = parsed.forge_plan;
               if (parsed.forge_plan.plan?.create) {
@@ -422,7 +421,7 @@ function SovereignChat() {
               }
             }
 
-            // 5. Telemetri Verileri
+            // 5. Telemetry metrics
             if (parsed.latency) {
               aiMsg.telemetry = {
                 firstTokenMs: parsed.latency.ttftMs || parsed.latency.thinkMs || 0,
@@ -433,11 +432,11 @@ function SovereignChat() {
               };
             }
           } catch (err) {
-            // Partial/Invalid JSON chunk yut
+            // Swallow partial/incomplete JSON chunks
           }
         }
         
-        // Arayüzü ilerlemeyle senkronize et
+        // Synchronize UI with stream progress
         if (activeRunId.current === runId) {
           setMessages([...base, { ...aiMsg }]);
         }
@@ -554,7 +553,7 @@ function SovereignChat() {
 
     const ac = new AbortController();
     orchCancel.current = () => {
-      // Abort firlatilmadan once son bir kez ekrani kapat!
+      // Settle activity before aborting
       if (activeRunId.current === runId) {
         act.phase = "done";
         paint(false);
@@ -564,7 +563,7 @@ function SovereignChat() {
     void streamOrchestrate(
       orchestrateBody(base, agent, query, caps, resumeId, isWebSearch) as any,
       (e) => {
-        if (activeRunId.current !== runId) return; // Eğer iptal edildiysek stream'den gelenleri ignore et
+        if (activeRunId.current !== runId) return; // Superceded or aborted
         act = reduceActivity(act, e);
         if (e.kind === "out") {
           answer += e.text;
@@ -616,7 +615,7 @@ function SovereignChat() {
       if (activeRunId.current !== runId) return; // Superceded
       if (err.name === "AbortError" || err.message?.includes("aborted")) {
         answer += `\n\n_Stopped by operator._`;
-        act.phase = "done"; // Baloncugu ve uc noktayi zorla kapat
+        act.phase = "done"; // Force finish activity phase
       } else {
         answer += `\n\n⚠️ Chat Error: ${err.message}`;
       }
@@ -703,21 +702,19 @@ function SovereignChat() {
 
     const caps = buildCapabilities(mentions);
 
-    // BÜTÜN TRAFİK ARTIK OTONOM ORKESTRASYONA (Meta-Forge) GİDER!
-    // Modelin cebinde her zaman "sys_get_directory" vb. araçlar olduğu için,
-    // hasCapabilities veya isWebSearch false olsa dahi model otonomiye (runOrchestration) sahip olmalıdır.
+    // Route all execution traffic through Universal Orchestration
     runOrchestration(base, agent, t, caps, undefined, isWebSearch);
   };
 
   const stop = (isManual = true) => {
-    // Sadece eğer sistem gerçekten "streaming" (meşgul) durumundaysa veya manuel olarak basıldıysa iptal et.
+    // Only cancel if stream is active or manually triggered
     if (!streaming && isManual !== true) {
         return;
     }
 
     if (isManual === true) {
         console.log("🛑 [UI] Operator pressed Stop! Explicit cancel dispatching...");
-        // Kullanıcı bizzat fareyle tıkladığında veya "Send now" ile eziyorsa Explicit Cancel gönder.
+        // Dispatch explicit cancel to kill underlying socket
         if (active?.id) {
             fetch("/api/chat/cancel", {
                 method: "POST",
@@ -741,18 +738,17 @@ function SovereignChat() {
     const t = text.trim();
     if (!t && !attachments.length) return;
     if (streaming) {
-      // Eskiden olduğu gibi "HELD" (Queue) arayüzünü çıkarmak için:
+      // Queue next turn if currently streaming
       setPending(t);
       setValue("");
       return;
     }
     
-    // Geçerli state snapshot'ını alıp gönderiyoruz ki race condition olmasın.
+    // Dispatch turn with current state snapshot
     const isWebSearchActive = webSearch;
     dispatch(t, attachments, mentions, isWebSearchActive);
     
     setValue("");
-    // setWebSearch(false); <-- ARTIK KENDİ KENDİNE KAPANMAYACAK! Kullanıcı açık bıraktıysa hep açık kalır.
     clear();
   };
 
@@ -761,10 +757,7 @@ function SovereignChat() {
     const prior = messages[index]?.agent;
     const agent = prior ? agents.find((a) => a.id === prior.id) : undefined;
     
-    // YENİ WIRING KONTROLÜ: Eğer geçmişteki capability'leri bulabiliyorsak onu çalıştır
-    // Basitçe: Retry işlemi sırasında mention'lar saklanmadığı için `runAgent`'a düşüyoruz.
     setMessages(base);
-    // Eski stop mantığı
     stopTimer();
     setStreaming(false);
     if (abortCtrl.current) {
@@ -774,7 +767,7 @@ function SovereignChat() {
     orchCancel.current?.();
     orchCancel.current = null;
 
-    // Retry işlemi için Universal Orchestration (Akıllı Motor) kullanıyoruz.
+    // Re-run through Universal Orchestration
     runOrchestration(base, agent, lastUserText(base), { tools: [], skills: [], mcp: [] }, undefined, webSearch);
   };
 
@@ -790,7 +783,7 @@ function SovereignChat() {
     ] as Msg[];
     setMessages(base);
     
-    // Edit (Pencil) işlemi için Universal Orchestration (Akıllı Motor) kullanıyoruz.
+    // Re-run edited turn through Universal Orchestration
     runOrchestration(base, undefined, text, { tools: [], skills: [], mcp: [] }, undefined, webSearch);
   };
 
@@ -805,7 +798,7 @@ function SovereignChat() {
 
   // Greeting resolves after hydration so the signed-in principal — not a mock —
   // is the one addressed, with the salutation tracking local time of day.
-  const [greeting, setGreeting] = useState(chatGreeting.title);
+  const [greeting, setGreeting] = useState("Good day, operator.");
   useEffect(() => {
     const acct = currentAccount();
     const first = (acct?.name || acct?.username || "operator").trim().split(/\s+/)[0];
@@ -815,7 +808,7 @@ function SovereignChat() {
     setGreeting(`${part}, ${first}.`);
   }, []);
 
-  const contextTokens = messages.reduce((sum, m) => sum + tokensOf(m), 0);
+  const contextTokens = useMemo(() => messages.reduce((sum, m) => sum + tokensOf(m), 0), [messages]);
 
   /** Fold older turns into a model-written handover placed at the end of the thread. */
   const compactContext = async () => {
@@ -982,12 +975,12 @@ function SovereignChat() {
       webSearch={webSearch}
       onWebSearchToggle={() => setWebSearch((v) => !v)}
       onEffortChange={setEffort}
+      activeModelId={activeModel?.id}
       onModelChange={setModel}
       onRoutingChange={setRoutingMode}
       onPurge={() => {
         stop(false); // isManual = false
-        // Abort catch block'unun eski mesajları (base) geri yüklemesini önlemek için
-        // silme işlemini event loop'ta sonraya bırakıyoruz (50ms).
+        // Defer state reset to avoid race conditions with in-flight abort handlers
         setTimeout(() => {
           setMessages([]);
           setFiles([]);
@@ -1067,11 +1060,11 @@ function SovereignChat() {
               </h1>
 
               <p className="platinum-data mt-3 text-[12.5px] font-medium tracking-[0.12em] opacity-55">
-                {chatGreeting.status}
+                fleet nominal · {(agents || []).filter((a) => a && a.enabled).length} {(agents || []).filter((a) => a && a.enabled).length === 1 ? "agent" : "agents"} online · policy enforced
               </p>
 
               <div className="mt-9 flex flex-wrap items-center justify-center gap-2">
-                {chatSuggestions.map((s, i) => (
+                {DEFAULT_SUGGESTIONS.map((s, i) => (
                   <motion.button
                     key={s}
                     initial={{ opacity: 0, y: 6 }}
@@ -1288,12 +1281,6 @@ function SovereignChat() {
                       </>
                     )}
 
-                    {m.approval === true && !m.forge_plan && (
-                      <div className="mt-6">
-                        <MetaForgeApprovalCard {...metaForgeApprovalSeed} />
-                      </div>
-                    )}
-
                     {m.forge_plan && !m.streaming && (
                       <motion.div
                         initial={{ opacity: 0, y: 12, filter: "blur(4px)" }}
@@ -1421,10 +1408,10 @@ function SovereignChat() {
                     onClick={() => {
                       const t = pending;
                       setPending(null);
-                      // DİKKAT: isManual = true olmalı ki arka plandaki /api/chat/cancel tetiklensin!
+                      // Trigger explicit cancel on manual override
                       stop(true);
                       
-                      // Eski işlemin kapanması için çok kısa bir an (150ms) bekleyip yeni mesajı dispatch et.
+                      // Brief settle delay before dispatching pending message
                       if (t) {
                           setTimeout(() => dispatch(t, attachments), 150);
                       }

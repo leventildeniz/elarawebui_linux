@@ -432,6 +432,14 @@ Bu aşamada MetaForge ve Chat orkestrasyonundaki kritik senkronizasyon, yaşam d
     - Sohbette `@Agent` seçildiğinde seçilen ajanın `system_prompt`, isim ve uzmanlık talimatlarının `[ACTIVE AGENT PERSONA ACTIVATED]` başlığıyla modele doğrudan enjekte edilmesi sağlandı.
 11. **Native Skill İcra Motoru & Generator Delegasyonu (`tool-adapters.mjs`, `agent-utils.mjs`):**
     - Async generator (`yield*`) delegasyonu ve alt model çağrılarında Vault API anahtarının çözümlenmesi onarılarak Native Prompt Skill'lerin canlı model üzerinden eksiksiz rapor üretmesi sağlandı.
+12. **Model Hiperparametreleri & Repetition Penalty (`chat-orchestrate.mjs`):**
+    - Model kartındaki `temperature`, `top_p`, `top_k`, `repetition_penalty` (1.100), `max_tokens` (8192) ve `stop_sequences` alanları veritabanı sorgusuna ve LLM istek gövdesine tam olarak bağlandı; Llama.cpp ve yerel modellerin kelime tekrarına düşmesi önlendi.
+13. **Canlı Model Bağlantı Probu (`models.mjs` & `models.tsx`):**
+    - Model kartındaki "Test connection" butonu `POST /api/models/probe` üzerinden gerçek sağlayıcıya canlı ping atarak gerçek gidiş-dönüş gecikmesini (Round-trip Latency) ölçecek şekilde aktif edildi.
+14. **Zengin Emoji Kütüphanesi & Dinamik Ajan Sayacı (`composer.tsx` & `index.tsx`):**
+    - 250 adetlik tam emoji paleti yerel olarak entegre edildi; karşılama ekranındaki durum satırı doğrudan `agents` tablosundaki aktif ajan sayısına bağlandı (`fleet nominal · X agents online`).
+15. **Kod ve Yorum Dili Standartlaştırması:**
+    - Chat bileşenlerindeki ve orkestratördeki tüm Türkçe yorum satırları, karşılama metinleri ve konsol logları kurumsal İngilizce standartlarına dönüştürüldü.
 
 ## 48. UP NEXT (Phase 48) - Agentic RAG & Knowledge Hub Validation
 - Dondurulan RAG entegrasyonu, departman bazlı space izolasyonu (`rag_space_id`), dosya indeksleme ve reranker testleri devreye alınacak.

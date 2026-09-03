@@ -93570,3 +93570,41 @@ The plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths r
 error: script "dev" exited with code 143
 $ vite dev
 The plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths resolution natively via the resolve.tsconfigPaths option. You can remove the plugin and set resolve.tsconfigPaths: true in your Vite config instead.
+error: script "dev" exited with code 143
+$ vite dev
+The plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths resolution natively via the resolve.tsconfigPaths option. You can remove the plugin and set resolve.tsconfigPaths: true in your Vite config instead.
+error: script "dev" exited with code 143
+$ vite dev
+The plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths resolution natively via the resolve.tsconfigPaths option. You can remove the plugin and set resolve.tsconfigPaths: true in your Vite config instead.
+error: script "dev" exited with code 143
+$ vite dev
+The plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths resolution natively via the resolve.tsconfigPaths option. You can remove the plugin and set resolve.tsconfigPaths: true in your Vite config instead.
+error: script "dev" exited with code 143
+$ vite dev
+The plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths resolution natively via the resolve.tsconfigPaths option. You can remove the plugin and set resolve.tsconfigPaths: true in your Vite config instead.
+Error in renderToReadableStream: ReferenceError: useMemo is not defined
+    at SovereignChat (/home/levent/ELARA_PROJECT/Elara_WebUi/src/routes/index.tsx:818:25)
+    at Object.react_stack_bottom_frame (/home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/react-dom/cjs/react-dom-server.node.development.js:10288:18)
+    at renderWithHooks (/home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/react-dom/cjs/react-dom-server.node.development.js:5298:19)
+    at renderElement (/home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/react-dom/cjs/react-dom-server.node.development.js:5733:23)
+    at retryNode (/home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/react-dom/cjs/react-dom-server.node.development.js:6664:31)
+    at renderNodeDestructive (/home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/react-dom/cjs/react-dom-server.node.development.js:6614:11)
+    at finishFunctionComponent (/home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/react-dom/cjs/react-dom-server.node.development.js:5342:13)
+    at renderElement (/home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/react-dom/cjs/react-dom-server.node.development.js:5788:11)
+    at retryNode (/home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/react-dom/cjs/react-dom-server.node.development.js:6664:31)
+    at renderNodeDestructive (/home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/react-dom/cjs/react-dom-server.node.development.js:6614:11) { componentStack: [Getter] }
+error: script "dev" exited with code 143
+$ vite dev
+The plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths resolution natively via the resolve.tsconfigPaths option. You can remove the plugin and set resolve.tsconfigPaths: true in your Vite config instead.
+error: script "dev" exited with code 143
+$ vite dev
+The plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths resolution natively via the resolve.tsconfigPaths option. You can remove the plugin and set resolve.tsconfigPaths: true in your Vite config instead.
+error: script "dev" exited with code 143
+$ vite dev
+The plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths resolution natively via the resolve.tsconfigPaths option. You can remove the plugin and set resolve.tsconfigPaths: true in your Vite config instead.
+error: script "dev" exited with code 143
+$ vite dev
+The plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths resolution natively via the resolve.tsconfigPaths option. You can remove the plugin and set resolve.tsconfigPaths: true in your Vite config instead.
+error: script "dev" exited with code 143
+$ vite dev
+The plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths resolution natively via the resolve.tsconfigPaths option. You can remove the plugin and set resolve.tsconfigPaths: true in your Vite config instead.

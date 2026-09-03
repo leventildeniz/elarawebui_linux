@@ -196,4 +196,55 @@ export async function mountModelsRoutes(app, { pool }) {
       res.json({ ok: true });
     } catch (e) { res.status(400).json({ error: e.message }); }
   });
+
+  // --- LIVE MODEL ENDPOINT PROBE ---
+  app.post("/api/models/probe", admin, async (req, res) => {
+    try {
+      const { baseUrl, apiKeyRef, modelId } = req.body || {};
+      if (!baseUrl) return res.json({ ok: false, error: "Base URL is required" });
+      if (!modelId) return res.json({ ok: false, error: "Model ID is required" });
+
+      const { resolveCredential } = await import("../vault.mjs");
+      let cleanKey = apiKeyRef || "";
+      if (cleanKey.startsWith("manual:")) cleanKey = cleanKey.substring(7);
+      const apiKey = await resolveCredential(pool, cleanKey, "api_key");
+
+      const t0 = performance.now();
+      let requestUrl = `${baseUrl.replace(/\/+$/, "")}/chat/completions`;
+      if (baseUrl.includes("generativelanguage.googleapis.com") && !requestUrl.includes("/openai/")) {
+        requestUrl = `${baseUrl.replace(/\/+$/, "")}/openai/chat/completions`;
+      }
+
+      const headers = { "Content-Type": "application/json" };
+      if (apiKey && apiKey !== "no_needed" && apiKey !== "dummy-key") {
+        headers["Authorization"] = `Bearer ${apiKey}`;
+        if (baseUrl.includes("generativelanguage.googleapis.com")) {
+          headers["x-goog-api-key"] = apiKey;
+        }
+      }
+
+      const payload = {
+        model: modelId,
+        messages: [{ role: "user", content: "ping" }],
+        max_tokens: 1
+      };
+
+      const resp = await fetch(requestUrl, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(15000)
+      });
+
+      const latency = Math.round(performance.now() - t0);
+      if (resp.ok) {
+        return res.json({ ok: true, latency });
+      } else {
+        const errText = await resp.text().catch(() => "");
+        return res.json({ ok: false, error: `HTTP ${resp.status}: ${errText.slice(0, 140)}` });
+      }
+    } catch (e) {
+      return res.json({ ok: false, error: e.message });
+    }
+  });
 }
