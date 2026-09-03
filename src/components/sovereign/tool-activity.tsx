@@ -4,10 +4,9 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import type { ToolActivity, ToolRun } from "@/lib/orchestrate-stream";
 
-/** Jewel tone per capability plane: mcp → amethyst · skill → emerald · tool → sapphire. */
+/** Jewel tone per capability plane: tool & mcp → sapphire · skill → emerald. */
 function toneOf(name: string) {
-  if (name.startsWith("mcp.")) return "amethyst";
-  if (name.startsWith("skill")) return "emerald";
+  if (name.startsWith("skill") || name.startsWith("sk.")) return "emerald";
   return "sapphire";
 }
 

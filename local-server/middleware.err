@@ -51535,3 +51535,13 @@ Node.js v22.22.1
     at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1207:24
 [Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
 [TCP-KILLER] Request Error to 192.168.0.18:8001: Client Aborted
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
