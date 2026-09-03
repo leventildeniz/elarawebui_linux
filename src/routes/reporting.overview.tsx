@@ -12,15 +12,7 @@ import {
   Sparkline,
 } from "@/components/sovereign/report-kit";
 import { exportReportPdf } from "@/lib/report-pdf";
-import {
-  bySquad,
-  byProvider,
-  fmtInt,
-  fmtMoney,
-  fmtTokens,
-  seriesRange,
-  totals,
-} from "@/lib/report-store";
+import { fmtInt, fmtMoney, fmtTokens, useReportingOverview } from "@/lib/report-store";
 
 export const Route = createFileRoute("/reporting/overview")({
   head: () => ({
@@ -44,10 +36,12 @@ export const Route = createFileRoute("/reporting/overview")({
 
 function OverviewPage() {
   const { span, control, label: spanText, slug: spanId, days, end } = useReportSpan();
-  const rows = useMemo(() => seriesRange(days, end), [days, end]);
-  const t = useMemo(() => totals(rows), [rows]);
-  const squads = useMemo(() => bySquad(t), [t]);
-  const providers = useMemo(() => byProvider(t), [t]);
+  const queryParams = useMemo(() => {
+    if (typeof span === "string") return { span };
+    return { from: span.from, to: span.to };
+  }, [span]);
+
+  const { totals: t, rows, squads, providers, loading } = useReportingOverview(queryParams);
 
   const exportPdf = async () => {
     await exportReportPdf({
@@ -161,10 +155,12 @@ function OverviewPage() {
 
         <ReportPanel title="Run volume" hint={`Daily orchestration runs · ${spanText}`}>
           <Sparkline values={rows.map((r) => r.runs)} height={110} />
-          <div className="mt-2 flex justify-between font-mono text-[11px] text-muted-foreground/50">
-            <span>{rows[0]!.day}</span>
-            <span>{rows[rows.length - 1]!.day}</span>
-          </div>
+          {rows.length > 0 && (
+            <div className="mt-2 flex justify-between font-mono text-[11px] text-muted-foreground/50">
+              <span>{rows[0]!.day}</span>
+              <span>{rows[rows.length - 1]!.day}</span>
+            </div>
+          )}
         </ReportPanel>
 
         <div className="grid gap-6 lg:grid-cols-2">

@@ -17,13 +17,13 @@ import { periods, type Period } from "@/lib/report-store";
 import { userReports } from "@/lib/report-users";
 import {
   cadenceLabel,
+  deleteSchedule,
   emptySchedule,
   logDelivery,
   nextRunFrom,
-  readDeliveries,
-  readSchedules,
   relative,
-  writeSchedules,
+  saveSchedule,
+  useSchedules,
   type Cadence,
   type DeliveryChannel,
   type Format,
@@ -81,20 +81,10 @@ function download(name: string, mime: string, body: string) {
 }
 
 function ExportsPage() {
-  const [items, setItems] = useState<Schedule[]>([]);
-  const [log, setLog] = useState(() => readDeliveries());
+  const { list: items, log, refresh, loading } = useSchedules();
   const [editing, setEditing] = useState<Schedule | null>(null);
   const operators = useMemo(() => userReports("30d"), []);
   const firing = useRef(false);
-
-  useEffect(() => {
-    setItems(readSchedules());
-  }, []);
-
-  const persist = (list: Schedule[]) => {
-    setItems(list);
-    writeSchedules(list);
-  };
 
   const runSchedule = async (s: Schedule, manual: boolean) => {
     const span = s.rangeFrom && s.rangeTo ? { from: s.rangeFrom, to: s.rangeTo } : s.period;
@@ -142,7 +132,7 @@ function ExportsPage() {
     }
 
     const now = new Date();
-    logDelivery({
+    await logDelivery({
       scheduleId: s.id,
       name: s.name,
       at: now.toISOString(),
@@ -153,7 +143,6 @@ function ExportsPage() {
       outcome,
       detail: `${templateById(s.templateId).name} · ${detail}`,
     });
-    setLog(readDeliveries());
 
     const next: Schedule = {
       ...s,
@@ -162,7 +151,7 @@ function ExportsPage() {
       nextRun: s.cadence === "once" ? "" : nextRunFrom(s, now),
       enabled: s.cadence === "once" ? false : s.enabled,
     };
-    persist(readSchedules().map((i) => (i.id === s.id ? next : i)));
+    await saveSchedule(next);
 
     if (s.delivery === "email" && outcome === "failed") {
       toast.error("No mail server configured — set the SMTP relay in Settings › Mail & Time");
@@ -182,7 +171,7 @@ function ExportsPage() {
   useEffect(() => {
     const tick = async () => {
       if (firing.current) return;
-      const due = readSchedules().find(
+      const due = items.find(
         (s) => s.enabled && s.nextRun && new Date(s.nextRun).getTime() <= Date.now(),
       );
       if (!due) return;
@@ -196,25 +185,27 @@ function ExportsPage() {
     const id = window.setInterval(tick, 15_000);
     return () => window.clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [items]);
 
   const startNew = () => setEditing(emptySchedule());
 
-  const save = () => {
+  const save = async () => {
     if (!editing) return;
     const withNext: Schedule = { ...editing, nextRun: editing.enabled ? nextRunFrom(editing) : "" };
     const exists = items.some((i) => i.id === withNext.id);
-    persist(
-      exists ? items.map((i) => (i.id === withNext.id ? withNext : i)) : [...items, withNext],
-    );
-    setEditing(null);
-    toast.success(exists ? "Schedule updated" : "Schedule created");
+    const ok = await saveSchedule(withNext);
+    if (ok) {
+      setEditing(null);
+      toast.success(exists ? "Schedule updated" : "Schedule created");
+    }
   };
 
-  const remove = (id: string) => {
-    persist(items.filter((i) => i.id !== id));
-    if (editing?.id === id) setEditing(null);
-    toast.success("Schedule removed");
+  const remove = async (id: string) => {
+    const ok = await deleteSchedule(id);
+    if (ok) {
+      if (editing?.id === id) setEditing(null);
+      toast.success("Schedule removed");
+    }
   };
 
   const exportRegister = async () => {
@@ -366,13 +357,11 @@ function ExportsPage() {
                 <button
                   type="button"
                   onClick={() =>
-                    persist(
-                      items.map((i) =>
-                        i.id === x.id
-                          ? { ...i, enabled: !i.enabled, nextRun: !i.enabled ? nextRunFrom(i) : "" }
-                          : i,
-                      ),
-                    )
+                    saveSchedule({
+                      ...x,
+                      enabled: !x.enabled,
+                      nextRun: !x.enabled ? nextRunFrom(x) : "",
+                    })
                   }
                   className={cn(
                     "rounded-lg border px-2.5 py-1 font-mono text-[11.5px] transition-colors",

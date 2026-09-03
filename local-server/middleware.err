@@ -51565,3 +51565,898 @@ Node.js v22.22.1
     at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1735:49
 [Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
 [TCP-KILLER] Request Error to 192.168.0.18:8001: Client Aborted
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[capabilities] sp_skills skipped: column "slug" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[capabilities] sp_skills skipped: column "slug" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[capabilities] sp_skills skipped: column "slug" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[Reporting API] Error in /api/reporting/operators: error: column "name" does not exist
+    at /home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:689:24 {
+  length: 104,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '22',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3854',
+  routine: 'errorMissingColumn'
+}
+[Reporting API] Error in /api/reporting/operators: error: column "name" does not exist
+    at /home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:689:24 {
+  length: 104,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '22',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3854',
+  routine: 'errorMissingColumn'
+}
+[Reporting API] Error in /api/reporting/operators: error: column "name" does not exist
+    at /home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:689:24 {
+  length: 104,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '22',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3854',
+  routine: 'errorMissingColumn'
+}
+[Reporting API] Error in /api/reporting/rag: error: column "space" does not exist
+    at /home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:830:26 {
+  length: 175,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: 'Perhaps you meant to reference the column "knowledge_sources.stage".',
+  position: '18',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3861',
+  routine: 'errorMissingColumn'
+}
+[Reporting API] Error in /api/reporting/operators: error: column "name" does not exist
+    at /home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:689:24 {
+  length: 104,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '22',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3854',
+  routine: 'errorMissingColumn'
+}
+[Reporting API] Error in /api/reporting/rag: error: column "space" does not exist
+    at /home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:830:26 {
+  length: 175,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: 'Perhaps you meant to reference the column "knowledge_sources.stage".',
+  position: '18',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3861',
+  routine: 'errorMissingColumn'
+}
+[Reporting API] Error in /api/reporting/rag: error: column "space" does not exist
+    at /home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:830:26 {
+  length: 175,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: 'Perhaps you meant to reference the column "knowledge_sources.stage".',
+  position: '18',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3861',
+  routine: 'errorMissingColumn'
+}
+[Reporting API] Error in /api/reporting/rag: error: column "space" does not exist
+    at /home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:830:26 {
+  length: 175,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: 'Perhaps you meant to reference the column "knowledge_sources.stage".',
+  position: '18',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3861',
+  routine: 'errorMissingColumn'
+}
+[Reporting API] Error in POST /api/reporting/deliveries: error: insert or update on table "schedule_deliveries" violates foreign key constraint "schedule_deliveries_schedule_id_fkey"
+    at /home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:1162:7 {
+  length: 325,
+  severity: 'ERROR',
+  code: '23503',
+  detail: 'Key (schedule_id)=(sch.mtm10l83) is not present in table "schedules".',
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: 'public',
+  table: 'schedule_deliveries',
+  column: undefined,
+  dataType: undefined,
+  constraint: 'schedule_deliveries_schedule_id_fkey',
+  file: 'ri_triggers.c',
+  line: '2772',
+  routine: 'ri_ReportViolation'
+}
+[Reporting API] Error in POST /api/reporting/schedules: error: column "owner_id" of relation "schedules" does not exist
+    at /home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:1006:7 {
+  length: 131,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '258',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_target.c',
+  line: '1068',
+  routine: 'checkInsertTargets'
+}
+[Reporting API] Error in /api/reporting/operators: error: column "name" does not exist
+    at /home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:689:24 {
+  length: 104,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '22',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3854',
+  routine: 'errorMissingColumn'
+}
+[Reporting API] Error in /api/reporting/operators: error: column "name" does not exist
+    at /home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:689:24 {
+  length: 104,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '22',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3854',
+  routine: 'errorMissingColumn'
+}
+[Reporting API] Error in /api/reporting/rag: error: column "space" does not exist
+    at /home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:830:26 {
+  length: 175,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: 'Perhaps you meant to reference the column "knowledge_sources.stage".',
+  position: '18',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3861',
+  routine: 'errorMissingColumn'
+}
+[Reporting API] Error in /api/reporting/operators: error: column "name" does not exist
+    at /home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:689:24 {
+  length: 104,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '22',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3854',
+  routine: 'errorMissingColumn'
+}
+[Reporting API] Error in /api/reporting/operators: error: column "name" does not exist
+    at /home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:689:24 {
+  length: 104,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '22',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3854',
+  routine: 'errorMissingColumn'
+}
+[Reporting API] Error in /api/reporting/rag: error: column "space" does not exist
+    at /home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:830:26 {
+  length: 175,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: 'Perhaps you meant to reference the column "knowledge_sources.stage".',
+  position: '18',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3861',
+  routine: 'errorMissingColumn'
+}
+[Reporting API] Error in /api/reporting/operators: error: column "name" does not exist
+    at /home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:689:24 {
+  length: 104,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '22',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3854',
+  routine: 'errorMissingColumn'
+}
+[Reporting API] Error in /api/reporting/operators: error: column "name" does not exist
+    at /home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:689:24 {
+  length: 104,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '22',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3854',
+  routine: 'errorMissingColumn'
+}
+[Reporting API] Error in /api/reporting/rag: error: column "space" does not exist
+    at /home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:830:26 {
+  length: 175,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: 'Perhaps you meant to reference the column "knowledge_sources.stage".',
+  position: '18',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3861',
+  routine: 'errorMissingColumn'
+}
+[Reporting API] Error in /api/reporting/rag: error: column "space" does not exist
+    at /home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:830:26 {
+  length: 175,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: 'Perhaps you meant to reference the column "knowledge_sources.stage".',
+  position: '18',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3861',
+  routine: 'errorMissingColumn'
+}
+[Reporting API] Error in /api/reporting/rag: error: column "space" does not exist
+    at /home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:830:26 {
+  length: 175,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: 'Perhaps you meant to reference the column "knowledge_sources.stage".',
+  position: '18',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3861',
+  routine: 'errorMissingColumn'
+}
+[Reporting API] Error in /api/reporting/rag: error: column "space" does not exist
+    at /home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:830:26 {
+  length: 175,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: 'Perhaps you meant to reference the column "knowledge_sources.stage".',
+  position: '18',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3861',
+  routine: 'errorMissingColumn'
+}
+[Reporting API] Error in /api/reporting/operators: error: column "name" does not exist
+    at /home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:689:24 {
+  length: 104,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '22',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3854',
+  routine: 'errorMissingColumn'
+}
+[Reporting API] Error in /api/reporting/operators: error: column "name" does not exist
+    at /home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:689:24 {
+  length: 104,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '22',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3854',
+  routine: 'errorMissingColumn'
+}
+[Reporting API] Error in /api/reporting/rag: error: column "space" does not exist
+    at /home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:830:26 {
+  length: 175,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: 'Perhaps you meant to reference the column "knowledge_sources.stage".',
+  position: '18',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3861',
+  routine: 'errorMissingColumn'
+}
+[Reporting API] Error in /api/reporting/operators: error: column "name" does not exist
+    at /home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:689:24 {
+  length: 104,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '22',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3854',
+  routine: 'errorMissingColumn'
+}
+[Reporting API] Error in /api/reporting/operators: error: column "name" does not exist
+    at /home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:689:24 {
+  length: 104,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '22',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3854',
+  routine: 'errorMissingColumn'
+}
+[Reporting API] Error in /api/reporting/rag: error: column "space" does not exist
+    at /home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:830:26 {
+  length: 175,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: 'Perhaps you meant to reference the column "knowledge_sources.stage".',
+  position: '18',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3861',
+  routine: 'errorMissingColumn'
+}
+[Reporting API] Error in /api/reporting/operators: error: column "name" does not exist
+    at /home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:689:24 {
+  length: 104,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '22',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3854',
+  routine: 'errorMissingColumn'
+}
+[Reporting API] Error in /api/reporting/operators: error: column "name" does not exist
+    at /home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:689:24 {
+  length: 104,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '22',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3854',
+  routine: 'errorMissingColumn'
+}
+[Reporting API] Error in /api/reporting/rag: error: column "space" does not exist
+    at /home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:830:26 {
+  length: 175,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: 'Perhaps you meant to reference the column "knowledge_sources.stage".',
+  position: '18',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3861',
+  routine: 'errorMissingColumn'
+}
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[Reporting API] Error in /api/reporting/rag: error: column "space" does not exist
+    at /home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:943:26 {
+  length: 175,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: 'Perhaps you meant to reference the column "knowledge_sources.stage".',
+  position: '18',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3861',
+  routine: 'errorMissingColumn'
+}
+[Reporting API] Error in /api/reporting/rag: error: column "space" does not exist
+    at /home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:943:26 {
+  length: 175,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: 'Perhaps you meant to reference the column "knowledge_sources.stage".',
+  position: '18',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3861',
+  routine: 'errorMissingColumn'
+}
+[Reporting API] Error in /api/reporting/rag: error: column "space" does not exist
+    at /home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:943:26 {
+  length: 175,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: 'Perhaps you meant to reference the column "knowledge_sources.stage".',
+  position: '18',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3861',
+  routine: 'errorMissingColumn'
+}
+[Reporting API] Error in /api/reporting/rag: error: column "space" does not exist
+    at /home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:943:26 {
+  length: 175,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: 'Perhaps you meant to reference the column "knowledge_sources.stage".',
+  position: '18',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3861',
+  routine: 'errorMissingColumn'
+}
+[Reporting API] Error in /api/reporting/rag: error: column "space" does not exist
+    at /home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:943:26 {
+  length: 175,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: 'Perhaps you meant to reference the column "knowledge_sources.stage".',
+  position: '18',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3861',
+  routine: 'errorMissingColumn'
+}
+[Reporting API] Error in /api/reporting/rag: error: column "space" does not exist
+    at /home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:943:26 {
+  length: 175,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: 'Perhaps you meant to reference the column "knowledge_sources.stage".',
+  position: '18',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3861',
+  routine: 'errorMissingColumn'
+}
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[Reporting API] Error in /api/reporting/rag: error: column "space" does not exist
+    at /home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:943:26 {
+  length: 175,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: 'Perhaps you meant to reference the column "knowledge_sources.stage".',
+  position: '18',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3861',
+  routine: 'errorMissingColumn'
+}
+[Reporting API] Error in /api/reporting/rag: error: column "space" does not exist
+    at /home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:943:26 {
+  length: 175,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: 'Perhaps you meant to reference the column "knowledge_sources.stage".',
+  position: '18',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3861',
+  routine: 'errorMissingColumn'
+}

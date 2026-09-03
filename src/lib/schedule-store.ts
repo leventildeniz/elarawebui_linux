@@ -1,16 +1,16 @@
 /**
- * Scheduled report deliveries.
+ * Scheduled report deliveries — PostgreSQL backed.
  *
  * A schedule binds a report template + period (+ optional operator) to a
- * cadence and a delivery channel (mail group, object storage / warehouse, or
- * an immediate local download). Definitions and the delivery log persist in
- * local storage; due schedules fire from a single ticker in the UI.
+ * cadence and a delivery channel (email, storage / warehouse, or manual download).
+ * Data persists in PostgreSQL `schedules` and `schedule_deliveries` tables.
  */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { scopeOwned, stampOwner, useOwnerCtx, type Owned } from "@/lib/ownership";
 import type { Period } from "@/lib/report-store";
 import type { TemplateId } from "@/lib/report-templates";
+import { fetchApi } from "@/lib/api";
 
 export type Cadence = "hourly" | "daily" | "weekly" | "monthly" | "once";
 export type DeliveryChannel = "email" | "download" | "storage";
@@ -61,9 +61,7 @@ export type Delivery = {
   detail: string;
 };
 
-const KEY = "elara.report.schedules.v1";
-const LOG_KEY = "elara.report.deliveries.v1";
-
+const EVT = "elara:schedules";
 const WEEK = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export function nextRunFrom(s: Omit<Schedule, "nextRun">, from = new Date()): string {
@@ -83,22 +81,22 @@ export function nextRunFrom(s: Omit<Schedule, "nextRun">, from = new Date()): st
     return d.toISOString();
   }
   if (s.cadence === "weekly") {
-    const delta = (s.weekday - d.getDay() + 7) % 7;
+    const delta = ((s.weekday ?? 1) - d.getDay() + 7) % 7;
     d.setDate(d.getDate() + delta);
     if (d <= from) d.setDate(d.getDate() + 7);
     return d.toISOString();
   }
-  d.setDate(Math.min(28, Math.max(1, s.dayOfMonth)));
+  d.setDate(Math.min(28, Math.max(1, s.dayOfMonth ?? 1)));
   if (d <= from) d.setMonth(d.getMonth() + 1);
   return d.toISOString();
 }
 
 export function cadenceLabel(s: Schedule) {
-  if (s.cadence === "hourly") return `Hourly · :${s.time.split(":")[1]}`;
-  if (s.cadence === "daily") return `Daily · ${s.time}`;
-  if (s.cadence === "weekly") return `Weekly · ${WEEK[s.weekday]} ${s.time}`;
-  if (s.cadence === "monthly") return `Monthly · day ${s.dayOfMonth} ${s.time}`;
-  return `Once · ${s.time}`;
+  if (s.cadence === "hourly") return `Hourly · :${s.time?.split(":")[1] || "00"}`;
+  if (s.cadence === "daily") return `Daily · ${s.time || "08:00"}`;
+  if (s.cadence === "weekly") return `Weekly · ${WEEK[s.weekday ?? 1]} ${s.time || "08:00"}`;
+  if (s.cadence === "monthly") return `Monthly · day ${s.dayOfMonth ?? 1} ${s.time || "08:00"}`;
+  return `Once · ${s.time || "08:00"}`;
 }
 
 export function relative(iso: string) {
@@ -108,100 +106,6 @@ export function relative(iso: string) {
   const m = Math.round(abs / 60_000);
   const unit = m < 60 ? `${m}m` : m < 1440 ? `${Math.round(m / 60)}h` : `${Math.round(m / 1440)}d`;
   return diff >= 0 ? `in ${unit}` : `${unit} ago`;
-}
-
-function seed(): Schedule[] {
-  const base: Omit<Schedule, "nextRun">[] = [
-    {
-      id: "sch.exec",
-      name: "Executive rollup",
-      templateId: "executive",
-      period: "30d",
-      format: "PDF",
-      delivery: "email",
-      recipients: "leadership@sovereign.studio, board@sovereign.studio",
-      destination: "mail://leadership",
-      cadence: "weekly",
-      time: "07:00",
-      weekday: 1,
-      dayOfMonth: 1,
-      enabled: true,
-      lastRun: "",
-      status: "healthy",
-    },
-    {
-      id: "sch.ops",
-      name: "Operator activity & cost",
-      templateId: "operator-roster",
-      period: "7d",
-      format: "PDF",
-      delivery: "email",
-      recipients: "finops@sovereign.studio",
-      destination: "mail://finops",
-      cadence: "daily",
-      time: "06:30",
-      weekday: 1,
-      dayOfMonth: 1,
-      enabled: true,
-      lastRun: "",
-      status: "healthy",
-    },
-    {
-      id: "sch.cost",
-      name: "Cost ledger extract",
-      templateId: "cost",
-      period: "30d",
-      format: "CSV",
-      delivery: "storage",
-      recipients: "finops",
-      destination: "s3://sovereign-finops/reports",
-      cadence: "monthly",
-      time: "02:00",
-      weekday: 1,
-      dayOfMonth: 1,
-      enabled: true,
-      lastRun: "",
-      status: "healthy",
-    },
-  ];
-  return base.map((b) => ({ ...b, nextRun: nextRunFrom(b) }));
-}
-
-function read<T>(key: string, fallback: T): T {
-  if (typeof window === "undefined") return fallback;
-  try {
-    const raw = window.localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function write(key: string, value: unknown) {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    /* ignore */
-  }
-  window.dispatchEvent(new CustomEvent("elara:schedules"));
-}
-
-export function readSchedules(): Schedule[] {
-  return read<Schedule[]>(KEY, seed());
-}
-export function writeSchedules(list: Schedule[]) {
-  write(KEY, list);
-}
-export function readDeliveries(): Delivery[] {
-  return read<Delivery[]>(LOG_KEY, []);
-}
-export function logDelivery(d: Omit<Delivery, "id">) {
-  const list = [
-    { ...d, id: `dlv.${Date.now()}.${Math.random().toString(36).slice(2, 7)}` },
-    ...readDeliveries(),
-  ];
-  write(LOG_KEY, list.slice(0, 60));
 }
 
 export function emptySchedule(): Schedule {
@@ -224,23 +128,107 @@ export function emptySchedule(): Schedule {
     lastRun: "",
     status: "idle",
   };
-  /* A delivery belongs to the desk that scheduled it. */
   return stampOwner({ ...base, nextRun: nextRunFrom(base) }, "private");
+}
+
+// ---------------------------------------------------------------------------
+// Async Database Operations
+// ---------------------------------------------------------------------------
+
+export async function fetchSchedules(): Promise<Schedule[]> {
+  try {
+    const list = await fetchApi("/reporting/schedules");
+    return Array.isArray(list) ? list : [];
+  } catch (err) {
+    console.error("[fetchSchedules] Failed to load schedules from PostgreSQL:", err);
+    return [];
+  }
+}
+
+export async function fetchDeliveries(): Promise<Delivery[]> {
+  try {
+    const list = await fetchApi("/reporting/deliveries");
+    return Array.isArray(list) ? list : [];
+  } catch (err) {
+    console.error("[fetchDeliveries] Failed to load deliveries from PostgreSQL:", err);
+    return [];
+  }
+}
+
+export async function saveSchedule(schedule: Schedule): Promise<boolean> {
+  try {
+    await fetchApi("/reporting/schedules", {
+      method: "POST",
+      body: JSON.stringify(schedule),
+    });
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent(EVT));
+    }
+    return true;
+  } catch (err) {
+    console.error("[saveSchedule] Failed to save schedule:", err);
+    return false;
+  }
+}
+
+export async function deleteSchedule(id: string): Promise<boolean> {
+  try {
+    await fetchApi(`/reporting/schedules/${id}`, {
+      method: "DELETE",
+    });
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent(EVT));
+    }
+    return true;
+  } catch (err) {
+    console.error("[deleteSchedule] Failed to delete schedule:", err);
+    return false;
+  }
+}
+
+export async function logDelivery(d: Omit<Delivery, "id">) {
+  try {
+    await fetchApi("/reporting/deliveries", {
+      method: "POST",
+      body: JSON.stringify(d),
+    });
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent(EVT));
+    }
+  } catch (err) {
+    console.warn("[logDelivery] Failed to record delivery:", err);
+  }
 }
 
 export function useSchedules() {
   const ctx = useOwnerCtx();
   const [list, setList] = useState<Schedule[]>([]);
   const [log, setLog] = useState<Delivery[]>([]);
-  useEffect(() => {
-    const sync = () => {
-      setList(readSchedules());
-      setLog(readDeliveries());
-    };
-    sync();
-    window.addEventListener("elara:schedules", sync);
-    return () => window.removeEventListener("elara:schedules", sync);
+  const [loading, setLoading] = useState(true);
+
+  const sync = useCallback(async () => {
+    try {
+      const [schedules, deliveries] = await Promise.all([
+        fetchSchedules(),
+        fetchDeliveries(),
+      ]);
+      setList(schedules);
+      setLog(deliveries);
+      setLoading(false);
+    } catch (err) {
+      console.error("[useSchedules] Sync failed:", err);
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    sync();
+    if (typeof window !== "undefined") {
+      window.addEventListener(EVT, sync);
+      return () => window.removeEventListener(EVT, sync);
+    }
+  }, [sync]);
+
   const visible = scopeOwned(list, ctx);
-  return { list: visible, allSchedules: list, ctx, log, setList };
+  return { list: visible, allSchedules: list, ctx, log, setList, loading, refresh: sync };
 }

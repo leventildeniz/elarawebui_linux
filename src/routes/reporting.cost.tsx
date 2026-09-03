@@ -12,16 +12,7 @@ import {
   Sparkline,
 } from "@/components/sovereign/report-kit";
 import { exportReportPdf } from "@/lib/report-pdf";
-import {
-  byProvider,
-  bySquad,
-  costLines,
-  fmtInt,
-  fmtMoney,
-  fmtTokens,
-  seriesRange,
-  totals,
-} from "@/lib/report-store";
+import { fmtInt, fmtMoney, fmtTokens, useReportingCost } from "@/lib/report-store";
 
 export const Route = createFileRoute("/reporting/cost")({
   head: () => ({
@@ -47,14 +38,23 @@ export const Route = createFileRoute("/reporting/cost")({
 
 function CostPage() {
   const { span, control, label: spanText, slug: spanId, days, end } = useReportSpan();
-  const rows = useMemo(() => seriesRange(days, end), [days, end]);
-  const t = useMemo(() => totals(rows), [rows]);
-  const lines = useMemo(() => costLines(t), [t]);
-  const providers = useMemo(() => byProvider(t), [t]);
-  const squads = useMemo(() => bySquad(t), [t]);
-  const ledgerTotal = useMemo(() => lines.reduce((a, l) => a + l.amount, 0), [lines]);
-  const perRun = ledgerTotal / Math.max(1, t.runs);
-  const perMillion = ledgerTotal / Math.max(0.001, t.tokens / 1_000_000);
+  const queryParams = useMemo(() => {
+    if (typeof span === "string") return { span };
+    return { from: span.from, to: span.to };
+  }, [span]);
+
+  const {
+    totals: t,
+    lines,
+    ledgerTotal,
+    perRun,
+    perMillion,
+    localOffload,
+    rows,
+    providers,
+    squads,
+    loading,
+  } = useReportingCost(queryParams);
 
   const exportPdf = async () => {
     await exportReportPdf({
@@ -68,7 +68,7 @@ function CostPage() {
         { label: "Cost / 1M tokens", value: fmtMoney(perMillion), hint: fmtTokens(t.tokens) },
         {
           label: "Local offload",
-          value: `${providers[0]!.share}%`,
+          value: `${localOffload}%`,
           hint: "sovereign runtime share",
         },
       ],
@@ -148,7 +148,7 @@ function CostPage() {
             },
             {
               label: "Local offload",
-              value: `${providers[0]!.share}%`,
+              value: `${localOffload}%`,
               hint: "sovereign runtime",
               tone: "amethyst",
             },

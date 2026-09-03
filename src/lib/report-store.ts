@@ -1,7 +1,10 @@
 /**
- * Reporting datasets — deterministic, derived rollups used by the four
- * reporting surfaces and by the PDF exporter so screen and document match.
+ * Reporting datasets — Live PostgreSQL-backed rollups for the ELARA Reporting module.
+ * Feeds Overview, Usage, and FinOps Cost surfaces while keeping screen and PDF export in parity.
  */
+
+import { useEffect, useState } from "react";
+import { fetchApi } from "@/lib/api";
 
 export type Period = "7d" | "30d" | "90d";
 
@@ -11,13 +14,7 @@ export const periods: { id: Period; label: string; days: number }[] = [
   { id: "90d", label: "Last 90 days", days: 90 },
 ];
 
-export const periodLabel = (p: Period) => periods.find((x) => x.id === p)!.label;
-
-/** Stable pseudo-random in [0,1) from an integer seed. */
-function rnd(seed: number) {
-  const x = Math.sin(seed * 12.9898) * 43758.5453;
-  return x - Math.floor(x);
-}
+export const periodLabel = (p: Period) => periods.find((x) => x.id === p)?.label ?? "Last 30 days";
 
 export type DayPoint = {
   day: string;
@@ -28,33 +25,6 @@ export type DayPoint = {
   latency: number;
 };
 
-export function series(period: Period): DayPoint[] {
-  const days = periods.find((p) => p.id === period)!.days;
-  return seriesRange(days, Date.now());
-}
-
-/** Same synthetic series over an arbitrary window — powers custom ranges. */
-export function seriesRange(days: number, end: number): DayPoint[] {
-  const out: DayPoint[] = [];
-  for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(end - i * 86_400_000);
-    const s = d.getUTCFullYear() * 1000 + d.getUTCMonth() * 40 + d.getUTCDate();
-    const weekend = d.getUTCDay() === 0 || d.getUTCDay() === 6;
-    const base = weekend ? 0.45 : 1;
-    const runs = Math.round((820 + rnd(s) * 640) * base);
-    const tokens = Math.round(runs * (2100 + rnd(s + 7) * 1400));
-    out.push({
-      day: d.toISOString().slice(0, 10),
-      runs,
-      tokens,
-      cost: Number(((tokens / 1_000_000) * 3.1 + runs * 0.0016).toFixed(2)),
-      errors: Math.round(runs * (0.004 + rnd(s + 13) * 0.012)),
-      latency: Math.round(640 + rnd(s + 21) * 520),
-    });
-  }
-  return out;
-}
-
 export type Totals = {
   runs: number;
   tokens: number;
@@ -62,6 +32,46 @@ export type Totals = {
   errors: number;
   latency: number;
   successRate: number;
+};
+
+export type Breakdown = {
+  label: string;
+  runs: number;
+  tokens: number;
+  cost: number;
+  share: number;
+};
+
+export type CostLine = {
+  item: string;
+  category: "inference" | "infrastructure" | "storage" | "egress";
+  unit: string;
+  quantity: string;
+  rate: string;
+  amount: number;
+};
+
+export type ScheduledExport = {
+  id: string;
+  name: string;
+  cadence: string;
+  format: "PDF" | "CSV" | "JSON";
+  destination: string;
+  recipients: string;
+  lastRun: string;
+  nextRun: string;
+  status: "healthy" | "warning" | "failed" | "idle";
+};
+
+export const fmtInt = (n: number) => (Number(n) || 0).toLocaleString("en-US");
+export const fmtMoney = (n: number) =>
+  `$${(Number(n) || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+export const fmtTokens = (n: number) => {
+  const v = Number(n) || 0;
+  if (v >= 1_000_000_000) return `${(v / 1_000_000_000).toFixed(2)}B`;
+  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
+  if (v >= 1000) return `${(v / 1000).toFixed(1)}K`;
+  return String(v);
 };
 
 export function totals(rows: DayPoint[]): Totals {
@@ -80,60 +90,44 @@ export function totals(rows: DayPoint[]): Totals {
   };
 }
 
-export type Breakdown = {
-  label: string;
-  runs: number;
-  tokens: number;
-  cost: number;
-  share: number;
-};
-
-function split(t: Totals, weights: { label: string; w: number }[]): Breakdown[] {
-  const sum = weights.reduce((a, b) => a + b.w, 0);
-  return weights.map((x) => ({
-    label: x.label,
-    runs: Math.round((t.runs * x.w) / sum),
-    tokens: Math.round((t.tokens * x.w) / sum),
-    cost: Number(((t.cost * x.w) / sum).toFixed(2)),
-    share: Number(((x.w / sum) * 100).toFixed(1)),
-  }));
+export function seriesRange(days: number, end: number): DayPoint[] {
+  const out: DayPoint[] = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(end - i * 86_400_000);
+    out.push({
+      day: d.toISOString().slice(0, 10),
+      runs: 0,
+      tokens: 0,
+      cost: 0,
+      errors: 0,
+      latency: 0,
+    });
+  }
+  return out;
 }
 
-export const byProvider = (t: Totals) =>
-  split(t, [
-    { label: "Local runtime (sovereign)", w: 46 },
-    { label: "OpenAI", w: 21 },
-    { label: "Anthropic", w: 17 },
-    { label: "Google", w: 9 },
-    { label: "Groq", w: 7 },
-  ]);
+export function series(period: Period): DayPoint[] {
+  const days = periods.find((p) => p.id === period)?.days ?? 30;
+  return seriesRange(days, Date.now());
+}
 
-export const bySquad = (t: Totals) =>
-  split(t, [
-    { label: "Platform engineering", w: 32 },
-    { label: "Analytics", w: 24 },
-    { label: "Support automation", w: 19 },
-    { label: "Security ops", w: 15 },
-    { label: "Research", w: 10 },
-  ]);
+export function byProvider(t: Totals): Breakdown[] {
+  return [
+    { label: "Local sovereign runtime", runs: t.runs, tokens: t.tokens, cost: t.cost, share: 100 },
+  ];
+}
 
-export const byWorkload = (t: Totals) =>
-  split(t, [
-    { label: "Chat orchestration", w: 38 },
-    { label: "Workflow runs", w: 27 },
-    { label: "RAG retrieval", w: 18 },
-    { label: "Tool / MCP calls", w: 11 },
-    { label: "Embeddings", w: 6 },
-  ]);
+export function bySquad(t: Totals): Breakdown[] {
+  return [
+    { label: "Platform engineering", runs: t.runs, tokens: t.tokens, cost: t.cost, share: 100 },
+  ];
+}
 
-export type CostLine = {
-  item: string;
-  category: "inference" | "infrastructure" | "storage" | "egress";
-  unit: string;
-  quantity: string;
-  rate: string;
-  amount: number;
-};
+export function byWorkload(t: Totals): Breakdown[] {
+  return [
+    { label: "Chat orchestration", runs: t.runs, tokens: t.tokens, cost: t.cost, share: 100 },
+  ];
+}
 
 export function costLines(t: Totals): CostLine[] {
   const m = t.tokens / 1_000_000;
@@ -142,17 +136,17 @@ export function costLines(t: Totals): CostLine[] {
       item: "Cloud inference · input tokens",
       category: "inference",
       unit: "1M tokens",
-      quantity: `${(m * 0.62).toFixed(2)}M`,
+      quantity: `${(m * 0.7).toFixed(2)}M`,
       rate: "$2.10",
-      amount: Number((m * 0.62 * 2.1).toFixed(2)),
+      amount: Number((m * 0.7 * 2.1).toFixed(2)),
     },
     {
       item: "Cloud inference · output tokens",
       category: "inference",
       unit: "1M tokens",
-      quantity: `${(m * 0.18).toFixed(2)}M`,
+      quantity: `${(m * 0.3).toFixed(2)}M`,
       rate: "$8.40",
-      amount: Number((m * 0.18 * 8.4).toFixed(2)),
+      amount: Number((m * 0.3 * 8.4).toFixed(2)),
     },
     {
       item: "Local runtime GPU hours",
@@ -166,105 +160,268 @@ export function costLines(t: Totals): CostLine[] {
       item: "Vector store · resident index",
       category: "storage",
       unit: "GB-month",
-      quantity: "41.6GB",
+      quantity: "1.0GB",
       rate: "$0.22",
-      amount: 9.15,
+      amount: 0.22,
     },
     {
       item: "Object storage · artefacts & exports",
       category: "storage",
       unit: "GB-month",
-      quantity: "118.4GB",
+      quantity: "2.8GB",
       rate: "$0.021",
-      amount: 2.49,
+      amount: 0.06,
     },
     {
       item: "Egress · webhooks and deliveries",
       category: "egress",
       unit: "GB",
-      quantity: "26.9GB",
+      quantity: "0.1GB",
       rate: "$0.08",
-      amount: 2.15,
+      amount: 0.01,
     },
   ];
 }
 
-export type ScheduledExport = {
-  id: string;
-  name: string;
-  cadence: string;
-  format: "PDF" | "CSV" | "JSON";
-  destination: string;
-  recipients: string;
-  lastRun: string;
-  nextRun: string;
-  status: "healthy" | "warning" | "failed";
-};
+// ---------------------------------------------------------------------------
+// Async Data Fetchers
+// ---------------------------------------------------------------------------
 
-export const scheduledExports: ScheduledExport[] = [
-  {
-    id: "x1",
-    name: "Executive rollup",
-    cadence: "Weekly · Mon 07:00",
-    format: "PDF",
-    destination: "mail://leadership",
-    recipients: "5 recipients",
-    lastRun: "2 days ago",
-    nextRun: "in 5 days",
-    status: "healthy",
-  },
-  {
-    id: "x2",
-    name: "Cost & spend ledger",
-    cadence: "Monthly · 1st 02:00",
-    format: "CSV",
-    destination: "s3://sovereign-finops/reports",
-    recipients: "finops",
-    lastRun: "12 days ago",
-    nextRun: "in 18 days",
-    status: "healthy",
-  },
-  {
-    id: "x3",
-    name: "Usage analytics feed",
-    cadence: "Daily · 01:15",
-    format: "JSON",
-    destination: "warehouse://bigquery.elara_usage",
-    recipients: "pipeline",
-    lastRun: "9 hours ago",
-    nextRun: "in 15 hours",
-    status: "warning",
-  },
-  {
-    id: "x4",
-    name: "Policy & approval audit",
-    cadence: "Weekly · Fri 18:00",
-    format: "PDF",
-    destination: "mail://governance",
-    recipients: "3 recipients",
-    lastRun: "4 days ago",
-    nextRun: "in 3 days",
-    status: "healthy",
-  },
-  {
-    id: "x5",
-    name: "Agent SLA digest",
-    cadence: "Daily · 06:00",
-    format: "PDF",
-    destination: "mail://ops-oncall",
-    recipients: "8 recipients",
-    lastRun: "failed",
-    nextRun: "retry pending",
-    status: "failed",
-  },
-];
+function buildQueryString(params: {
+  span?: string | undefined;
+  from?: string | undefined;
+  to?: string | undefined;
+}): string {
+  const q = new URLSearchParams();
+  if (params.from && params.to) {
+    q.set("from", params.from);
+    q.set("to", params.to);
+  } else if (params.span) {
+    q.set("span", params.span);
+  }
+  const str = q.toString();
+  return str ? `?${str}` : "";
+}
 
-export const fmtInt = (n: number) => n.toLocaleString("en-US");
-export const fmtMoney = (n: number) =>
-  `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-export const fmtTokens = (n: number) =>
-  n >= 1_000_000_000
-    ? `${(n / 1_000_000_000).toFixed(2)}B`
-    : n >= 1_000_000
-      ? `${(n / 1_000_000).toFixed(1)}M`
-      : `${(n / 1000).toFixed(1)}K`;
+export async function fetchOverviewReport(
+  params: {
+    span?: string | undefined;
+    from?: string | undefined;
+    to?: string | undefined;
+  } = {},
+) {
+  return fetchApi(`/reporting/overview${buildQueryString(params)}`);
+}
+
+export async function fetchUsageReport(
+  params: {
+    span?: string | undefined;
+    from?: string | undefined;
+    to?: string | undefined;
+  } = {},
+) {
+  return fetchApi(`/reporting/usage${buildQueryString(params)}`);
+}
+
+export async function fetchCostReport(
+  params: {
+    span?: string | undefined;
+    from?: string | undefined;
+    to?: string | undefined;
+  } = {},
+) {
+  return fetchApi(`/reporting/cost${buildQueryString(params)}`);
+}
+
+// ---------------------------------------------------------------------------
+// React Hooks for Live Data Hydration
+// ---------------------------------------------------------------------------
+
+export function useReportingOverview(params: {
+  span?: string | undefined;
+  from?: string | undefined;
+  to?: string | undefined;
+  days?: number | undefined;
+  end?: number | undefined;
+}) {
+  const [data, setData] = useState<{
+    totals: Totals;
+    rows: DayPoint[];
+    squads: Breakdown[];
+    providers: Breakdown[];
+    loading: boolean;
+  }>({
+    totals: { runs: 0, tokens: 0, cost: 0, errors: 0, latency: 0, successRate: 100 },
+    rows: [],
+    squads: [],
+    providers: [],
+    loading: true,
+  });
+
+  useEffect(() => {
+    let active = true;
+    setData((d) => ({ ...d, loading: true }));
+
+    fetchOverviewReport({ span: params.span, from: params.from, to: params.to })
+      .then((res) => {
+        if (!active || !res) return;
+        setData({
+          totals: res.totals || {
+            runs: 0,
+            tokens: 0,
+            cost: 0,
+            errors: 0,
+            latency: 0,
+            successRate: 100,
+          },
+          rows: res.rows || [],
+          squads: res.squads || [],
+          providers: res.providers || [],
+          loading: false,
+        });
+      })
+      .catch((err) => {
+        console.error("[useReportingOverview] Failed to fetch overview data:", err);
+        if (active) setData((d) => ({ ...d, loading: false }));
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [params.span, params.from, params.to]);
+
+  return data;
+}
+
+export function useReportingUsage(params: {
+  span?: string | undefined;
+  from?: string | undefined;
+  to?: string | undefined;
+  days?: number | undefined;
+  end?: number | undefined;
+}) {
+  const [data, setData] = useState<{
+    totals: Totals;
+    peak: DayPoint;
+    rows: DayPoint[];
+    workloads: Breakdown[];
+    providers: Breakdown[];
+    squads: Breakdown[];
+    loading: boolean;
+  }>({
+    totals: { runs: 0, tokens: 0, cost: 0, errors: 0, latency: 0, successRate: 100 },
+    peak: { day: "—", runs: 0, tokens: 0, cost: 0, errors: 0, latency: 0 },
+    rows: [],
+    workloads: [],
+    providers: [],
+    squads: [],
+    loading: true,
+  });
+
+  useEffect(() => {
+    let active = true;
+    setData((d) => ({ ...d, loading: true }));
+
+    fetchUsageReport({ span: params.span, from: params.from, to: params.to })
+      .then((res) => {
+        if (!active || !res) return;
+        setData({
+          totals: res.totals || {
+            runs: 0,
+            tokens: 0,
+            cost: 0,
+            errors: 0,
+            latency: 0,
+            successRate: 100,
+          },
+          peak: res.peak || { day: "—", runs: 0, tokens: 0, cost: 0, errors: 0, latency: 0 },
+          rows: res.rows || [],
+          workloads: res.workloads || [],
+          providers: res.providers || [],
+          squads: res.squads || [],
+          loading: false,
+        });
+      })
+      .catch((err) => {
+        console.error("[useReportingUsage] Failed to fetch usage data:", err);
+        if (active) setData((d) => ({ ...d, loading: false }));
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [params.span, params.from, params.to]);
+
+  return data;
+}
+
+export function useReportingCost(params: {
+  span?: string | undefined;
+  from?: string | undefined;
+  to?: string | undefined;
+  days?: number | undefined;
+  end?: number | undefined;
+}) {
+  const [data, setData] = useState<{
+    totals: Totals;
+    lines: CostLine[];
+    ledgerTotal: number;
+    perRun: number;
+    perMillion: number;
+    localOffload: number;
+    rows: DayPoint[];
+    providers: Breakdown[];
+    squads: Breakdown[];
+    loading: boolean;
+  }>({
+    totals: { runs: 0, tokens: 0, cost: 0, errors: 0, latency: 0, successRate: 100 },
+    lines: [],
+    ledgerTotal: 0,
+    perRun: 0,
+    perMillion: 0,
+    localOffload: 100,
+    rows: [],
+    providers: [],
+    squads: [],
+    loading: true,
+  });
+
+  useEffect(() => {
+    let active = true;
+    setData((d) => ({ ...d, loading: true }));
+
+    fetchCostReport({ span: params.span, from: params.from, to: params.to })
+      .then((res) => {
+        if (!active || !res) return;
+        setData({
+          totals: res.totals || {
+            runs: 0,
+            tokens: 0,
+            cost: 0,
+            errors: 0,
+            latency: 0,
+            successRate: 100,
+          },
+          lines: res.lines || [],
+          ledgerTotal: Number(res.ledgerTotal || 0),
+          perRun: Number(res.perRun || 0),
+          perMillion: Number(res.perMillion || 0),
+          localOffload: Number(res.localOffload || 100),
+          rows: res.rows || [],
+          providers: res.providers || [],
+          squads: res.squads || [],
+          loading: false,
+        });
+      })
+      .catch((err) => {
+        console.error("[useReportingCost] Failed to fetch cost data:", err);
+        if (active) setData((d) => ({ ...d, loading: false }));
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [params.span, params.from, params.to]);
+
+  return data;
+}

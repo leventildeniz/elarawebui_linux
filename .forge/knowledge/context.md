@@ -447,5 +447,34 @@ Bu aşamada MetaForge ve Chat orkestrasyonundaki kritik senkronizasyon, yaşam d
 18. **Model Kartı Dinamik Yetkilendirme & Sıfır Hardcoding:**
     - Tüm model hiperparametreleri (sıcaklık, tekrar cezası, durdurma dizilimleri, gelişmiş parametreler) kodda sabit değerler yerine doğrudan model kartı arayüzü ve veritabanına bağlandı.
 
-## 48. UP NEXT (Phase 48) - Agentic RAG & Knowledge Hub Validation
+## 48. Completed (Phase 48) - Reporting & Analytics Enterprise Engine Migration (Zero-Mock E2E)
+Bu aşamada ELARA Sovereign Studio'nun sol menüsündeki tüm Raporlama ve Analitik (REPORTING) modülü frontend içi sözde-rastgele mock fonksiyonlarından (`Math.sin`, `rnd()`, `splitWeights()`, `localStorage`) tamamen arındırılarak gerçek PostgreSQL veritabanı tablolarına (`provider_usage`, `usage_daily`, `schedules`, `schedule_deliveries`, `rag_queries`, `app_users`, `knowledge_sources`) ve `api-v2.mjs` API gateway'ine bağlandı.
+
+### Yapılan Geliştirmeler & Mimari İyileştirmeler:
+1. **Backend Reporting Router (`local-server/lib/routes/reporting.mjs` & `api-v2.mjs`):**
+   - Kurumsal seviyede, agnostik ve ölçeklenebilir raporlama servisi yazıldı ve gateway'e `safeMount('Reporting & Analytics', mountReportingRoutes, app, deps)` ile bağlandı.
+   - İdempotent şema güvencesiyle `schedules`, `schedule_deliveries` ve `rag_queries` PostgreSQL tabloları ve indeksleri otomatik olarak oluşturuldu.
+2. **Overview & Summary Rollup (`/api/reporting/overview` & `src/routes/reporting.overview.tsx`):**
+   - Dinamik zaman aralığı süzgeci (`7d`, `30d`, `90d` veya özel tarih aralığı `from` → `to`).
+   - `provider_usage` tablosundan gerçek çalışma sayıları, işlenen token hacimleri, harcanan toplam maliyet (`cost_usd`), hata oranları ve ortalama gecikmeler toplandı.
+   - Sağlayıcı (Local vs Cloud) ve Squad dağılımları doğrudan DB verisiyle eşlendi.
+3. **Usage Analytics Engine (`/api/reporting/usage` & `src/routes/reporting.usage.tsx`):**
+   - İş yükü kırılımı (`Chat orchestration`, `Workflow runs`, `RAG retrieval`, `Tool / MCP calls`, `Vision & Voice`) backend'den canlı kategorize edildi.
+   - Günlük token hacmi, zirve (peak) gün ve gecikme dağılımı gerçek verilere bağlandı.
+4. **FinOps Cost & Spend Ledger (`/api/reporting/cost` & `src/routes/reporting.cost.tsx`):**
+   - Giriş ve çıkış token'ları için model bazlı gerçek birim fiyatlandırma ve toplam maliyet dökümü (`cost_usd`).
+   - Altyapı GPU saatleri, Vector store disk alanı (`knowledge_sources.size_mb`), nesne depolama ve çıkış (egress) maliyet kalemleri dinamik olarak hesaplandı.
+5. **Operator Analytics & Deep Dive (`/api/reporting/operators` & `src/routes/reporting.users.tsx`):**
+   - Sistemdeki gerçek kullanıcılar (`app_users`), yaptıkları sohbet/ajan oturumları ve yerel vs bulut token tüketimleri operatör bazlı olarak modellendi.
+   - Top N, sıralama (tokens, cost, runs, name), arama ve operatör filtreleri API seviyesinde uygulandı.
+6. **RAG Analytics Telemetrisi (`/api/reporting/rag` & `src/routes/reporting.rag.tsx`):**
+   - Geri çağırma (retrieval) arama logları için `POST /api/reporting/rag/query` uç noktası ve `rag_queries` PostgreSQL tablosu devreye alındı.
+   - Doküman boyutları (`size_mb`), chunk toplamları, indeksleme durumu ve alan (space) dağılımı gerçek DB kayıtlarıyla eşitlendi.
+7. **Zamanlanmış Raporlar ve Dağıtım Günlüğü (`/api/reporting/schedules` & `reporting.exports.tsx`):**
+   - `localStorage` bağımlılığı tamamen kaldırıldı; zamanlanmış teslimat planları (`schedules`) ve icra logları (`schedule_deliveries`) PostgreSQL veritabanına taşındı.
+   - Rapor oluşturma (PDF, CSV, JSON), e-posta ve anlık indirme süreçleri veritabanı kayıtları üzerinden güvenle yönetilir hale getirildi.
+8. **Kod ve Yorum Dili Standartlaştırması:**
+   - Yeni oluşturulan tüm modül ve store dosyalarında kesin olarak kurumsal İngilizce standartları uygulandı.
+
+## 49. UP NEXT (Phase 49) - Agentic RAG & Knowledge Hub Validation
 - Dondurulan RAG entegrasyonu, departman bazlı space izolasyonu (`rag_space_id`), dosya indeksleme ve reranker testleri devreye alınacak.

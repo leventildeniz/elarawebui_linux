@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
-
 /**
- * RAG query telemetry — every retrieval-backed answer writes one row here so
- * the reporting layer can answer "who queried what, against which space, and
- * how much evidence came back". Local until the retrieval layer gets a backend.
+ * RAG query telemetry — every retrieval-backed answer writes to PostgreSQL via /api/reporting/rag/query
+ * so the reporting layer can answer "who queried what, against which space, and how much evidence came back".
  */
+
+import { useCallback, useEffect, useState } from "react";
+import { fetchApi } from "@/lib/api";
 
 export type RagQueryEvent = {
   id: string;
@@ -20,55 +20,50 @@ export type RagQueryEvent = {
   hit: boolean;
 };
 
-const KEY = "elara.rag.queries.v1";
 const EVT = "elara:rag-queries";
-const CAP = 400;
 
-function read(): RagQueryEvent[] {
-  if (typeof window === "undefined") return [];
+export async function logRagQuery(e: Omit<RagQueryEvent, "id" | "at">) {
   try {
-    const raw = window.localStorage.getItem(KEY);
-    return raw ? (JSON.parse(raw) as RagQueryEvent[]) : [];
-  } catch {
-    return [];
+    const res = await fetchApi("/reporting/rag/query", {
+      method: "POST",
+      body: JSON.stringify(e),
+    });
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent(EVT, { detail: res }));
+    }
+  } catch (err) {
+    console.warn("[logRagQuery] Telemetry write failed:", err);
   }
-}
-
-function write(rows: RagQueryEvent[]) {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(KEY, JSON.stringify(rows.slice(0, CAP)));
-  } catch {
-    /* quota — telemetry is best effort */
-  }
-  window.dispatchEvent(new Event(EVT));
-}
-
-export function logRagQuery(e: Omit<RagQueryEvent, "id" | "at">) {
-  const row: RagQueryEvent = {
-    ...e,
-    id: `rq.${Date.now().toString(36)}.${Math.random().toString(36).slice(2, 6)}`,
-    at: Date.now(),
-  };
-  write([row, ...read()]);
 }
 
 export function useRagQueries() {
   const [rows, setRows] = useState<RagQueryEvent[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const sync = () => setRows(read());
-    sync();
-    window.addEventListener(EVT, sync);
-    window.addEventListener("storage", sync);
-    return () => {
-      window.removeEventListener(EVT, sync);
-      window.removeEventListener("storage", sync);
-    };
+  const sync = useCallback(() => {
+    fetchApi("/reporting/rag")
+      .then((res) => {
+        if (res?.queries) {
+          setRows(res.queries);
+        }
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error("[useRagQueries] Failed to fetch queries:", err);
+        setLoading(false);
+      });
   }, []);
 
-  const clear = useCallback(() => write([]), []);
-  return { rows, clear };
+  useEffect(() => {
+    sync();
+    if (typeof window !== "undefined") {
+      window.addEventListener(EVT, sync);
+      return () => window.removeEventListener(EVT, sync);
+    }
+  }, [sync]);
+
+  const clear = useCallback(() => setRows([]), []);
+  return { rows, clear, loading, refresh: sync };
 }
 
 /** Group a list into ranked buckets. */

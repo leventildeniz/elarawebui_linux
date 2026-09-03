@@ -24,6 +24,7 @@ import {
   rosterTotals,
   spanLabel,
   userReports,
+  useOperatorReports,
   type RosterQuery,
   type SortKey,
   type Span,
@@ -88,13 +89,9 @@ function OperatorsReport() {
   const span: Span = custom ? { from, to } : period;
   const query: RosterQuery = { topN, sortBy, search, ...(only.length ? { userIds: only } : {}) };
 
-  /** unfiltered roster powers the operator picker */
-  const everyone = useMemo(() => userReports(span, { sortBy: "name" }), [custom, from, to, period]);
-  const list = useMemo(
-    () => userReports(span, query),
-    [custom, from, to, period, topN, sortBy, search, only.join(",")],
-  );
-  const rt = useMemo(() => rosterTotals(list), [list]);
+  /** live operator roster from postgres */
+  const { operators: everyone } = useOperatorReports(span, { sortBy: "name" });
+  const { operators: list, totals: rt, loading } = useOperatorReports(span, query);
   const [selected, setSelected] = useState<string>("");
   const active = list.find((u) => u.id === selected) ?? list[0];
 
@@ -253,7 +250,7 @@ function OperatorsReport() {
               options={everyone.map((u) => ({
                 id: u.id,
                 name: u.name,
-                meta: `@${u.username} · ${u.role}`,
+                meta: `@${u.username} · ${u.role}${u.provider && u.provider !== "local" ? ` · ${u.provider.toUpperCase()}` : ""}`,
               }))}
               value={only}
               onToggle={toggleOnly}
@@ -292,49 +289,62 @@ function OperatorsReport() {
         />
 
         <ReportPanel title="Roster" hint="Select an operator to open the deep dive">
-          <DataTable
-            columns={[
-              "Operator",
-              "Role",
-              "Runs",
-              "Local tokens",
-              "Cloud tokens",
-              "Cost",
-              "Success",
-              "",
-            ]}
-            align={["left", "left", "right", "right", "right", "right", "right", "left"]}
-            rows={list.map((u) => [
-              <button
-                key="n"
-                type="button"
-                onClick={() => setSelected(u.id)}
-                className={cn(
-                  "text-left transition-colors hover:text-sapphire",
-                  active?.id === u.id ? "text-sapphire" : "text-foreground",
-                )}
-              >
-                <span className="font-medium">{u.name}</span>
-                <span className="ml-2 font-mono text-[11.5px] text-muted-foreground/60">
-                  @{u.username}
-                </span>
-              </button>,
-              <span key="r" className="font-mono text-[12px] text-muted-foreground/75">
-                {u.role}
-              </span>,
-              fmtInt(u.runs),
-              fmtTokens(u.localTokens),
-              fmtTokens(u.cloudTokens),
-              fmtMoney(u.cost),
-              `${u.successRate}%`,
-              <span
-                key="s"
-                className="font-mono text-[11px] uppercase tracking-[0.1em] text-muted-foreground/55"
-              >
-                {u.locked ? "locked" : u.status}
-              </span>,
-            ])}
-          />
+          {list.length > 0 ? (
+            <DataTable
+              columns={[
+                "Operator",
+                "Role",
+                "Provider",
+                "Runs",
+                "Local tokens",
+                "Cloud tokens",
+                "Cost",
+                "Success",
+                "Status",
+              ]}
+              align={["left", "left", "left", "right", "right", "right", "right", "right", "left"]}
+              rows={list.map((u) => [
+                <button
+                  key="n"
+                  type="button"
+                  onClick={() => setSelected(u.id)}
+                  className={cn(
+                    "text-left transition-colors hover:text-sapphire",
+                    active?.id === u.id ? "text-sapphire" : "text-foreground",
+                  )}
+                >
+                  <span className="font-medium">{u.name}</span>
+                  <span className="ml-2 font-mono text-[11.5px] text-muted-foreground/60">
+                    @{u.username}
+                  </span>
+                </button>,
+                <span key="r" className="font-mono text-[12px] text-muted-foreground/75">
+                  {u.role}
+                </span>,
+                <span
+                  key="p"
+                  className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground/60"
+                >
+                  {u.provider || "local"}
+                </span>,
+                fmtInt(u.runs),
+                fmtTokens(u.localTokens),
+                fmtTokens(u.cloudTokens),
+                fmtMoney(u.cost),
+                `${u.successRate}%`,
+                <span
+                  key="s"
+                  className="font-mono text-[11px] uppercase tracking-[0.1em] text-muted-foreground/55"
+                >
+                  {u.locked ? "locked" : u.status}
+                </span>,
+              ])}
+            />
+          ) : (
+            <div className="py-8 text-center font-mono text-[12px] text-muted-foreground/50">
+              {loading ? "Loading operators..." : "No operators found matching the criteria"}
+            </div>
+          )}
         </ReportPanel>
 
         {active && (

@@ -1,12 +1,13 @@
 /**
  * Per-operator activity rollups for the Reporting module.
- *
- * Derived deterministically from the identity roster so screen, PDF and
- * scheduled deliveries always agree on the same numbers.
+ * Queries PostgreSQL via /api/reporting/operators while maintaining deterministic fallbacks
+ * for SSR, hydration, and offline PDF generation.
  */
 
+import { useEffect, useState } from "react";
 import { readAccounts, type Account } from "@/lib/group-store";
 import { periods, type Period } from "@/lib/report-store";
+import { fetchApi } from "@/lib/api";
 
 /** A reporting window: either a preset period or an explicit date range. */
 export type Span = Period | { from: string; to: string };
@@ -45,17 +46,6 @@ export function spanSlug(span: Span): string {
   return typeof span === "string" ? span : `${span.from}_${span.to}`;
 }
 
-function rnd(seed: number) {
-  const x = Math.sin(seed * 12.9898) * 43758.5453;
-  return x - Math.floor(x);
-}
-
-function hash(s: string) {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 100_000;
-  return h + 1;
-}
-
 export type UserDay = { day: string; runs: number; tokens: number; cost: number };
 
 export type WorkloadLine = {
@@ -74,6 +64,8 @@ export type UserReport = {
   role: string;
   status: Account["status"];
   locked: boolean;
+  provider?: string;
+  groups?: string[];
   /** aggregate */
   runs: number;
   tokens: number;
@@ -97,105 +89,7 @@ export type UserReport = {
   activity: { at: string; kind: string; detail: string; tokens: number; cost: number }[];
 };
 
-const WORKLOADS = [
-  "Sovereign chat",
-  "Workflow runs",
-  "RAG retrieval",
-  "Tool / MCP calls",
-  "Agent squads",
-];
-
-const MODELS = [
-  { label: "sovereign-local-70b", local: true },
-  { label: "gpt-5.1", local: false },
-  { label: "claude-sonnet-4.5", local: false },
-  { label: "gemini-3-pro", local: false },
-  { label: "llama-guard-local", local: true },
-];
-
-const KINDS = [
-  ["chat", "Sovereign chat thread"],
-  ["workflow", "Workflow execution"],
-  ["rag", "Knowledge retrieval"],
-  ["tool", "MCP tool invocation"],
-  ["approval", "MetaForge approval"],
-];
-
-function splitWeights(
-  total: { runs: number; tokens: number; cost: number },
-  labels: string[],
-  seed: number,
-): WorkloadLine[] {
-  const ws = labels.map((_, i) => 0.12 + rnd(seed + i * 17));
-  const sum = ws.reduce((a, b) => a + b, 0);
-  return labels
-    .map((label, i) => ({
-      label,
-      runs: Math.round((total.runs * ws[i]!) / sum),
-      tokens: Math.round((total.tokens * ws[i]!) / sum),
-      cost: Number(((total.cost * ws[i]!) / sum).toFixed(2)),
-      share: Number(((ws[i]! / sum) * 100).toFixed(1)),
-    }))
-    .sort((a, b) => b.tokens - a.tokens);
-}
-
-export function userReport(acc: Account, span: Span): UserReport {
-  const { days, end } = resolveSpan(span);
-  const seed = hash(acc.id);
-  const intensity =
-    acc.status === "active" ? 0.6 + rnd(seed) * 0.9 : acc.status === "suspended" ? 0.12 : 0.05;
-
-  const rows: UserDay[] = [];
-  for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(end - i * DAY);
-    const s = seed + d.getUTCFullYear() * 1000 + d.getUTCMonth() * 40 + d.getUTCDate();
-    const weekend = d.getUTCDay() === 0 || d.getUTCDay() === 6;
-    const runs = Math.max(0, Math.round((14 + rnd(s) * 46) * intensity * (weekend ? 0.35 : 1)));
-    const tokens = Math.round(runs * (1900 + rnd(s + 5) * 2600));
-    rows.push({
-      day: d.toISOString().slice(0, 10),
-      runs,
-      tokens,
-      cost: Number(((tokens / 1_000_000) * 3.4).toFixed(2)),
-    });
-  }
-
-  const runs = rows.reduce((a, r) => a + r.runs, 0);
-  const tokens = rows.reduce((a, r) => a + r.tokens, 0);
-  const localShare = 0.34 + rnd(seed + 3) * 0.38;
-  const localTokens = Math.round(tokens * localShare);
-  const cloudTokens = tokens - localTokens;
-  const cloudCost = Number(((cloudTokens / 1_000_000) * 4.6).toFixed(2));
-  const localCost = Number(((localTokens / 1_000_000) * 0.42).toFixed(2));
-  const cost = Number((cloudCost + localCost).toFixed(2));
-  const errors = Math.round(runs * (0.003 + rnd(seed + 11) * 0.02));
-
-  const totalsForSplit = { runs, tokens, cost };
-  const models = splitWeights(
-    totalsForSplit,
-    MODELS.map((m) => m.label),
-    seed + 41,
-  );
-
-  const activity = Array.from({ length: 8 })
-    .map((_, i) => {
-      const k = KINDS[Math.floor(rnd(seed + i * 9) * KINDS.length) % KINDS.length]!;
-      const at = new Date(
-        end -
-          Math.round(rnd(seed + i * 13) * days * DAY) +
-          Math.round(rnd(seed + i * 7) * 86_340_000),
-      );
-      const tk = Math.round(1200 + rnd(seed + i * 19) * 24_000);
-      return {
-        at: at.toISOString().slice(0, 16).replace("T", " "),
-        kind: k[0]!,
-        detail: `${k[1]!} · ${MODELS[Math.floor(rnd(seed + i * 23) * MODELS.length) % MODELS.length]!.label}`,
-        tokens: tk,
-        cost: Number(((tk / 1_000_000) * 3.4).toFixed(3)),
-      };
-    })
-    .sort((a, b) => (a.at < b.at ? 1 : -1));
-
+export function userReport(acc: Account, _span: Span): UserReport {
   return {
     id: acc.id,
     name: acc.name,
@@ -204,38 +98,35 @@ export function userReport(acc: Account, span: Span): UserReport {
     role: acc.role,
     status: acc.status,
     locked: Boolean(acc.locked),
-    runs,
-    tokens,
-    localTokens,
-    cloudTokens,
-    inputTokens: Math.round(tokens * 0.72),
-    outputTokens: tokens - Math.round(tokens * 0.72),
-    cost,
-    localCost,
-    cloudCost,
-    errors,
-    successRate: Number((100 - (errors / Math.max(1, runs)) * 100).toFixed(2)),
-    latency: Math.round(560 + rnd(seed + 29) * 700),
-    sessions: Math.max(1, Math.round(runs / (6 + rnd(seed + 31) * 5))),
-    approvals: Math.round(runs * (0.01 + rnd(seed + 37) * 0.05)),
-    toolCalls: Math.round(runs * (0.4 + rnd(seed + 43) * 1.4)),
-    lastSeen: acc.lastSeen,
-    series: rows,
-    workloads: splitWeights(totalsForSplit, WORKLOADS, seed + 7),
-    models,
-    activity,
+    runs: 0,
+    tokens: 0,
+    localTokens: 0,
+    cloudTokens: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    cost: 0,
+    localCost: 0,
+    cloudCost: 0,
+    errors: 0,
+    successRate: 100,
+    latency: 0,
+    sessions: 0,
+    approvals: 0,
+    toolCalls: 0,
+    lastSeen: acc.lastSeen || "recently active",
+    series: [],
+    workloads: [{ label: "Sovereign chat", runs: 0, tokens: 0, cost: 0, share: 100 }],
+    models: [{ label: "sovereign-local-runtime", runs: 0, tokens: 0, cost: 0, share: 100 }],
+    activity: [],
   };
 }
 
 export type SortKey = "tokens" | "cost" | "runs" | "name";
 
 export type RosterQuery = {
-  /** limit to the top N rows after sorting; 0 = no limit */
   topN?: number;
   sortBy?: SortKey;
-  /** restrict to specific operator ids */
   userIds?: string[];
-  /** free text on name / username / email / role */
   search?: string;
 };
 
@@ -265,7 +156,70 @@ export function rosterTotals(list: UserReport[]) {
     operators: list.length,
     runs: list.reduce((a, r) => a + r.runs, 0),
     tokens: list.reduce((a, r) => a + r.tokens, 0),
+    localTokens: list.reduce((a, r) => a + r.localTokens, 0),
+    cloudTokens: list.reduce((a, r) => a + r.cloudTokens, 0),
     cost: Number(list.reduce((a, r) => a + r.cost, 0).toFixed(2)),
     cloudCost: Number(list.reduce((a, r) => a + r.cloudCost, 0).toFixed(2)),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Async Data Fetching Hook
+// ---------------------------------------------------------------------------
+
+export async function fetchOperatorReports(span: Span, query: RosterQuery = {}) {
+  const q = new URLSearchParams();
+  if (typeof span === "string") {
+    q.set("span", span);
+  } else {
+    q.set("from", span.from);
+    q.set("to", span.to);
+  }
+
+  if (query.topN) q.set("topN", String(query.topN));
+  if (query.sortBy) q.set("sortBy", query.sortBy);
+  if (query.search) q.set("search", query.search);
+  if (query.userIds && query.userIds.length) q.set("userIds", query.userIds.join(","));
+
+  return fetchApi(`/reporting/operators?${q.toString()}`);
+}
+
+export function useOperatorReports(span: Span, query: RosterQuery = {}) {
+  const [data, setData] = useState<{
+    operators: UserReport[];
+    totals: ReturnType<typeof rosterTotals>;
+    loading: boolean;
+  }>({
+    operators: [],
+    totals: { operators: 0, runs: 0, tokens: 0, localTokens: 0, cloudTokens: 0, cost: 0, cloudCost: 0 },
+    loading: true,
+  });
+
+  const spanKey = typeof span === "string" ? span : `${span.from}_${span.to}`;
+  const queryKey = `${query.topN || 0}_${query.sortBy || "tokens"}_${query.search || ""}_${(query.userIds || []).join(",")}`;
+
+  useEffect(() => {
+    let active = true;
+    setData((d) => ({ ...d, loading: true }));
+
+    fetchOperatorReports(span, query)
+      .then((res) => {
+        if (!active || !res) return;
+        setData({
+          operators: res.operators || [],
+          totals: res.totals || { operators: 0, runs: 0, tokens: 0, localTokens: 0, cloudTokens: 0, cost: 0, cloudCost: 0 },
+          loading: false,
+        });
+      })
+      .catch((err) => {
+        console.error("[useOperatorReports] Failed to fetch operator report:", err);
+        if (active) setData((d) => ({ ...d, loading: false }));
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [spanKey, queryKey]);
+
+  return data;
 }

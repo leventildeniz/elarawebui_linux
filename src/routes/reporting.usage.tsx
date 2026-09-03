@@ -12,16 +12,7 @@ import {
   Sparkline,
 } from "@/components/sovereign/report-kit";
 import { exportReportPdf } from "@/lib/report-pdf";
-import {
-  byProvider,
-  bySquad,
-  byWorkload,
-  fmtInt,
-  fmtMoney,
-  fmtTokens,
-  seriesRange,
-  totals,
-} from "@/lib/report-store";
+import { fmtInt, fmtMoney, fmtTokens, useReportingUsage } from "@/lib/report-store";
 
 export const Route = createFileRoute("/reporting/usage")({
   head: () => ({
@@ -45,12 +36,20 @@ export const Route = createFileRoute("/reporting/usage")({
 
 function UsagePage() {
   const { span, control, label: spanText, slug: spanId, days, end } = useReportSpan();
-  const rows = useMemo(() => seriesRange(days, end), [days, end]);
-  const t = useMemo(() => totals(rows), [rows]);
-  const workloads = useMemo(() => byWorkload(t), [t]);
-  const providers = useMemo(() => byProvider(t), [t]);
-  const squads = useMemo(() => bySquad(t), [t]);
-  const peak = useMemo(() => rows.reduce((a, r) => (r.runs > a.runs ? r : a), rows[0]!), [rows]);
+  const queryParams = useMemo(() => {
+    if (typeof span === "string") return { span };
+    return { from: span.from, to: span.to };
+  }, [span]);
+
+  const {
+    totals: t,
+    peak,
+    rows,
+    workloads,
+    providers,
+    squads,
+    loading,
+  } = useReportingUsage(queryParams);
 
   const exportPdf = async () => {
     await exportReportPdf({
