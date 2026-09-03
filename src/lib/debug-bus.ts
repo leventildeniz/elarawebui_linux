@@ -287,165 +287,60 @@ export type DebugFrame = {
   ms: number | null;
 };
 
-const lines: Record<string, { level: DebugLevel; scope: string; msg: string }[]> = {
-  chat: [
-    { level: "info", scope: "chat.request", msg: "thread=thr_9f3 turn=14 attachments=0" },
-    { level: "debug", scope: "chat.compose", msg: "context budget 41_820 / 200_000 tokens" },
-    { level: "trace", scope: "chat.stream", msg: "delta chunk len=42" },
-  ],
-  rag: [
-    { level: "info", scope: "rag.search.start", msg: "kb=contracts top_k=8 hybrid=true" },
-    { level: "debug", scope: "rag.rerank", msg: "cross-encoder reordered 8 → 5 chunks" },
-    { level: "warn", scope: "rag.recall", msg: "low similarity 0.41 on best chunk" },
-  ],
-  model: [
-    { level: "info", scope: "model.first_token", msg: "provider=azure model=gpt-5 ttft=812ms" },
-    { level: "info", scope: "model.responded", msg: "in=1_842 out=613 tokens cost=$0.0184" },
-    { level: "error", scope: "model.error", msg: "429 rate_limited · failing over" },
-  ],
-  auth: [
-    { level: "debug", scope: "auth.verify", msg: "jwt exp=+42m scope=studio.rw" },
-    { level: "warn", scope: "auth.rbac", msg: "capability forge.publish denied for role analyst" },
-  ],
-  pdf: [
-    { level: "info", scope: "doc.parse", msg: "invoice_q3.pdf 14 pages · 2.1s" },
-    { level: "debug", scope: "doc.ocr", msg: "page 7 fallback to OCR (no text layer)" },
-  ],
-  other: [{ level: "trace", scope: "misc.emit", msg: "unclassified emitter ping" }],
-  agent: [
-    { level: "info", scope: "agent.step.start", msg: "planner-01 step 3/6 tool=rag.search" },
-    { level: "debug", scope: "agent.tool", msg: "args validated against schema v2" },
-    { level: "error", scope: "agent.retry", msg: "tool timeout 30000ms · attempt 2/3" },
-  ],
-  approvals: [
-    {
-      level: "warn",
-      scope: "gate.bypass",
-      msg: "DEV: approval gate skipped for flow:nightly-index",
-    },
-  ],
-  heartbeat: [{ level: "trace", scope: "beat.tick", msg: "scheduler alive · queue depth 3" }],
-  sse: [
-    { level: "trace", scope: "sse.frame", msg: 'data: {"type":"content_block_delta","index":0}' },
-    { level: "trace", scope: "sse.frame", msg: "event: ping" },
-  ],
-  latency: [
-    { level: "debug", scope: "lat.hop", msg: "gateway 8ms · router 3ms · provider 812ms" },
-    { level: "warn", scope: "lat.budget", msg: "p95 exceeded 1500ms budget" },
-  ],
-  sql: [
-    { level: "debug", scope: "sql.exec", msg: "select * from threads where owner=$1 · 4.2ms" },
-    { level: "warn", scope: "sql.plan", msg: "seq scan on events (est 42k rows)" },
-  ],
-  cache: [
-    { level: "debug", scope: "cache.hit", msg: "embeddings:contracts:sha1 · 0.4ms" },
-    { level: "info", scope: "cache.evict", msg: "lru dropped 128 entries" },
-  ],
-  net: [
-    { level: "debug", scope: "net.fetch", msg: "POST api.provider.ai/v1/messages 200 · 640ms" },
-    { level: "error", scope: "net.dns", msg: "ENOTFOUND relay.internal · retry in 2s" },
-  ],
-  queue: [
-    { level: "debug", scope: "job.dequeue", msg: "worker-3 took index_kb · depth 12" },
-    { level: "warn", scope: "job.retry", msg: "attempt 2/5 · backoff 4s" },
-  ],
-  storage: [
-    { level: "debug", scope: "stor.put", msg: "artifacts/report_0812.pdf 1.8MB · 240ms" },
-    { level: "warn", scope: "stor.quota", msg: "bucket at 82% of 500GB" },
-  ],
-  vector: [
-    { level: "info", scope: "vec.upsert", msg: "1_024 vectors dim=3072 shard=2" },
-    { level: "debug", scope: "vec.probe", msg: "ann nprobe=24 recall~0.96 · 11ms" },
-  ],
-  memory: [
-    { level: "info", scope: "mem.recall", msg: "semantic hit 3 items score>0.82" },
-    { level: "debug", scope: "mem.compact", msg: "episodic rollup 18 turns → 1 digest" },
-  ],
-  prompt: [
-    { level: "debug", scope: "prm.assemble", msg: "8 layers merged · 6_140 tokens" },
-    { level: "warn", scope: "prm.truncate", msg: "layer=examples trimmed to fit budget" },
-  ],
-  embed: [
-    { level: "debug", scope: "emb.batch", msg: "64 chunks encoded · 380ms" },
-    { level: "info", scope: "emb.model", msg: "text-embed-3-large dim=3072" },
-  ],
-  flows: [
-    { level: "info", scope: "flow.run", msg: "nightly-index node 4/9 action=upsert" },
-    { level: "error", scope: "flow.node", msg: "branch guard failed · run halted" },
-  ],
-  skills: [
-    { level: "debug", scope: "skill.resolve", msg: "tool=web.fetch v1.3 from registry" },
-    { level: "warn", scope: "skill.args", msg: "coerced string → number for depth" },
-  ],
-  scheduler: [
-    { level: "trace", scope: "cron.fire", msg: "0 */4 * * * → flow:reindex" },
-    { level: "warn", scope: "cron.drift", msg: "fired 3.4s late" },
-  ],
-  mcp: [
-    { level: "info", scope: "mcp.handshake", msg: "server=filesystem protocol=2025-06 ok" },
-    { level: "debug", scope: "mcp.tools", msg: "12 tools advertised" },
-    { level: "error", scope: "mcp.transport", msg: "stdio closed unexpectedly · restarting" },
-  ],
-  adapters: [
-    { level: "info", scope: "adpt.sync", msg: "confluence cursor=2026-08-17T11:02Z · 42 docs" },
-    { level: "warn", scope: "adpt.backoff", msg: "429 from source · sleeping 30s" },
-  ],
-  targets: [
-    { level: "debug", scope: "tgt.deliver", msg: "slack#ops ack 200 · 120ms" },
-    { level: "error", scope: "tgt.dlq", msg: "3 payloads moved to dead letter" },
-  ],
-  webhook: [
-    { level: "info", scope: "hook.in", msg: "POST /api/public/webhook sig=ok" },
-    { level: "warn", scope: "hook.sig", msg: "signature mismatch · rejected 401" },
-  ],
-  routing: [
-    { level: "info", scope: "rout.select", msg: "mode=smart → azure (latency 812ms)" },
-    { level: "warn", scope: "rout.failover", msg: "primary breaker open · switched to bedrock" },
-  ],
-  mail: [
-    { level: "debug", scope: "smtp.send", msg: "relay.corp:587 tls · report to 3 recipients" },
-    { level: "warn", scope: "ntp.drift", msg: "clock offset +142ms" },
-  ],
-  vault: [
-    { level: "debug", scope: "vlt.read", msg: "secret=provider/azure lease 12h" },
-    { level: "warn", scope: "vlt.rotate", msg: "key age 89d · rotation due" },
-  ],
-  rbac: [
-    { level: "debug", scope: "rbac.grant", msg: "role=operator capability=flows.run" },
-    { level: "error", scope: "rbac.deny", msg: "user=levent capability=vault.reveal denied" },
-  ],
-  audit: [
-    { level: "trace", scope: "adt.write", msg: "event=model.updated actor=levent" },
-    { level: "debug", scope: "adt.sweep", msg: "retention 30d · 1_204 rows pruned" },
-  ],
-  siem: [
-    { level: "debug", scope: "siem.forward", msg: "batch=250 events CEF → 10.0.4.11:6514" },
-    { level: "error", scope: "siem.tls", msg: "handshake failed · backlog 1_820" },
-  ],
-  deny: [{ level: "warn", scope: "deny.policy", msg: "orchestrator bridge deny list evaluated" }],
-  cost: [
-    { level: "info", scope: "cost.tick", msg: "spend $4.12/hr · budget $8.00/hr" },
-    { level: "warn", scope: "cost.threshold", msg: "80% of daily budget consumed" },
-  ],
-};
+export const bufferSizes = [200, 500, 1000, 5000];
 
-let n = 0;
-function frame(ch: DebugChannel): DebugFrame {
-  const pool = lines[ch.id] ?? lines["other"]!;
-  const l = pool[Math.floor(Math.random() * pool.length)]!;
+export function parseDebugFrame(data: {
+  id?: string | number;
+  agent?: string;
+  level?: string;
+  message?: string;
+  meta?: { tag?: string; ms?: number; [key: string]: unknown } | null;
+  created_at?: string | number | null;
+  ts?: number;
+}): DebugFrame {
+  let chId = "other";
+  const agent = String(data.agent || "");
+  if (agent === "checkpoint" || agent === "audit") chId = "audit";
+  else if (agent === "workflow" || agent === "chain" || agent === "flows") chId = "flows";
+  else if (agent.startsWith("agent://") || agent.startsWith("skill://")) chId = "agent";
+  else if (agent === "system") chId = "net";
+  else if (agent === "auth") chId = "auth";
+  else if (agent === "rag") chId = "rag";
+  else if (agent === "mcp") chId = "mcp";
+  else if (agent === "vault") chId = "vault";
+  else if (agent === "rbac") chId = "rbac";
+  else if (agent === "cost") chId = "cost";
+
+  const ch =
+    debugChannels.find((c) => c.id === chId) ?? debugChannels.find((c) => c.id === "other")!;
+
+  const rawLvl = String(data.level || "info");
+  const lvl: DebugLevel =
+    rawLvl === "warn" || rawLvl === "warning"
+      ? "warn"
+      : rawLvl === "error"
+        ? "error"
+        : rawLvl === "debug"
+          ? "debug"
+          : rawLvl === "trace"
+            ? "trace"
+            : "info";
+
+  const rawMsg = String(data.message || "");
+  const tag = data.meta?.tag || ch.tag;
+  const scope = rawMsg.includes(":") ? rawMsg.split(":")[0]!.trim() : tag || "sys.log";
+
   return {
-    id: `f${n++}`,
-    at: Date.now(),
+    id: `f_${data.id || Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    at: data.created_at ? new Date(data.created_at).getTime() : data.ts || Date.now(),
     channel: ch.id,
-    tag: ch.tag,
-    level: l.level,
-    scope: l.scope,
-    msg: l.msg,
-    ms: Math.random() > 0.5 ? Math.round(Math.random() * 900) : null,
+    tag,
+    level: lvl,
+    scope,
+    msg: rawMsg,
+    ms: typeof data.meta?.ms === "number" ? data.meta.ms : null,
   };
 }
-
-export const bufferSizes = [200, 500, 1000, 5000];
 
 export function useDebugBus() {
   const [on, setOn] = useState(false);
@@ -463,51 +358,27 @@ export function useDebugBus() {
     const fetchHistory = async () => {
       try {
         const { fetchApi } = await import("./api");
-        const res = await fetchApi("/api/logs?limit=200");
+        const res = await fetchApi("/logs?limit=200");
         if (Array.isArray(res)) {
           const s = state.current;
-          const history: DebugFrame[] = res.map((data: any) => {
-            let chId = "other";
-            if (data.agent === "checkpoint") chId = "audit";
-            else if (data.agent === "workflow" || data.agent === "chain") chId = "flows";
-            else if (data.agent?.startsWith("agent://") || data.agent?.startsWith("skill://")) chId = "agent";
-            else if (data.agent === "system") chId = "net";
-
-            const ch = debugChannels.find((c) => c.id === chId) || debugChannels.find((c) => c.id === "other")!;
-            const lvl: DebugLevel = (data.level === "warn" ? "warn" : 
-                                     data.level === "error" ? "error" : 
-                                     data.level === "debug" ? "debug" : 
-                                     data.level === "trace" ? "trace" : "info");
-
-            return {
-              id: `f_${data.id || Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
-              at: new Date(data.created_at || Date.now()).getTime(),
-              channel: ch.id,
-              tag: data.meta?.tag || ch.tag,
-              level: lvl,
-              scope: typeof data.message === "string" && data.message.includes(":") ? data.message.split(":")[0] : (data.meta?.tag || "sys.log"),
-              msg: data.message,
-              ms: data.meta?.ms || null,
-            };
-          });
-          
-          setFrames((prev) => {
-            // we only do this once on mount, so just set the fetched logs
-            return [...history.reverse()].slice(-s.buffer);
-          });
+          const history = res.map((r) => parseDebugFrame(r));
+          const newCounts: Record<string, number> = {};
+          for (const h of history) {
+            newCounts[h.channel] = (newCounts[h.channel] ?? 0) + 1;
+          }
+          setCounts(newCounts);
+          setFrames(() => [...history.reverse()].slice(-s.buffer));
         }
       } catch (err) {
-        console.error("Failed to fetch debug history", err);
+        console.error("[useDebugBus] Failed to fetch debug history:", err);
       }
     };
     fetchHistory();
   }, []);
 
   useEffect(() => {
-    // Only fetch dummy data for un-mapped ones
-    // Real implementation of DebugBus connects to an EventSource
     let es: EventSource | null = null;
-    let reconnectTimer: any = null;
+    let reconnectTimer: NodeJS.Timeout | null = null;
 
     const connect = () => {
       const s = state.current;
@@ -516,41 +387,24 @@ export function useDebugBus() {
         es.close();
       }
 
-      const sessionId = typeof window !== "undefined" ? localStorage.getItem("sovereign.sessionId") : null;
+      const sessionId =
+        typeof window !== "undefined" ? localStorage.getItem("sovereign.sessionId") : null;
       const url = sessionId ? `/api/audit/stream?session_id=${sessionId}` : "/api/audit/stream";
       es = new EventSource(url);
+
       es.onmessage = (msg) => {
         const _s = state.current;
         if (_s.paused) return;
-        
+
         try {
           const data = JSON.parse(msg.data);
-          if (data && data.message !== "stream.heartbeat" && data.message !== "Audit feed connected") {
-            let chId = "other";
-            if (data.agent === "checkpoint") chId = "audit";
-            else if (data.agent === "workflow" || data.agent === "chain") chId = "flows";
-            else if (data.agent?.startsWith("agent://") || data.agent?.startsWith("skill://")) chId = "agent";
-            else if (data.agent === "system") chId = "net";
-
-            const ch = debugChannels.find((c) => c.id === chId) || debugChannels.find((c) => c.id === "other")!;
-            
-            const lvl: DebugLevel = (data.level === "warn" ? "warn" : 
-                                     data.level === "error" ? "error" : 
-                                     data.level === "debug" ? "debug" : 
-                                     data.level === "trace" ? "trace" : "info");
-            
-            if (levelRank[lvl] < levelRank[_s.level]) return;
-
-            const f: DebugFrame = {
-              id: `f_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
-              at: data.ts || Date.now(),
-              channel: ch.id,
-              tag: data.meta?.tag || ch.tag,
-              level: lvl,
-              scope: data.message.includes(":") ? data.message.split(":")[0] : (data.meta?.tag || "sys.log"),
-              msg: data.message,
-              ms: data.meta?.ms || null,
-            };
+          if (
+            data &&
+            data.message !== "stream.heartbeat" &&
+            data.message !== "Audit feed connected"
+          ) {
+            const f = parseDebugFrame(data);
+            if (levelRank[f.level] < levelRank[_s.level]) return;
 
             setFrames((prev) => [...prev, f].slice(-_s.buffer));
             setCounts((prev) => ({ ...prev, [f.channel]: (prev[f.channel] ?? 0) + 1 }));
@@ -576,12 +430,12 @@ export function useDebugBus() {
         (es as EventSource).close();
         es = null;
       }
-      clearTimeout(reconnectTimer);
+      if (reconnectTimer) clearTimeout(reconnectTimer);
     }
 
     return () => {
       if (es) es.close();
-      clearTimeout(reconnectTimer);
+      if (reconnectTimer) clearTimeout(reconnectTimer);
     };
   }, [on]);
 

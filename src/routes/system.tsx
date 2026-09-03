@@ -4,7 +4,6 @@ import { ScrollText, Bug } from "lucide-react";
 import { Surface } from "@/components/sovereign/surface";
 import { AuditPanel } from "@/components/sovereign/audit-panel";
 import { DebugConsole } from "@/components/sovereign/debug-console";
-import { systemMeta } from "@/mocks";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/system")({
@@ -38,7 +37,11 @@ function SystemView() {
   const [view, setView] = useState<(typeof views)[number]["id"]>("audit");
 
   return (
-    <Surface title="Logs / Audit" meta={systemMeta} full>
+    <Surface
+      title="Logs / Audit"
+      meta="SOVEREIGN ENGINE · AUDIT JOURNAL & LIVE DEBUGGING STREAM"
+      full
+    >
       <div className="space-y-5">
         <div className="flex items-center gap-2">
           {views.map((v) => {

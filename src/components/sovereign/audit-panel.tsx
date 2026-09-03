@@ -395,7 +395,10 @@ export function AuditPanel() {
                   {e.action}
                 </span>
                 <span className="min-w-0 flex-1 font-mono text-[12.5px] text-muted-foreground/75">
-                  {e.target} — {e.detail}
+                  {e.target && e.target !== e.stream && !e.detail.startsWith(e.target) ? (
+                    <span className="text-foreground/90">{e.target} — </span>
+                  ) : null}
+                  {e.detail}
                   <span className="ml-2 text-[11px] text-muted-foreground/35">
                     {e.ip} · req {e.reqId}
                   </span>

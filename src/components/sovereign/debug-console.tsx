@@ -72,9 +72,10 @@ export function DebugConsole() {
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return bus.frames;
-    return bus.frames.filter((f) => `${f.scope} ${f.msg} ${f.tag}`.toLowerCase().includes(q));
-  }, [bus.frames, query]);
+    const filtered = bus.frames.filter((f) => bus.armed.includes(f.channel));
+    if (!q) return filtered;
+    return filtered.filter((f) => `${f.scope} ${f.msg} ${f.tag}`.toLowerCase().includes(q));
+  }, [bus.frames, bus.armed, query]);
 
   useEffect(() => {
     if (autoscroll) endRef.current?.scrollIntoView({ block: "end" });

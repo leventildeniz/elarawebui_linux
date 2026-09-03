@@ -1,87 +1,14 @@
+/**
+ * Unified audit + log spine for ELARA Sovereign Studio.
+ * Every system / operator action lands in PostgreSQL `agent_logs` / `audit_events`
+ * and streams to the UI via Server-Sent Events (/api/audit/stream).
+ */
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listDenyEvents, onDenyEvent, type DenyEvent } from "./deny-events";
 import { listRbacEvents, onRbacEvent, type RbacEvent } from "./rbac-events";
 import { listPlannerEvents, onPlannerEvent, type PlannerEvent } from "./planner-events";
-
-/** Fold a planner turn (shadow or active) into the journal. */
-function plannerToAudit(e: PlannerEvent): AuditEvent {
-  const detail =
-    e.action === "planner.blocked"
-      ? `tool scope blocked ${e.blocked.join(", ")}`
-      : e.action === "planner.scope"
-        ? `scope updated → ${e.tools.join(", ") || "none"}`
-        : `${e.mode} plan · tools ${e.tools.join(", ") || "none"} · ${e.grounded ? "grounded" : "ungrounded"} · "${e.question}"`;
-  return {
-    id: e.id,
-    at: e.at,
-    stream: "agents",
-    severity: e.action === "planner.blocked" ? "warn" : e.mode === "shadow" ? "debug" : "info",
-    actor: `operator://${e.actor}`,
-    action: e.action,
-    target: e.plannerName,
-    detail,
-    ip: "127.0.0.1",
-    reqId: e.id.slice(-8),
-  };
-}
-
-/** Normalize an RBAC grant/revoke mutation into a journal record. */
-function rbacToAudit(e: RbacEvent): AuditEvent {
-  const severe =
-    e.action === "rbac.grant" ||
-    e.action === "rbac.role.delete" ||
-    e.action === "rbac.action.grant" ||
-    e.action === "rbac.denied";
-  return {
-    id: e.id,
-    at: e.at,
-    stream: "policy",
-    severity: e.action === "rbac.denied" ? "error" : severe ? "warn" : "notice",
-    actor: e.actor,
-    action: e.action,
-    target: `role:${e.role}→${e.target}`,
-    detail: e.detail,
-    ip: "127.0.0.1",
-    reqId: e.id.slice(-8),
-  };
-}
-
-const denyStreamFor: Record<DenyEvent["category"], string> = {
-  agent: "agents",
-  tool: "policy",
-  skill: "policy",
-  mcp: "mcp",
-  workflow: "policy",
-};
-
-/** Normalize a bridge deny-list mutation into a journal record. */
-function denyToAudit(e: DenyEvent): AuditEvent {
-  return {
-    id: e.id,
-    at: e.at,
-    stream: denyStreamFor[e.category],
-    severity:
-      e.action === "deny.add" || e.action === "signature.warned"
-        ? "warn"
-        : e.action === "signature.denied"
-          ? "error"
-          : "notice",
-    actor: e.actor,
-    action: e.action,
-    target: `${e.category}:${e.target}`,
-    detail: e.detail,
-    ip: "127.0.0.1",
-    reqId: e.id.slice(-8),
-  };
-}
-
-/**
- * Unified audit + log spine.
- * Every system / operator action lands here as a normalized record so the
- * Logs / Audit workspace can slice it by stream, severity, actor and window.
- * Events are simulated locally (no backend yet) but shaped like a real
- * append-only journal: monotonic ids, UTC timestamps, retention pruning.
- */
+import { fetchApi } from "./api";
 
 export type Severity = "debug" | "info" | "notice" | "warn" | "error" | "critical";
 
@@ -146,16 +73,13 @@ export const windows = [
 export type WindowId = (typeof windows)[number]["id"];
 
 export const actors = [
-  "levent@elara",
-  "sysadmin@elara",
-  "ops.runner",
-  "agent://planner-01",
-  "agent://forge-03",
+  "admin",
+  "system",
   "scheduler",
   "mcp://vault",
+  "agent://forge_master",
+  "agent://orchestrator",
 ];
-
-
 
 export type AuditFilter = {
   window: WindowId;
@@ -173,59 +97,211 @@ export const defaultFilter: AuditFilter = {
   query: "",
 };
 
+export type RawLogRecord = {
+  id?: string | number;
+  thread_id?: string | null;
+  agent?: string;
+  level?: string;
+  message?: string;
+  meta?: {
+    actor?: string;
+    stream?: string;
+    provider?: string;
+    detail?: string;
+    error?: string;
+    step?: string | number;
+    ms?: number;
+    ip?: string;
+    reqId?: string;
+    [key: string]: unknown;
+  } | null;
+  created_at?: string | number | null;
+  ts?: number;
+  actor?: string;
+};
+
+/** Parse and format raw log items into clean, human-readable AuditEvent */
+export function normalizeRawLog(data: RawLogRecord): AuditEvent {
+  const meta = typeof data.meta === "object" && data.meta !== null ? data.meta : {};
+  const rawMsg = String(data.message || "");
+
+  let action = "log";
+  let target = String(data.agent || "system");
+  let detail = rawMsg;
+
+  if (rawMsg.includes(":")) {
+    const colonIdx = rawMsg.indexOf(":");
+    action = rawMsg.slice(0, colonIdx).trim();
+    const rest = rawMsg.slice(colonIdx + 1).trim();
+    if (rest) target = rest;
+  }
+
+  // Format clean detail description
+  if (action === "login") {
+    const provider = meta.provider ? `via ${meta.provider} provider` : "";
+    detail = `Session authenticated successfully ${provider}`.trim();
+  } else if (meta.detail && typeof meta.detail === "string") {
+    detail = meta.detail;
+  } else if (meta.error) {
+    detail = `Error: ${meta.error}`;
+  } else if (meta.step) {
+    detail = `Step ${meta.step} · ${meta.ms ? `${meta.ms}ms` : "completed"}`;
+  } else if (rawMsg.includes(":") && rawMsg.length > action.length + target.length + 2) {
+    detail = rawMsg;
+  }
+
+  let stream = "system";
+  if (data.agent === "checkpoint" || data.agent === "system") {
+    stream = meta.stream || "system";
+  } else if (data.agent === "auth" || action === "login" || action === "logout") {
+    stream = "auth";
+  } else if (data.agent === "chain" || data.agent === "workflow") {
+    stream = "workflows";
+  } else if (data.agent === "rbac") {
+    stream = "rbac";
+  } else if (data.agent === "vault") {
+    stream = "secrets";
+  } else if (data.agent === "mcp") {
+    stream = "mcp";
+  } else if (data.agent === "rag") {
+    stream = "rag";
+  } else if (meta.stream) {
+    stream = meta.stream;
+  }
+
+  const lvl: Severity =
+    data.level === "warn" || data.level === "warning"
+      ? "warn"
+      : data.level === "error"
+        ? "error"
+        : data.level === "debug"
+          ? "debug"
+          : data.level === "critical"
+            ? "critical"
+            : data.level === "notice"
+              ? "notice"
+              : "info";
+
+  return {
+    id: `log_${data.id || Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    at: data.created_at ? new Date(data.created_at).getTime() : data.ts || Date.now(),
+    stream,
+    severity: lvl,
+    actor: meta.actor || data.actor || "system",
+    action,
+    target,
+    detail,
+    ip: meta.ip || "127.0.0.1",
+    reqId: data.thread_id || meta.reqId || "-",
+  };
+}
+
+/** Fold a planner turn into the journal */
+function plannerToAudit(e: PlannerEvent): AuditEvent {
+  const detail =
+    e.action === "planner.blocked"
+      ? `Tool scope blocked: ${e.blocked.join(", ")}`
+      : e.action === "planner.scope"
+        ? `Scope updated → ${e.tools.join(", ") || "none"}`
+        : `${e.mode} plan · tools: ${e.tools.join(", ") || "none"} · "${e.question}"`;
+  return {
+    id: e.id,
+    at: e.at,
+    stream: "agents",
+    severity: e.action === "planner.blocked" ? "warn" : e.mode === "shadow" ? "debug" : "info",
+    actor: `operator://${e.actor}`,
+    action: e.action,
+    target: e.plannerName,
+    detail,
+    ip: "127.0.0.1",
+    reqId: e.id.slice(-8),
+  };
+}
+
+/** Normalize an RBAC mutation into a journal record */
+function rbacToAudit(e: RbacEvent): AuditEvent {
+  const severe =
+    e.action === "rbac.grant" ||
+    e.action === "rbac.role.delete" ||
+    e.action === "rbac.action.grant" ||
+    e.action === "rbac.denied";
+  return {
+    id: e.id,
+    at: e.at,
+    stream: "rbac",
+    severity: e.action === "rbac.denied" ? "error" : severe ? "warn" : "notice",
+    actor: e.actor,
+    action: e.action,
+    target: `role:${e.role}→${e.target}`,
+    detail: e.detail,
+    ip: "127.0.0.1",
+    reqId: e.id.slice(-8),
+  };
+}
+
+const denyStreamFor: Record<DenyEvent["category"], string> = {
+  agent: "agents",
+  tool: "policy",
+  skill: "policy",
+  mcp: "mcp",
+  workflow: "workflows",
+};
+
+/** Normalize a bridge deny-list mutation into a journal record */
+function denyToAudit(e: DenyEvent): AuditEvent {
+  return {
+    id: e.id,
+    at: e.at,
+    stream: denyStreamFor[e.category] || "policy",
+    severity:
+      e.action === "deny.add" || e.action === "signature.warned"
+        ? "warn"
+        : e.action === "signature.denied"
+          ? "error"
+          : "notice",
+    actor: e.actor,
+    action: e.action,
+    target: `${e.category}:${e.target}`,
+    detail: e.detail,
+    ip: "127.0.0.1",
+    reqId: e.id.slice(-8),
+  };
+}
+
 export function useAuditLog() {
   const [events, setEvents] = useState<AuditEvent[]>([]);
-  /** tail is held by default — the operator arms it explicitly */
   const [live, setLive] = useState(false);
   const [retention, setRetention] = useState<WindowId>("30d");
   const liveRef = useRef(live);
   liveRef.current = live;
 
+  // Initial load of historical records from PostgreSQL
   useEffect(() => {
-    // Fetch initial historical events from DB
+    let active = true;
+
     const fetchHistory = async () => {
       try {
-        const { fetchApi } = await import("./api");
-        const res = await fetchApi("/api/logs?limit=200");
-        if (Array.isArray(res)) {
-          const history = res.map((data: any) => ({
-            id: `log_${data.id || Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
-            at: new Date(data.created_at || Date.now()).getTime(),
-            stream: data.agent === "checkpoint" ? "system" : (data.agent === "chain" ? "workflows" : (data.meta?.stream || data.agent || "system")),
-            severity: (data.level === "warn" ? "warn" : 
-                       data.level === "error" ? "error" : 
-                       data.level === "debug" ? "debug" : 
-                       data.level === "critical" ? "critical" : "info") as Severity,
-            actor: data.meta?.actor || "system",
-            action: typeof data.message === "string" && data.message.includes(":") ? data.message.split(":")[0].trim() : "log",
-            target: data.agent,
-            detail: typeof data.message === "string" && data.message.includes(":")
-                      ? `${data.message.substring(data.message.indexOf(":") + 1).trim()} — ${typeof data.meta === "object" && data.meta ? JSON.stringify(data.meta) : ""}`
-                      : (typeof data.meta === "object" && data.meta ? JSON.stringify(data.meta) : data.message),
-            ip: "127.0.0.1",
-            reqId: data.thread_id || "-",
-          }));
-          
+        const res = await fetchApi("/logs?limit=400");
+        if (Array.isArray(res) && active) {
+          const history = res.map(normalizeRawLog);
           setEvents((prev) => {
-            const existingIds = new Set(prev.map(e => e.id));
-            const newEvents = history.filter((h: any) => !existingIds.has(h.id));
-            return [...prev, ...newEvents].sort((a, b) => b.at - a.at).slice(0, 4000);
+            const existingIds = new Set(prev.map((e) => e.id));
+            const fresh = history.filter((h) => !existingIds.has(h.id));
+            return [...fresh, ...prev].sort((a, b) => b.at - a.at).slice(0, 4000);
           });
         }
       } catch (err) {
-        console.error("Failed to fetch audit history", err);
+        console.error("[useAuditLog] Failed to fetch audit history:", err);
       }
     };
-    
+
     fetchHistory();
 
-    // Keep initial system events but don't seed dummy data
     const denials = listDenyEvents().map(denyToAudit);
     const rbac = listRbacEvents().map(rbacToAudit);
     const planner = listPlannerEvents().map(plannerToAudit);
-    
-    setEvents([...denials, ...rbac, ...planner].sort((a, b) => b.at - a.at));
-    
+    setEvents((prev) => [...denials, ...rbac, ...planner, ...prev].sort((a, b) => b.at - a.at));
+
     const offDeny = onDenyEvent((e) =>
       setEvents((prev) => [denyToAudit(e), ...prev].slice(0, 4000)),
     );
@@ -236,8 +312,18 @@ export function useAuditLog() {
       setEvents((prev) => [plannerToAudit(e), ...prev].slice(0, 4000)),
     );
 
+    return () => {
+      active = false;
+      offDeny();
+      offRbac();
+      offPlanner();
+    };
+  }, []);
+
+  // SSE stream connection when LIVE is turned on
+  useEffect(() => {
     let es: EventSource | null = null;
-    let reconnectTimer: any = null;
+    let reconnectTimer: NodeJS.Timeout | null = null;
 
     const connect = () => {
       if (!liveRef.current) return;
@@ -245,38 +331,24 @@ export function useAuditLog() {
         es.close();
       }
 
-      // Connect to the backend SSE log stream
-      const sessionId = typeof window !== "undefined" ? localStorage.getItem("sovereign.sessionId") : null;
+      const sessionId =
+        typeof window !== "undefined" ? localStorage.getItem("sovereign.sessionId") : null;
       const url = sessionId ? `/api/audit/stream?session_id=${sessionId}` : "/api/audit/stream";
       es = new EventSource(url);
-      
+
       es.onmessage = (msg) => {
         try {
           const data = JSON.parse(msg.data);
-          
-          // Map backend logs (agent_logs/checkpoint schema) to AuditEvent
-          if (data && data.message !== "stream.heartbeat" && data.message !== "Audit feed connected") {
-            const ev: AuditEvent = {
-              id: `log_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
-              at: data.ts || Date.now(),
-              stream: data.agent === "checkpoint" ? "system" : (data.agent === "chain" ? "workflows" : (data.meta?.stream || data.agent || "system")),
-              severity: (data.level === "warn" ? "warn" : 
-                         data.level === "error" ? "error" : 
-                         data.level === "debug" ? "debug" : 
-                         data.level === "critical" ? "critical" : "info"),
-              actor: data.meta?.actor || "system",
-              action: data.message.includes(":") ? data.message.split(":")[0].trim() : "log",
-              target: data.agent,
-              detail: data.message.includes(":") 
-                        ? `${data.message.substring(data.message.indexOf(":") + 1).trim()} — ${typeof data.meta === "object" && data.meta ? JSON.stringify(data.meta) : ""}`
-                        : (typeof data.meta === "object" && data.meta ? JSON.stringify(data.meta) : data.message),
-              ip: "127.0.0.1",
-              reqId: data.thread_id || "-",
-            };
+          if (
+            data &&
+            data.message !== "stream.heartbeat" &&
+            data.message !== "Audit feed connected"
+          ) {
+            const ev = normalizeRawLog(data);
             setEvents((prev) => [ev, ...prev].slice(0, 4000));
           }
         } catch (err) {
-          console.error("SSE parse error", err);
+          console.error("[useAuditLog] SSE parse error:", err);
         }
       };
 
@@ -296,31 +368,34 @@ export function useAuditLog() {
         (es as EventSource).close();
         es = null;
       }
-      clearTimeout(reconnectTimer);
+      if (reconnectTimer) clearTimeout(reconnectTimer);
     }
 
     return () => {
-      offDeny();
-      offRbac();
-      offPlanner();
-      if (es) es.close();
-      clearTimeout(reconnectTimer);
+      if (es) (es as EventSource).close();
+      if (reconnectTimer) clearTimeout(reconnectTimer);
     };
   }, [live]);
 
-
-
-  /** rotation: physically drop anything older than the retention policy */
+  // Rotation: prune events exceeding the retention threshold
   useEffect(() => {
     const ms = windows.find((w) => w.id === retention)?.ms ?? 0;
     const id = window.setInterval(() => {
       const cut = Date.now() - ms;
       setEvents((prev) => prev.filter((e) => e.at >= cut));
-    }, 10_000);
+    }, 15_000);
     return () => window.clearInterval(id);
   }, [retention]);
 
-  const purge = useCallback(() => setEvents([]), []);
+  // Purge buffer locally and in PostgreSQL
+  const purge = useCallback(async () => {
+    setEvents([]);
+    try {
+      await fetchApi("/logs/purge", { method: "POST" });
+    } catch (err) {
+      console.warn("[useAuditLog] Remote log purge notice:", err);
+    }
+  }, []);
 
   return { events, live, setLive, retention, setRetention, purge };
 }
@@ -343,57 +418,53 @@ export function filterEvents(events: AuditEvent[], f: AuditFilter): AuditEvent[]
   });
 }
 
-export function useAuditSlice(events: AuditEvent[], filter: AuditFilter) {
-  return useMemo(() => filterEvents(events, filter), [events, filter]);
-}
-
-export function fmtTs(at: number) {
+export function fmtTs(at: number): string {
   const d = new Date(at);
-  const pad = (n: number) => n.toString().padStart(2, "0");
+  const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
-export function toNdjson(rows: AuditEvent[]) {
-  return rows.map((r) => JSON.stringify({ ...r, ts: new Date(r.at).toISOString() })).join("\n");
+export function toCsv(rows: AuditEvent[]): string {
+  const headers = [
+    "Timestamp",
+    "Level",
+    "Stream",
+    "Actor",
+    "Action",
+    "Target",
+    "Detail",
+    "IP",
+    "ReqId",
+  ];
+  const lines = rows.map((r) =>
+    [fmtTs(r.at), r.severity, r.stream, r.actor, r.action, r.target, r.detail, r.ip, r.reqId]
+      .map((c) => `"${String(c).replace(/"/g, '""')}"`)
+      .join(","),
+  );
+  return [headers.join(","), ...lines].join("\n");
 }
 
-export function toCsv(rows: AuditEvent[]) {
-  const head = "ts,severity,stream,actor,action,target,detail,ip,req_id";
-  const esc = (v: string) => `"${v.replace(/"/g, '""')}"`;
-  return [
-    head,
-    ...rows.map((r) =>
-      [
-        new Date(r.at).toISOString(),
-        r.severity,
-        r.stream,
-        r.actor,
-        r.action,
-        r.target,
-        r.detail,
-        r.ip,
-        r.reqId,
-      ]
-        .map(esc)
-        .join(","),
-    ),
-  ].join("\n");
+export function toNdjson(rows: AuditEvent[]): string {
+  return rows.map((r) => JSON.stringify(r)).join("\n");
 }
 
-export function toTxt(rows: AuditEvent[]) {
+export function toTxt(rows: AuditEvent[]): string {
   return rows
     .map(
       (r) =>
-        `${fmtTs(r.at)}  ${r.severity.toUpperCase().padEnd(8)} ${r.stream.padEnd(10)} ${r.actor.padEnd(18)} ${r.action.padEnd(20)} ${r.target} — ${r.detail}  [${r.ip} req ${r.reqId}]`,
+        `[${fmtTs(r.at)}] [${r.severity.toUpperCase().padEnd(5)}] [${r.stream.padEnd(8)}] ${r.actor} -> ${r.action} (${r.target}): ${r.detail}`,
     )
     .join("\n");
 }
 
-export function download(name: string, body: string, mime: string) {
-  const url = URL.createObjectURL(new Blob([body], { type: mime }));
+export function download(filename: string, content: string, mime: string) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = name;
+  a.download = filename;
+  document.body.appendChild(a);
   a.click();
+  document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }

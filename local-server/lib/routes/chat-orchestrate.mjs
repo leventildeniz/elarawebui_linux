@@ -97,7 +97,7 @@ async function nativeStreamRequest(urlStr, options, payloadStr, signal) {
 }
 
 export async function mountChatOrchestrateRoutes(app, deps) {
-  const { pool, getRagSettings, approxTokens, calculateAIQuality, recordUsage, trace, invokeTool } = deps;
+  const { pool, getRagSettings, approxTokens, calculateAIQuality, recordUsage, trace, invokeTool, broadcastAudit } = deps;
   console.log("[Chat Orchestrate] approxTokens available:", !!approxTokens);
 
   // GLOBAL STREAM MAP: Track in-flight streams for explicit cancel/stop signals
@@ -656,6 +656,15 @@ export async function mountChatOrchestrateRoutes(app, deps) {
     const send = (payload) => {
       res.write(`data: ${JSON.stringify(payload)}\n\n`);
     };
+
+    if (broadcastAudit) {
+      broadcastAudit({
+        agent: "chat",
+        level: "info",
+        message: `chat.request: model=${model || "default"} thread=${thread_id || "-"}`,
+        meta: { stream: "chat", actor: actorId || "operator", thread_id, tag: "chat.request" }
+      });
+    }
 
     const close = () => {
       clearInterval(heartbeat);

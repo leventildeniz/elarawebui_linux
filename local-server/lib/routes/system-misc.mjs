@@ -321,7 +321,7 @@ export function mountSystemMiscRoutes(app, deps) {
     enqueueWrite(
       `INSERT INTO agent_logs(thread_id, agent, level, message, meta)
        VALUES ($1,$2,$3,$4,$5)`,
-      [thread_id, agent, level, message, meta]
+      [thread_id, agent, level, message, typeof meta === "object" ? JSON.stringify(meta) : meta]
     );
     broadcastAudit({ thread_id, agent, level, message, meta });
     res.status(202).json({ queued: true });
@@ -347,16 +347,71 @@ export function mountSystemMiscRoutes(app, deps) {
   });
 
   app.get("/api/logs", async (req, res) => {
-    const { thread_id, limit = "200" } = req.query;
-    const lim = Math.min(parseInt(String(limit), 10) || 200, 1000);
-    const params = [];
-    let where = "";
-    if (thread_id) { params.push(thread_id); where = "WHERE thread_id = $1"; }
-    const { rows } = await pool.query(
-      `SELECT * FROM agent_logs ${where} ORDER BY created_at DESC LIMIT ${lim}`,
-      params
-    );
-    res.json(rows);
+    try {
+      const { thread_id, stream, level, actor, limit = "400", since } = req.query;
+      const lim = Math.min(parseInt(String(limit), 10) || 400, 2000);
+      const params = [];
+      const whereConditions = [];
+
+      if (thread_id) {
+        params.push(thread_id);
+        whereConditions.push(`thread_id = $${params.length}`);
+      }
+
+      if (stream && stream !== "all") {
+        params.push(stream);
+        whereConditions.push(`(agent = $${params.length} OR meta->>'stream' = $${params.length})`);
+      }
+
+      if (level && level !== "all") {
+        params.push(level);
+        whereConditions.push(`level = $${params.length}`);
+      }
+
+      if (actor && actor !== "any") {
+        params.push(actor);
+        whereConditions.push(`meta->>'actor' = $${params.length}`);
+      }
+
+      if (since) {
+        const sinceDate = new Date(isNaN(Number(since)) ? String(since) : Number(since));
+        if (!isNaN(sinceDate.getTime())) {
+          params.push(sinceDate.toISOString());
+          whereConditions.push(`created_at >= $${params.length}`);
+        }
+      }
+
+      const whereClause = whereConditions.length ? `WHERE ${whereConditions.join(" AND ")}` : "";
+      params.push(lim);
+      const { rows } = await pool.query(
+        `SELECT id, thread_id, agent, level, message, meta, created_at 
+         FROM agent_logs 
+         ${whereClause} 
+         ORDER BY created_at DESC 
+         LIMIT $${params.length}`,
+        params
+      );
+      res.json(rows);
+    } catch (e) {
+      res.status(500).json({ error: String(e?.message || e) });
+    }
+  });
+
+  app.post("/api/logs/purge", async (req, res) => {
+    try {
+      const { before } = req.body || {};
+      if (before) {
+        const beforeDate = new Date(isNaN(Number(before)) ? String(before) : Number(before));
+        if (!isNaN(beforeDate.getTime())) {
+          await pool.query(`DELETE FROM agent_logs WHERE created_at < $1`, [beforeDate.toISOString()]);
+        }
+      } else {
+        await pool.query(`DELETE FROM agent_logs`);
+      }
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(500).json({ error: String(e?.message || e) });
+    }
   });
 
   app.get("/api/debug/chat/recent", (req, res) => {

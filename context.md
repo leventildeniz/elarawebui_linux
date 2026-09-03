@@ -476,5 +476,23 @@ Bu aşamada ELARA Sovereign Studio'nun sol menüsündeki tüm Raporlama ve Anali
 8. **Kod ve Yorum Dili Standartlaştırması:**
    - Yeni oluşturulan tüm modül ve store dosyalarında kesin olarak kurumsal İngilizce standartları uygulandı.
 
-## 49. UP NEXT (Phase 49) - Agentic RAG & Knowledge Hub Validation
-- Dondurulan RAG entegrasyonu, departman bazlı space izolasyonu (`rag_space_id`), dosya indeksleme ve reranker testleri devreye alınacak.
+## 49. Completed (Phase 49) - Logs / Audit & Live Debugging Modernization (Zero-Mock E2E)
+Bu aşamada `/system` (Logs / Audit) sayfası ve altındaki **Audit Journal** ile **Live Debugging** sistemleri uçtan uca incelenerek ham JSON dump kirliliklerinden ve 150 satırlık sahte log üreteçlerinden arındırıldı.
+
+### Yapılan Geliştirmeler & Mimari İyileştirmeler:
+1. **Dinamik PostgreSQL Log API (`local-server/lib/routes/system-misc.mjs`):**
+   - `GET /api/logs` uç noktası `stream`, `level`, `actor`, `thread_id` ve zaman damgası (`since`) parametreleriyle `agent_logs` tablosunu esnek ve güvenli (SQL parameterization) sorgulayacak şekilde güçlendirildi.
+   - `POST /api/logs/purge` uç noktası eklenerek hem yerel hem uzaktaki log tamponunun tek tıkla temizlenmesi sağlandı.
+2. **Akıllı Ayrıştırıcı & Temiz Görsel Çıktı (`src/lib/audit-store.ts` & `audit-panel.tsx`):**
+   - Ham JSON dump (`auth — admin — {"actor":"admin","stream":"auth"...}`) yerine, log tipini otomatik anlayan ve insan dostu temiz operasyon cümleleri (`Session authenticated successfully via local provider`, `Step respond · completed`, vb.) üreten `normalizeRawLog` motoru yazıldı.
+   - Tablo hücrelerindeki mükerrer başlık ve hedef tekrarları giderildi.
+3. **Live Debugging Sahte Kod Temizliği (`src/lib/debug-bus.ts` & `debug-console.tsx`):**
+   - 150 satırlık sözde-rastgele sahte log havuzu (`lines`) ve `frame()` simülatörü kod tabanından tamamen silindi.
+   - `useDebugBus` kancası gerçek SSE akışına (`/api/audit/stream`), `onDenyEvent` ve `onRbacEvent` olaylarına bağlandı; kanallar (`chat`, `model`, `agent`, `flows`, `mcp`, `vault`, `rbac`, `deny`, `siem`) gerçek platform olaylarını filtreleyecek hale getirildi.
+   - `visible` akışı armed kanallarına göre filtrelendi ve geçmiş loglardan kanal sayaçları (`counts`) hesaplandı.
+4. **Platform Başlığı ve Mock Arındırması (`src/routes/system.tsx`):**
+   - Statik `systemMeta` mock import'u kaldırıldı, dinamik kurumsal başlık mimarisine geçildi.
+
+## 50. UP NEXT (Phase 50) - End-to-End Emitter Synchronization for Live Debugging & Deep RAG
+1. **Live Debugging Emitter Entegrasyonu:** Tüm backend modüllerindeki (Workflows, Tool Adapters, MCP Client, Vault, Security Policies, RAG Retrieval, System Cron) emit/broadcast çağrılarının `broadcastAudit` ile SSE hattına bağlanması ve 35 kanalın tamamında canlı event üretiminin test edilmesi.
+2. **Agentic RAG & Knowledge Hub Validation:** Dondurulan RAG entegrasyonu, departman bazlı space izolasyonu (`rag_space_id`), dosya indeksleme ve reranker testleri.

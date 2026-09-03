@@ -52460,3 +52460,10 @@ Node.js v22.22.1
   line: '3861',
   routine: 'errorMissingColumn'
 }
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
