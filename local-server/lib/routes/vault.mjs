@@ -14,12 +14,15 @@ export function mountVaultRoutes(app, deps) {
     VAULT_KIND_FIELDS,
     verifyAuditChain,
     rebuildAuditChain,
+    broadcastAudit,
   } = deps;
 
   // Faz 7 — vault audit helper. Every vault access (read/write/delete/list and
-  // denied attempts) is appended to vault_audit. We never log the plaintext.
+  // denied attempts) is appended to vault_audit and mirrored to live audit feed.
   function vaultAudit({ action, scope, name, req, ok = true, reason = null, meta = {} }) {
     try {
+      const safeMeta = redactDeep(meta || {});
+      const actor = req?.session?.username ?? req?.actor ?? "admin";
       enqueueWrite(
         `INSERT INTO vault_audit(action,scope,name,actor,session_id,ip,user_agent,ok,reason,meta)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
@@ -27,15 +30,32 @@ export function mountVaultRoutes(app, deps) {
           action,
           String(scope ?? ""),
           String(name ?? ""),
-          req?.session?.username ?? null,
+          actor,
           req?.session?.id ?? null,
           req?.ip ?? req?.headers?.["x-forwarded-for"] ?? null,
           req?.headers?.["user-agent"] ?? null,
           !!ok,
           reason ? String(reason).slice(0, 500) : null,
-          redactDeep(meta || {}),
+          safeMeta,
         ]
       );
+
+      const lvl = ok ? (action === "delete" ? "warn" : "info") : "error";
+      const fullMeta = { tag: "vault", stream: "secrets", scope, name, ok, reason, actor, ...safeMeta };
+      
+      enqueueWrite(
+        `INSERT INTO agent_logs(agent, level, message, meta) VALUES ($1,$2,$3,$4)`,
+        ["vault", lvl, `vault.${action}:${scope}/${name}`, fullMeta]
+      );
+
+      if (broadcastAudit) {
+        broadcastAudit({
+          agent: "vault",
+          level: lvl,
+          message: `vault.${action}: scope=${scope} name=${name}${ok ? "" : ` (failed: ${reason})`}`,
+          meta: fullMeta,
+        });
+      }
     } catch (e) { console.warn("[vault_audit]", e.message); }
   }
 

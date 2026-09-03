@@ -97,7 +97,7 @@ async function nativeStreamRequest(urlStr, options, payloadStr, signal) {
 }
 
 export async function mountChatOrchestrateRoutes(app, deps) {
-  const { pool, getRagSettings, approxTokens, calculateAIQuality, recordUsage, trace, invokeTool, broadcastAudit } = deps;
+  const { pool, getRagSettings, approxTokens, calculateAIQuality, recordUsage, trace, invokeTool, broadcastAudit, enqueueWrite, logCheckpoint } = deps;
   console.log("[Chat Orchestrate] approxTokens available:", !!approxTokens);
 
   // GLOBAL STREAM MAP: Track in-flight streams for explicit cancel/stop signals
@@ -657,14 +657,38 @@ export async function mountChatOrchestrateRoutes(app, deps) {
       res.write(`data: ${JSON.stringify(payload)}\n\n`);
     };
 
-    if (broadcastAudit) {
-      broadcastAudit({
-        agent: "chat",
-        level: "info",
-        message: `chat.request: model=${model || "default"} thread=${thread_id || "-"}`,
-        meta: { stream: "chat", actor: actorId || "operator", thread_id, tag: "chat.request" }
-      });
-    }
+    const emitDebug = (level, tag, message, meta = {}, threadId = thread_id) => {
+      const fullMeta = { tag, thread_id: threadId, stream: tag.split(".")[0] || "chat", ...meta };
+      if (broadcastAudit) {
+        try {
+          broadcastAudit({
+            thread_id: threadId,
+            agent: tag.split(".")[0] || "chat",
+            level,
+            message: `${tag}: ${message}`,
+            meta: fullMeta
+          });
+        } catch (err) {
+          console.warn("[Orchestrate] broadcastAudit notice:", err.message);
+        }
+      }
+      if (["chat.request", "model.responded", "tool.exec", "agent.step.start", "rag.search.done"].includes(tag) || level === "error" || level === "warn") {
+        try {
+          if (typeof logCheckpoint === "function") {
+            logCheckpoint(level, tag, message, fullMeta, threadId);
+          } else if (typeof enqueueWrite === "function") {
+            enqueueWrite(
+              `INSERT INTO agent_logs(thread_id, agent, level, message, meta) VALUES ($1,$2,$3,$4,$5)`,
+              [threadId, tag.split(".")[0] || "chat", level, `${tag}: ${message}`, fullMeta]
+            );
+          }
+        } catch (err) {
+          console.warn("[Orchestrate] logCheckpoint notice:", err.message);
+        }
+      }
+    };
+
+    emitDebug("info", "chat.request", `turn started · model=${model || "default"} · ${messages.length} messages`, { model: model || "default", stream: "chat", actor: actorId || "operator" }, thread_id);
 
     const close = () => {
       clearInterval(heartbeat);
@@ -925,10 +949,13 @@ When the user asks you a question or assigns a task, intelligently apply the fol
         masterDirectives.push(`[EXPLICIT USER ATTACHMENTS & CAPABILITY MANDATE]: The user has explicitly selected and attached the following capabilities to this turn: ${attachedList.join(' · ')}. You MUST execute the corresponding attached tool(s)/MCP functions to fulfill the request. NEVER substitute or bypass an attached MCP/Tool with a generic web fetch or approximation.`);
       }
 
+      // 4. Inject System Directives
       formattedMessages.unshift({
         role: "system",
         content: masterDirectives.join("\n\n")
       });
+
+      emitDebug("debug", "prompt.assembly", `assembled ${formattedMessages.length} message layers · directives merged`, { model: usedModel, stream: "prompt" }, thread_id);
 
       // 3.5. Prepare Capabilities (Tools, Skills, MCP)
       const openAiTools = [];
@@ -1189,6 +1216,8 @@ When the user asks you a question or assigns a task, intelligently apply the fol
       while (iteration < maxIterations && !isDone) {
           iteration++;
 
+          emitDebug("info", "agent.step.start", `turn ${iteration} · routing=${finalRoutingMode} · provider=${prov.model_name}`, { iteration, model: usedModel, stream: "agent" }, thread_id);
+
           if (iteration === 1) {
               send({ phase: "streaming" });
           } else {
@@ -1245,7 +1274,9 @@ When the user asks you a question or assigns a task, intelligently apply the fol
             for await (const piece of it) {
               if (!tFirstToken && iteration === 1) {
                 tFirstToken = Date.now();
-                console.log(`[Orchestrate] First token received! (${tFirstToken - t0}ms)`);
+                const ttftMs = tFirstToken - t0;
+                console.log(`[Orchestrate] First token received! (${ttftMs}ms)`);
+                emitDebug("debug", "model.first_token", `TTFT ${ttftMs}ms · model=${usedModel}`, { ms: ttftMs, model: usedModel, stream: "model" }, thread_id);
               }
 
               chunkCount++;
@@ -1584,6 +1615,7 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                                           ? subAgent.rag_keywords.split(',').map(k => k.trim()).filter(Boolean) 
                                           : [];
 
+                                      emitDebug("debug", "rag.search.start", `probing knowledge space for sub-agent ${subAgent.name || subAgent.id}`, { agent_id: subAgent.id, stream: "rag" }, thread_id);
                                       // Call ragProbeAndFetch scoped to the sub-agent's allowed spaces/brands
                                       const ragOut = await ragProbeAndFetch({
                                           q: targetInstructions,
@@ -1596,6 +1628,7 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                                       });
 
                                       if (ragOut && ragOut.rows && ragOut.rows.length > 0) {
+                                          emitDebug("info", "rag.search.done", `retrieved ${ragOut.rows.length} chunks · top1=${ragOut.top1 || 0} · ${ragOut.stages?.totalMs || 0}ms`, { hits: ragOut.rows.length, top1: ragOut.top1, ms: ragOut.stages?.totalMs || 0, stream: "rag" }, thread_id);
                                           let ragText = "[RAG KNOWLEDGE]\nHere is context retrieved from the organization's knowledge base:\n\n";
                                           ragOut.rows.forEach(r => {
                                               ragText += `--- SOURCE: ${r.path || 'unknown'} ---\n${r.content}\n\n`;
@@ -1982,6 +2015,7 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                   }
 
                   const durationMs = Date.now() - tStart;
+                  emitDebug("info", "tool.executed", `${realToolId} completed · ${durationMs}ms · status=${toolStatus}`, { tool: realToolId, ms: durationMs, status: toolStatus, stream: "skills" }, thread_id);
                   const statusPayload = { type: "tool_status", name: realToolId, status: toolStatus, ms: durationMs || 10 };
                   if (toolDetail) {
                       statusPayload.detail = toolDetail;
@@ -2007,6 +2041,9 @@ When the user asks you a question or assigns a task, intelligently apply the fol
               const totalMs = Date.now() - t0;
               const promptTokens = approxTokens ? approxTokens(formattedMessages.map(m => m.content).join("\n")) : 10;
               const responseTokens = approxTokens ? approxTokens(assembled + assembledThinking) : 10;
+
+              emitDebug("info", "model.responded", `generation complete · ${chunkCount} chunks · ${totalMs}ms`, { ms: totalMs, model: usedModel, tokens: responseTokens, stream: "model" }, thread_id);
+              emitDebug("debug", "cost.spend", `estimated usage tokens prompt=${promptTokens} response=${responseTokens}`, { promptTokens, responseTokens, stream: "cost" }, thread_id);
 
               // Telemetry, Costs & Quality Engine
               let _q = { hallucinationScore: 0, groundednessScore: 0, refusalRate: 0, cacheHits: 0, costUsd: 0 };

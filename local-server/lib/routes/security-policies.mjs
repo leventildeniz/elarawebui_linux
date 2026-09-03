@@ -1,7 +1,33 @@
 export function mountSecurityPoliciesRoutes(app, deps) {
-  const { pool, requireSession } = deps;
+  const { pool, requireSession, broadcastAudit, enqueueWrite } = deps;
 
   const adminOnly = requireSession({ roles: ["admin", "operator"] });
+
+  const emitPolicyLog = (level, action, message, meta = {}) => {
+    const fullMeta = { tag: "rbac", stream: "policy", ...meta };
+    if (broadcastAudit) {
+      try {
+        broadcastAudit({
+          agent: "rbac",
+          level,
+          message: `policy.${action}: ${message}`,
+          meta: fullMeta,
+        });
+      } catch (err) {
+        console.warn("[policy] broadcastAudit notice:", err.message);
+      }
+    }
+    if (enqueueWrite) {
+      try {
+        enqueueWrite(
+          `INSERT INTO agent_logs(agent, level, message, meta) VALUES ($1,$2,$3,$4)`,
+          ["rbac", level, `policy.${action}:${message}`, fullMeta]
+        );
+      } catch (err) {
+        console.warn("[policy] enqueueWrite notice:", err.message);
+      }
+    }
+  };
 
   // --- GenGuard Rules ---
   app.get("/api/security/genguard", adminOnly, async (req, res) => {
@@ -21,6 +47,7 @@ export function mountSecurityPoliciesRoutes(app, deps) {
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
         [id, name, !!enabled, sensitivity || '', inputBlacklist || '', outputPatterns || '', rulesPath || '', seq || 0, action || 'deny']
       );
+      emitPolicyLog("warn", "genguard.created", `${name} (${id})`, { id, name, action: action || 'deny' });
       res.json({ ok: true, item: out.rows[0] });
     } catch (e) {
       res.status(500).json({ error: String(e.message || e) });
@@ -54,6 +81,7 @@ export function mountSecurityPoliciesRoutes(app, deps) {
     try {
       const { rowCount } = await pool.query("DELETE FROM guard_rules WHERE id=$1", [req.params.id]);
       if (!rowCount) return res.status(404).json({ error: "not found" });
+      emitPolicyLog("warn", "genguard.deleted", `id=${req.params.id}`, { id: req.params.id });
       res.json({ ok: true });
     } catch (e) {
       res.status(500).json({ error: String(e.message || e) });

@@ -294,27 +294,84 @@ export function parseDebugFrame(data: {
   agent?: string;
   level?: string;
   message?: string;
-  meta?: { tag?: string; ms?: number; [key: string]: unknown } | null;
+  meta?: {
+    tag?: string;
+    channel?: string;
+    stream?: string;
+    ms?: number;
+    [key: string]: unknown;
+  } | null;
   created_at?: string | number | null;
   ts?: number;
+  stream?: string;
 }): DebugFrame {
+  const metaTag = String(data.meta?.tag || "").toLowerCase();
+  const metaChan = String(
+    data.meta?.channel || data.meta?.stream || data.stream || "",
+  ).toLowerCase();
+  const agent = String(data.agent || "").toLowerCase();
+  const msg = String(data.message || "").toLowerCase();
+  const rawTag = metaTag || (msg.includes(":") ? msg.split(":")[0]!.trim() : "");
+
+  const match = (keys: string[]) =>
+    keys.some(
+      (k) =>
+        rawTag.startsWith(k) ||
+        rawTag === k ||
+        metaChan === k ||
+        agent === k ||
+        msg.startsWith(`${k}:`) ||
+        msg.startsWith(`${k}.`) ||
+        msg.includes(`tag=${k}`),
+    );
+
   let chId = "other";
-  const agent = String(data.agent || "");
-  if (agent === "checkpoint" || agent === "audit") chId = "audit";
-  else if (agent === "workflow" || agent === "chain" || agent === "flows") chId = "flows";
-  else if (agent.startsWith("agent://") || agent.startsWith("skill://")) chId = "agent";
-  else if (agent === "system") chId = "net";
-  else if (agent === "auth") chId = "auth";
-  else if (agent === "rag") chId = "rag";
-  else if (agent === "mcp") chId = "mcp";
-  else if (agent === "vault") chId = "vault";
-  else if (agent === "rbac") chId = "rbac";
-  else if (agent === "cost") chId = "cost";
+
+  if (match(["chat"])) chId = "chat";
+  else if (match(["rag", "retrieval"])) chId = "rag";
+  else if (match(["model", "mlx", "llm", "provider"])) chId = "model";
+  else if (match(["auth", "login", "logout", "disconnect", "session"])) chId = "auth";
+  else if (match(["pdf", "doc", "document", "ocr"])) chId = "pdf";
+  else if (
+    agent.startsWith("agent://") ||
+    agent.startsWith("skill://") ||
+    match(["agent", "planner", "react"])
+  )
+    chId = "agent";
+  else if (match(["approvals", "approval", "gate", "bypass"])) chId = "approvals";
+  else if (match(["heartbeat", "beat"]) || msg === "stream.heartbeat") chId = "heartbeat";
+  else if (match(["sse", "raw_sse", "transport"])) chId = "sse";
+  else if (match(["latency", "lat", "timing", "ttft"])) chId = "latency";
+  else if (match(["sql", "db", "postgres", "query"])) chId = "sql";
+  else if (match(["cache", "kv"])) chId = "cache";
+  else if (match(["queue", "job", "worker"])) chId = "queue";
+  else if (match(["storage", "stor", "blob", "s3", "upload"])) chId = "storage";
+  else if (match(["vector", "vec", "hnsw", "ann"])) chId = "vector";
+  else if (match(["memory", "mem", "working_mem", "episodic"])) chId = "memory";
+  else if (match(["prompt", "prm", "system_prompt"])) chId = "prompt";
+  else if (match(["embed", "emb", "embedding"])) chId = "embed";
+  else if (match(["flows", "flow", "workflow", "chain", "dag"])) chId = "flows";
+  else if (match(["skills", "skill", "tools", "tool", "pack", "capability"])) chId = "skills";
+  else if (match(["scheduler", "cron", "schedule", "retention"])) chId = "scheduler";
+  else if (match(["mcp"])) chId = "mcp";
+  else if (match(["adapters", "adapter", "adpt"])) chId = "adapters";
+  else if (match(["targets", "target", "tgt"])) chId = "targets";
+  else if (match(["webhook", "webhooks", "hook"])) chId = "webhook";
+  else if (match(["routing", "rout", "failover"])) chId = "routing";
+  else if (match(["mail", "smtp", "ntp"])) chId = "mail";
+  else if (match(["vault", "vlt", "secret", "credential"])) chId = "vault";
+  else if (match(["rbac", "policy", "grant", "revoke"])) chId = "rbac";
+  else if (match(["siem"])) chId = "siem";
+  else if (match(["cost", "quota", "spend"])) chId = "cost";
+  else if (match(["deny", "denied"])) chId = "deny";
+  else if (match(["net", "network", "http", "dns"]) || agent === "system") chId = "net";
+  else if (agent === "audit" || agent === "checkpoint" || match(["audit", "journal"]))
+    chId = "audit";
 
   const ch =
     debugChannels.find((c) => c.id === chId) ?? debugChannels.find((c) => c.id === "other")!;
 
-  const rawLvl = String(data.level || "info");
+  const rawLvl = String(data.level || "info").toLowerCase();
   const lvl: DebugLevel =
     rawLvl === "warn" || rawLvl === "warning"
       ? "warn"
@@ -327,7 +384,7 @@ export function parseDebugFrame(data: {
             : "info";
 
   const rawMsg = String(data.message || "");
-  const tag = data.meta?.tag || ch.tag;
+  const tag = data.meta?.tag || (rawTag && rawTag.length <= 8 ? rawTag : ch.tag);
   const scope = rawMsg.includes(":") ? rawMsg.split(":")[0]!.trim() : tag || "sys.log";
 
   return {

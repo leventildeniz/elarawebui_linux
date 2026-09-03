@@ -60,6 +60,23 @@ export function listDenyEvents(): DenyEvent[] {
   return read();
 }
 
+function resolveCurrentActor(): string {
+  if (typeof window === "undefined") return "admin";
+  try {
+    const userRaw = window.localStorage.getItem("sovereign.user");
+    if (userRaw) {
+      const u = JSON.parse(userRaw);
+      if (u.username) return u.username;
+      if (u.name) return u.name;
+    }
+    const op = window.sessionStorage.getItem("sovereign.operator");
+    if (op) return op;
+  } catch {
+    /* ignore */
+  }
+  return "admin";
+}
+
 export function emitDeny(input: {
   category: DenyCategory;
   action: DenyAction;
@@ -75,7 +92,7 @@ export function emitDeny(input: {
     action: input.action,
     target: input.target,
     label: input.label || input.target,
-    actor: input.actor || "levent@elara",
+    actor: input.actor || resolveCurrentActor(),
     detail:
       input.detail ||
       (input.action === "deny.add"

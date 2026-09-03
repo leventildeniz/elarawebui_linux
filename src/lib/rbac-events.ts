@@ -58,6 +58,23 @@ export function listRbacEvents(): RbacEvent[] {
   return read();
 }
 
+function resolveCurrentActor(): string {
+  if (typeof window === "undefined") return "admin";
+  try {
+    const userRaw = window.localStorage.getItem("sovereign.user");
+    if (userRaw) {
+      const u = JSON.parse(userRaw);
+      if (u.username) return u.username;
+      if (u.name) return u.name;
+    }
+    const op = window.sessionStorage.getItem("sovereign.operator");
+    if (op) return op;
+  } catch {
+    /* ignore */
+  }
+  return "admin";
+}
+
 export function emitRbac(input: {
   action: RbacAction;
   role: string;
@@ -71,7 +88,7 @@ export function emitRbac(input: {
     action: input.action,
     role: input.role,
     target: input.target,
-    actor: input.actor || "levent@elara",
+    actor: input.actor || resolveCurrentActor(),
     detail: input.detail || `${input.action} · ${input.role} → ${input.target}`,
   };
   if (typeof window !== "undefined") {

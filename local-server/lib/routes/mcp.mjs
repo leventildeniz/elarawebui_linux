@@ -55,7 +55,33 @@ function extractBearer(req) {
 }
 
 export function mountMcpRoutes(app, deps) {
-  const { pool, requireSession, port } = deps;
+  const { pool, requireSession, port, broadcastAudit, enqueueWrite } = deps;
+
+  const emitMcpLog = (level, action, message, meta = {}) => {
+    const fullMeta = { tag: "mcp", stream: "mcp", ...meta };
+    if (broadcastAudit) {
+      try {
+        broadcastAudit({
+          agent: "mcp",
+          level,
+          message: `mcp.${action}: ${message}`,
+          meta: fullMeta,
+        });
+      } catch (err) {
+        console.warn("[mcp] broadcastAudit error:", err.message);
+      }
+    }
+    if (enqueueWrite) {
+      try {
+        enqueueWrite(
+          `INSERT INTO agent_logs(agent, level, message, meta) VALUES ($1,$2,$3,$4)`,
+          ["mcp", level, `mcp.${action}:${message}`, fullMeta]
+        );
+      } catch (err) {
+        console.warn("[mcp] enqueueWrite error:", err.message);
+      }
+    }
+  };
 
   // --- Public MCP endpoint (external clients) --------------------------------
 
@@ -294,6 +320,7 @@ export function mountMcpRoutes(app, deps) {
       payload.owner_name = payload.owner_name || payload.ownerName || null;
 
       const srv = await createClientServer(pool, payload);
+      emitMcpLog("info", "server.created", `${srv.name || srv.slug} (${srv.url})`, { id: srv.id, slug: srv.slug });
       // Kick off initial probe (non-blocking; result stored on server row).
       probeServer(srv).then((r) => recordProbe(pool, srv.id, r)).catch(() => {});
       res.json({ ok: true, server: srv });
@@ -303,12 +330,17 @@ export function mountMcpRoutes(app, deps) {
   app.patch("/api/mcp/client/servers/:id", admin, async (req, res) => {
     try {
       const srv = await updateClientServer(pool, req.params.id, req.body || {});
+      emitMcpLog("info", "server.updated", `${srv.name || srv.slug}`, { id: srv.id, slug: srv.slug });
       res.json({ ok: true, server: srv });
     } catch (e) { res.status(400).json({ error: e.message }); }
   });
 
   app.delete("/api/mcp/client/servers/:id", admin, async (req, res) => {
-    try { await deleteClientServer(pool, req.params.id); res.json({ ok: true }); }
+    try {
+      await deleteClientServer(pool, req.params.id);
+      emitMcpLog("warn", "server.deleted", `id=${req.params.id}`, { id: req.params.id });
+      res.json({ ok: true });
+    }
     catch (e) { res.status(400).json({ error: e.message }); }
   });
 
@@ -318,6 +350,7 @@ export function mountMcpRoutes(app, deps) {
       if (!srv) return res.status(404).json({ error: "server not found" });
       const result = await probeServer(srv);
       await recordProbe(pool, srv.id, result);
+      emitMcpLog(result.ok ? "info" : "warn", "probe", `${srv.slug} · status=${result.status}`, { id: srv.id, slug: srv.slug, status: result.status });
       const fresh = await getClientServer(pool, srv.id);
       res.json({ ok: true, server: fresh, probe: result });
     } catch (e) { res.status(500).json({ error: e.message }); }
@@ -329,7 +362,9 @@ export function mountMcpRoutes(app, deps) {
       if (!srv) return res.status(404).json({ error: "server not found" });
       const { tool, args } = req.body || {};
       if (!tool) return res.status(400).json({ error: "tool required" });
+      emitMcpLog("info", "call.start", `${srv.slug}/${tool}`, { server: srv.slug, tool });
       const result = await callRemoteTool(srv, tool, args || {});
+      emitMcpLog("info", "call.done", `${srv.slug}/${tool} completed`, { server: srv.slug, tool });
       res.json({ ok: true, result });
     } catch (e) { res.status(500).json({ error: e.message }); }
   });

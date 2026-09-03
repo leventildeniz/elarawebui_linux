@@ -145,6 +145,23 @@ export function hashPayload(payload: unknown): string {
   return digest(canonical(payload));
 }
 
+function resolveCurrentActor(): string {
+  if (typeof window === "undefined") return "admin";
+  try {
+    const userRaw = window.localStorage.getItem("sovereign.user");
+    if (userRaw) {
+      const u = JSON.parse(userRaw);
+      if (u.username) return u.username;
+      if (u.name) return u.name;
+    }
+    const op = window.sessionStorage.getItem("sovereign.operator");
+    if (op) return op;
+  } catch {
+    /* ignore */
+  }
+  return "admin";
+}
+
 /** Sign a flow. No-op (returns null) while the master switch is off. */
 export function signPayload(id: string, name: string, payload: unknown): SignatureRecord | null {
   if (!isSigningEnabled()) return null;
@@ -158,7 +175,7 @@ export function signPayload(id: string, name: string, payload: unknown): Signatu
     fingerprint,
     policy: policy?.name || "Studio default",
     at: Date.now(),
-    actor: "levent@elara",
+    actor: resolveCurrentActor(),
   };
   const map = readSigs();
   map[id] = record;

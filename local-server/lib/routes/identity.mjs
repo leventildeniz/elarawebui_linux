@@ -366,14 +366,14 @@ export async function mountIdentityRoutes(app, deps) {
       );
       enqueueWrite(
         `INSERT INTO agent_logs(agent,level,message,meta) VALUES ('auth','info',$1,$2)`,
-        [`login:${u.username}`, { provider: u.provider, actor: u.username, stream: 'auth' }]
+        [`login:${u.username}`, { provider: u.provider, actor: u.username, ip: realIp, stream: 'auth' }]
       );
       if (broadcastAudit) {
         broadcastAudit({
           agent: 'auth',
           level: 'info',
           message: `login:${u.username}`,
-          meta: { provider: u.provider, actor: u.username, stream: 'auth', tag: 'session.open' }
+          meta: { provider: u.provider, actor: u.username, ip: realIp, stream: 'auth', tag: 'session.open' }
         });
       }
       res.json({ ok: true, user: rowToUser(u), sessionId: sid });

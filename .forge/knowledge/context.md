@@ -493,6 +493,35 @@ Bu aşamada `/system` (Logs / Audit) sayfası ve altındaki **Audit Journal** il
 4. **Platform Başlığı ve Mock Arındırması (`src/routes/system.tsx`):**
    - Statik `systemMeta` mock import'u kaldırıldı, dinamik kurumsal başlık mimarisine geçildi.
 
-## 50. UP NEXT (Phase 50) - End-to-End Emitter Synchronization for Live Debugging & Deep RAG
-1. **Live Debugging Emitter Entegrasyonu:** Tüm backend modüllerindeki (Workflows, Tool Adapters, MCP Client, Vault, Security Policies, RAG Retrieval, System Cron) emit/broadcast çağrılarının `broadcastAudit` ile SSE hattına bağlanması ve 35 kanalın tamamında canlı event üretiminin test edilmesi.
-2. **Agentic RAG & Knowledge Hub Validation:** Dondurulan RAG entegrasyonu, departman bazlı space izolasyonu (`rag_space_id`), dosya indeksleme ve reranker testleri.
+## 50. Completed (Phase 50) - Live Debugging Emitter & Channel Normalization (Zero-Mock E2E)
+Bu aşamada `/system` (Logs / Audit) altındaki **Live Debugging** ve **Audit Journal** sistemleri baştan sona senkronize edildi; kanal filtreleme darboğazları çözüldü ve backend router'larına canlı debug ve audit emitter'ları entegre edildi.
+
+### Yapılan Geliştirmeler & Mimari İyileştirmeler:
+1. **Frontend Tag & 35 Kanal Eşleme Motoru (`src/lib/debug-bus.ts`):**
+   - `parseDebugFrame` motoru güçlendirildi. Gelen loglardaki `meta.tag`, `data.stream`, `meta.channel`, `data.agent` ve mesaj önekleri taranarak (`chat.*` → `chat`, `rag.*` → `rag`, `model.*`/`mlx.*` → `model`, `auth.*` → `auth`, `agent.*` → `agent`, `prompt.*` → `prompt`, `flows.*` → `flows`, `skill.*`/`tool.*` → `skills`, `vault.*` → `vault`, `mcp.*` → `mcp`, `rbac.*`/`policy.*` → `rbac`, `cost.*` → `cost`, vb.) 35 Live Debugging kanalının tamamı doğru hedeflere bağlandı.
+   - `agent === "checkpoint"` olan logların doğrudan `audit` veya `other` kanalına sıkışması engellendi.
+2. **Akıllı Audit Log Ayrıştırması & UX İyileştirmeleri (`src/lib/audit-store.ts` & `audit-panel.tsx`):**
+   - `normalizeRawLog` motoru tüm modüllerin (`models`, `secrets`, `rag`, `mcp`, `policy`, `agents`, `workflows`, `system`, `auth`, `rbac`, `billing`) akışlarını anlayacak şekilde güncellendi.
+   - `audit-panel.tsx` içindeki "HELD" butonu canlı akış durumunu net şekilde yansıtan (`[LIVE STREAM]` / `[STREAM HELD]`) durumsal göstergeye dönüştürüldü.
+3. **Chat Orchestrator Canlı Debug & Profiling Emitter'ları (`local-server/lib/routes/chat-orchestrate.mjs`):**
+   - Chat yaşam döngüsüne zengin sinyalli debug ve audit emitter'ları entegre edildi:
+     * `chat.request` (INFO): İstek girişi, model ve parametreler.
+     * `prompt.assembly` (DEBUG): Mesaj ve direktif katmanlarının birleştirilmesi.
+     * `agent.step.start` (INFO): ReAct döngüsü iterasyon adımları ve model yönlendirme modu.
+     * `model.first_token` (DEBUG): İlk token süresi (TTFT ms) ve sağlayıcı bilgisi.
+     * `rag.search.start` & `rag.search.done` (DEBUG/INFO): Ajan RAG alanı araması ve dönen chunk skorları.
+     * `tool.invoking` & `tool.executed` (DEBUG/INFO): Araç çalıştırma başlangıcı, icra süresi (ms) ve sonuç durumu.
+     * `model.responded` & `cost.spend` (INFO/DEBUG): Yanıt tamamlama süresi, üretilen token hacmi ve maliyet tahmini.
+4. **Backend Modüllerinin Audit Emitter Entegrasyonu:**
+   - `vault.mjs`: Secret okuma, yazma ve silme operasyonları `agent_logs` ve `broadcastAudit` hattına bağlandı (`vault` / `secrets`).
+   - `mcp.mjs`: MCP sunucu CRUD, probe ve tool çağrıları SSE ve audit loguna bağlandı (`mcp`).
+   - `tools.mjs`: Araç çağırma ve onay süreçleri canlı audit hattına bağlandı (`skills` / `gate`).
+   - `security-policies.mjs`: GenGuard ve izolasyon kural güncellemeleri bağlandı (`rbac` / `policy`).
+
+5. **Kullanıcı Kimliği & Gerçek IP Loglama İyileştirmeleri:**
+   - `src/lib/rbac-events.ts`: `emitRbac` fonksiyonundaki sabit `"levent@elara"` fallback'i kaldırılarak aktif oturumdaki gerçek kullanıcı adını (`admin`, operatör veya LDAP/OIDC kullanıcısı) dinamik çeken `resolveCurrentActor` entegre edildi.
+   - `local-server/lib/routes/identity.mjs`: `login` ve `disconnect` olaylarının audit loguna kullanıcının gerçek dış IP adresi (`realIp` - CF / X-Forwarded-For / Socket) basılması sağlandı (sabit `127.0.0.1` yerine).
+
+## 51. UP NEXT (Phase 51) - Agentic RAG & Knowledge Hub Validation & Deep Benchmarking
+1. **Agentic RAG & Knowledge Hub Validation:** Departman bazlı space izolasyonu (`rag_space_id`), doküman chunklama ve `bge-reranker-v2-m3` reranker testleri.
+2. **Autonomous DAG Execution Engine Benchmarking:** Karmaşık çok adımlı workflow ve orchestration zincirlerinin canlı icra doğrulaması.

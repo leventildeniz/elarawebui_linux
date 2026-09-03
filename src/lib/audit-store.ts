@@ -113,6 +113,12 @@ export type RawLogRecord = {
     ms?: number;
     ip?: string;
     reqId?: string;
+    tag?: string;
+    model?: string;
+    thread_id?: string;
+    tokens?: number | string;
+    hits?: number;
+    top1?: number | string;
     [key: string]: unknown;
   } | null;
   created_at?: string | number | null;
@@ -124,6 +130,8 @@ export type RawLogRecord = {
 export function normalizeRawLog(data: RawLogRecord): AuditEvent {
   const meta = typeof data.meta === "object" && data.meta !== null ? data.meta : {};
   const rawMsg = String(data.message || "");
+  const tag = String(meta.tag || "").toLowerCase();
+  const agent = String(data.agent || "system").toLowerCase();
 
   let action = "log";
   let target = String(data.agent || "system");
@@ -134,12 +142,27 @@ export function normalizeRawLog(data: RawLogRecord): AuditEvent {
     action = rawMsg.slice(0, colonIdx).trim();
     const rest = rawMsg.slice(colonIdx + 1).trim();
     if (rest) target = rest;
+  } else if (tag) {
+    action = tag;
   }
 
   // Format clean detail description
   if (action === "login") {
     const provider = meta.provider ? `via ${meta.provider} provider` : "";
     detail = `Session authenticated successfully ${provider}`.trim();
+  } else if (action === "chat.request" || tag === "chat.request") {
+    action = "chat.request";
+    detail = `Chat turn started · model=${meta.model || "default"} · thread=${data.thread_id || meta.thread_id || "-"}`;
+  } else if (action === "model.first_token" || tag === "model.first_token") {
+    action = "model.first_token";
+    detail = `TTFT (First Token) · ${meta.ms !== undefined ? `${meta.ms}ms` : ""} · model=${meta.model || "-"}`;
+  } else if (action === "model.responded" || tag === "model.responded") {
+    action = "model.responded";
+    detail = `Model responded · ${meta.tokens !== undefined ? `${meta.tokens} tokens` : ""} · ${meta.ms !== undefined ? `${meta.ms}ms` : ""}`;
+  } else if (action.startsWith("rag.") || tag.startsWith("rag.")) {
+    action = tag || action;
+    detail =
+      meta.hits !== undefined ? `RAG probe: ${meta.hits} hits (top1=${meta.top1 ?? "-"})` : rawMsg;
   } else if (meta.detail && typeof meta.detail === "string") {
     detail = meta.detail;
   } else if (meta.error) {
@@ -151,22 +174,57 @@ export function normalizeRawLog(data: RawLogRecord): AuditEvent {
   }
 
   let stream = "system";
-  if (data.agent === "checkpoint" || data.agent === "system") {
-    stream = meta.stream || "system";
-  } else if (data.agent === "auth" || action === "login" || action === "logout") {
-    stream = "auth";
-  } else if (data.agent === "chain" || data.agent === "workflow") {
-    stream = "workflows";
-  } else if (data.agent === "rbac") {
-    stream = "rbac";
-  } else if (data.agent === "vault") {
-    stream = "secrets";
-  } else if (data.agent === "mcp") {
-    stream = "mcp";
-  } else if (data.agent === "rag") {
-    stream = "rag";
-  } else if (meta.stream) {
+  if (meta.stream && typeof meta.stream === "string") {
     stream = meta.stream;
+  } else if (
+    agent === "auth" ||
+    action === "login" ||
+    action === "logout" ||
+    action.startsWith("auth.")
+  ) {
+    stream = "auth";
+  } else if (agent === "rbac" || action.startsWith("rbac.") || tag.startsWith("rbac.")) {
+    stream = "rbac";
+  } else if (action.startsWith("policy.") || tag.startsWith("policy.") || tag.startsWith("deny.")) {
+    stream = "policy";
+  } else if (
+    agent === "vault" ||
+    action.startsWith("vault.") ||
+    tag.startsWith("vault.") ||
+    tag.startsWith("secret.")
+  ) {
+    stream = "secrets";
+  } else if (
+    agent === "chain" ||
+    agent === "workflow" ||
+    agent === "flows" ||
+    action.startsWith("workflow.") ||
+    tag.startsWith("flow.")
+  ) {
+    stream = "workflows";
+  } else if (
+    agent === "chat" ||
+    agent === "model" ||
+    action.startsWith("chat.") ||
+    action.startsWith("model.") ||
+    tag.startsWith("model.") ||
+    tag.startsWith("chat.")
+  ) {
+    stream = "models";
+  } else if (agent === "rag" || action.startsWith("rag.") || tag.startsWith("rag.")) {
+    stream = "rag";
+  } else if (agent === "mcp" || action.startsWith("mcp.") || tag.startsWith("mcp.")) {
+    stream = "mcp";
+  } else if (
+    agent.startsWith("agent://") ||
+    agent.startsWith("skill://") ||
+    agent === "agent" ||
+    action.startsWith("agent.") ||
+    tag.startsWith("agent.")
+  ) {
+    stream = "agents";
+  } else if (agent === "cost" || tag.startsWith("cost.") || action.startsWith("cost.")) {
+    stream = "billing";
   }
 
   const lvl: Severity =

@@ -17,7 +17,35 @@ export function mountToolRoutes(app, deps) {
     isLoopback,
     getAgentManifest,
     reloadManifests,
+    broadcastAudit,
+    enqueueWrite,
   } = deps;
+
+  const emitToolLog = (level, action, message, meta = {}) => {
+    const fullMeta = { tag: "skill", stream: "skills", ...meta };
+    if (broadcastAudit) {
+      try {
+        broadcastAudit({
+          agent: "skill",
+          level,
+          message: `tool.${action}: ${message}`,
+          meta: fullMeta,
+        });
+      } catch (err) {
+        console.warn("[tools] broadcastAudit notice:", err.message);
+      }
+    }
+    if (enqueueWrite) {
+      try {
+        enqueueWrite(
+          `INSERT INTO agent_logs(agent, level, message, meta) VALUES ($1,$2,$3,$4)`,
+          ["skill", level, `tool.${action}:${message}`, fullMeta]
+        );
+      } catch (err) {
+        console.warn("[tools] enqueueWrite notice:", err.message);
+      }
+    }
+  };
 
   // Geliştirici Yaması: rlInvoke veya requireSession undefined ise diye önlem alıyoruz
   const safeRlInvoke = rlInvoke || ((req, res, next) => next());
@@ -33,6 +61,7 @@ export function mountToolRoutes(app, deps) {
         sessionId: req.session?.id || null,
         params,
       });
+      emitToolLog("info", "invoke.done", `${req.params.id} completed`, { tool: req.params.id, agent: agent_id });
       res.json({ ok: true, ...result });
     } catch (e) {
       if (e instanceof ApprovalRequired) {
@@ -59,6 +88,14 @@ export function mountToolRoutes(app, deps) {
       const out = await decideApproval(req.params.invocationId, {
         approver: req.session?.username || "admin", decision, reason,
       });
+      if (broadcastAudit) {
+        broadcastAudit({
+          agent: "approvals",
+          level: "info",
+          message: `approval.decide: id=${req.params.invocationId} decision=${decision}`,
+          meta: { tag: "gate", stream: "governance", invocationId: req.params.invocationId, decision, reason }
+        });
+      }
       res.json({ ok: true, ...out });
     } catch (e) {
       if (e instanceof ToolPolicyError) return res.status(400).json({ error: e.message, code: e.code });

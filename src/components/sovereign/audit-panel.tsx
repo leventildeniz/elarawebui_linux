@@ -252,15 +252,16 @@ export function AuditPanel() {
         <button
           type="button"
           onClick={() => setLive(!live)}
+          title={live ? "Click to pause live event stream" : "Click to resume live event stream"}
           className={cn(
-            "flex items-center gap-2 rounded-lg border px-4 py-2.5 font-mono text-[12px] uppercase tracking-[0.14em] transition-colors",
+            "flex items-center gap-2.5 rounded-lg border px-4 py-2.5 font-mono text-[12px] uppercase tracking-[0.14em] transition-colors",
             live
-              ? "border-emerald/45 bg-emerald/10 text-emerald"
-              : "border-white/[0.09] bg-black/25 text-muted-foreground/60",
+              ? "border-emerald/45 bg-emerald/10 text-emerald shadow-[0_0_15px_-4px_var(--emerald)]"
+              : "border-white/[0.09] bg-black/25 text-muted-foreground/60 hover:border-white/[0.18]",
           )}
         >
-          {live ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-          {live ? "live" : "held"}
+          {live ? <Pause className="h-3.5 w-3.5 text-emerald" /> : <Play className="h-3.5 w-3.5" />}
+          <span>{live ? "live stream" : "stream held"}</span>
         </button>
       </div>
 
