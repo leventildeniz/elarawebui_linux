@@ -872,7 +872,7 @@ function ForgeFactory() {
                         </option>
                         {localScripts.map(sc => (
                           <option key={sc.path} value={sc.path} className="bg-panel">
-                            {sc.folder}/{sc.relPath}
+                            {sc.relPath}
                           </option>
                         ))}
                       </select>

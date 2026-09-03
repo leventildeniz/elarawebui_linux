@@ -17,6 +17,7 @@ Reads JSON from stdin: {cmd, args?, timeout_ms?, cwd?}.
 """
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -40,12 +41,21 @@ def _read_input():
 
 def main() -> None:
     p = _read_input()
-    cmd = str(p.get("cmd") or "").strip()
-    if not cmd:
+    raw_cmd = str(p.get("cmd") or "").strip()
+    if not raw_cmd:
         print(json.dumps({"ok": False, "reason": "missing_cmd"})); return
-    # No path separators allowed in cmd — must be a bare executable name.
-    if "/" in cmd or "\\" in cmd:
-        print(json.dumps({"ok": False, "reason": "command_path_not_allowed"})); return
+
+    # Smart command tokenizer: handles "ls -la /tmp" as well as bare "ls"
+    try:
+        tokens = shlex.split(raw_cmd)
+    except Exception:
+        tokens = raw_cmd.split()
+
+    if not tokens:
+        print(json.dumps({"ok": False, "reason": "missing_cmd"})); return
+
+    # Extract executable (e.g. /bin/ls -> ls)
+    cmd = os.path.basename(tokens[0])
 
     allow = _allowlist()
     if cmd not in allow:
@@ -56,10 +66,20 @@ def main() -> None:
     if not binpath:
         print(json.dumps({"ok": False, "reason": "command_not_found", "cmd": cmd})); return
 
-    args = p.get("args") or []
-    if not isinstance(args, list) or not all(isinstance(a, (str, int, float)) for a in args):
-        print(json.dumps({"ok": False, "reason": "bad_args"})); return
-    args = [str(a) for a in args]
+    # Combine arguments from tokenized cmd and explicit args parameter
+    args = tokens[1:]
+    explicit_args = p.get("args") or []
+    if isinstance(explicit_args, list):
+        args.extend([str(a) for a in explicit_args])
+    elif isinstance(explicit_args, str):
+        try:
+            parsed_args = json.loads(explicit_args)
+            if isinstance(parsed_args, list):
+                args.extend([str(a) for a in parsed_args])
+            else:
+                args.append(explicit_args)
+        except Exception:
+            args.append(explicit_args)
 
     timeout_ms = int(p.get("timeout_ms") or 15000)
     timeout_ms = max(500, min(120000, timeout_ms))

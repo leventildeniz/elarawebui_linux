@@ -440,6 +440,12 @@ Bu aşamada MetaForge ve Chat orkestrasyonundaki kritik senkronizasyon, yaşam d
     - 250 adetlik tam emoji paleti yerel olarak entegre edildi; karşılama ekranındaki durum satırı doğrudan `agents` tablosundaki aktif ajan sayısına bağlandı (`fleet nominal · X agents online`).
 15. **Kod ve Yorum Dili Standartlaştırması:**
     - Chat bileşenlerindeki ve orkestratördeki tüm Türkçe yorum satırları, karşılama metinleri ve konsol logları kurumsal İngilizce standartlarına dönüştürüldü.
+16. **`tools/shell_exec.py` Akıllı Komut & Dizin Ayrıştırıcısı:**
+    - `shlex.split` ile modelin tek satırda gönderdiği `ls -la /tmp` gibi komutlar ayrıştırılarak `/tmp` ve sistem dizinlerinin güvenle listelenmesi sağlandı; `command_path_not_allowed` hatası giderildi.
+17. **Forge Factory & Skills Script Path Ön Ek Onarımı (`factory.tsx`, `skills.tsx`):**
+    - Açılır menüdeki `{sc.folder}/{sc.relPath}` kaynaklı `tools/tools/...` mükerrerliği kaldırılarak doğrudan `{sc.relPath}` biçimine getirildi (`tools/a10_axapi.py`).
+18. **Model Kartı Dinamik Yetkilendirme & Sıfır Hardcoding:**
+    - Tüm model hiperparametreleri (sıcaklık, tekrar cezası, durdurma dizilimleri, gelişmiş parametreler) kodda sabit değerler yerine doğrudan model kartı arayüzü ve veritabanına bağlandı.
 
 ## 48. UP NEXT (Phase 48) - Agentic RAG & Knowledge Hub Validation
 - Dondurulan RAG entegrasyonu, departman bazlı space izolasyonu (`rag_space_id`), dosya indeksleme ve reranker testleri devreye alınacak.

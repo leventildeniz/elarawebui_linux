@@ -51545,3 +51545,23 @@ Node.js v22.22.1
 [Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
 [Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
 [Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[TCP-KILLER] Request Error to 192.168.0.18:8001: Client Aborted
+[TCP-KILLER] Request Error to 192.168.0.18:8001: Client Aborted
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[TCP-KILLER] Request Error to generativelanguage.googleapis.com:443: Client Aborted
+[TCP-KILLER] Request Error to 192.168.0.18:8001: Client Aborted
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Tool execution error (sys_execute_tool) - Real ID (sys_execute_tool): Error: mcp call failed: rpc_error Invalid input: [{"code":"invalid_type","expected":"string","received":"undefined","path":["query"],"message":"Required"}]
+    at Object.mcp (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/tool-adapters.mjs:336:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async invokeTool (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/tool-adapters.mjs:429:20)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1735:49
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[TCP-KILLER] Request Error to 192.168.0.18:8001: Client Aborted
