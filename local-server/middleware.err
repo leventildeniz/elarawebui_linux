@@ -49748,3 +49748,1252 @@ Node.js v22.22.1
 [Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
 [Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
 [Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Araç çalıştırma hatası (skill_system_health_synthesizer) - Gerçek ID (system-health-synthesizer): ToolPolicyError: tool system-health-synthesizer not found
+    at invokeTool (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/tool-adapters.mjs:355:20)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1836:45
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Araç çalıştırma hatası (sys_execute_tool) - Gerçek ID (sys_execute_tool): error: column "slug" does not exist
+    at /home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1607:51
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1045
+                 }
+                 ^
+
+SyntaxError: Missing catch or finally after try
+    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:107:18)
+    at #translate (node:internal/modules/esm/loader:546:20)
+    at afterLoad (node:internal/modules/esm/loader:596:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:601:12)
+    at #createModuleJob (node:internal/modules/esm/loader:624:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:343:34)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:311:41)
+
+Node.js v22.22.1
+file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1045
+                 }
+                 ^
+
+SyntaxError: Missing catch or finally after try
+    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:107:18)
+    at #translate (node:internal/modules/esm/loader:546:20)
+    at afterLoad (node:internal/modules/esm/loader:596:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:601:12)
+    at #createModuleJob (node:internal/modules/esm/loader:624:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:343:34)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:311:41)
+
+Node.js v22.22.1
+file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1045
+                 }
+                 ^
+
+SyntaxError: Missing catch or finally after try
+    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:107:18)
+    at #translate (node:internal/modules/esm/loader:546:20)
+    at afterLoad (node:internal/modules/esm/loader:596:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:601:12)
+    at #createModuleJob (node:internal/modules/esm/loader:624:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:343:34)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:311:41)
+
+Node.js v22.22.1
+file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1045
+                 }
+                 ^
+
+SyntaxError: Missing catch or finally after try
+    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:107:18)
+    at #translate (node:internal/modules/esm/loader:546:20)
+    at afterLoad (node:internal/modules/esm/loader:596:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:601:12)
+    at #createModuleJob (node:internal/modules/esm/loader:624:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:343:34)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:311:41)
+
+Node.js v22.22.1
+file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1045
+                 }
+                 ^
+
+SyntaxError: Missing catch or finally after try
+    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:107:18)
+    at #translate (node:internal/modules/esm/loader:546:20)
+    at afterLoad (node:internal/modules/esm/loader:596:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:601:12)
+    at #createModuleJob (node:internal/modules/esm/loader:624:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:343:34)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:311:41)
+
+Node.js v22.22.1
+file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1045
+                 }
+                 ^
+
+SyntaxError: Missing catch or finally after try
+    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:107:18)
+    at #translate (node:internal/modules/esm/loader:546:20)
+    at afterLoad (node:internal/modules/esm/loader:596:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:601:12)
+    at #createModuleJob (node:internal/modules/esm/loader:624:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:343:34)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:311:41)
+
+Node.js v22.22.1
+file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1045
+                 }
+                 ^
+
+SyntaxError: Missing catch or finally after try
+    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:107:18)
+    at #translate (node:internal/modules/esm/loader:546:20)
+    at afterLoad (node:internal/modules/esm/loader:596:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:601:12)
+    at #createModuleJob (node:internal/modules/esm/loader:624:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:343:34)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:311:41)
+
+Node.js v22.22.1
+file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1045
+                 }
+                 ^
+
+SyntaxError: Missing catch or finally after try
+    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:107:18)
+    at #translate (node:internal/modules/esm/loader:546:20)
+    at afterLoad (node:internal/modules/esm/loader:596:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:601:12)
+    at #createModuleJob (node:internal/modules/esm/loader:624:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:343:34)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:311:41)
+
+Node.js v22.22.1
+file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1045
+                 }
+                 ^
+
+SyntaxError: Missing catch or finally after try
+    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:107:18)
+    at #translate (node:internal/modules/esm/loader:546:20)
+    at afterLoad (node:internal/modules/esm/loader:596:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:601:12)
+    at #createModuleJob (node:internal/modules/esm/loader:624:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:343:34)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:311:41)
+
+Node.js v22.22.1
+file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1045
+                 }
+                 ^
+
+SyntaxError: Missing catch or finally after try
+    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:107:18)
+    at #translate (node:internal/modules/esm/loader:546:20)
+    at afterLoad (node:internal/modules/esm/loader:596:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:601:12)
+    at #createModuleJob (node:internal/modules/esm/loader:624:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:343:34)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:311:41)
+
+Node.js v22.22.1
+file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1045
+                 }
+                 ^
+
+SyntaxError: Missing catch or finally after try
+    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:107:18)
+    at #translate (node:internal/modules/esm/loader:546:20)
+    at afterLoad (node:internal/modules/esm/loader:596:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:601:12)
+    at #createModuleJob (node:internal/modules/esm/loader:624:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:343:34)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:311:41)
+
+Node.js v22.22.1
+[Orchestrate] Global sistem tool'ları çekilirken hata: column "enabled" does not exist
+[Orchestrate] Capability (Tool/Skill) şemaları çekilemedi: column "enabled" does not exist
+[TCP-KILLER] Request Error to 192.168.0.18:8001: Client Aborted
+[Orchestrate] Global sistem tool'ları çekilirken hata: column "enabled" does not exist
+[Orchestrate] Capability (Tool/Skill) şemaları çekilemedi: column "enabled" does not exist
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Global sistem tool'ları çekilirken hata: column "enabled" does not exist
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Provider Gemini 3.1 Flash Lite failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "unrecognized type 'text' at properties.url",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Gemini 3.1 Pro failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Missing or invalid Authorization header.",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Claude 3.7 Sonnet failed: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CefajGEM74TgwvRUTVhRC"}
+[Orchestrate] Provider GPT-4o failed: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] Provider Gemini 3.7 Flash failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Please pass a valid API key",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Gemini Flash Lite failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Please pass a valid API key",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Gemini 3.1 Flash Lite failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Function call is missing a thought_signature in functionCall parts. This is required for tools to work correctly, and missing thought_signature may lead to degraded model performance. Additional data, function call `default_api:tool_log_date_time` , position 2. Please refer to https://ai.google.dev/gemini-api/docs/thought-signatures for more details.",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Gemini 3.1 Pro failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Missing or invalid Authorization header.",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Claude 3.7 Sonnet failed: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CefakZZAXmRStcCaV51F6"}
+[Orchestrate] Provider GPT-4o failed: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] Provider Gemini 3.7 Flash failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Please pass a valid API key",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Gemini Flash Lite failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Please pass a valid API key",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Provider Gemini 3.1 Flash Lite failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "unrecognized type 'text' at properties.url",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Gemini 3.1 Pro failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Missing or invalid Authorization header.",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Claude 3.7 Sonnet failed: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CefanTnTaam71YWtgffjy"}
+[Orchestrate] Provider GPT-4o failed: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] Provider Gemini 3.7 Flash failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Please pass a valid API key",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Gemini Flash Lite failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Please pass a valid API key",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Gemini 3.1 Flash Lite failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Function call is missing a thought_signature in functionCall parts. This is required for tools to work correctly, and missing thought_signature may lead to degraded model performance. Additional data, function call `default_api:skill_sk_system_health_synthesizer` , position 4. Please refer to https://ai.google.dev/gemini-api/docs/thought-signatures for more details.",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Gemini 3.1 Pro failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Missing or invalid Authorization header.",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Claude 3.7 Sonnet failed: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011Cefaus967PKhWXqRr55kb"}
+[Orchestrate] Provider GPT-4o failed: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] Provider Gemini 3.7 Flash failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Please pass a valid API key",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Gemini Flash Lite failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Please pass a valid API key",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[TCP-KILLER] Request Error to 192.168.0.18:8001: Client Aborted
+[Orchestrate] Provider Gemini 3.1 Flash Lite failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "unrecognized type 'text' at properties.url",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Gemini 3.1 Pro failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Missing or invalid Authorization header.",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Claude 3.7 Sonnet failed: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011Cefb2BRbXeVFUev6Yqsba"}
+[Orchestrate] Provider GPT-4o failed: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] Provider Gemini 3.7 Flash failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Please pass a valid API key",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Gemini Flash Lite failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Please pass a valid API key",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[TCP-KILLER] Request Error to 192.168.0.18:8001: Client Aborted
+[Orchestrate] Provider Gemini 3.1 Flash Lite failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "unrecognized type 'text' at properties.url",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Gemini 3.1 Pro failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Missing or invalid Authorization header.",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Claude 3.7 Sonnet failed: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CefbU526kav4gULENXGVz"}
+[Orchestrate] Provider GPT-4o failed: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] Provider Gemini 3.7 Flash failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Please pass a valid API key",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Gemini Flash Lite failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Please pass a valid API key",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[TCP-KILLER] Request Error to 192.168.0.18:8001: Client Aborted
+[Orchestrate] Provider Gemini 3.1 Flash Lite failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "unrecognized type 'text' at properties.url",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Gemini 3.1 Pro failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Missing or invalid Authorization header.",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Claude 3.7 Sonnet failed: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CefbW1621Cq4A1ugicyum"}
+[Orchestrate] Provider GPT-4o failed: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] Provider Gemini 3.7 Flash failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Please pass a valid API key",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Gemini Flash Lite failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Please pass a valid API key",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[TCP-KILLER] Request Error to generativelanguage.googleapis.com:443: socket hang up
+[Orchestrate] Provider Gemini 3.1 Flash Lite failed: Connection to LLM failed: socket hang up
+[Orchestrate] Provider Gemini 3.1 Pro failed: Connection to LLM failed: Aborted before request started
+[TCP-KILLER] Request Error to generativelanguage.googleapis.com:443: Aborted before request started
+[Orchestrate] Provider Claude 3.7 Sonnet failed: Connection to LLM failed: Aborted before request started
+[TCP-KILLER] Request Error to api.anthropic.com:443: Aborted before request started
+[Orchestrate] Provider GPT-4o failed: Connection to LLM failed: Aborted before request started
+[TCP-KILLER] Request Error to api.openai.com:443: Aborted before request started
+[Orchestrate] Provider Gemini 3.7 Flash failed: Connection to LLM failed: Aborted before request started
+[TCP-KILLER] Request Error to generativelanguage.googleapis.com:443: Aborted before request started
+[Orchestrate] Provider Gemini Flash Lite failed: Connection to LLM failed: Aborted before request started
+[Orchestrate] Provider Gemma 4 31B Local failed: Connection to LLM failed: Aborted before request started
+[Orchestrate] Provider Gemma 4 31B Local (Provider Fallback) failed: Connection to LLM failed: Aborted before request started
+[TCP-KILLER] Request Error to generativelanguage.googleapis.com:443: Aborted before request started
+[TCP-KILLER] Request Error to 192.168.0.18:8001: Aborted before request started
+[TCP-KILLER] Request Error to 192.168.0.18:8001: Aborted before request started
+[Orchestrate] Provider Gemini 3.1 Flash Lite (Provider Fallback) failed: Connection to LLM failed: Aborted before request started
+[TCP-KILLER] Request Error to generativelanguage.googleapis.com:443: Aborted before request started
+[Orchestrate] Provider Gemini 3.1 Flash Lite failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "unrecognized type 'text' at properties.url",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Gemini 3.1 Pro failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Missing or invalid Authorization header.",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Claude 3.7 Sonnet failed: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CefbYk2V9yBDuFbvr312w"}
+[Orchestrate] Provider GPT-4o failed: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] Provider Gemini 3.7 Flash failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Please pass a valid API key",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Gemini Flash Lite failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Please pass a valid API key",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Gemini 3.1 Flash Lite failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Function call is missing a thought_signature in functionCall parts. This is required for tools to work correctly, and missing thought_signature may lead to degraded model performance. Additional data, function call `default_api:tool_log_date_time` , position 2. Please refer to https://ai.google.dev/gemini-api/docs/thought-signatures for more details.",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Gemini 3.1 Pro failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Missing or invalid Authorization header.",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Claude 3.7 Sonnet failed: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CefbZViJ83FcZgwsCapcN"}
+[Orchestrate] Provider GPT-4o failed: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] Provider Gemini 3.7 Flash failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Please pass a valid API key",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Gemini Flash Lite failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Please pass a valid API key",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[TCP-KILLER] Request Error to 192.168.0.18:8001: Client Aborted
+[Orchestrate] Provider Gemini 3.1 Flash Lite failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "unrecognized type 'text' at properties.url",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Gemini 3.1 Pro failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Missing or invalid Authorization header.",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Claude 3.7 Sonnet failed: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CefbmpBdatBb3fSF2DY4u"}
+[Orchestrate] Provider GPT-4o failed: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] Provider Gemini 3.7 Flash failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Please pass a valid API key",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Gemini Flash Lite failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Please pass a valid API key",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Provider Gemini 3.7 Flash failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Please pass a valid API key",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Gemini 3.1 Pro failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Missing or invalid Authorization header.",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Claude 3.7 Sonnet failed: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CefbvyUj93u7TS4gcyLd2"}
+[Orchestrate] Provider GPT-4o failed: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] Provider Gemini Flash Lite failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Please pass a valid API key",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Gemini 3.1 Flash Lite failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "unrecognized type 'text' at properties.url",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[Orchestrate] Provider Gemini 3.1 Flash Lite failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "unrecognized type 'text' at properties.url",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Gemini 3.1 Pro failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Missing or invalid Authorization header.",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Claude 3.7 Sonnet failed: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CefcFTZvgcJjDP1bc9EXp"}
+[Orchestrate] Provider GPT-4o failed: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] Provider Gemini 3.7 Flash failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Please pass a valid API key",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Gemini Flash Lite failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Please pass a valid API key",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[TCP-KILLER] Request Error to 192.168.0.18:8001: Client Aborted
+[Orchestrate] Provider Gemini 3.1 Flash Lite failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "unrecognized type 'text' at properties.url",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Gemini 3.1 Pro failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Missing or invalid Authorization header.",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Claude 3.7 Sonnet failed: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CefcXzUEXySkT9uyFyTgc"}
+[Orchestrate] Provider GPT-4o failed: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] Provider Gemini 3.7 Flash failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Please pass a valid API key",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Gemini Flash Lite failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Please pass a valid API key",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Gemini 3.1 Flash Lite failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "unrecognized type 'text' at properties.url",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Gemini 3.1 Pro failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Missing or invalid Authorization header.",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Claude 3.7 Sonnet failed: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CefcYAwXKvNxzQ7QrwzDe"}
+[Orchestrate] Provider GPT-4o failed: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] Provider Gemini 3.1 Flash Lite failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "unrecognized type 'text' at properties.url",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Gemini 3.7 Flash failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Please pass a valid API key",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Gemini 3.1 Pro failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Missing or invalid Authorization header.",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Gemini Flash Lite failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Please pass a valid API key",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Claude 3.7 Sonnet failed: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CefcYEmDchjyqwaZ7t6zU"}
+[Orchestrate] Provider GPT-4o failed: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] Provider Gemini 3.7 Flash failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Please pass a valid API key",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Gemini Flash Lite failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Please pass a valid API key",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Provider Gemini 3.1 Flash Lite failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "unrecognized type 'text' at properties.url",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Gemini 3.1 Pro failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Missing or invalid Authorization header.",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Claude 3.7 Sonnet failed: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011Cefca4b6EbFF1NMA5RVRV"}
+[Orchestrate] Provider GPT-4o failed: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] Provider Gemini 3.7 Flash failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Please pass a valid API key",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Gemini Flash Lite failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Please pass a valid API key",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Provider Gemini 3.1 Flash Lite failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "unrecognized type 'text' at properties.url",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Gemini 3.1 Pro failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Missing or invalid Authorization header.",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Claude 3.7 Sonnet failed: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CefcnmVo8NxwBSmgz75ew"}
+[Orchestrate] Provider GPT-4o failed: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] Provider Gemini 3.7 Flash failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Please pass a valid API key",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Gemini Flash Lite failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Please pass a valid API key",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Provider Gemini 3.1 Flash Lite failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "unrecognized type 'text' at properties.url",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Gemini 3.1 Pro failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Missing or invalid Authorization header.",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Claude 3.7 Sonnet failed: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CefctBmh8icxh25TsRv6g"}
+[Orchestrate] Provider GPT-4o failed: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] Provider Gemini 3.7 Flash failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Please pass a valid API key",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Provider Gemini Flash Lite failed: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Please pass a valid API key",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] ❌ Provider Gemini 3.1 Flash Lite failed: Error: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "unrecognized type 'text' at properties.url",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:583:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1167:24
+[Orchestrate] ❌ Provider Gemini 3.1 Pro failed: Error: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Missing or invalid Authorization header.",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:583:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1167:24
+[Orchestrate] ❌ Provider Claude 3.7 Sonnet failed: Error: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CefcyvExw75azYXudJcAv"}
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:583:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1167:24
+[Orchestrate] ❌ Provider GPT-4o failed: Error: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:583:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1167:24
+[Orchestrate] ❌ Provider Gemini 3.7 Flash failed: Error: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Please pass a valid API key",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:583:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1167:24
+[Orchestrate] ❌ Provider Gemini Flash Lite failed: Error: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "Please pass a valid API key",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:583:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1167:24
+[TCP-KILLER] Request Error to 192.168.0.18:8001: Client Aborted
+[Orchestrate] ❌ Provider Gemini 3.1 Flash Lite failed: Error: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "unrecognized type 'text' at properties.url",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:583:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1167:24
+[Orchestrate] ❌ Provider Claude 3.7 Sonnet failed: Error: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011Cefd9GBWucWCpP3FiP9Ek"}
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:583:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1167:24
+[Orchestrate] ❌ Provider GPT-4o failed: Error: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:583:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1167:24
+[Orchestrate] ❌ Provider Gemini 3.1 Pro failed: Error: Connection to LLM failed: LLM API returned 404: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:583:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1167:24
+[Orchestrate] ❌ Provider Gemini 3.7 Flash failed: Error: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "unrecognized type 'text' at properties.url",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:583:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1167:24
+[Orchestrate] ❌ Provider Gemini Flash Lite failed: Error: Connection to LLM failed: LLM API returned 404: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-2.0-flash-lite-preview-02-05 is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:583:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1167:24
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] ❌ Provider Gemini 3.7 Flash failed: Error: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "unrecognized type 'text' at properties.url",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:583:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1167:24
+[Orchestrate] ❌ Provider Claude 3.7 Sonnet failed: Error: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011Cefd9sgD7JfZaxGqA7D9M"}
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:583:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1167:24
+[Orchestrate] ❌ Provider GPT-4o failed: Error: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:583:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1167:24
+[Orchestrate] ❌ Provider Gemini 3.1 Pro failed: Error: Connection to LLM failed: LLM API returned 404: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:583:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1167:24
+[Orchestrate] ❌ Provider Gemini Flash Lite failed: Error: Connection to LLM failed: LLM API returned 404: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-2.0-flash-lite-preview-02-05 is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:583:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1167:24
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] ❌ Provider Gemini 3.1 Flash Lite failed: Error: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "unrecognized type 'text' at properties.url",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:583:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1167:24
+[Orchestrate] ❌ Provider Claude 3.7 Sonnet failed: Error: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CefdBPZaYZpG28xqhhbZc"}
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:583:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1167:24
+[Orchestrate] ❌ Provider GPT-4o failed: Error: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:583:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1167:24
+[Orchestrate] ❌ Provider Gemini 3.1 Pro failed: Error: Connection to LLM failed: LLM API returned 404: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:583:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1167:24
+[Orchestrate] ❌ Provider Gemini 3.7 Flash failed: Error: Connection to LLM failed: LLM API returned 400: [{
+  "error": {
+    "code": 400,
+    "message": "unrecognized type 'text' at properties.url",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+]
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:583:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1167:24
+[Orchestrate] ❌ Provider Gemini Flash Lite failed: Error: Connection to LLM failed: LLM API returned 404: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-2.0-flash-lite-preview-02-05 is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:583:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1167:24
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Araç çalıştırma hatası (skill_sk_system_health_synthesizer) - Gerçek ID (sk.system-health-synthesizer): Error: Native skill execution failed: provider 401 {
+    "error": {
+        "message": "Incorrect API key provided: undefined. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+    at Object.native (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/tool-adapters.mjs:261:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async invokeTool (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/tool-adapters.mjs:419:20)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1904:45
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function

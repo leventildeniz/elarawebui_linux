@@ -47,20 +47,20 @@ export class ToolPolicyError extends Error {
 }
 
 async function loadTool(toolId) {
+  if (!toolId) return null;
+
+  // 1. MCP Tools
   if (toolId.startsWith("mcp.")) {
-    // Expected format: mcp.<server_slug>.<tool_name>
     const parts = toolId.slice(4).split(".");
     const serverSlug = parts[0];
     const toolName = parts.slice(1).join(".");
     
-    // Validate server exists
     const { rows } = await _pool.query(
       `SELECT id FROM mcp_client_servers WHERE slug=$1 AND enabled=true`,
       [serverSlug]
     );
     if (!rows.length) return null;
 
-    // Return synthetic tool for MCP
     return {
       id: toolId,
       name: toolName,
@@ -72,49 +72,51 @@ async function loadTool(toolId) {
     };
   }
 
-  if (toolId.startsWith("sk.") || toolId.startsWith("skill.")) {
-    // Expected format: sk.<skill_id>
-    const { rows } = await _pool.query(
-      `SELECT id, name, type, script_path, instructions, workflow_id, mcp_client_id FROM skills WHERE id=$1`,
-      [toolId]
-    );
-    if (rows[0]) {
-      const row = rows[0];
-      let adapter = "python"; // Default fallback
-      let runtime = {};
+  // 2. Skills (with or without 'sk.' / 'skill.' prefix)
+  const bareSkillId = toolId.replace(/^(sk\.|skill\.)/i, '');
+  const { rows: skillRows } = await _pool.query(
+    `SELECT id, name, type, script_path, instructions, workflow_id, mcp_client_id 
+       FROM skills 
+      WHERE enabled=true AND (id=$1 OR id=$2 OR id=$3 OR id=$4)`,
+    [toolId, `sk.${bareSkillId}`, `skill.${bareSkillId}`, bareSkillId]
+  );
+  if (skillRows[0]) {
+    const row = skillRows[0];
+    let adapter = "native";
+    let runtime = {};
 
-      if (row.type === "python") {
-        adapter = "python";
-        runtime = { script: row.script_path, timeout_ms: 60000 };
-      } else if (row.type === "native") {
-        adapter = "native";
-        runtime = { instructions: row.instructions, timeout_ms: 120000 };
-      } else if (row.type === "workflow") {
-        adapter = "workflow";
-        runtime = { workflow_id: row.workflow_id };
-      } else if (row.type === "mcp") {
-        adapter = "mcp";
-        runtime = { server: row.mcp_client_id, name: row.name };
-      }
-
-      // Return synthetic tool for Skill
-      return {
-        id: row.id,
-        name: row.name,
-        adapter: adapter,
-        risk_level: "low",
-        requires_approval: false,
-        runtime: runtime,
-        system_prompt: row.instructions || ""
-      };
+    if (row.type === "python") {
+      adapter = "python";
+      runtime = { script: row.script_path, timeout_ms: 60000 };
+    } else if (row.type === "native") {
+      adapter = "native";
+      runtime = { instructions: row.instructions, timeout_ms: 120000 };
+    } else if (row.type === "workflow") {
+      adapter = "workflow";
+      runtime = { workflow_id: row.workflow_id };
+    } else if (row.type === "mcp") {
+      adapter = "mcp";
+      runtime = { server: row.mcp_client_id, name: row.name };
     }
-    return null;
+
+    return {
+      id: row.id,
+      name: row.name,
+      adapter,
+      risk_level: "low",
+      requires_approval: false,
+      runtime,
+      system_prompt: row.instructions || ""
+    };
   }
 
+  // 3. Action Library (with or without 'tool.' prefix)
+  const bareToolId = toolId.replace(/^tool\./i, '');
   const { rows } = await _pool.query(
     `SELECT id, name, adapter, risk_level, requires_approval, runtime, params, system_prompt
-       FROM action_library WHERE id=$1`,
-    [toolId]
+       FROM action_library 
+      WHERE (id=$1 OR id=$2) AND COALESCE((runtime->>'orphan')::boolean, false) = false`,
+    [toolId, `tool.${bareToolId}`]
   );
   let row = rows[0];
   if (!row) {
@@ -122,28 +124,26 @@ async function loadTool(toolId) {
     try {
       const { rows: tRows } = await _pool.query(
         `SELECT id, label as name, source as adapter, risk as risk_level, requires_approval, params, system_prompt
-           FROM tools WHERE id=$1`,
-        [toolId]
+           FROM tools WHERE id=$1 OR id=$2 OR name=$3`,
+        [toolId, `tool.${bareToolId}`, bareToolId]
       );
       row = tRows[0];
     } catch { /* tools tablosu opsiyonel */ }
   }
   if (!row) {
     // Fallback 2: disk tools doğrudan kontrol et
-    if (toolId.startsWith("tool.")) {
-      const slug = toolId.slice(5);
-      const filePath = path.resolve(PROJECT_ROOT, "tools", `${slug}.py`);
-      if (fs.existsSync(filePath)) {
-        return {
-          id: toolId,
-          name: slug,
-          adapter: "python",
-          risk_level: "low",
-          requires_approval: false,
-          runtime: { handler: "python", script: filePath },
-          system_prompt: ""
-        };
-      }
+    const slug = bareToolId;
+    const filePath = path.resolve(PROJECT_ROOT, "tools", `${slug}.py`);
+    if (fs.existsSync(filePath)) {
+      return {
+        id: `tool.${slug}`,
+        name: slug,
+        adapter: "python",
+        risk_level: "low",
+        requires_approval: false,
+        runtime: { handler: "python", script: filePath },
+        system_prompt: ""
+      };
     }
     return null;
   }
@@ -213,17 +213,31 @@ const RUNNERS = {
     if (!r.ok) throw new Error(`http ${r.status}: ${String(parsed).slice(0, 400)}`);
     return parsed;
   },
-  async native({ tool, params, signal }) {
+  async native({ tool, params, signal, provider }) {
     const instructions = tool.runtime?.instructions || tool.system_prompt || "Execute the requested task.";
     const timeoutMs = Number(tool.runtime?.timeout_ms || 120000);
     
     // Dynamic import to avoid circular dependencies
     const { getActiveProviders, pickProviderForRequest, streamFromProvider, streamFromAnthropic, streamFromOpenAICompat, getProviderById, getRoutingPolicy } = await import("./agent-utils.mjs");
+    const { resolveCredential } = await import("./vault.mjs");
     
-    // Create a mock deps object for pickProviderForRequest
-    const mockDeps = { pool: _pool, getActiveProviders, getProviderById, getRoutingPolicy };
-    const prov = await pickProviderForRequest(mockDeps, { lastUserText: JSON.stringify(params) });
+    let prov = provider;
+    if (!prov) {
+      const mockDeps = { pool: _pool, getActiveProviders, getProviderById, getRoutingPolicy };
+      prov = await pickProviderForRequest(mockDeps, { lastUserText: JSON.stringify(params) });
+    }
     if (!prov) throw new Error("No active LLM provider found for native skill execution.");
+
+    let apiKey = prov.apiKey;
+    if (!apiKey || apiKey.startsWith("vault://") || apiKey.startsWith("raw://")) {
+      apiKey = await resolveCredential(_pool, prov.apiKey || prov.model_api_key || prov.secret_id, "api_key");
+    }
+    const resolvedProv = {
+      ...prov,
+      apiKey,
+      base_url: prov.base_url || prov.model_base_url,
+      model: prov.model || prov.model_id
+    };
 
     const messages = [
       { role: "system", content: instructions },
@@ -236,7 +250,7 @@ const RUNNERS = {
 
     try {
       const it = await streamFromProvider({
-        provider: prov,
+        provider: resolvedProv,
         messages,
         signal: controller.signal,
         streamFromGemini: streamFromOpenAICompat, // Use OpenAI compat for Gemini
@@ -246,8 +260,6 @@ const RUNNERS = {
 
       let answer = "";
       for await (const chunk of it) {
-        // provider streams from streamFromProvider return raw text chunks, 
-        // unlike the SSE proxy we use in chat-orchestrate.
         answer += chunk;
       }
 
@@ -348,7 +360,7 @@ const RUNNERS = {
 // ---- Public surface ---------------------------------------------------------
 export async function invokeTool({
   toolId, agentId = null, username = null, sessionId = null, runId = null,
-  params = {}, signal = null, targetId = null,
+  params = {}, signal = null, targetId = null, provider = null,
 } = {}) {
   if (!_pool) throw new Error("tool-adapters not initialized");
   const tool = await loadTool(toolId);
@@ -414,7 +426,7 @@ export async function invokeTool({
 
   const started = Date.now();
   try {
-    const output = await RUNNERS[adapter]({ tool, params, signal });
+    const output = await RUNNERS[adapter]({ tool, params, signal, provider });
     const duration = Date.now() - started;
     await updateInvocation(invocationId, {
       status: "done", output: output ?? null,

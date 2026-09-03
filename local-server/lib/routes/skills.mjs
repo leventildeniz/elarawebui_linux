@@ -129,7 +129,11 @@ export function mountSkillRoutes(app, deps) {
   app.post("/api/skills", async (req, res) => {
     try {
       const b = req.body || {};
-      const id = String(b.id || createPrefixedId("sk_")).trim();
+      const cleanSlug = String(b.id || b.slug || b.name || "")
+        .replace(/^(sk[._]|skill[._])+/i, "")
+        .replace(/[^a-zA-Z0-9_-]/g, "_")
+        .slice(0, 64);
+      const id = String(b.id && b.id.startsWith("sk.") ? b.id : `sk.${cleanSlug || Math.random().toString(36).slice(2, 8)}`).trim();
       const name = String(b.name || "Untitled Skill").trim();
       const owner = b.ownerId || b.owner_id || ctx.userId || req.actor || null;
       const ownerName = b.ownerName || b.owner_name || null;

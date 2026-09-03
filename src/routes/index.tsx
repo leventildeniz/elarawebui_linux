@@ -476,6 +476,7 @@ function SovereignChat() {
     // Merge agent's predefined tools and skills into capabilities
     const finalTools = new Set(caps.tools);
     const finalSkills = new Set(caps.skills);
+    const finalMcp = new Set(caps.mcp);
 
     if (agent) {
       agent.tools.forEach(t => finalTools.add(t));
@@ -493,6 +494,7 @@ function SovereignChat() {
       capabilities: {
         tools: Array.from(finalTools),
         skills: Array.from(finalSkills),
+        mcp: Array.from(finalMcp),
       },
       ...(active?.id ? { threadId: active.id, thread_id: active.id } : {}),
       ...(active?.context ? { context: active.context } : {}),

@@ -5,6 +5,15 @@ import https from "https";
 import { URL } from "url";
 import { ragProbeAndFetch } from "../rag/retrieval.mjs";
 
+function mapJsonSchemaType(t) {
+  const x = String(t || "string").toLowerCase();
+  if (x === "number" || x === "int" || x === "integer" || x === "float") return "number";
+  if (x === "bool" || x === "boolean") return "boolean";
+  if (x === "object" || x === "json") return "object";
+  if (x === "array") return "array";
+  return "string";
+}
+
 // --- NATIVE STREAM REQUEST (TCP KILLER) ---
 // Node.js'in standart fetch/undici'si keep-alive ve draining yüzünden soketi anında öldürmez.
 // Llama.cpp ve Gemma gibi modeller soket ölmediği için token üretmeye devam eder.
@@ -846,6 +855,35 @@ When the user asks you a question or assigns a task, intelligently apply the fol
         masterDirectives.push(`[THINKING EFFORT: NONE] DO NOT perform any step-by-step reasoning or deliberation. DO NOT output any <think> tags. Provide your final answer instantly, using your immediate intuition. Be extremely direct and concise.`);
       }
 
+      // @Agent Mention: Eğer sohbette spesifik bir uzman ajan seçilmişse, o ajanın kimliğini ve sistem direktiflerini enjekte et
+      if (agent_id) {
+        try {
+          const agtRow = await pool.query(
+            `SELECT id, name, system_prompt, rag, rag_space_id, rag_brands, rag_keywords FROM agents WHERE id = $1 LIMIT 1`,
+            [agent_id]
+          );
+          if (agtRow.rows.length > 0) {
+            const agt = agtRow.rows[0];
+            masterDirectives.push(`[ACTIVE AGENT PERSONA ACTIVATED]: You are currently operating as the specialized agent "${agt.name}" (${agt.id}). Adhere strictly to the following instructions:\n${agt.system_prompt || ""}`);
+          }
+        } catch (e) {
+          console.warn("[Orchestrate] Agent persona load failed:", e.message);
+        }
+      }
+
+      // Explicit Capability Mentions (/Tool, !Skill, #MCP): Kullanıcı bir aracı/yeteneği doğrudan seçtiğinde modele bunu zorunlu kıl
+      const requestedTools = capabilities?.tools || [];
+      const requestedSkills = capabilities?.skills || [];
+      const requestedMcp = capabilities?.mcp || [];
+
+      if (requestedTools.length > 0 || requestedSkills.length > 0 || requestedMcp.length > 0) {
+        const attachedList = [];
+        if (requestedTools.length > 0) attachedList.push(`Tools: [${requestedTools.join(', ')}]`);
+        if (requestedSkills.length > 0) attachedList.push(`Skills: [${requestedSkills.join(', ')}]`);
+        if (requestedMcp.length > 0) attachedList.push(`MCP Server/Tools: [${requestedMcp.join(', ')}]`);
+        masterDirectives.push(`[EXPLICIT USER ATTACHMENTS & CAPABILITY MANDATE]: The user has explicitly selected and attached the following capabilities to this turn: ${attachedList.join(' · ')}. You MUST execute the corresponding attached tool(s)/MCP functions to fulfill the request. NEVER substitute or bypass an attached MCP/Tool with a generic web fetch or approximation.`);
+      }
+
       formattedMessages.unshift({
         role: "system",
         content: masterDirectives.join("\n\n")
@@ -855,18 +893,11 @@ When the user asks you a question or assigns a task, intelligently apply the fol
       const openAiTools = [];
       const toolMap = {}; // Tool'ların LLM güvenli isminden (Örn: tool_xyz) gerçek ID'sine (mcp.xyz) ulaşmak için.
       
-      // Eğer arayüz bize kullanmak istediği tool/skill'leri gönderdiyse DB'den şemalarını topla
-      // PHASE 30 - Zero-Shot Capability Resolution:
-      // Kullanıcı manuel seçmese bile, sistemdeki global ('workspace' görünürlüğündeki) native araçlar hep fısıldanacak.
-      const requestedTools = capabilities?.tools || [];
-      const requestedSkills = capabilities?.skills || [];
-      const requestedMcp = capabilities?.mcp || [];
-      
       let finalToolIds = [];
       try {
           // Sistemdeki (Native + Workspace) temel araçları DB'den topla (Örn: Date, Weather, Search vs)
           const systemToolsRes = await pool.query(
-             `SELECT id FROM tools WHERE source = 'native' AND visibility = 'workspace' AND enabled = true`
+             `SELECT id FROM action_library WHERE (visibility = 'workspace' OR is_system = true) AND COALESCE((runtime->>'orphan')::boolean, false) = false`
           );
           const systemToolIds = systemToolsRes.rows.map(r => r.id);
           
@@ -879,21 +910,39 @@ When the user asks you a question or assigns a task, intelligently apply the fol
 
       if (capabilities || finalToolIds.length > 0) {
          try {
-             // 1. Tools tablosundan (Hem kullanıcının seçtikleri hem Zero-Shot araçları)
-             // Not: mcp.* ID'leri tools tablosunda olmadığı için onları filtreleyelim
+             // 1. /Tool (Action Library): Hem kullanıcının seçtikleri hem Zero-Shot araçları
              const dbToolIds = finalToolIds.filter(id => !id.startsWith("mcp."));
              if (dbToolIds.length > 0) {
-                 // params jsonb kolonundan name, description gibi şeyleri çıkartıp OpenAI property'lerine dizeceğiz
-                 const toolRes = await pool.query(`SELECT id, label, description, params FROM tools WHERE id = ANY($1) AND enabled = true`, [dbToolIds]);
+                 const cleanToolIds = dbToolIds.map(id => id.startsWith("tool.") ? id : `tool.${id}`);
+                 const bareToolIds = dbToolIds.map(id => id.replace(/^tool\./, ''));
+                 const allPossibleIds = [...new Set([...dbToolIds, ...cleanToolIds, ...bareToolIds])];
+
+                 const toolRes = await pool.query(
+                   `SELECT id, name, description, params FROM action_library 
+                     WHERE (id = ANY($1) OR name = ANY($1)) 
+                       AND COALESCE((runtime->>'orphan')::boolean, false) = false`,
+                   [allPossibleIds]
+                 );
                  for (const t of toolRes.rows) {
                      const properties = {};
                      const required = [];
                      
-                     // params genelde UI'dan [{name: "query", type: "string", required: true}] şeklinde gelir
-                     const tParams = Array.isArray(t.params) ? t.params : [];
-                     for (const p of tParams) {
-                         properties[p.name || p.id] = { type: p.type || "string", description: p.description || "" };
-                         if (p.required) required.push(p.name || p.id);
+                     let tParams = [];
+                     try {
+                         tParams = typeof t.params === 'string' ? JSON.parse(t.params) : (t.params || []);
+                     } catch(e) {}
+                     
+                     if (Array.isArray(tParams)) {
+                         for (const p of tParams) {
+                             const pKey = p.key || p.name || p.id;
+                             if (!pKey) continue;
+                             properties[pKey] = { type: mapJsonSchemaType(p.type), description: p.description || p.label || "" };
+                             if (p.required) required.push(pKey);
+                         }
+                     } else if (typeof tParams === 'object' && tParams !== null) {
+                         for (const [k, v] of Object.entries(tParams)) {
+                             properties[k] = { type: mapJsonSchemaType(v), description: "" };
+                         }
                      }
 
                      const safeName = `tool_${t.id.replace(/[^a-zA-Z0-9_]/g, '_')}`;
@@ -903,7 +952,7 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                          type: "function",
                          function: {
                              name: safeName,
-                             description: t.description || t.label || "No description",
+                             description: t.description || t.name || "No description",
                              parameters: {
                                  type: "object",
                                  properties,
@@ -914,17 +963,36 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                  }
              }
 
-             // 2. Skills tablosundan istenen yetenekleri topla
-             if (capabilities.skills && capabilities.skills.length > 0) {
-                 const skillRes = await pool.query(`SELECT id, name, description, params FROM skills WHERE id = ANY($1) AND enabled = true`, [capabilities.skills]);
+             // 2. !Skill (Skills tablosundan istenen yetenekleri topla)
+             if (capabilities?.skills && capabilities.skills.length > 0) {
+                 const cleanSkillIds = capabilities.skills.map(id => id.startsWith("sk.") ? id : `sk.${id.replace(/^skill\./, '')}`);
+                 const bareSkillIds = capabilities.skills.map(id => id.replace(/^(sk\.|skill\.)/, ''));
+                 const allSkillIds = [...new Set([...capabilities.skills, ...cleanSkillIds, ...bareSkillIds])];
+
+                 const skillRes = await pool.query(
+                   `SELECT id, name, description, params FROM skills WHERE id = ANY($1) AND enabled = true`,
+                   [allSkillIds]
+                 );
                  for (const s of skillRes.rows) {
                      const properties = {};
                      const required = [];
                      
-                     const sParams = Array.isArray(s.params) ? s.params : [];
-                     for (const p of sParams) {
-                         properties[p.name || p.id] = { type: p.type || "string", description: p.description || "" };
-                         if (p.required) required.push(p.name || p.id);
+                     let sParams = [];
+                     try {
+                         sParams = typeof s.params === 'string' ? JSON.parse(s.params) : (s.params || []);
+                     } catch(e) {}
+                     
+                     if (Array.isArray(sParams)) {
+                         for (const p of sParams) {
+                             const pKey = p.key || p.name || p.id;
+                             if (!pKey) continue;
+                             properties[pKey] = { type: mapJsonSchemaType(p.type), description: p.description || p.label || "" };
+                             if (p.required) required.push(pKey);
+                         }
+                     } else if (typeof sParams === 'object' && sParams !== null) {
+                         for (const [k, v] of Object.entries(sParams)) {
+                             properties[k] = { type: mapJsonSchemaType(v), description: "" };
+                         }
                      }
 
                      const safeName = `skill_${s.id.replace(/[^a-zA-Z0-9_]/g, '_')}`;
@@ -944,13 +1012,13 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                      });
                  }
              }
-             // 3. MCP tablosundan istenen yetenekleri topla
+             // 3. #MCP (MCP tablosundan istenen yetenekleri topla)
              if (requestedMcp && requestedMcp.length > 0) {
                  const mcpServerRes = await pool.query(`SELECT slug, name, tools_cache FROM mcp_client_servers WHERE enabled = true`);
                  
                  for (const server of mcpServerRes.rows) {
                      const serverMcpId = `mcp.${server.slug}`;
-                     const isServerRequested = requestedMcp.includes(serverMcpId);
+                     const isServerRequested = requestedMcp.includes(serverMcpId) || requestedMcp.some(x => x.startsWith(`mcp.${server.slug}.`));
 
                      const tools = Array.isArray(server.tools_cache) ? server.tools_cache : [];
                      for (const t of tools) {
@@ -1118,7 +1186,7 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                   break;
               } catch (err) {
                   hopError = err;
-                  console.warn(`[Orchestrate] Provider ${currentProv.model_name} failed:`, err.message);
+                  console.error(`[Orchestrate] ❌ Provider ${currentProv.model_name} failed:`, err.stack || err.message);
                   hopIndex++; // Bir sonraki modele geç
               }
           }
@@ -1560,16 +1628,28 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                           const targetToolId = parsedArgs.tool_id || "";
                           const targetParams = parsedArgs.params || {};
 
-                          // Resilient / Tolerant ID resolution (auto-resolve prefixes, protect from orphans)
+                          // Resilient / Tolerant ID resolution (auto-resolve prefixes, safeNames, underscores)
                           let canonicalId = targetToolId;
                           let isAllowed = false;
 
-                          let isMcp = targetToolId.startsWith("mcp.");
+                          // Clean variations:
+                          // e.g. "skill_sk_system_health_synthesizer" -> "system-health-synthesizer"
+                          // e.g. "tool_tool_ssl_cert_probe" -> "ssl-cert-probe"
+                          const normalizedId = targetToolId
+                            .replace(/^(skill_|tool_|sk_|skill\.|tool\.|sk\.)+/gi, "")
+                            .replace(/_/g, '-');
+                          const dotId = targetToolId
+                            .replace(/^(skill_|tool_|sk_)+/gi, "")
+                            .replace(/_/g, '.');
+
+                          let isMcp = targetToolId.startsWith("mcp.") || dotId.startsWith("mcp.");
                           let serverSlug = "";
                           if (isMcp) {
-                              serverSlug = targetToolId.slice(4).split(".")[0];
-                          } else if (targetToolId.includes(".")) {
-                              const firstPart = targetToolId.split(".")[0];
+                              const cleanMcp = (targetToolId.startsWith("mcp.") ? targetToolId : dotId).slice(4);
+                              serverSlug = cleanMcp.split(".")[0];
+                              canonicalId = `mcp.${cleanMcp}`;
+                          } else if (targetToolId.includes(".") || dotId.includes(".")) {
+                              const firstPart = (targetToolId.includes(".") ? targetToolId : dotId).split(".")[0];
                               const mcpServerCheck = await pool.query(
                                   `SELECT slug FROM mcp_client_servers WHERE slug = $1 AND enabled = true`,
                                   [firstPart]
@@ -1577,7 +1657,7 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                               if (mcpServerCheck.rows.length > 0) {
                                   isMcp = true;
                                   serverSlug = firstPart;
-                                  canonicalId = `mcp.${targetToolId}`;
+                                  canonicalId = `mcp.${dotId}`;
                               }
                           }
 
@@ -1588,30 +1668,41 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                                   [serverSlug]
                               );
                               if (mcpRow.rows.length > 0) isAllowed = true;
-                          } else if (targetToolId.startsWith("sk.") || targetToolId.startsWith("skill.")) {
-                              // It's a skill
-                              const cleanSkillId = targetToolId.startsWith("sk.") ? targetToolId : `sk.${targetToolId.replace(/^skill\./, '')}`;
-                              const { clause: skillClause, params: skillParams } = deps.buildVisibility(actorCtx, 3, 'owner_id');
+                          } else {
+                              // Check skills table (all variations: targetToolId, sk.<normalizedId>, normalizedId, etc.)
+                              const possibleSkillIds = [
+                                targetToolId,
+                                `sk.${normalizedId}`,
+                                `sk.${targetToolId}`,
+                                normalizedId,
+                                dotId
+                              ];
+                              const { clause: skillClause, params: skillParams } = deps.buildVisibility(actorCtx, 2, 'owner_id');
                               const skillRow = await pool.query(
-                                  `SELECT id FROM skills WHERE (id = $1 OR id = $2) AND enabled = true AND (${skillClause})`,
-                                  [targetToolId, cleanSkillId, ...skillParams]
+                                  `SELECT id FROM skills WHERE id = ANY($1) AND enabled = true AND (${skillClause})`,
+                                  [possibleSkillIds, ...skillParams]
                               );
                               if (skillRow.rows.length > 0) {
                                   isAllowed = true;
                                   canonicalId = skillRow.rows[0].id;
-                              }
-                          } else {
-                              // Standard Tool: check with or without "tool." prefix, and strictly exclude orphans
-                              const cleanToolId = targetToolId.startsWith("tool.") ? targetToolId : `tool.${targetToolId}`;
-                              const bareToolId = targetToolId.replace(/^tool\./, '');
-                              const { clause: actClause, params: actParams } = deps.buildVisibility(actorCtx, 4, 'owner_user_id');
-                              const toolRow = await pool.query(
-                                 `SELECT id FROM action_library WHERE (id = $1 OR id = $2 OR slug = $3) AND (${actClause}) AND is_system = false AND COALESCE((runtime->>'orphan')::boolean, false) = false`,
-                                 [targetToolId, cleanToolId, bareToolId, ...actParams]
-                              );
-                              if (toolRow.rows.length > 0) {
-                                  isAllowed = true;
-                                  canonicalId = toolRow.rows[0].id;
+                              } else {
+                                  // Standard Tool: check all variations: targetToolId, tool.<normalizedId>, normalizedId, dotId
+                                  const possibleToolIds = [
+                                    targetToolId,
+                                    `tool.${normalizedId}`,
+                                    `tool.${dotId}`,
+                                    normalizedId,
+                                    dotId
+                                  ];
+                                  const { clause: actClause, params: actParams } = deps.buildVisibility(actorCtx, 2, 'owner_user_id');
+                                  const toolRow = await pool.query(
+                                     `SELECT id FROM action_library WHERE (id = ANY($1) OR name = ANY($1)) AND (${actClause}) AND is_system = false AND COALESCE((runtime->>'orphan')::boolean, false) = false`,
+                                     [possibleToolIds, ...actParams]
+                                  );
+                                  if (toolRow.rows.length > 0) {
+                                      isAllowed = true;
+                                      canonicalId = toolRow.rows[0].id;
+                                  }
                               }
                           }
 
@@ -1623,7 +1714,8 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                                   toolId: canonicalId,
                                   params: targetParams,
                                   sessionId: thread_id,
-                                  agentId: agent_id
+                                  agentId: agent_id,
+                                  provider: finalProviderUsed || prov
                               });
 
                               let outputRes = invokeRes.output ?? invokeRes;
@@ -1837,7 +1929,8 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                               toolId: realToolId,
                               params: parsedArgs,
                               sessionId: thread_id,
-                              agentId: agent_id
+                              agentId: agent_id,
+                              provider: finalProviderUsed || prov
                           });
                           
                           let outputRes = invokeRes.output ?? invokeRes;

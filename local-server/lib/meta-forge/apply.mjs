@@ -143,11 +143,15 @@ async function stampCapabilityMeta(pool, { slug, kind, intentHash, confidence, r
 }
 
 async function applySkillCreate(pool, planId, item, meta) {
-  const slug = String(item.slug).replace(/[^a-zA-Z0-9_.-]/g, "_").slice(0, 64);
-  const name = String(item.name || slug).slice(0, 120);
+  const cleanSlug = String(item.slug || "")
+    .replace(/^(sk[._]|skill[._])+/i, "")
+    .replace(/[^a-zA-Z0-9_-]/g, "_")
+    .slice(0, 64);
+  const skillId = `sk.${cleanSlug}`;
+  const name = String(item.name || cleanSlug || skillId).slice(0, 120);
   const instructions = String(item.body || item.instructions || item.source || "").slice(0, 20000);
   const description = String(item.description || "").slice(0, 500);
-  if (!instructions.trim()) throw new Error(`skill ${slug}: body/instructions required`);
+  if (!instructions.trim()) throw new Error(`skill ${cleanSlug}: body/instructions required`);
   const { ownerId, ownerName } = await resolveDbOwner(pool, meta.forgedBy);
   const r = await pool.query(
     `INSERT INTO skills (id, name, description, instructions, type, system, owner_id, owner_name, visibility)
@@ -158,15 +162,15 @@ async function applySkillCreate(pool, planId, item, meta) {
        owner_name=COALESCE(skills.owner_name, EXCLUDED.owner_name),
        visibility=COALESCE(skills.visibility, 'private')
      RETURNING id`,
-    [slug, name, description, instructions, ownerId, ownerName],
+    [skillId, name, description, instructions, ownerId, ownerName],
   );
   await pool.query(
     `INSERT INTO forge_artifacts (plan_id, kind, slug, db_row_id)
      VALUES ($1, 'skill', $2, $3) ON CONFLICT DO NOTHING`,
-    [planId, slug, r.rows[0].id],
+    [planId, cleanSlug, r.rows[0].id],
   );
-  await stampCapabilityMeta(pool, { slug, kind: "skill", ...meta });
-  return { kind: "skill", slug, id: r.rows[0].id, ...meta };
+  await stampCapabilityMeta(pool, { slug: cleanSlug, kind: "skill", ...meta });
+  return { kind: "skill", slug: cleanSlug, id: r.rows[0].id, ...meta };
 }
 
 async function applyWorkflowCreate(pool, planId, item, meta) {
@@ -720,7 +724,7 @@ export async function rollbackForgePlan({ pool, planId }) {
       } else if (a.kind === "tool") {
         // Clean from action_library and tools tables
         const toolIds = [a.db_row_id, `tool.${a.slug}`, a.slug].filter(Boolean);
-        await pool.query(`DELETE FROM action_library WHERE id = ANY($1) OR (slug = $2 AND is_system = false)`, [toolIds, a.slug]);
+        await pool.query(`DELETE FROM action_library WHERE (id = ANY($1) OR name = $2) AND is_system = false`, [toolIds, a.slug]);
         await pool.query(`DELETE FROM tools WHERE id = ANY($1) OR name = $2`, [toolIds, a.slug]);
         
         // Move file to .forge-trash if disk_path exists

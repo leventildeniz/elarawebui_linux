@@ -229,7 +229,7 @@ export async function* streamFromOpenAICompat({ apiKey, model, baseUrl, messages
   while (true) {
     const { value, done } = await reader.read(); if (done) break;
     buf += dec.decode(value, { stream: true });
-    const frames = buf.split("\\n"); buf = frames.pop() ?? "";
+    const frames = buf.split("\n"); buf = frames.pop() ?? "";
     for (const f of frames) {
       const line = f.trim(); if (!line.startsWith("data:")) continue;
       const payload = line.slice(5).trim(); if (!payload || payload === "[DONE]") continue;
@@ -244,7 +244,7 @@ export async function* streamFromOpenAICompat({ apiKey, model, baseUrl, messages
 
 export async function* streamFromAnthropic({ apiKey, model, baseUrl, messages, signal }) {
   const url = `${(baseUrl || "https://api.anthropic.com").replace(/\/+$/, "")}/v1/messages`;
-  const sys = messages.filter(m => m.role === "system").map(m => m.content).join("\\n");
+  const sys = messages.filter(m => m.role === "system").map(m => m.content).join("\n");
   const msgs = messages.filter(m => m.role !== "system").map(m => ({
     role: m.role === "assistant" ? "assistant" : "user", content: m.content,
   }));
@@ -262,7 +262,7 @@ export async function* streamFromAnthropic({ apiKey, model, baseUrl, messages, s
   while (true) {
     const { value, done } = await reader.read(); if (done) break;
     buf += dec.decode(value, { stream: true });
-    const frames = buf.split("\\n"); buf = frames.pop() ?? "";
+    const frames = buf.split("\n"); buf = frames.pop() ?? "";
     for (const f of frames) {
       const line = f.trim(); if (!line.startsWith("data:")) continue;
       try {
@@ -276,9 +276,15 @@ export async function* streamFromAnthropic({ apiKey, model, baseUrl, messages, s
 
 export async function* streamFromProvider({ provider, messages, signal, streamFromGemini, streamFromAnthropic, streamFromOpenAICompat }) {
   const fam = detectProviderFamily(provider.provider_name, provider.base_url);
-  if (fam === "gemini") return streamFromGemini({ apiKey: provider.apiKey, model: provider.model, baseUrl: provider.base_url, messages, signal });
-  if (fam === "anthropic") return streamFromAnthropic({ apiKey: provider.apiKey, model: provider.model, baseUrl: provider.base_url, messages, signal });
-  return streamFromOpenAICompat({ apiKey: provider.apiKey, model: provider.model, baseUrl: provider.base_url, messages, signal });
+  if (fam === "gemini") {
+    yield* streamFromGemini({ apiKey: provider.apiKey, model: provider.model, baseUrl: provider.base_url, messages, signal });
+    return;
+  }
+  if (fam === "anthropic") {
+    yield* streamFromAnthropic({ apiKey: provider.apiKey, model: provider.model, baseUrl: provider.base_url, messages, signal });
+    return;
+  }
+  yield* streamFromOpenAICompat({ apiKey: provider.apiKey, model: provider.model, baseUrl: provider.base_url, messages, signal });
 }
 
 export async function getRoutingPolicy(pool) {

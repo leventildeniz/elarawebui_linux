@@ -422,6 +422,16 @@ Bu aşamada MetaForge ve Chat orkestrasyonundaki kritik senkronizasyon, yaşam d
    - Akış esnasında her harfte `localStorage.setItem` çağrılması engellendi, 350ms'lik debounce arkasına alınarak Main Thread donmaları yok edildi.
    - İmleç animasyonu donanım hızlandırmalı saf CSS `animate-pulse` sınıfına çekildi.
    - `rich-message.tsx` içerisindeki `Inline` bileşenine akış esnasında kapanmamış `**...` kalın metin parçaları için yumuşak geçiş eklendi, font sıçramaları ve titremeler giderildi.
+7. **Composer `#MCP` Payload Entegrasyonu (`index.tsx`):**
+   - `orchestrateBody` içinde unutulmuş olan `mcp: Array.from(finalMcp)` alanı eklenerek `#MCP` seçimlerinin eksiksiz backend'e akıtılması sağlandı; modelin genel web kazıma (`web_fetch`) yerine doğrudan resmi GitHub MCP fonksiyonlarını (`mcp.github.*`) çalıştırması sağlandı.
+8. **OpenAPI JSON Şema Tip Standartlaştırması (`chat-orchestrate.mjs`):**
+   - Parametre tiplerindeki `text`, `secret` gibi uyumsuz tipler katı JSON şema standartlarına (`string`, `number`, `boolean`, `object`, `array`) dönüştürüldü (`mapJsonSchemaType`). Google Gemini ve Cloud modellerinde yaşanan 400 Bad Request ve sessiz failover problemleri tamamen ortadan kaldırıldı.
+9. **Kanonik Skill ID Standardizasyonu (`apply.mjs`, `skills.mjs`, `skills` DB):**
+   - Tüm yetenekler hem MetaForge sentezinde hem UI modalında zorunlu `sk.<slug>` standardına bağlandı; veritabanındaki yalın kayıtlar `sk.` önekiyle güncellendi ve `sys_execute_tool`'un çift önek (`skill_sk_...`) çözümü zırhlandırıldı.
+10. **`@Agent` Persona ve Direktif Enjeksiyonu (`chat-orchestrate.mjs`):**
+    - Sohbette `@Agent` seçildiğinde seçilen ajanın `system_prompt`, isim ve uzmanlık talimatlarının `[ACTIVE AGENT PERSONA ACTIVATED]` başlığıyla modele doğrudan enjekte edilmesi sağlandı.
+11. **Native Skill İcra Motoru & Generator Delegasyonu (`tool-adapters.mjs`, `agent-utils.mjs`):**
+    - Async generator (`yield*`) delegasyonu ve alt model çağrılarında Vault API anahtarının çözümlenmesi onarılarak Native Prompt Skill'lerin canlı model üzerinden eksiksiz rapor üretmesi sağlandı.
 
 ## 48. UP NEXT (Phase 48) - Agentic RAG & Knowledge Hub Validation
 - Dondurulan RAG entegrasyonu, departman bazlı space izolasyonu (`rag_space_id`), dosya indeksleme ve reranker testleri devreye alınacak.
