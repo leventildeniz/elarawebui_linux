@@ -29,6 +29,17 @@ import {
 import { useKnowledge } from "@/lib/knowledge-store";
 import { cn } from "@/lib/utils";
 
+function slugify(text: string): string {
+  return String(text || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/ı/g, "i")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48);
+}
+
 const field =
   "w-full rounded-lg border border-white/[0.07] bg-raised/40 px-3 py-2 font-mono text-[12.5px] text-foreground outline-none transition-colors placeholder:text-muted-foreground/45 focus:border-sapphire/50";
 const label = "mono-label mb-1.5 block";
@@ -109,15 +120,26 @@ export function KnowledgeSpacesTab() {
                 <input
                   className={field}
                   value={active.name}
-                  onChange={(e) => updateSpace(active.id, { name: e.target.value })}
+                  placeholder="e.g. Technical Documentation"
+                  onChange={(e) => {
+                    const name = e.target.value;
+                    const autoSlug = slugify(name);
+                    updateSpace(active.id, { name, slug: autoSlug || active.slug });
+                  }}
                 />
               </div>
               <div>
-                <span className={label}>slug</span>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="mono-label">slug (auto-generated)</span>
+                  <span className="flex items-center gap-1 font-mono text-[10.5px] text-muted-foreground/60">
+                    <Lock size={11} className="text-sapphire/80" /> locked
+                  </span>
+                </div>
                 <input
-                  className={field}
+                  readOnly
+                  className={cn(field, "bg-black/40 text-muted-foreground/80 cursor-default border-dashed border-white/10 select-all focus:border-white/10")}
                   value={active.slug}
-                  onChange={(e) => updateSpace(active.id, { slug: e.target.value })}
+                  placeholder="auto-generated-slug"
                 />
               </div>
             </div>
