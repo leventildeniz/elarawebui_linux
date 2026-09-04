@@ -534,9 +534,13 @@ Bu aşamada `/system` (Logs / Audit) altındaki **Live Debugging** ve **Audit Jo
    - `src/routes/services.tsx` içerisindeki eski `@/mocks` import'u ve fallback verileri tamamen silinerek doğrudan PostgreSQL `app_services` ve `search_providers` tablolarına bağlandı.
    - Tüm 12 modülün %100 gerçek PostgreSQL veritabanı ve kurumsal İngilizce standartlarında çalıştığı doğrulandı.
 9. **Multi-Provider Routing Override Kapsamı ve Kurumsal RBAC:**
-   - `src/lib/provider-store.ts` ve `src/components/sovereign/ai-providers-panel.tsx`: `Allow user override` anahtarına `Everyone`, `Admins only` ve `Specific roles` (rol bazlı yetki seçimi) yetki kapsamı eklendi.
+   - `src/lib/provider-store.ts` ve `src/components/sovereign/ai-providers-panel.tsx`: `Allow user override` anahtarına `Everyone`, `Admins only`, `User Groups`, `Specific Users` ve `Roles` yetki kapsamları eklendi.
    - `src/components/sovereign/composer.tsx`: Yetkisi olmayan kullanıcılar için Chat popover'ındaki Routing seçimi otomatik olarak kilitlendi (`[Locked by Policy]`).
-   - `local-server/lib/routes/chat-orchestrate.mjs`: Kullanıcı oturum rolü (`actorCtx.role`) backend seviyesinde doğrulanarak yetkisiz override isteklerinin sunucu tarafında engellenmesi sağlandı.
+   - `local-server/lib/routes/chat-orchestrate.mjs`: Kullanıcı oturum kimliği (`actorCtx.username`), grupları (`actorCtx.groups`) ve rolü backend seviyesinde doğrulanarak yetkisiz override isteklerinin sunucu tarafında engellenmesi sağlandı.
+10. **Policy & Security (GenGuard / Policy Engine / Isolation) Uçtan Uca Gözlemlenebilirlik:**
+   - `src/routes/policy.tsx`: GenGuard ve Policy Engine kural tablolarında her kural satırına FortiGate tarzı doğrudan Audit Journal'a (`stream=policy&q=<kural_adı>`) bağlanan `ScrollText` log butonu eklendi; İzolasyon sekmelerindeki yönlendirme butonları kaldırılarak saf güvenlik yapılandırma görünümü korundu.
+   - `src/routes/system.tsx` & `src/components/sovereign/audit-panel.tsx`: Derin arama ve filtreleme URL parametreleri (`stream`, `q`, `view=audit/debug`, `tab=live`) desteklendi.
+   - `local-server/lib/routes/chat-orchestrate.mjs`: Sohbet girişinde `guard_rules` (GenGuard) kuralları gerçek zamanlı çalıştırılarak prompt injection veya kara liste eşleşmelerinde isteğin engellenmesi (`DENY`), kullanıcıya güvenlik uyarısı verilmesi ve audit günlüğüne kaydedilmesi sağlandı.
 
 ## 51. UP NEXT (Phase 51) - Agentic RAG & Knowledge Hub Validation & Deep Benchmarking
 1. **Agentic RAG & Knowledge Hub Validation:** Departman bazlı space izolasyonu (`rag_space_id`), doküman chunklama ve `bge-reranker-v2-m3` reranker testleri.

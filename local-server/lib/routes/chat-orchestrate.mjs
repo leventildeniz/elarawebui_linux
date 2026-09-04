@@ -879,6 +879,95 @@ export async function mountChatOrchestrateRoutes(app, deps) {
       console.log(`===========================================\n`);
       
       send({ phase: "policy", meta: { source: `provider:${sourceName}`, model: usedModel } });
+
+      // 2.1. GenGuard Prompt-Injection & Blacklist Security Firewall
+      try {
+        const guardRows = await pool.query(
+          "SELECT * FROM guard_rules WHERE enabled = true ORDER BY seq ASC, created_at ASC"
+        );
+        if (guardRows.rows.length > 0) {
+          const userPromptText = messages
+            .map((m) =>
+              typeof m.content === "string"
+                ? m.content
+                : Array.isArray(m.content)
+                  ? m.content.map((c) => c.text || "").join(" ")
+                  : "",
+            )
+            .join("\n");
+
+          for (const rule of guardRows.rows) {
+            let matched = false;
+            let matchReason = "";
+
+            // Check input blacklist phrases (comma or newline separated)
+            if (rule.input_blacklist) {
+              const blacklists = rule.input_blacklist
+                .split(/[\n,]/)
+                .map((s) => s.trim())
+                .filter(Boolean);
+              for (const phrase of blacklists) {
+                if (phrase && userPromptText.toLowerCase().includes(phrase.toLowerCase())) {
+                  matched = true;
+                  matchReason = `blacklisted term "${phrase}"`;
+                  break;
+                }
+              }
+            }
+
+            // Check regex output/input patterns
+            if (!matched && rule.output_patterns) {
+              try {
+                const patterns = rule.output_patterns
+                  .split("\n")
+                  .map((s) => s.trim())
+                  .filter(Boolean);
+                for (const pat of patterns) {
+                  const reg = new RegExp(pat, "i");
+                  if (reg.test(userPromptText)) {
+                    matched = true;
+                    matchReason = `matched pattern /${pat}/i`;
+                    break;
+                  }
+                }
+              } catch (regErr) {
+                /* ignore invalid regex */
+              }
+            }
+
+            if (matched) {
+              const ruleAction = String(rule.action || "deny").toLowerCase();
+              emitDebug(
+                ruleAction === "deny" ? "warn" : "info",
+                "policy.genguard",
+                `GenGuard rule #${rule.seq || 10} "${rule.name}" triggered (${matchReason}) → ${ruleAction.toUpperCase()}`,
+                {
+                  ruleId: rule.id,
+                  ruleName: rule.name,
+                  seq: rule.seq,
+                  action: ruleAction,
+                  reason: matchReason,
+                  stream: "policy",
+                },
+                thread_id,
+              );
+
+              if (ruleAction === "deny") {
+                send({
+                  type: "out",
+                  delta: `🛡️ **[SECURITY VIOLATION — GenGuard Firewall]**\nYour request was blocked by security policy rule **#${rule.seq || 10} (${rule.name})**.\n*Reason:* ${matchReason}.\n*Action:* **DENY**.\n\n*This event has been logged to the Sovereign Audit Journal.*`,
+                });
+                close();
+                return;
+              }
+              // First match wins
+              break;
+            }
+          }
+        }
+      } catch (guardErr) {
+        console.warn("[Orchestrate] GenGuard evaluation notice:", guardErr.message);
+      }
       
       // 3. Format messages and multimodal support
       const formattedMessages = messages.map(m => {

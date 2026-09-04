@@ -1,7 +1,8 @@
 import { useMemo, useState, useEffect, type ReactNode } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
 import {
+  Activity,
   ChevronDown,
   ChevronUp,
   Eye,
@@ -12,6 +13,7 @@ import {
   KeyRound,
   Pencil,
   Plus,
+  ScrollText,
   Shield,
   Trash2,
   X,
@@ -701,7 +703,7 @@ function PolicyView() {
         {tab === "isolation" && (
           <CrudSection
             heading="Tool Isolation · sandbox"
-            blurb="Every tool call runs inside a scoped filesystem with an explicit syscall deny list. Bind a profile to the tools it governs — unbound tools inherit the fallback profile."
+            blurb="Each tool executes under a declared network posture and filesystem allow list. Bind a profile to the tools it governs — unbound tools inherit the fallback profile."
             tone="emerald"
             createLabel="New sandbox profile"
             fields={isolationFields}
@@ -737,7 +739,10 @@ function PolicyView() {
                   : "— not applied to any tool";
               const rows: [string, ReactNode][] = [
                 ["applies to", bound],
-                ["allowed paths", (p.allowedPaths || "").split("\n").filter(Boolean).join(" · ") || "—"],
+                [
+                  "allowed paths",
+                  (p.allowedPaths || "").split("\n").filter(Boolean).join(" · ") || "—",
+                ],
                 ["denied syscalls", p.deniedSyscalls || "—"],
               ];
               if (p.network === "allowlist")
@@ -790,7 +795,10 @@ function PolicyView() {
                   : "— not applied to any skill";
               const rows: [string, ReactNode][] = [
                 ["applies to", bound],
-                ["allowed paths", (p.allowedPaths || "").split("\n").filter(Boolean).join(" · ") || "—"],
+                [
+                  "allowed paths",
+                  (p.allowedPaths || "").split("\n").filter(Boolean).join(" · ") || "—",
+                ],
                 ["denied syscalls", p.deniedSyscalls || "—"],
               ];
               if (p.network === "allowlist")
@@ -843,7 +851,10 @@ function PolicyView() {
                   : "— not applied to any MCP client";
               const rows: [string, ReactNode][] = [
                 ["applies to", bound],
-                ["allowed paths", (p.allowedPaths || "").split("\n").filter(Boolean).join(" · ") || "—"],
+                [
+                  "allowed paths",
+                  (p.allowedPaths || "").split("\n").filter(Boolean).join(" · ") || "—",
+                ],
                 ["denied syscalls", p.deniedSyscalls || "—"],
               ];
               if (p.network === "allowlist")
@@ -1145,12 +1156,12 @@ function FirewallSection<T extends FirewallItem>({
       </AnimatePresence>
 
       <div className="mt-6 overflow-hidden rounded-xl border border-border">
-        <div className="grid grid-cols-[64px_minmax(0,1fr)_minmax(0,1.1fr)_130px_150px] items-center gap-3 border-b border-border bg-raised/30 px-4 py-2.5 font-mono text-[10.5px] uppercase tracking-[0.18em] text-muted-foreground/55">
+        <div className="grid grid-cols-[54px_minmax(0,1fr)_minmax(0,1.1fr)_120px_180px] items-center gap-3 border-b border-border bg-raised/30 px-4 py-2.5 font-mono text-[10.5px] uppercase tracking-[0.18em] text-muted-foreground/55">
           <span>seq</span>
           <span>rule</span>
           <span>match</span>
           <span>action</span>
-          <span className="text-right">order · edit</span>
+          <span className="text-right">order · log · edit</span>
         </div>
 
         <AnimatePresence initial={false}>
@@ -1166,7 +1177,7 @@ function FirewallSection<T extends FirewallItem>({
                 exit={{ opacity: 0, y: -6 }}
                 transition={{ duration: 0.2, delay: i * 0.012, ease: [0.22, 1, 0.36, 1] }}
                 className={cn(
-                  "grid grid-cols-[64px_minmax(0,1fr)_minmax(0,1.1fr)_130px_150px] items-center gap-3 border-b border-border/60 px-4 py-3 transition-colors last:border-b-0 hover:bg-white/[0.02]",
+                  "grid grid-cols-[54px_minmax(0,1fr)_minmax(0,1.1fr)_120px_180px] items-center gap-3 border-b border-border/60 px-4 py-3 transition-colors last:border-b-0 hover:bg-white/[0.02]",
                   !item.enabled && "opacity-45",
                   simOpen && trace?.status === "match" && "bg-emerald/[0.07]",
                 )}
@@ -1214,6 +1225,14 @@ function FirewallSection<T extends FirewallItem>({
                   >
                     <ChevronDown className="h-3.5 w-3.5" strokeWidth={2} />
                   </button>
+                  <Link
+                    to="/system"
+                    search={{ stream: "policy", q: item.name }}
+                    className="rounded-md p-1.5 text-muted-foreground/55 transition-colors hover:text-sapphire"
+                    title={`View "${item.name}" rule logs in Audit Journal`}
+                  >
+                    <ScrollText className="h-3.5 w-3.5" strokeWidth={1.75} />
+                  </Link>
                   <button
                     aria-label={`Toggle ${item.name}`}
                     role="switch"
@@ -1256,7 +1275,7 @@ function FirewallSection<T extends FirewallItem>({
         </AnimatePresence>
 
         {/* implicit last rule — the chain's policy target */}
-        <div className="grid grid-cols-[64px_minmax(0,1fr)_minmax(0,1.1fr)_130px_150px] items-center gap-3 border-t border-border bg-raised/25 px-4 py-3">
+        <div className="grid grid-cols-[54px_minmax(0,1fr)_minmax(0,1.1fr)_120px_180px] items-center gap-3 border-t border-border bg-raised/25 px-4 py-3">
           <span className="font-mono text-[12px] text-muted-foreground/40">∞</span>
           <span className="font-mono text-[12px] uppercase tracking-[0.16em] text-muted-foreground/70">
             default policy
@@ -1328,6 +1347,7 @@ function CrudSection<T extends AnyItem>({
   subtitle,
   rows,
   enabledKey,
+  actionButton,
 }: {
   heading: string;
   blurb: string;
@@ -1343,6 +1363,7 @@ function CrudSection<T extends AnyItem>({
   subtitle: (item: T) => string;
   rows: (item: T) => [string, ReactNode][];
   enabledKey?: string;
+  actionButton?: ReactNode;
 }) {
   const [editing, setEditing] = useState<T | null>(null);
   const [creating, setCreating] = useState(false);
@@ -1359,10 +1380,13 @@ function CrudSection<T extends AnyItem>({
             {blurb}
           </p>
         </div>
-        <JewelButton className="gap-2" onClick={() => setCreating(true)}>
-          <Plus className="h-4 w-4" strokeWidth={1.75} />
-          {createLabel}
-        </JewelButton>
+        <div className="flex items-center gap-2">
+          {actionButton}
+          <JewelButton className="gap-2" onClick={() => setCreating(true)}>
+            <Plus className="h-4 w-4" strokeWidth={1.75} />
+            {createLabel}
+          </JewelButton>
+        </div>
       </header>
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2">

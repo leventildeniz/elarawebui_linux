@@ -7,6 +7,22 @@ import { DebugConsole } from "@/components/sovereign/debug-console";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/system")({
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): {
+    view?: "audit" | "debug" | undefined;
+    tab?: string | undefined;
+    stream?: string | undefined;
+    q?: string | undefined;
+  } => {
+    const v = String(search["view"] || search["tab"] || "");
+    return {
+      view: v === "debug" || v === "live" ? "debug" : "audit",
+      tab: typeof search["tab"] === "string" ? search["tab"] : undefined,
+      stream: typeof search["stream"] === "string" ? search["stream"] : undefined,
+      q: typeof search["q"] === "string" ? search["q"] : undefined,
+    };
+  },
   head: () => ({
     meta: [
       { title: "Logs / Audit — Elara Sovereign Studio" },
@@ -34,7 +50,10 @@ const views = [
 ] as const;
 
 function SystemView() {
-  const [view, setView] = useState<(typeof views)[number]["id"]>("audit");
+  const search = Route.useSearch();
+  const [view, setView] = useState<(typeof views)[number]["id"]>(
+    search.view === "debug" || search.tab === "live" ? "debug" : "audit",
+  );
 
   return (
     <Surface
@@ -65,7 +84,11 @@ function SystemView() {
           })}
         </div>
 
-        {view === "audit" ? <AuditPanel /> : <DebugConsole />}
+        {view === "audit" ? (
+          <AuditPanel initialStream={search.stream} initialQuery={search.q} />
+        ) : (
+          <DebugConsole />
+        )}
       </div>
     </Surface>
   );

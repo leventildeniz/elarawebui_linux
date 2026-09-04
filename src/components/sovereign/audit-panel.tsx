@@ -109,9 +109,19 @@ export function Option({
   );
 }
 
-export function AuditPanel() {
+export function AuditPanel({
+  initialStream,
+  initialQuery,
+}: {
+  initialStream?: string | undefined;
+  initialQuery?: string | undefined;
+} = {}) {
   const { events, live, setLive, retention, setRetention, purge } = useAuditLog();
-  const [f, setF] = useState<AuditFilter>(defaultFilter);
+  const [f, setF] = useState<AuditFilter>(() => ({
+    ...defaultFilter,
+    streams: initialStream ? [initialStream] : defaultFilter.streams,
+    query: initialQuery || defaultFilter.query,
+  }));
 
   const rows = useMemo(() => filterEvents(events, f), [events, f]);
   const stats = useMemo(() => {
