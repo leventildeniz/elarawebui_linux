@@ -145,7 +145,7 @@ export function isGodPrincipal(accountId: string, accountRole: string, groupIds:
 const uid = () => `spc.${Math.random().toString(36).slice(2, 7)}`;
 
 export function useSpaces() {
-  const [spaces, setSpaces] = useState<KnowledgeSpace[]>(defaultSpaces);
+  const [spaces, setSpaces] = useState<KnowledgeSpace[]>(read);
 
   useEffect(() => {
     const sync = async () => {

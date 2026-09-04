@@ -60,6 +60,7 @@ export function createIngestPipeline(deps) {
     const RAG_SETTINGS = getRagSettings();
     for (let idx = 0; idx < chunks.length; idx++) {
       if (signal?.aborted) break;
+      if (idx > 0 && idx % 15 === 0) await new Promise((r) => setImmediate(r));
       const chunk = chunks[idx];
       const enriched = enrichChunkContent({ brand: finalBrand, path: filePath, content: chunk.content });
       const { product, category, version: docVersion } = extractProduct({ brand: finalBrand, path: filePath, filename: null });
