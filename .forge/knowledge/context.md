@@ -584,6 +584,22 @@ Bu aşamada **Knowledge Hub** (`/knowledge`), **RAG Documents** (`/rag-documents
    - Çift dilli asistan kimlik soruları (`who are you`, `tell me about yourself`, `kimsin`, `yeteneklerin neler`) hafifletildi.
 7. **`diagnoseChatTrace` ve Yetim Kodların Silinmesi (`util.mjs` & `system-misc.mjs`):**
    - UI'da karşılığı olmayan, eski terminal debug çıktısı `diagnoseChatTrace` fonksiyonu ve `system-misc.mjs` içindeki yetim bağımlılığı tamamen silindi; `/api/debug/chat/:traceId` saf JSON formatına çekildi.
+8. **Komut Paleti & Global Arama Canlı Varlık İndekslemesi (`command-palette.tsx` & `palette-surfaces.ts`):**
+   - Canlı veritabanındaki Ajanlar (`useAgents`), Yetenekler (`useSkills`), Modeller (`useModels`), İş Akışları (`useWorkflows`) ve Sohbetler (`useChats`) palet aramasına bağlandı.
+   - Settings 12 alt modülü ve System alt sekmeleri eksiksiz arama indeksine eklendi.
+9. **Knowledge Hub Reranker Dinamik Rozeti (`knowledge.tsx` & `knowledge-state.mjs`):**
+   - Eski mor `model: default` rozeti kaldırıldı; çalışan gerçek reranker modelini (`bge-reranker-v2-m3`) gösteren parlak zümrüt yeşili (`emerald`) rozet bağlandı.
+10. **Access Spaces Otomatik Slug & Kilitli Görünüm (`knowledge-spaces.tsx`):**
+    - Space Name yazılırken Türkçe karakterleri ve boşlukları arındıran `slugify` ile otomatik slug üretimi sağlandı.
+    - Slug alanı güvenli kilitli (`readOnly`) hale getirildi; Contributors bölümüne `everyone · on/off` desteği eklenerek tutarsızlık giderildi.
+11. **Access Spaces Boyut & Uzantı Doğrulaması (Enforcement):**
+    - `checkUpload` içerisindeki admin bypass'ı kaldırıldı; `maxMb` (örn. 50MB) ve `allowedTypes` kuralları hem UI hem de backend (`/api/knowledge/file`) seviyesinde HTTP 400 ile zorunlu kılındı.
+12. **Döküman Chunk Sayısı & 100k Sınırı Düzeltmesi (`extract.mjs` & `pipeline.mjs`):**
+    - `MAX_INDEXED_CHARS` 100k'dan 2.000.000 karaktere (~500 sayfa) çıkarıldı; tüm çok sayfalı PDF'lerin tam işlenmesi sağlandı.
+    - `knowledge_sources.chunks` sütununun statik 125 takılması giderildi; gerçek yazılan chunk sayıları (`106`, `236`, `1`) veritabanına bağlandı.
+13. **Embedding Worker Otomatik Drain & Vektör Kaydı (`store.mjs` & `server.mjs`):**
+    - `store.mjs` içerisindeki eski `MLX` kontrolü kaldırıldı; `SET embedding = $1::jsonb` ile PostgreSQL jsonb vektör kaydı sağlandı.
+    - `startEmbedWorkerIntervals()` server açılışına bağlandı; bekleyen chunk'ların (`worker.py` - port 8082, `BAAI/bge-m3`) her 30 saniyede bir arka planda otomatik eritilmesi (drain) sağlandı.
 
 ## 52. UP NEXT (Phase 52) - Autonomous DAG Execution Engine & Multi-Step Workflow Benchmarking
 1. **Autonomous DAG Execution Engine Benchmarking:** Çok adımlı workflow ve orchestration zincirlerinin canlı icra doğrulaması.
