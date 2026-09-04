@@ -7,7 +7,8 @@ export const defaultKnowledge: KnowledgeState = {
   autoIngestion: false,
   autoReEnrich: false,
   batchSize: 1000,
-  embedModel: "default",
+  embedModel: "BAAI/bge-m3",
+  rerankerModel: "bge-reranker-v2-m3",
   health: {
     chunks: 0,
     ftsNull: 0,
@@ -102,6 +103,7 @@ export type KnowledgeState = {
   autoReEnrich: boolean;
   batchSize: 500 | 1000 | 2500;
   embedModel: string;
+  rerankerModel?: string | undefined;
   health: KnowledgeHealth;
   sources: KnowledgeSource[];
   webhooks: WebhookAdapter[];

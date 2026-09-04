@@ -273,8 +273,8 @@ function ControlTab() {
             Reprocess Oversized HTML
           </MaintButton>
 
-          <Tag tone="amethyst" className="ml-auto">
-            model: {k.embedModel}
+          <Tag tone="emerald" className="ml-auto font-mono text-[11.5px] border-emerald/40 text-emerald shadow-[0_0_16px_-4px_var(--emerald)]">
+            reranker: {k.rerankerModel || "bge-reranker-v2-m3"}
           </Tag>
         </div>
 

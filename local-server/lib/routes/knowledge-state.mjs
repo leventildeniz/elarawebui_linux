@@ -45,11 +45,15 @@ export async function mountKnowledgeConfigRoutes(app, deps) {
         enrichedDaysAgo: 0
       }));
 
+      const embedModel = process.env.EMBED_MODEL || process.env.MLX_EMBED_MODEL || c.embed_model || "BAAI/bge-m3";
+      const rerankerModel = process.env.RAG_RERANK_MODEL || process.env.RERANK_MODEL || "bge-reranker-v2-m3";
+
       const state = {
         autoIngestion: c.auto_ingestion,
         autoReEnrich: c.auto_re_enrich,
         batchSize: c.batch_size,
-        embedModel: c.embed_model || "default",
+        embedModel,
+        rerankerModel,
         health: {
           chunks: c.health?.chunks || 0,
           ftsNull: c.health?.ftsNull || 0,
