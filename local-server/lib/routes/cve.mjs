@@ -1,7 +1,34 @@
 import { requireSession } from "../session-gate.mjs";
 
-export async function mountCveRoutes(app, { pool }) {
+export async function mountCveRoutes(app, deps) {
+  const { pool, broadcastAudit, enqueueWrite } = deps;
   const admin = requireSession();
+
+  const emitCveLog = (level, action, message, meta = {}) => {
+    const fullMeta = { tag: "cve", stream: "policy", ...meta };
+    if (broadcastAudit) {
+      try {
+        broadcastAudit({
+          agent: "cve",
+          level,
+          message: `cve.${action}: ${message}`,
+          meta: fullMeta,
+        });
+      } catch (err) {
+        console.warn("[cve] broadcastAudit notice:", err.message);
+      }
+    }
+    if (enqueueWrite) {
+      try {
+        enqueueWrite(
+          `INSERT INTO agent_logs(agent, level, message, meta) VALUES ($1,$2,$3,$4)`,
+          ["cve", level, `cve.${action}:${message}`, fullMeta]
+        );
+      } catch (err) {
+        console.warn("[cve] enqueueWrite notice:", err.message);
+      }
+    }
+  };
 
   // --- GET ALL CVE DATA ---
   app.get("/api/cve", admin, async (req, res) => {
@@ -77,6 +104,7 @@ export async function mountCveRoutes(app, { pool }) {
          RETURNING *`,
         [s.id, s.enabled, s.provider, s.label, s.watchlist, s.ecosystem || "", s.query || "", s.version || "", s.url || "", s.headers || "", s.map || {}, s.defaultScore || 0, s.minScore || 0, s.lastSyncAt ? new Date(s.lastSyncAt) : null, s.lastResult || ""]
       );
+      emitCveLog("info", "source.created", `${s.label || s.id} (${s.provider})`, { id: s.id, provider: s.provider });
       res.json({ ok: true, source: rows[0] });
     } catch (e) { res.status(400).json({ error: e.message }); }
   });
@@ -112,6 +140,7 @@ export async function mountCveRoutes(app, { pool }) {
   app.delete("/api/cve/sources/:id", admin, async (req, res) => {
     try {
       await pool.query("DELETE FROM cve_sources WHERE id=$1", [req.params.id]);
+      emitCveLog("warn", "source.deleted", `id=${req.params.id}`, { id: req.params.id });
       res.json({ ok: true });
     } catch (e) { res.status(400).json({ error: e.message }); }
   });
@@ -154,6 +183,7 @@ export async function mountCveRoutes(app, { pool }) {
         "UPDATE cve_entries SET status=COALESCE($1, status), note=COALESCE($2, note) WHERE id=$3 RETURNING *",
         [status, note, req.params.id]
       );
+      emitCveLog("info", "entry.status", `advisory=${rows[0]?.cve || req.params.id} status=${status}`, { id: req.params.id, status });
       res.json({ ok: true, entry: rows[0] });
     } catch (e) { res.status(400).json({ error: e.message }); }
   });
@@ -186,6 +216,7 @@ export async function mountCveRoutes(app, { pool }) {
           console.error("Failed to insert CVE:", e.message);
         }
       }
+      emitCveLog("info", "sync.merge", `ingested ${added} new advisories`, { added });
       res.json({ ok: true, added });
     } catch (e) { res.status(400).json({ error: e.message }); }
   });
