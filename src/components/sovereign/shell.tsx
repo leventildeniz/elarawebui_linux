@@ -877,11 +877,7 @@ function ModuleTabs() {
   }
 
   // Single-surface registries — no template cards.
-  if (
-    pathname === "/runtime" ||
-    pathname === "/targets" ||
-    pathname === "/rag-documents"
-  )
+  if (pathname === "/runtime" || pathname === "/targets" || pathname === "/rag-documents")
     return null;
 
   // Models registry: model groups + Vision.
@@ -997,9 +993,6 @@ function ModuleTabs() {
     );
   }
 
-
-
-
   // Planner planes: tool · skill · mcp orchestration.
   if (pathname === "/planner") {
     const plane =
@@ -1037,12 +1030,9 @@ function ModuleTabs() {
     );
   }
 
-  // System Engine surfaces: runtime provider + intent router + orchestrator bridge.
+  // System Engine surfaces: intent router + orchestrator bridge.
   if (pathname === "/engine") {
-    const view =
-      search?.view === "bridge" || search?.view === "intent" || search?.view === "console"
-        ? (search.view as string)
-        : "intent";
+    const view = search?.view === "bridge" ? "bridge" : "intent";
 
     return (
       <div className="ml-2 hidden items-center gap-1.5 md:flex">
@@ -1050,7 +1040,6 @@ function ModuleTabs() {
           [
             { id: "intent", label: "Intent Router", tone: "sapphire" },
             { id: "bridge", label: "Orchestrator Bridge", tone: "amethyst" },
-            { id: "console", label: "Live Console", tone: "topaz" },
           ] as const
         ).map((t) => (
           <Link

@@ -521,6 +521,14 @@ Bu aşamada `/system` (Logs / Audit) altındaki **Live Debugging** ve **Audit Jo
 5. **Kullanıcı Kimliği & Gerçek IP Loglama İyileştirmeleri:**
    - `src/lib/rbac-events.ts`: `emitRbac` fonksiyonundaki sabit `"levent@elara"` fallback'i kaldırılarak aktif oturumdaki gerçek kullanıcı adını (`admin`, operatör veya LDAP/OIDC kullanıcısı) dinamik çeken `resolveCurrentActor` entegre edildi.
    - `local-server/lib/routes/identity.mjs`: `login` ve `disconnect` olaylarının audit loguna kullanıcının gerçek dış IP adresi (`realIp` - CF / X-Forwarded-For / Socket) basılması sağlandı (sabit `127.0.0.1` yerine).
+6. **System Engine (`/engine`) Mimari Sadeleştirmesi:**
+   - Artık gereksizleşen ve ilkel kalan `Live Console` sekmesi `/engine` sayfasından, üst menü sekmelerinden (`shell.tsx`) ve komut paletinden (`palette-surfaces.ts`) tamamen silindi.
+   - Sayfa saf bir **"Intent Router & Orchestrator Bridge"** güvenlik ve yönlendirme paneline dönüştürüldü.
+   - Kod tabanındaki Türkçe yorumlar temizlenerek İngilizce kurumsal standartlara getirildi ve mock data içermediği (PostgreSQL `engine_config` tablosu) teyit edildi.
+7. **Memory Modülü Çift Yönlü Entegrasyon & Accordion UX:**
+   - `local-server/lib/routes/chat-orchestrate.mjs`: `memory_facts` (Uzun Vadeli Gerçekler) ve `memory_working` (Pinned bloklar) sohbet başlarken otomatik olarak modelin sistem direktiflerine enjekte edildi.
+   - `local-server/lib/routes/memory.mjs`: Bellek operasyonları (`working.pin`, `working.evict`, `episodic.purge`, `fact.created/updated/deleted`) canlı `broadcastAudit` ve `agent_logs` telemetrisine bağlandı.
+   - `src/routes/memory.tsx`: Working Set altındaki thread'ler sonsuz dikey kaydırma yerine şık, açılır-kapanır (`ThreadWorkingCard` Accordion) mimariye dönüştürüldü (varsayılan kapalı, tek tıkla Expand/Collapse All destekli).
 
 ## 51. UP NEXT (Phase 51) - Agentic RAG & Knowledge Hub Validation & Deep Benchmarking
 1. **Agentic RAG & Knowledge Hub Validation:** Departman bazlı space izolasyonu (`rag_space_id`), doküman chunklama ve `bge-reranker-v2-m3` reranker testleri.

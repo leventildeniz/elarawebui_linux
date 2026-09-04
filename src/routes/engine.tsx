@@ -1,17 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
-import {
-  Ban as BanIcon,
-  Pause,
-  Play,
-  Plus,
-  Shield,
-  ShieldCheck,
-  X,
-  TerminalSquare,
-  Activity,
-} from "lucide-react";
+import { Ban as BanIcon, Plus, Shield, ShieldCheck, X } from "lucide-react";
 import { confirmAction } from "@/components/sovereign/confirm-dialog";
 import { Surface } from "@/components/sovereign/surface";
 import { JewelButton, Sheen, Tag } from "@/components/sovereign/primitives";
@@ -27,15 +17,10 @@ import {
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/engine")({
-  validateSearch: (
-    search: Record<string, unknown>,
-  ): { view: "intent" | "bridge" | "console" } => {
+  validateSearch: (search: Record<string, unknown>): { view: "intent" | "bridge" } => {
     const v = search["view"];
     return {
-      view:
-        v === "bridge" || v === "intent" || v === "console"
-          ? (v as "bridge" | "intent" | "console")
-          : "intent",
+      view: v === "bridge" ? "bridge" : "intent",
     };
   },
 
@@ -67,11 +52,7 @@ function EnginePage() {
   const { view } = Route.useSearch();
 
   return (
-    <Surface
-      title="System Engine"
-      meta="semantic intent router · orchestrator bridge · live console"
-      wide
-    >
+    <Surface title="System Engine" meta="semantic intent router · orchestrator bridge" wide>
       <AnimatePresence mode="wait">
         <motion.div
           key={view}
@@ -80,13 +61,7 @@ function EnginePage() {
           exit={{ opacity: 0, y: -6 }}
           transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
         >
-          {view === "console" ? (
-            <LiveConsole />
-          ) : view === "bridge" ? (
-            <OrchestratorBridge />
-          ) : (
-            <IntentRouter />
-          )}
+          {view === "bridge" ? <OrchestratorBridge /> : <IntentRouter />}
         </motion.div>
       </AnimatePresence>
     </Surface>
@@ -291,10 +266,10 @@ function IntentRouter() {
 
 function OrchestratorBridge() {
   const { config, update } = useEngine();
-  const [agents, setAgents] = useState<{id: string, label: string}[]>([]);
-  const [skills, setSkills] = useState<{id: string, label: string}[]>([]);
-  const [tools, setTools] = useState<{id: string, label: string}[]>([]);
-  const [mcp, setMcp] = useState<{id: string, label: string}[]>([]);
+  const [agents, setAgents] = useState<{ id: string; label: string }[]>([]);
+  const [skills, setSkills] = useState<{ id: string; label: string }[]>([]);
+  const [tools, setTools] = useState<{ id: string; label: string }[]>([]);
+  const [mcp, setMcp] = useState<{ id: string; label: string }[]>([]);
 
   useEffect(() => {
     // Fetch live catalogs to populate dropdowns safely without relying on localStorage stores
@@ -304,27 +279,44 @@ function OrchestratorBridge() {
           fetchApi("/agents").catch(() => []),
           fetchApi("/skills").catch(() => []),
           fetchApi("/forge/actions").catch(() => []),
-          fetchApi("/api/mcp/client/servers").catch(() => null)
+          fetchApi("/api/mcp/client/servers").catch(() => null),
         ]);
 
         if (Array.isArray(a)) {
-          setAgents(a.map(ag => ({ 
-            id: ag.script_path?.split("/").pop() || `${(ag.name||"").toLowerCase().replace(/\s+/g, "_")}.py`, 
-            label: ag.name || ag.id 
-          })));
+          setAgents(
+            a.map((ag: { script_path?: string; name?: string; id?: string }) => ({
+              id:
+                ag.script_path?.split("/").pop() ||
+                `${(ag.name || "").toLowerCase().replace(/\s+/g, "_")}.py`,
+              label: ag.name || ag.id || "agent",
+            })),
+          );
         }
         if (Array.isArray(s)) {
-          setSkills(s.map(sk => ({ id: sk.slug || sk.id, label: sk.name || sk.slug })));
+          setSkills(
+            s.map((sk: { slug?: string; id?: string; name?: string }) => ({
+              id: sk.slug || sk.id || "skill",
+              label: sk.name || sk.slug || "skill",
+            })),
+          );
         }
         if (Array.isArray(f)) {
-          setTools(f.map(t => ({ id: t.id, label: t.name || t.id })));
+          setTools(
+            f.map((t: { id: string; name?: string }) => ({
+              id: t.id,
+              label: t.name || t.id,
+            })),
+          );
         }
-        if (m && Array.isArray(m.servers)) {
-          // DenyList beklenen formatı: id: "mcp.<slug>", label: "Sunucu İsmi"
-          setMcp(m.servers.map((server: any) => ({ 
-            id: `mcp.${server.slug || server.id}`, 
-            label: server.name || server.id 
-          })));
+        if (m && typeof m === "object" && Array.isArray((m as { servers?: unknown[] }).servers)) {
+          const srvs = (m as { servers: { slug?: string; id?: string; name?: string }[] }).servers;
+          // Expected DenyList format: id: "mcp.<slug>", label: "Server Name"
+          setMcp(
+            srvs.map((server) => ({
+              id: `mcp.${server.slug || server.id}`,
+              label: server.name || server.id || "server",
+            })),
+          );
         }
       } catch (e) {
         console.error("Failed to load bridge catalogs", e);
@@ -592,173 +584,4 @@ function DenyList({
     </Panel>
   );
 }
-
-type LogLine = {
-  id: number;
-  ts: string;
-  source: string;
-  body: string;
-  level: string;
-};
-
-function LiveConsole() {
-  const [lines, setLines] = useState<LogLine[]>([]);
-  const [running, setRunning] = useState(false);
-  const [filter, setFilter] = useState<"all" | "system" | "skills" | "chat" | "heartbeat">("all");
-  const [follow, setFollow] = useState(true);
-  const boxRef = useRef<HTMLDivElement | null>(null);
-  const seq = useRef(0);
-  const sseRef = useRef<EventSource | null>(null);
-
-  useEffect(() => {
-    if (!running) {
-      if (sseRef.current) {
-        sseRef.current.close();
-        sseRef.current = null;
-      }
-      return;
-    }
-
-    const sessionId = localStorage.getItem("sovereign.sessionId") || "";
-    const es = new EventSource(`/api/audit/stream?x-session-id=${sessionId}`);
-    sseRef.current = es;
-
-    es.onmessage = (e) => {
-      try {
-        const payload = JSON.parse(e.data);
-        seq.current += 1;
-        setLines((prev) => {
-          const next = [...prev, { 
-            id: seq.current, 
-            ts: new Date(payload.ts || Date.now()).toISOString().split("T")[1]?.slice(0, 12) || "", 
-            source: payload.agent || "system", 
-            body: payload.message || "",
-            level: payload.level || "info"
-          }];
-          return next.length > 800 ? next.slice(-800) : next;
-        });
-      } catch (err) {
-        // ignore malformed lines
-      }
-    };
-
-    es.onerror = () => {
-       seq.current += 1;
-       setLines((prev) => {
-         const next = [...prev, { id: seq.current, ts: new Date().toISOString().split("T")[1]?.slice(0, 12) || "", source: "system", body: "SSE Connection lost or reconnecting...", level: "warn" }];
-         return next.length > 800 ? next.slice(-800) : next;
-       });
-    };
-
-    return () => {
-      es.close();
-      sseRef.current = null;
-    };
-  }, [running]);
-
-  useEffect(() => {
-    if (!follow || !boxRef.current) return;
-    boxRef.current.scrollTop = boxRef.current.scrollHeight;
-  }, [lines, follow]);
-
-  const shown = lines.filter((l) => filter === "all" || l.source === filter || (filter === "system" && !["skills", "chat", "heartbeat"].includes(l.source)));
-
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <JewelButton
-          size="sm"
-          variant={running ? "danger" : "primary"}
-          onClick={() => setRunning((r) => !r)}
-        >
-          {running ? <Pause size={13} /> : <Play size={13} />}
-          {running ? "Stop stream" : "Start stream"}
-        </JewelButton>
-        <JewelButton variant="outline" size="sm" onClick={() => setLines([])}>
-          <X size={13} /> Clear
-        </JewelButton>
-
-        <span className="ml-3 font-mono text-[11px] tracking-[0.14em] text-muted-foreground/60">
-          FILTER
-        </span>
-        {(["all", "system", "skills", "chat", "heartbeat"] as const).map((f) => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={cn(
-              "rounded-full px-3 py-1 font-mono text-[11px] transition-colors",
-              filter === f
-                ? "bg-sapphire/20 text-sapphire"
-                : "bg-white/[0.04] text-muted-foreground/60 hover:text-foreground",
-            )}
-          >
-            {f}
-          </button>
-        ))}
-
-        <label className="ml-2 flex items-center gap-2 font-mono text-[11px] text-muted-foreground/70">
-          <input
-            type="checkbox"
-            checked={follow}
-            onChange={(e) => setFollow(e.target.checked)}
-            className="accent-[var(--sapphire)]"
-          />
-          follow tail
-        </label>
-
-        <div className="ml-auto flex items-center gap-2">
-          <span
-            className={cn(
-              "flex items-center gap-1.5 rounded-md border px-2.5 py-1 font-mono text-[11px]",
-              running
-                ? "border-emerald/35 bg-emerald/[0.07] text-emerald"
-                : "border-white/[0.08] bg-raised/40 text-muted-foreground/70",
-            )}
-          >
-            <span
-              className={cn(
-                "h-1.5 w-1.5 rounded-full",
-                running ? "animate-pulse bg-emerald" : "bg-muted-foreground/50",
-              )}
-            />
-            {running ? "streaming" : "stopped"}
-          </span>
-          <Tag tone="sapphire">{shown.length} lines</Tag>
-        </div>
-      </div>
-
-      <div
-        ref={boxRef}
-        className="h-[62vh] overflow-auto rounded-xl border border-white/[0.07] bg-[#0c0c0e] p-4 font-mono text-[12px] shadow-inner leading-[1.75]"
-      >
-        {!running && lines.length === 0 ? (
-          <div className="flex h-full items-center justify-center font-mono text-[12px] text-muted-foreground/40 gap-2">
-            <TerminalSquare size={16} />
-            stream idle — press Start stream to attach to server.mjs audit feed.
-          </div>
-        ) : (
-          <div className="space-y-1">
-            {shown.map((l) => (
-              <div key={l.id} className="flex gap-4 group">
-                <span className="shrink-0 text-muted-foreground/40 select-none">[{l.ts}]</span>
-                <span
-                  className={cn(
-                    "shrink-0 w-20 truncate",
-                    l.source === "system" ? "text-emerald/80" : l.source === "skills" ? "text-sapphire/80" : "text-amethyst/80",
-                  )}
-                >
-                  {l.source}
-                </span>
-                <span className={cn("break-all", l.level === "error" || l.level === "warn" ? "text-ruby/90" : "text-foreground/85")}>
-                  {l.body}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
 

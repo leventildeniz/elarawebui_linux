@@ -58,10 +58,8 @@ export const paletteSurfaces: PaletteSurface[] = [
     ["client", "MCP Client"],
   ]),
   ...views("/engine", "System Engine", "view", [
-    ["runtime", "Runtime"],
     ["intent", "Intent Router"],
     ["bridge", "Orchestrator Bridge"],
-    ["console", "Live Console"],
   ]),
   ...views("/planner", "Planner", "plane", [
     ["tool", "Tool Planner"],

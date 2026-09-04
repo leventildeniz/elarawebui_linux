@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, useRouterState } from "@tanstack/react-router";
+import { AnimatePresence, motion } from "motion/react";
 import { toast } from "sonner";
 import {
   ArrowUpRight,
@@ -68,11 +69,10 @@ function MemoryPage() {
       : "working";
 
   const mem = useMemoryStore();
-  // We sum up the tokens of individual message outputs, but realistically the "context in use" 
-  // is closer to the final working block's token count if it includes the prompt, 
-  // or a sum if they represent distinct chunks. Let's use the most recent block's tokens 
-  // as the most accurate representation of current context size if available, otherwise 0.
-  const used = useMemo(() => mem.working.length > 0 ? (mem.working[0]?.tokens || 0) : 0, [mem.working]);
+  const used = useMemo(
+    () => (mem.working.length > 0 ? mem.working[0]?.tokens || 0 : 0),
+    [mem.working],
+  );
   const pct = Math.min(100, (used / mem.policy.contextWindow) * 100);
 
   return (
@@ -119,7 +119,8 @@ function MemoryPage() {
 type Mem = ReturnType<typeof useMemoryStore>;
 
 function WorkingTab({ mem, used, pct }: { mem: Mem; used: number; pct: number }) {
-  // 1. Thread ID'lere gore grupla
+  const [openThreads, setOpenThreads] = useState<Set<string>>(new Set());
+
   const grouped = useMemo(() => {
     const groups: Record<string, typeof mem.working> = {};
     for (const w of mem.working) {
@@ -130,13 +131,27 @@ function WorkingTab({ mem, used, pct }: { mem: Mem; used: number; pct: number })
     return groups;
   }, [mem.working]);
 
+  const threadIds = useMemo(() => Object.keys(grouped), [grouped]);
+
+  const toggleThread = (tId: string) => {
+    setOpenThreads((prev) => {
+      const next = new Set(prev);
+      if (next.has(tId)) next.delete(tId);
+      else next.add(tId);
+      return next;
+    });
+  };
+
+  const expandAll = () => setOpenThreads(new Set(threadIds));
+  const collapseAll = () => setOpenThreads(new Set());
+
   return (
     <>
       <ReportPanel
         title="Context window"
         hint={`${fmt(used)} of ${fmt(mem.policy.contextWindow)} tokens resident · compaction at ${mem.policy.compactAt}%`}
       >
-        <div className="relative h-[10px] overflow-hidden rounded-full bg-white/[0.05]">
+        <div className="relative h-2.5 overflow-hidden rounded-full bg-white/5">
           <div
             className="h-full rounded-full transition-[width] duration-300"
             style={{
@@ -159,63 +174,30 @@ function WorkingTab({ mem, used, pct }: { mem: Mem; used: number; pct: number })
       <ReportPanel
         title="Working set"
         hint="Blocks currently occupying the live context. Pinned blocks survive compaction."
-      >
-        <div className="space-y-6">
-          {Object.entries(grouped).map(([threadId, blocks]) => (
-            <div key={threadId} className="space-y-2">
-              <div className="flex items-center justify-between px-1">
-                <span className="font-mono text-[10.5px] uppercase tracking-wider text-muted-foreground/50">
-                  {threadId === "global" ? "Global Context" : `Thread: ${threadId}`}
-                </span>
-                <span className="font-mono text-[10.5px] text-muted-foreground/40">
-                  {blocks.length} block{blocks.length !== 1 ? 's' : ''}
-                </span>
-              </div>
-              {blocks.map((w) => (
-                <div
-                  key={w.id}
-                  className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.012] px-4 py-3"
-                >
-                  <span
-                    className="h-1.5 w-1.5 shrink-0 rounded-full"
-                    style={{
-                      background: `var(--${w.tone})`,
-                      boxShadow: `0 0 8px -1px var(--${w.tone})`,
-                    }}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-[13.5px] text-foreground/90">{w.label}</div>
-                    <div className="font-mono text-[11.5px] text-muted-foreground/55">{w.origin}</div>
-                  </div>
-                  <div className="font-mono text-[12px] text-muted-foreground/70">
-                    {fmt(w.tokens)} tok
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => mem.togglePin(w.id)}
-                    className={cn(
-                      "rounded-lg border border-white/[0.08] p-1.5 transition-colors",
-                      w.pinned
-                        ? "text-emerald border-emerald/40 bg-emerald/10"
-                        : "text-muted-foreground/70 hover:text-foreground",
-                    )}
-                    aria-label={w.pinned ? "Unpin block" : "Pin block"}
-                    title={w.pinned ? "Unpin block" : "Pin block"}
-                  >
-                    {w.pinned ? <Pin className="h-3.5 w-3.5" /> : <PinOff className="h-3.5 w-3.5" />}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => mem.dropWorking(w.id)}
-                    className="rounded-lg border border-white/[0.08] p-1.5 text-muted-foreground/70 transition-colors hover:border-ruby/40 hover:text-ruby"
-                    aria-label="Evict block"
-                    title="Evict block"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              ))}
+        action={
+          threadIds.length > 0 ? (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={openThreads.size === threadIds.length ? collapseAll : expandAll}
+                className="rounded-lg border border-white/[0.08] bg-raised/40 px-3 py-1.5 font-mono text-[11px] text-muted-foreground/80 transition-colors hover:border-sapphire/40 hover:text-foreground"
+              >
+                {openThreads.size === threadIds.length ? "Collapse all" : "Expand all"}
+              </button>
             </div>
+          ) : undefined
+        }
+      >
+        <div className="space-y-3">
+          {threadIds.map((threadId) => (
+            <ThreadWorkingCard
+              key={threadId}
+              threadId={threadId}
+              blocks={grouped[threadId] || []}
+              mem={mem}
+              isOpen={openThreads.has(threadId)}
+              onToggle={() => toggleThread(threadId)}
+            />
           ))}
           {!mem.working.length && (
             <p className="py-6 text-center font-mono text-[12px] text-muted-foreground/50">
@@ -225,6 +207,132 @@ function WorkingTab({ mem, used, pct }: { mem: Mem; used: number; pct: number })
         </div>
       </ReportPanel>
     </>
+  );
+}
+
+function ThreadWorkingCard({
+  threadId,
+  blocks,
+  mem,
+  isOpen,
+  onToggle,
+}: {
+  threadId: string;
+  blocks: typeof mem.working;
+  mem: Mem;
+  isOpen: boolean;
+  onToggle: () => void;
+}) {
+  const totalTokens = useMemo(() => blocks.reduce((acc, b) => acc + (b.tokens || 0), 0), [blocks]);
+  const pinnedCount = useMemo(() => blocks.filter((b) => b.pinned).length, [blocks]);
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-white/[0.07] bg-white/[0.012] transition-colors">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-center justify-between gap-4 px-4 py-3.5 text-left transition-colors hover:bg-white/[0.02]"
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <span
+            className={cn(
+              "h-2 w-2 shrink-0 rounded-full",
+              pinnedCount > 0
+                ? "bg-emerald shadow-[0_0_8px_-1px_var(--emerald)]"
+                : "bg-sapphire shadow-[0_0_8px_-1px_var(--sapphire)]",
+            )}
+          />
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-[13px] font-medium text-foreground/90 truncate">
+                {threadId === "global" ? "Global Context" : `Thread: ${threadId}`}
+              </span>
+              {pinnedCount > 0 && (
+                <span className="flex items-center gap-1 rounded bg-emerald/10 border border-emerald/30 px-1.5 py-0.5 font-mono text-[10.5px] text-emerald">
+                  <Pin className="h-3 w-3" /> {pinnedCount} pinned
+                </span>
+              )}
+            </div>
+            <div className="mt-0.5 font-mono text-[11px] text-muted-foreground/50">
+              {blocks.length} block{blocks.length !== 1 ? "s" : ""} · {fmt(totalTokens)} tok
+              resident
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 shrink-0">
+          <ChevronDown
+            className={cn(
+              "h-4 w-4 text-muted-foreground/60 transition-transform duration-200",
+              isOpen && "rotate-180 text-foreground",
+            )}
+          />
+        </div>
+      </button>
+
+      <AnimatePresence initial={false}>
+        {isOpen && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+            className="border-t border-white/[0.05] px-4 py-3 space-y-2 bg-black/20"
+          >
+            {blocks.map((w) => (
+              <div
+                key={w.id}
+                className="flex items-center gap-3 rounded-lg border border-white/[0.05] bg-white/[0.015] px-3.5 py-2.5 transition-colors hover:border-white/[0.09]"
+              >
+                <span
+                  className="h-1.5 w-1.5 shrink-0 rounded-full"
+                  style={{
+                    background: `var(--${w.tone})`,
+                    boxShadow: `0 0 8px -1px var(--${w.tone})`,
+                  }}
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[13px] text-foreground/90">{w.label}</div>
+                  <div className="font-mono text-[11px] text-muted-foreground/50">{w.origin}</div>
+                </div>
+                <div className="font-mono text-[11.5px] text-muted-foreground/70">
+                  {fmt(w.tokens)} tok
+                </div>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    mem.togglePin(w.id);
+                  }}
+                  className={cn(
+                    "rounded-lg border border-white/[0.08] p-1.5 transition-colors",
+                    w.pinned
+                      ? "border-emerald/40 bg-emerald/10 text-emerald"
+                      : "text-muted-foreground/70 hover:text-foreground",
+                  )}
+                  aria-label={w.pinned ? "Unpin block" : "Pin block"}
+                  title={w.pinned ? "Unpin block" : "Pin block"}
+                >
+                  {w.pinned ? <Pin className="h-3.5 w-3.5" /> : <PinOff className="h-3.5 w-3.5" />}
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    mem.dropWorking(w.id);
+                  }}
+                  className="rounded-lg border border-white/[0.08] p-1.5 text-muted-foreground/70 transition-colors hover:border-ruby/40 hover:text-ruby"
+                  aria-label="Evict block"
+                  title="Evict block"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
 
@@ -341,9 +449,7 @@ function SemanticTab({ mem }: { mem: Mem }) {
                 </option>
               ))}
             </select>
-            <ChevronDown
-              className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/60"
-            />
+            <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/60" />
           </div>
           <button
             type="button"

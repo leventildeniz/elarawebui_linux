@@ -906,6 +906,40 @@ When the user asks you a question or assigns a task, intelligently apply the fol
         masterDirectives.push(`[THREAD CONTEXT (STANDING INSTRUCTIONS)]: ${threadContext}`);
       }
 
+      // 3.2. Inject Long-Term Semantic Facts & Memory
+      try {
+        const factRes = await pool.query(
+          `SELECT key, value, scope, confidence FROM memory_facts WHERE confidence >= 0.5 ORDER BY updated_at DESC LIMIT 30`
+        );
+        if (factRes.rows.length > 0) {
+          const factsList = factRes.rows.map(f => `- [${f.scope.toUpperCase()}] ${f.key}: ${f.value}`);
+          masterDirectives.push(
+            `[LONG-TERM DECLARATIVE MEMORY & ORGANIZATIONAL FACTS]:\nThe following verified facts are stored in the system's long-term memory. Retain and respect them throughout the interaction:\n${factsList.join("\n")}`
+          );
+          emitDebug("debug", "memory.recall", `recalled ${factRes.rows.length} long-term facts`, { count: factRes.rows.length, stream: "memory" }, thread_id);
+        }
+      } catch (memFactErr) {
+        console.warn("[Orchestrate] Failed to load semantic memory facts:", memFactErr.message);
+      }
+
+      // 3.3. Inject Pinned Working Memory Blocks for this Thread
+      if (thread_id) {
+        try {
+          const pinnedRes = await pool.query(
+            `SELECT label, origin FROM memory_working WHERE thread_id = $1 AND pinned = true ORDER BY updated_at ASC`,
+            [thread_id]
+          );
+          if (pinnedRes.rows.length > 0) {
+            const pinnedList = pinnedRes.rows.map(p => `- ${p.label}`);
+            masterDirectives.push(
+              `[PINNED WORKING MEMORY (PERSISTENT CONTEXT)]:\n${pinnedList.join("\n")}`
+            );
+          }
+        } catch (pinnedErr) {
+          console.warn("[Orchestrate] Failed to load pinned working memory:", pinnedErr.message);
+        }
+      }
+
       if (prov && prov.think_enabled && prov.think_statement) {
         masterDirectives.push(prov.think_statement);
       }

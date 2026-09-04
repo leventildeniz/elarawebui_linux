@@ -1,7 +1,34 @@
 import { requireSession } from "../session-gate.mjs";
 
-export async function mountMemoryRoutes(app, { pool, resolveActorContext }) {
+export async function mountMemoryRoutes(app, deps) {
+  const { pool, resolveActorContext, broadcastAudit, enqueueWrite } = deps;
   const admin = requireSession();
+
+  const emitMemLog = (level, action, message, meta = {}) => {
+    const fullMeta = { tag: "mem", stream: "memory", ...meta };
+    if (broadcastAudit) {
+      try {
+        broadcastAudit({
+          agent: "memory",
+          level,
+          message: `memory.${action}: ${message}`,
+          meta: fullMeta,
+        });
+      } catch (err) {
+        console.warn("[memory] broadcastAudit notice:", err.message);
+      }
+    }
+    if (enqueueWrite) {
+      try {
+        enqueueWrite(
+          `INSERT INTO agent_logs(agent, level, message, meta) VALUES ($1,$2,$3,$4)`,
+          ["memory", level, `memory.${action}:${message}`, fullMeta]
+        );
+      } catch (err) {
+        console.warn("[memory] enqueueWrite notice:", err.message);
+      }
+    }
+  };
 
   // --- GET ALL MEMORY STATE ---
   app.get("/api/memory", admin, async (req, res) => {
@@ -41,6 +68,7 @@ export async function mountMemoryRoutes(app, { pool, resolveActorContext }) {
         [!!pinned, req.params.id]
       );
       if (!rows.length) return res.status(404).json({ error: "not found" });
+      emitMemLog("info", "working.pin", `block=${req.params.id} pinned=${pinned}`, { id: req.params.id, pinned });
       res.json({ ok: true, working: rows[0] });
     } catch (e) { res.status(400).json({ error: e.message }); }
   });
@@ -48,6 +76,7 @@ export async function mountMemoryRoutes(app, { pool, resolveActorContext }) {
   app.delete("/api/memory/working/:id", admin, async (req, res) => {
     try {
       await pool.query("DELETE FROM memory_working WHERE id = $1", [req.params.id]);
+      emitMemLog("info", "working.evict", `evicted block=${req.params.id}`, { id: req.params.id });
       res.json({ ok: true });
     } catch (e) { res.status(400).json({ error: e.message }); }
   });
@@ -57,6 +86,7 @@ export async function mountMemoryRoutes(app, { pool, resolveActorContext }) {
     try {
       // Clear all episodic traces
       await pool.query("DELETE FROM memory_episodic");
+      emitMemLog("warn", "episodic.purge", "all episodic traces cleared", {});
       res.json({ ok: true });
     } catch (e) { res.status(400).json({ error: e.message }); }
   });
@@ -71,6 +101,7 @@ export async function mountMemoryRoutes(app, { pool, resolveActorContext }) {
          RETURNING id, key, value, scope, confidence, source, locked, updated_at`,
         [id, key, value, scope, confidence || 0, source, !!locked]
       );
+      emitMemLog("info", "fact.created", `[${scope}] ${key}: ${value.slice(0, 60)}`, { id, key, scope, confidence });
       res.json({ ok: true, fact: rows[0] });
     } catch (e) { res.status(400).json({ error: e.message }); }
   });
@@ -88,6 +119,7 @@ export async function mountMemoryRoutes(app, { pool, resolveActorContext }) {
          WHERE id=$7 RETURNING id, key, value, scope, confidence, source, locked, updated_at`,
         [merged.key, merged.value, merged.scope, merged.confidence, merged.source, merged.locked, req.params.id]
       );
+      emitMemLog("info", "fact.updated", `[${merged.scope}] ${merged.key}`, { id: req.params.id, key: merged.key });
       res.json({ ok: true, fact: rows[0] });
     } catch (e) { res.status(400).json({ error: e.message }); }
   });
@@ -95,6 +127,7 @@ export async function mountMemoryRoutes(app, { pool, resolveActorContext }) {
   app.delete("/api/memory/facts/:id", admin, async (req, res) => {
     try {
       await pool.query("DELETE FROM memory_facts WHERE id = $1", [req.params.id]);
+      emitMemLog("warn", "fact.deleted", `id=${req.params.id}`, { id: req.params.id });
       res.json({ ok: true });
     } catch (e) { res.status(400).json({ error: e.message }); }
   });
