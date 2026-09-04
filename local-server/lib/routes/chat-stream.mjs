@@ -91,21 +91,21 @@ function formatForgeBridgeSummary({ intentText, planId, finalStatus, applyResult
     const deferredList = (applyResult?.deferred || []).map((d) => `⏸️ \`${d.kind}:${d.slug}\``).join(", ");
     const failedList = (applyResult?.failed || []).map((f) => `❌ \`${f.kind}:${f.slug}\` (${f.reason})`).join(", ");
     return [
-      `✅ **Meta-Forge otomatik yazdı** — ${(applyResult?.applied || []).length} capability işlendi.`,
-      `**Niyet:** ${intentText}`,
-      appliedList ? `**Oluşturuldu:** ${appliedList}` : null,
-      dedupedList ? `**Tekrar edildi (dedup):** ${dedupedList}` : null,
-      deferredList ? `**Ertelendi (budget):** ${deferredList}` : null,
-      failedList ? `**Başarısız:** ${failedList}` : null,
-      validated?.reuse?.length ? `**Yeniden kullanıldı:** ${validated.reuse.map((r) => `${r.kind}:${r.slug}`).join(", ")}` : null,
+      `✅ **Meta-Forge applied automatically** — ${(applyResult?.applied || []).length} capabilities processed.`,
+      `**Intent:** ${intentText}`,
+      appliedList ? `**Created:** ${appliedList}` : null,
+      dedupedList ? `**Deduped:** ${dedupedList}` : null,
+      deferredList ? `**Deferred (budget):** ${deferredList}` : null,
+      failedList ? `**Failed:** ${failedList}` : null,
+      validated?.reuse?.length ? `**Reused:** ${validated.reuse.map((r) => `${r.kind}:${r.slug}`).join(", ")}` : null,
     ].filter(Boolean).join("\n");
   }
   const failedList = (applyResult?.failed || []).map((f) => `❌ \`${f.kind}:${f.slug}\` — ${f.reason}`).join("\n");
   return [
-    `⚠️ **Meta-Forge apply başarısız** (${applyError || "lint/disk/db error"}).`,
-    `**Niyet:** ${intentText}`,
+    `⚠️ **Meta-Forge apply failed** (${applyError || "lint/disk/db error"}).`,
+    `**Intent:** ${intentText}`,
     failedList || null,
-    planId ? `_Plan \`${planId}\` DB'de \`failed\` durumunda kayıtlı._` : null,
+    planId ? `_Plan \`${planId}\` recorded as \`failed\` in database._` : null,
   ].filter(Boolean).join("\n");
 }
 
@@ -200,27 +200,22 @@ export function mountChatStreamRoutes(app, deps = {}) {
     clearInterval(heartbeat);
     if (__chatDone || requestAbort.signal.aborted) return;
     requestAbort.abort(reason || new Error("client closed chat stream"));
-    logCheckpoint("warn", "chat.aborted", "İstemci akışı kesti", { model: model || null, reason: String(reason || "close") }, thread_id);
+    logCheckpoint("warn", "chat.aborted", "Client closed chat stream", { model: model || null, reason: String(reason || "close") }, thread_id);
   };
   // Do NOT use req.close here: on POST it can mean "body fully consumed" while
   // the SSE response is still alive. Real disconnect is covered by req.aborted
   // and res.close, matching sseBegin's semantics.
   req.on("aborted", () => onStreamClientGone("req.aborted"));
   res.on("close", () => onStreamClientGone("res.close"));
-  // UI = TEK MERCİİ (2026-06-02). nowPreamble (auto "şu an" cümlesi) söküldü —
-  // UI'da görünmüyordu. "Şu an" lazımsa UI'daki system_prompt'a yazılır.
-  // Imzayı kırmamak için null geçiyoruz.
   const nowPreamble = null;
-  // Agent bridge env builder `_nowHints.userNow/userTz` bekliyor — header'lardan
-  // parse et. Tanımsız bırakırsak agent dispatch ReferenceError'a düşüyor.
   const _nowHints = (() => { try { return parseNowHeaders(req) || { userNow: null, userTz: null }; } catch { return { userNow: null, userTz: null }; } })();
   const lastUserPreview = [...messages].reverse().find((m) => m?.role === "user");
-  logCheckpoint("info", "chat.request", `Sohbet isteği alındı · ${messages.length} mesaj`, {
+  logCheckpoint("info", "chat.request", `Chat request received · ${messages.length} messages`, {
     msg_len: String(lastUserPreview?.content ?? "").length,
     model: model || null,
     ragEnabled: useRag !== false,
   }, thread_id);
-  logCheckpoint("info", "agent.step.start", `Agent devrede · chat-orchestrator`, {
+  logCheckpoint("info", "agent.step.start", `Agent active · chat-orchestrator`, {
     agent: "chat-orchestrator", step: "ingest", model: model || null,
   }, thread_id);
 
@@ -273,8 +268,7 @@ export function mountChatStreamRoutes(app, deps = {}) {
   intentKind = intent.kind;
   const phaseIntentMs = Date.now() - tIntentStart;
   if (intent.mode === "execution-guard") {
-
-    logCheckpoint("info", "intent.guard", `Execution intent yakalandı · ${intent.executionReason}`, { reason: intent.executionReason }, thread_id);
+    logCheckpoint("info", "intent.guard", `Execution intent engaged · ${intent.executionReason}`, { reason: intent.executionReason }, thread_id);
     broadcastBridge({ kind: "guard", status: "engaged", reason: intent.executionReason, thread_id });
   }
   chatTrace(thread_id, "rag.intent.refined", {
@@ -686,8 +680,8 @@ export function mountChatStreamRoutes(app, deps = {}) {
       if (probeRes.decision === "inject" && probeRes.rows.length) {
         ragUsedFlag = true;
         const ctx = probeRes.rows.map((r, i) => {
-          const _page = r.page_start ? ` · sayfa ${r.page_start}${r.page_end && r.page_end !== r.page_start ? `-${r.page_end}` : ""}` : "";
-          return `[Kaynak ${i + 1}: ${path.basename(r.path || "chunk")}${_page} · chunk #${r.ord ?? 0} · skor ${Math.round(Math.min(1, Number(r.score) || 0) * 100)}% · ${r.access_level}]\n${String(r.content).slice(0, 900)}`;
+          const _page = r.page_start ? ` · p. ${r.page_start}${r.page_end && r.page_end !== r.page_start ? `-${r.page_end}` : ""}` : "";
+          return `[Source ${i + 1}: ${path.basename(r.path || "chunk")}${_page} · chunk #${r.ord ?? 0} · score ${Math.round(Math.min(1, Number(r.score) || 0) * 100)}% · ${r.access_level}]\n${String(r.content).slice(0, 900)}`;
         }).join("\n\n---\n\n");
         // UI = TEK MERCİİ (2026-06-02). Inspector directive (Rule 1-6) +
         // dominant brand lock (Rule 7) + concise (Rule 8) + no-tool (Rule 9) +
@@ -1350,25 +1344,20 @@ export function mountChatStreamRoutes(app, deps = {}) {
     const mdl  = runtimeModel() || "(unset)";
     const isUnreach = /unable to connect|ECONNREFUSED|fetch failed|ENOTFOUND|EAI_AGAIN|getaddrinfo/i.test(raw);
     const friendly = isUnreach
-      ? `LLM handshake failed · base=${base} · model=${mdl} · runtime ayakta mı? (MLX: port ${process.env.LOCAL_RUNTIME_PORT || 8001} · Legacy HTTP runtime ayakta mı?) · upstream: ${raw}`
+      ? `LLM handshake failed · base=${base} · model=${mdl} · check runtime on port ${process.env.LOCAL_RUNTIME_PORT || 8001} · upstream: ${raw}`
       : isFirstTokenTimeout
-        ? `${raw} · automatic zombie cleanup: ${LOCAL_TRANSPORT.lastSelfHealStatus} (${LOCAL_TRANSPORT.lastSelfHealDetail || "no detail"})`
+        ? `${raw} · automatic cleanup: ${LOCAL_TRANSPORT.lastSelfHealStatus} (${LOCAL_TRANSPORT.lastSelfHealDetail || "no detail"})`
         : raw;
-    logCheckpoint("error", "stream.error", `Stream hata: ${friendly.slice(0, 200)}`, { model: mdl }, thread_id);
+    logCheckpoint("error", "stream.error", `Stream error: ${friendly.slice(0, 200)}`, { model: mdl }, thread_id);
     if (isFirstTokenTimeout && !assembled) assembled = friendly;
     send({ error: friendly });
   } finally {
     clearInterval(heartbeat);
-    // RAM tırmanışı fix (debug suite kanıtı 13:46-13:48):
-    // MLX prompt_cache her turda birikiyor — "merhaba" bile +1.5 GB kalıcı
-    // bırakıyor, 10 turda Python süreci 80+ GB'a oturuyor. Stream kapanışında
-    // thread'in cache slot'unu boşalt. Konuşma geçmişi DB'de, modele her turda
-    // full messages[] zaten gönderiliyor → prompt_cache reuse'a ihtiyaç yok.
     try {
       const flushRes = await flushModelKvCache(thread_id);
-      chatTrace(thread_id, "mlx.cache.flush", { ok: flushRes?.ok === true, url: flushRes?.url || null });
+      chatTrace(thread_id, "local.cache.flush", { ok: flushRes?.ok === true, url: flushRes?.url || null });
     } catch (e) {
-      chatTrace(thread_id, "mlx.cache.flush", { ok: false, error: String(e?.message || e).slice(0, 120) }, "warn");
+      chatTrace(thread_id, "local.cache.flush", { ok: false, error: String(e?.message || e).slice(0, 120) }, "warn");
     }
     if (assembled) {
       enqueueWrite(
@@ -1380,18 +1369,17 @@ export function mountChatStreamRoutes(app, deps = {}) {
       const hedged = HEDGE_PATTERNS.test(assembled);
       const totalMs = Date.now() - t0;
       recordChatSample({ ragUsed: ragUsedFlag, hedged, latencyMs: totalMs });
-      const sealedTr = `Yanıt mühürlendi · ${assembled.length} char · ${totalMs}ms`;
-      const sealedEn = `Response saved · ${assembled.length} chars · ${totalMs}ms`;
+      const sealed = `Response saved · ${assembled.length} chars · ${totalMs}ms`;
       logCheckpoint(hedged && !ragUsedFlag ? "warn" : "success", "model.responded",
-        locale === "en" ? sealedEn : sealedTr,
+        sealed,
         { chars: assembled.length, ms: totalMs, ragUsed: ragUsedFlag, hedged, ttft: tFirstToken ? tFirstToken - t0 : null, i18nKey: "chat.response.sealed" },
         thread_id);
       logCheckpoint("success", "agent.step.done",
-        locale === "en" ? `Agent completed · chat-orchestrator · ${totalMs}ms` : `Agent tamamlandı · chat-orchestrator · ${totalMs}ms`,
+        `Agent completed · chat-orchestrator · ${totalMs}ms`,
         { agent: "chat-orchestrator", step: "respond", ms: totalMs, ragUsed: ragUsedFlag, i18nKey: "chat.agent.completed" }, thread_id);
       broadcastAudit({
         agent: "chat", level: hedged && !ragUsedFlag ? "warn" : "info",
-        message: (locale === "en" ? sealedEn : sealedTr) + (ragUsedFlag ? " · RAG" : "") + (hedged ? " · hedged" : ""),
+        message: sealed + (ragUsedFlag ? " · RAG" : "") + (hedged ? " · hedged" : ""),
         key: "chat.response.sealed",
         vars: { chars: assembled.length, ms: totalMs, rag: ragUsedFlag, hedged },
       });
