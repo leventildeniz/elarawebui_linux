@@ -19,12 +19,31 @@ const views = (
 
 export const paletteSurfaces: PaletteSurface[] = [
   ...views("/knowledge", "Knowledge Hub", "view", [
-    ["control", "RAG Control"],
+    ["control", "RAG Control & Health"],
     ["spaces", "Access Spaces"],
     ["aliases", "Brand Aliases"],
-    ["vector", "Vector Forge (RAG)"],
     ["tuning", "Advanced Tuning"],
-    ["prompts", "Advanced System Prompt"],
+  ]),
+  ...views("/settings", "Settings", "tab", [
+    ["providers", "AI Providers & Routing"],
+    ["registry", "Capability Registry"],
+    ["auth", "Authentication & Directories"],
+    ["converter", "Global Converter"],
+    ["services", "Services & Search Providers"],
+    ["certs", "Certificates & TLS"],
+    ["mail", "Mail & Time Servers"],
+    ["siem", "SIEM & Logging"],
+    ["telemetry", "Telemetry Sources"],
+    ["vision", "Vision & Audio Services"],
+    ["backup", "Backup & Restore"],
+    ["theme", "Theme & Styling"],
+  ]),
+  ...views("/system", "Logs / Audit", "tab", [
+    ["live", "Live Debugging Stream"],
+    ["audit", "Audit Journal"],
+    ["siem", "SIEM Event Collector"],
+    ["compliance", "Compliance & Certification"],
+    ["cve", "CVE & Security Advisory"],
   ]),
   ...views("/users", "Users & Groups", "view", [
     ["users", "Users"],
@@ -34,8 +53,8 @@ export const paletteSurfaces: PaletteSurface[] = [
   ]),
   ...views("/memory", "Memory", "view", [
     ["working", "Working Set"],
-    ["episodic", "Episodic"],
-    ["semantic", "Semantic"],
+    ["episodic", "Episodic Memory"],
+    ["semantic", "Semantic Facts"],
     ["policy", "Policy Memory"],
   ]),
   ...views("/approvals", "Approval Queue", "view", [
@@ -46,14 +65,14 @@ export const paletteSurfaces: PaletteSurface[] = [
   ]),
   ...views("/policy", "Policy & Security", "view", [
     ["vault", "Secret Vault"],
-    ["genguard", "GenGuard"],
+    ["genguard", "GenGuard Rules"],
     ["isolation", "Tool Isolation"],
     ["skill-isolation", "Skill Isolation"],
     ["mcp-isolation", "MCP Isolation"],
     ["signed", "Signed Workflows"],
     ["engine", "Policy Engine"],
   ]),
-  ...views("/mcp", "MCP", "view", [
+  ...views("/mcp", "MCP Hub", "view", [
     ["server", "MCP Server"],
     ["client", "MCP Client"],
   ]),

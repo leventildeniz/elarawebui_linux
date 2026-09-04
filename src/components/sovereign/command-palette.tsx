@@ -1,10 +1,24 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { MessageSquare, Search, CornerDownLeft, X, PanelsTopLeft } from "lucide-react";
+import {
+  MessageSquare,
+  Search,
+  CornerDownLeft,
+  X,
+  PanelsTopLeft,
+  Bot,
+  Zap,
+  Cpu,
+  GitFork,
+} from "lucide-react";
 import { paletteSurfaces } from "@/lib/palette-surfaces";
 import { cn } from "@/lib/utils";
 import { useChats } from "@/lib/chat-store";
+import { useAgents } from "@/lib/agent-store";
+import { useSkills } from "@/lib/skill-store";
+import { useModels } from "@/lib/model-store";
+import { useWorkflows } from "@/lib/workflow-store";
 
 export type PaletteTarget = {
   icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
@@ -38,6 +52,38 @@ type Row =
       hint: string;
       icon: PaletteTarget["icon"];
       id: string;
+    }
+  | {
+      kind: "agent";
+      key: string;
+      label: string;
+      hint: string;
+      icon: PaletteTarget["icon"];
+      id: string;
+    }
+  | {
+      kind: "skill";
+      key: string;
+      label: string;
+      hint: string;
+      icon: PaletteTarget["icon"];
+      id: string;
+    }
+  | {
+      kind: "model";
+      key: string;
+      label: string;
+      hint: string;
+      icon: PaletteTarget["icon"];
+      id: string;
+    }
+  | {
+      kind: "workflow";
+      key: string;
+      label: string;
+      hint: string;
+      icon: PaletteTarget["icon"];
+      id: string;
     };
 
 export function CommandPalette({
@@ -53,6 +99,10 @@ export function CommandPalette({
   const [cursor, setCursor] = useState(0);
   const navigate = useNavigate();
   const { chats, setActive } = useChats();
+  const { agents } = useAgents();
+  const { skills } = useSkills();
+  const { models } = useModels();
+  const { workflows } = useWorkflows();
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -90,9 +140,57 @@ export function CommandPalette({
         search: s.search,
       }));
 
+    const agentRows: Row[] = (agents || [])
+      .filter((a) => match(a.name) || match(a.squad) || match(a.description || ""))
+      .slice(0, 6)
+      .map((a) => ({
+        kind: "agent",
+        key: `agt:${a.id}`,
+        label: a.name,
+        hint: a.squad ? `Agent · ${a.squad}` : "Agent",
+        icon: Bot,
+        id: a.id,
+      }));
+
+    const skillRows: Row[] = (skills || [])
+      .filter((sk) => match(sk.name) || match(sk.description || ""))
+      .slice(0, 6)
+      .map((sk) => ({
+        kind: "skill",
+        key: `sk:${sk.id}`,
+        label: sk.name,
+        hint: "Skill",
+        icon: Zap,
+        id: sk.id,
+      }));
+
+    const modelRows: Row[] = (models || [])
+      .filter((m) => match(m.name) || match(m.modelId) || match(m.vendor || ""))
+      .slice(0, 4)
+      .map((m) => ({
+        kind: "model",
+        key: `mdl:${m.id}`,
+        label: m.name,
+        hint: m.vendor ? `Model · ${m.vendor}` : "Model",
+        icon: Cpu,
+        id: m.id,
+      }));
+
+    const workflowRows: Row[] = (workflows || [])
+      .filter((w) => match(w.name))
+      .slice(0, 4)
+      .map((w) => ({
+        kind: "workflow",
+        key: `wf:${w.id}`,
+        label: w.name,
+        hint: "Workflow",
+        icon: GitFork,
+        id: w.id,
+      }));
+
     const threads: Row[] = chats
       .filter((c) => match(c.title))
-      .slice(0, 8)
+      .slice(0, 6)
       .map((c) => ({
         kind: "chat",
         key: `c:${c.id}`,
@@ -102,8 +200,8 @@ export function CommandPalette({
         id: c.id,
       }));
 
-    return [...nav, ...surfaces, ...threads];
-  }, [q, targets, chats]);
+    return [...nav, ...surfaces, ...agentRows, ...skillRows, ...modelRows, ...workflowRows, ...threads];
+  }, [q, targets, paletteSurfaces, agents, skills, models, workflows, chats]);
 
   useEffect(() => setCursor(0), [q]);
 
@@ -111,6 +209,10 @@ export function CommandPalette({
     if (!row) return;
     if (row.kind === "nav") navigate({ to: row.to });
     else if (row.kind === "surface") navigate({ to: row.to, search: row.search });
+    else if (row.kind === "agent") navigate({ to: "/agents" });
+    else if (row.kind === "skill") navigate({ to: "/skills" });
+    else if (row.kind === "model") navigate({ to: "/models" });
+    else if (row.kind === "workflow") navigate({ to: "/flows" });
     else {
       setActive(row.id);
       navigate({ to: "/" });
