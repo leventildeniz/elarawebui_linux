@@ -71,7 +71,7 @@ import { initLlmProvider, stream as llmStream, webSearch as llmWebSearch } from 
 // import { initProviderPolicyCache } from './lib/providers/policy-cache.mjs';
 import { initAuditFeed } from './lib/audit-feed.mjs';
 import { initEmbedWorkerStore, embedAndStoreChunks } from './lib/embed-worker/store.mjs';
-import { initEmbedWorkerRuntime, ensureWorker, kickWorkerStart, killWorker } from './lib/embed-worker/runtime.mjs';
+import { initEmbedWorkerRuntime, startEmbedWorkerIntervals, ensureWorker, kickWorkerStart, killWorker } from './lib/embed-worker/runtime.mjs';
 import { initRagRetrieval } from './lib/rag/retrieval.mjs';
 import { initToolAdapters, invokeTool, listPendingApprovals, decideApproval, ApprovalRequired, ToolPolicyError } from './lib/tool-adapters.mjs';
 import { initWorkflowEngine } from './lib/workflow-engine.mjs';
@@ -399,6 +399,7 @@ async function startServer() {
     initEntityExtractor({ pool });
     initEmbedWorkerStore(deps);
     initEmbedWorkerRuntime(deps);
+    startEmbedWorkerIntervals();
     initProductCache({ pool, getRagSettings });
     initRagRetrieval(deps);
     initBrandAliases(deps);

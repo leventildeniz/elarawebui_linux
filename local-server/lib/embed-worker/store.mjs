@@ -23,18 +23,15 @@ export function initEmbedWorkerStore(deps) {
 
 export async function embedAndStoreChunks(ids, texts, opts = {}) {
   if (!DEPS) throw new Error("[embed-worker/store] not initialized");
-  const { pool, embed, ensureWorker, pushLog, tableHasColumn, getRagSettings, EMBED_DIM_TARGET } = DEPS;
+  const { pool, embed, ensureWorker, pushLog, getRagSettings, EMBED_DIM_TARGET } = DEPS;
   if (!ids?.length || !texts?.length) return 0;
-  if (!process.env.MLX_EMBED_MODEL) return 0;
-  const embeddingReady = await tableHasColumn("knowledge_chunks", "embedding").catch(() => false);
-  if (!embeddingReady) return 0;
+  
   await ensureWorker().catch((e) => pushLog("worker", `[ensure-error] ${e?.message || e}`));
   const signal = opts.signal && typeof opts.signal === "object" ? opts.signal : null;
-  const BATCH = Math.max(8, Math.min(128, Number(process.env.EMBED_STORE_BATCH) || 64));
-  const embModel = process.env.EMBED_MODEL || null;
-  const RAG_SETTINGS = getRagSettings();
-  const embProfile = RAG_SETTINGS.useEnrichedContent ? "enriched" : "raw";
+  const BATCH = Math.max(8, Math.min(128, Number(process.env.EMBED_STORE_BATCH) || 32));
+  const embModel = process.env.EMBED_MODEL || process.env.MLX_EMBED_MODEL || "BAAI/bge-m3";
   let written = 0;
+
   for (let i = 0; i < ids.length; i += BATCH) {
     if (signal?.aborted) break;
     const idSlice = ids.slice(i, i + BATCH);
@@ -42,58 +39,33 @@ export async function embedAndStoreChunks(ids, texts, opts = {}) {
     const embs = await embed(txSlice, { signal }).catch(() => null);
     if (signal?.aborted) break;
     if (!embs || embs.length !== idSlice.length) {
-      await pool.query(
-        `UPDATE knowledge_chunks
-            SET embedding_status='pending',
-                embedding_locked_at=NULL,
-                embedding_last_error=$2
-          WHERE id = ANY($1::bigint[]) AND embedding_status='in_progress'`,
-        [idSlice, `worker returned ${embs ? `len=${embs.length} expected=${idSlice.length}` : "null"}`]
-      ).catch(() => {});
       continue;
     }
     for (let j = 0; j < idSlice.length; j++) {
       if (signal?.aborted) break;
       const v = embs[j];
-      if (!Array.isArray(v) || v.length !== EMBED_DIM_TARGET) {
-        if (process.env.DEBUG_RAG) console.error(`[embed] dim mismatch got=${v?.length} want=${EMBED_DIM_TARGET}`);
-        await pool.query(
-          `UPDATE knowledge_chunks
-              SET embedding_status='error',
-                  embedding_last_error=$2,
-                  embedding_locked_at=NULL
-            WHERE id=$1`,
-          [idSlice[j], `embedding dim mismatch: got=${v?.length} want=${EMBED_DIM_TARGET}`]
-        ).catch(() => {});
+      if (!Array.isArray(v) || v.length < 128) {
+        if (process.env.DEBUG_RAG) console.error(`[embed] dim mismatch got=${v?.length}`);
         continue;
       }
-      const vec = `[${v.join(",")}]`;
-      const inputHash = createHash("sha256").update(String(txSlice[j] || "")).digest("hex");
-      const r = await pool.query(
-        `UPDATE knowledge_chunks
-            SET embedding = $1::vector,
-                embedding_status = 'ok',
-                embedded_at = now(),
-                embedding_locked_at = NULL,
-                embedding_last_error = NULL,
-                embedding_model = COALESCE($3, embedding_model),
-                embedding_input_hash = $4,
-                embedding_profile = $5
-          WHERE id = $2`,
-        [vec, idSlice[j], embModel, inputHash, embProfile]
-      ).catch((e) => {
-        if (process.env.DEBUG_RAG) console.error("[embed:write]", e.message);
-        pool.query(
+      try {
+        const r = await pool.query(
           `UPDATE knowledge_chunks
-              SET embedding_status='error',
-                  embedding_last_error=$2,
-                  embedding_locked_at=NULL
-            WHERE id=$1`,
-          [idSlice[j], `bulk write fail: ${String(e.message || e).slice(0, 240)}`]
-        ).catch(() => {});
-        return null;
-      });
-      if (r) written++;
+              SET embedding = $1::jsonb,
+                  metadata = jsonb_set(
+                    jsonb_set(
+                      jsonb_set(COALESCE(metadata, '{}'::jsonb), '{embedded_at}', to_jsonb(now())),
+                      '{embedding_model}', to_jsonb($3::text)
+                    ),
+                    '{embedding_status}', '"ok"'
+                  )
+            WHERE id = $2`,
+          [JSON.stringify(v), idSlice[j], embModel]
+        );
+        if (r.rowCount > 0) written++;
+      } catch (writeErr) {
+        if (process.env.DEBUG_RAG) console.error("[embed:write]", writeErr.message);
+      }
     }
   }
   return written;
