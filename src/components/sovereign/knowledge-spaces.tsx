@@ -174,6 +174,7 @@ export function KnowledgeSpacesTab() {
               accounts={accounts.map((a) => ({ id: a.id, name: `${a.username} · ${a.name}` }))}
               groupField="contributorGroups"
               userField="contributorUsers"
+              allowAny
               toggle={toggleIn}
             />
 
@@ -391,11 +392,13 @@ function MemberBlock({
       </div>
 
       <p className="mt-2 font-mono text-[11px] text-muted-foreground/45">{hint}</p>
-      {selGroups.length === 0 && selUsers.length === 0 && (
-        <Tag tone="topaz" className="mt-2">
-          admins only
-        </Tag>
-      )}
+      {!selGroups.includes(ANY_GROUP) &&
+        selGroups.filter((id) => id !== ANY_GROUP).length === 0 &&
+        selUsers.length === 0 && (
+          <Tag tone="topaz" className="mt-2">
+            admins only
+          </Tag>
+        )}
     </div>
   );
 }
