@@ -10,7 +10,10 @@ import {
   routingModes,
   useProviders,
   type ProviderKind,
+  type OverrideAudience,
 } from "@/lib/provider-store";
+import { useRoles } from "@/lib/rbac-store";
+import { useIdentity } from "@/lib/group-store";
 import { cn } from "@/lib/utils";
 
 const fieldCls =
@@ -50,7 +53,9 @@ function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
 
 export function AiProvidersPanel() {
   const vault = useVaultStore();
-  
+  const { roles } = useRoles();
+  const { groups, accounts } = useIdentity();
+
   useEffect(() => {
     vault.fetch();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -94,26 +99,26 @@ export function AiProvidersPanel() {
 
   const submit = async () => {
     if (!draft.name.trim()) return;
-    
+
     // Explicitly destructure draft to ensure we send all fields including isCheapest
     const payload = {
-       name: draft.name.trim(),
-       kind: draft.kind,
-       priority: draft.priority,
-       baseUrl: draft.baseUrl,
-       model: draft.model,
-       secretId: draft.secretId,
-       active: draft.active,
-       isCheapest: draft.isCheapest
+      name: draft.name.trim(),
+      kind: draft.kind,
+      priority: draft.priority,
+      baseUrl: draft.baseUrl,
+      model: draft.model,
+      secretId: draft.secretId,
+      active: draft.active,
+      isCheapest: draft.isCheapest,
     };
-    
+
     if (editingId) {
       await update(editingId, payload);
       setEditingId(null);
     } else {
       await add(payload);
     }
-    
+
     setDraft(blank);
   };
 
@@ -190,6 +195,162 @@ export function AiProvidersPanel() {
             </span>
           </div>
         </div>
+
+        {routing.allowUserOverride && (
+          <div className="mt-5 rounded-xl border border-white/[0.06] bg-white/[0.015] p-4">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <Label>Override Audience Scope</Label>
+                <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                  {(
+                    [
+                      { id: "everyone", label: "Everyone (All Users)" },
+                      { id: "admins", label: "Admins Only" },
+                      { id: "groups", label: "User Groups" },
+                      { id: "users", label: "Specific Users" },
+                      { id: "roles", label: "Roles" },
+                    ] as const
+                  ).map((aud) => (
+                    <button
+                      key={aud.id}
+                      type="button"
+                      onClick={() =>
+                        patchRouting({
+                          overrideAudience: aud.id as OverrideAudience,
+                        })
+                      }
+                      className={cn(
+                        "rounded-lg border px-3 py-1.5 font-mono text-[11.5px] transition-colors",
+                        (routing.overrideAudience || "everyone") === aud.id
+                          ? "border-sapphire/50 bg-sapphire/15 text-sapphire shadow-[0_0_12px_-3px_var(--sapphire)]"
+                          : "border-white/[0.08] bg-black/25 text-muted-foreground/70 hover:text-foreground",
+                      )}
+                    >
+                      {aud.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {routing.overrideAudience === "groups" && (
+                <div className="min-w-[280px] flex-1 border-t border-white/[0.06] pt-3 sm:border-t-0 sm:pt-0">
+                  <Label>Permitted User Groups (Click to Toggle)</Label>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                    {groups.length === 0 ? (
+                      <span className="font-mono text-[11px] text-muted-foreground/40">No identity groups defined in Users & Groups</span>
+                    ) : (
+                      groups.map((g) => {
+                        const active = (routing.overrideGroups || []).some(
+                          (ag) => ag.toLowerCase() === g.id.toLowerCase() || ag.toLowerCase() === g.name.toLowerCase(),
+                        );
+                        return (
+                          <button
+                            key={g.id}
+                            type="button"
+                            onClick={() => {
+                              const cur = routing.overrideGroups || [];
+                              const next = active
+                                ? cur.filter((x) => x.toLowerCase() !== g.id.toLowerCase() && x.toLowerCase() !== g.name.toLowerCase())
+                                : [...cur, g.name];
+                              patchRouting({ overrideGroups: next });
+                            }}
+                            className={cn(
+                              "flex items-center gap-1.5 rounded-md border px-2.5 py-1 font-mono text-[11px] transition-colors",
+                              active
+                                ? "border-emerald/40 bg-emerald/10 text-emerald"
+                                : "border-white/[0.07] bg-black/20 text-muted-foreground/50 hover:text-foreground",
+                            )}
+                          >
+                            <span
+                              className="h-1.5 w-1.5 rounded-full"
+                              style={{ background: `var(--${g.tone || "sapphire"})` }}
+                            />
+                            {active ? "✓ " : "+ "}
+                            {g.name}
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {routing.overrideAudience === "users" && (
+                <div className="min-w-[280px] flex-1 border-t border-white/[0.06] pt-3 sm:border-t-0 sm:pt-0">
+                  <Label>Permitted User Accounts (Click to Toggle)</Label>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                    {accounts.length === 0 ? (
+                      <span className="font-mono text-[11px] text-muted-foreground/40">No user accounts found</span>
+                    ) : (
+                      accounts.map((u) => {
+                        const active = (routing.overrideUsers || []).some(
+                          (au) => au.toLowerCase() === u.username.toLowerCase() || au.toLowerCase() === u.id.toLowerCase(),
+                        );
+                        return (
+                          <button
+                            key={u.id}
+                            type="button"
+                            onClick={() => {
+                              const cur = routing.overrideUsers || [];
+                              const next = active
+                                ? cur.filter((x) => x.toLowerCase() !== u.username.toLowerCase() && x.toLowerCase() !== u.id.toLowerCase())
+                                : [...cur, u.username];
+                              patchRouting({ overrideUsers: next });
+                            }}
+                            className={cn(
+                              "rounded-md border px-2.5 py-1 font-mono text-[11px] transition-colors",
+                              active
+                                ? "border-emerald/40 bg-emerald/10 text-emerald"
+                                : "border-white/[0.07] bg-black/20 text-muted-foreground/50 hover:text-foreground",
+                            )}
+                          >
+                            {active ? "✓ " : "+ "}
+                            {u.name || u.username} ({u.username})
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {routing.overrideAudience === "roles" && (
+                <div className="min-w-[280px] flex-1 border-t border-white/[0.06] pt-3 sm:border-t-0 sm:pt-0">
+                  <Label>Permitted Roles (Click to Toggle)</Label>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                    {roles.map((r) => {
+                      const active = (routing.overrideRoles || ["Admin", "Operator"]).some(
+                        (ar) => ar.toLowerCase() === r.name.toLowerCase(),
+                      );
+                      return (
+                        <button
+                          key={r.id}
+                          type="button"
+                          onClick={() => {
+                            const cur = routing.overrideRoles || ["Admin", "Operator"];
+                            const next = active
+                              ? cur.filter((x) => x.toLowerCase() !== r.name.toLowerCase())
+                              : [...cur, r.name];
+                            patchRouting({ overrideRoles: next });
+                          }}
+                          className={cn(
+                            "rounded-md border px-2.5 py-1 font-mono text-[11px] transition-colors",
+                            active
+                              ? "border-emerald/40 bg-emerald/10 text-emerald"
+                              : "border-white/[0.07] bg-black/20 text-muted-foreground/50 hover:text-foreground",
+                          )}
+                        >
+                          {active ? "✓ " : "+ "}
+                          {r.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Smart Router Regex Rules Builder */}
         {routing.mode === "smart_router" && (

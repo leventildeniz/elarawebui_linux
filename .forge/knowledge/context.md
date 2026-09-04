@@ -529,6 +529,14 @@ Bu aşamada `/system` (Logs / Audit) altındaki **Live Debugging** ve **Audit Jo
    - `local-server/lib/routes/chat-orchestrate.mjs`: `memory_facts` (Uzun Vadeli Gerçekler) ve `memory_working` (Pinned bloklar) sohbet başlarken otomatik olarak modelin sistem direktiflerine enjekte edildi.
    - `local-server/lib/routes/memory.mjs`: Bellek operasyonları (`working.pin`, `working.evict`, `episodic.purge`, `fact.created/updated/deleted`) canlı `broadcastAudit` ve `agent_logs` telemetrisine bağlandı.
    - `src/routes/memory.tsx`: Working Set altındaki thread'ler sonsuz dikey kaydırma yerine şık, açılır-kapanır (`ThreadWorkingCard` Accordion) mimariye dönüştürüldü (varsayılan kapalı, tek tıkla Expand/Collapse All destekli).
+8. **Settings 12 Alt Modülünün Tam Denetimi & Mock Arındırması:**
+   - `/settings` altındaki 12 alt modül (`Settings/Providers`, `Capability Registry`, `Authentication`, `Global Converter`, `Services`, `Certificates`, `Mail & Time`, `SIEM`, `Telemetry Sources`, `Vision Audio`, `Backup & Restore`, `Theme`) uçtan uca incelendi.
+   - `src/routes/services.tsx` içerisindeki eski `@/mocks` import'u ve fallback verileri tamamen silinerek doğrudan PostgreSQL `app_services` ve `search_providers` tablolarına bağlandı.
+   - Tüm 12 modülün %100 gerçek PostgreSQL veritabanı ve kurumsal İngilizce standartlarında çalıştığı doğrulandı.
+9. **Multi-Provider Routing Override Kapsamı ve Kurumsal RBAC:**
+   - `src/lib/provider-store.ts` ve `src/components/sovereign/ai-providers-panel.tsx`: `Allow user override` anahtarına `Everyone`, `Admins only` ve `Specific roles` (rol bazlı yetki seçimi) yetki kapsamı eklendi.
+   - `src/components/sovereign/composer.tsx`: Yetkisi olmayan kullanıcılar için Chat popover'ındaki Routing seçimi otomatik olarak kilitlendi (`[Locked by Policy]`).
+   - `local-server/lib/routes/chat-orchestrate.mjs`: Kullanıcı oturum rolü (`actorCtx.role`) backend seviyesinde doğrulanarak yetkisiz override isteklerinin sunucu tarafında engellenmesi sağlandı.
 
 ## 51. UP NEXT (Phase 51) - Agentic RAG & Knowledge Hub Validation & Deep Benchmarking
 1. **Agentic RAG & Knowledge Hub Validation:** Departman bazlı space izolasyonu (`rag_space_id`), doküman chunklama ve `bge-reranker-v2-m3` reranker testleri.

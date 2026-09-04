@@ -794,17 +794,51 @@ export async function mountChatOrchestrateRoutes(app, deps) {
       // Fetch global system routing policy
       let sysRoutingMode = "failover";
       let allowOverride = true;
+      let overrideAudience = "everyone";
+      let overrideGroups = [];
+      let overrideUsers = [];
+      let overrideRoles = ["Admin", "Operator"];
       try {
           const rRow = await pool.query("SELECT value FROM system_config WHERE key = 'routing_policy'");
           if (rRow.rows.length > 0 && rRow.rows[0].value) {
               const parsedConfig = typeof rRow.rows[0].value === 'string' ? JSON.parse(rRow.rows[0].value) : rRow.rows[0].value;
               sysRoutingMode = parsedConfig.mode || "failover";
               if (parsedConfig.allowUserOverride === false) allowOverride = false;
+              overrideAudience = parsedConfig.overrideAudience || "everyone";
+              overrideGroups = Array.isArray(parsedConfig.overrideGroups) ? parsedConfig.overrideGroups : [];
+              overrideUsers = Array.isArray(parsedConfig.overrideUsers) ? parsedConfig.overrideUsers : [];
+              overrideRoles = Array.isArray(parsedConfig.overrideRoles) ? parsedConfig.overrideRoles : ["Admin", "Operator"];
           }
       } catch(e) { }
 
+      // Enforce Identity (Groups/Users/Roles/Admin) Scope for Override
+      if (allowOverride && !actorCtx?.isAdmin) {
+          if (overrideAudience === "admins") {
+              allowOverride = false;
+          } else if (overrideAudience === "users") {
+              const uName = String(actorCtx?.username || "").toLowerCase();
+              const allowedUsers = overrideUsers.map(u => String(u).toLowerCase());
+              if (!allowedUsers.includes(uName)) {
+                  allowOverride = false;
+              }
+          } else if (overrideAudience === "groups") {
+              const uGroups = (actorCtx?.groupIds || actorCtx?.groups || []).map(g => String(g).toLowerCase());
+              const allowedGroups = overrideGroups.map(g => String(g).toLowerCase());
+              const hasGroup = uGroups.some(g => allowedGroups.includes(g));
+              if (!hasGroup) {
+                  allowOverride = false;
+              }
+          } else if (overrideAudience === "roles") {
+              const userRole = (actorCtx?.role || "Viewer").toLowerCase();
+              const allowedLower = overrideRoles.map(r => String(r).toLowerCase());
+              if (!allowedLower.includes(userRole)) {
+                  allowOverride = false;
+              }
+          }
+      }
+
       const finalRoutingMode = (routing_mode && allowOverride) ? routing_mode : sysRoutingMode;
-      console.log(`[Orchestrate] Final Routing Mode Applied: ${finalRoutingMode} (SysMode: ${sysRoutingMode}, OverrideAllowed: ${allowOverride})`);
+      console.log(`[Orchestrate] Final Routing Mode Applied: ${finalRoutingMode} (SysMode: ${sysRoutingMode}, OverrideAllowed: ${allowOverride}, Audience: ${overrideAudience})`);
 
       // Provider chain resolution
       let providerChain = [];

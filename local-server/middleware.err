@@ -52504,3 +52504,43 @@ Node.js v22.22.1
 [pg async write:side] invalid input syntax for type uuid: "chat_1788477316549"
 [pg async write:side] invalid input syntax for type uuid: "chat_1788477316549"
 [Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function

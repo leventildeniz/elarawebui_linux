@@ -16,13 +16,7 @@ export type ProviderEntry = {
 };
 
 export type RoutingMode =
-  | "failover"
-  | "smart_router"
-  | "manual_only"
-  | "single"
-  | "multi"
-  | "round_robin"
-  | "cheapest";
+  "failover" | "smart_router" | "manual_only" | "single" | "multi" | "round_robin" | "cheapest";
 
 export const routingModes: { key: RoutingMode; label: string; hint: string }[] = [
   { key: "failover", label: "Failover", hint: "priority order, fall through on error" },
@@ -40,9 +34,15 @@ export type SmartRouteRule = {
   providerId: string; // ID of the target AI provider
 };
 
+export type OverrideAudience = "everyone" | "admins" | "groups" | "users" | "roles";
+
 export type RoutingPolicy = {
   mode: RoutingMode;
   allowUserOverride: boolean;
+  overrideAudience: OverrideAudience;
+  overrideGroups: string[];
+  overrideUsers: string[];
+  overrideRoles: string[];
   retries: number;
   timeoutMs: number;
   smartRules: SmartRouteRule[];
@@ -51,6 +51,10 @@ export type RoutingPolicy = {
 export const defaultRouting: RoutingPolicy = {
   mode: "failover",
   allowUserOverride: true,
+  overrideAudience: "everyone",
+  overrideGroups: [],
+  overrideUsers: [],
+  overrideRoles: ["Admin", "Operator"],
   retries: 2,
   timeoutMs: 30000,
   smartRules: [],
@@ -136,18 +140,21 @@ export function useProviders() {
     }
   }, []);
 
-  const patchRouting = useCallback(async (patch: Partial<RoutingPolicy>) => {
-    try {
-      const next = { ...routing, ...patch };
-      setRouting(next); // optimistic
-      await fetchApi("/system/config/routing_policy", {
-        method: "PUT",
-        body: JSON.stringify(next),
-      });
-    } catch (e) {
-      console.error("Failed to save routing policy", e);
-    }
-  }, [routing]);
+  const patchRouting = useCallback(
+    async (patch: Partial<RoutingPolicy>) => {
+      try {
+        const next = { ...routing, ...patch };
+        setRouting(next); // optimistic
+        await fetchApi("/system/config/routing_policy", {
+          method: "PUT",
+          body: JSON.stringify(next),
+        });
+      } catch (e) {
+        console.error("Failed to save routing policy", e);
+      }
+    },
+    [routing],
+  );
 
   return { providers, routing, add, update, remove, patchRouting, loading };
 }

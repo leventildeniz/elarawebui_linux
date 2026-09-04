@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { Plug, Plus, RefreshCw, RotateCcw, Server, Trash2 } from "lucide-react";
 import { Surface } from "@/components/sovereign/surface";
@@ -8,8 +8,6 @@ import { JewelButton } from "@/components/sovereign/primitives";
 import { confirmAction } from "@/components/sovereign/confirm-dialog";
 import { VaultKeyField } from "@/components/sovereign/vault-key-field";
 import { cn } from "@/lib/utils";
-import { seedServices, serviceKinds, serviceLifecycleSeed } from "@/mocks";
-
 import { fetchApi } from "@/lib/api";
 
 const description =
@@ -100,8 +98,37 @@ const emptyDraft = {
 
 type Draft = typeof emptyDraft;
 
+const serviceKinds = [
+  "HTTP probe",
+  "Postgres",
+  "Redis / Valkey",
+  "Ollama / Local runtime",
+  "Custom daemon",
+] as const;
+
 const KINDS = serviceKinds;
 const STORE_KEY = "sovereign.services.tower";
+
+const defaultService: Service = {
+  id: "svc.default",
+  key: "default",
+  name: "Service",
+  kind: "HTTP probe",
+  probe: "http://127.0.0.1:8080/health",
+  username: "",
+  credential: "",
+  manager: "systemd",
+  unit: "",
+  sudo: false,
+  transport: "local-agent",
+  host: "",
+  startCmd: "",
+  stopCmd: "",
+  restartCmd: "",
+  statusCmd: "",
+  online: false,
+  detail: "",
+};
 
 /** derives the lifecycle command for a manager + unit pair */
 function lifecycleCmd(
@@ -125,11 +152,11 @@ function lifecycleCmd(
 }
 
 function normalize(s: Partial<Service>): Service {
-  return { ...seedServices[0]!, ...serviceLifecycleSeed, ...s } as Service;
+  return { ...defaultService, ...s } as Service;
 }
 
 function ServicesPage() {
-  const [services, setServices] = useState<Service[]>(seedServices);
+  const [services, setServices] = useState<Service[]>([]);
   const [ready, setReady] = useState(false);
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
@@ -139,37 +166,39 @@ function ServicesPage() {
   const [providers, setProviders] = useState<SearchProvider[]>([]);
   const [addingProvider, setAddingProvider] = useState(false);
   const [editingProvider, setEditingProvider] = useState<string | null>(null);
-  const [draftProvider, setDraftProvider] = useState<Omit<SearchProvider, "id">>({ ...emptySearchDraft });
+  const [draftProvider, setDraftProvider] = useState<Omit<SearchProvider, "id">>({
+    ...emptySearchDraft,
+  });
+
+  const fetchServices = useCallback(async () => {
+    try {
+      const data = await fetchApi("/system/services");
+      if (Array.isArray(data) && data.length > 0) {
+        setServices(data.map(normalize));
+      } else {
+        setServices([]);
+      }
+    } catch (err) {
+      console.error("Failed to load services from API", err);
+      const raw = localStorage.getItem(STORE_KEY);
+      if (raw) setServices((JSON.parse(raw) as Partial<Service>[]).map(normalize));
+    }
+    setReady(true);
+  }, []);
+
+  const fetchProviders = useCallback(async () => {
+    try {
+      const data = await fetchApi("/api/search-providers");
+      if (Array.isArray(data)) setProviders(data);
+    } catch (err) {
+      console.error("Failed to load search providers", err);
+    }
+  }, []);
 
   useEffect(() => {
-    const fetchServices = async () => {
-      try {
-        const data = await fetchApi("/system/services");
-        if (Array.isArray(data) && data.length > 0) {
-          setServices(data.map(normalize));
-        } else {
-          setServices(seedServices);
-        }
-      } catch (err) {
-        console.error("Failed to load services from API", err);
-        const raw = localStorage.getItem(STORE_KEY);
-        if (raw) setServices((JSON.parse(raw) as Partial<Service>[]).map(normalize));
-      }
-      setReady(true);
-    };
-
-    const fetchProviders = async () => {
-      try {
-        const data = await fetchApi("/api/search-providers");
-        if (Array.isArray(data)) setProviders(data);
-      } catch (err) {
-        console.error("Failed to load search providers", err);
-      }
-    };
-
     fetchServices();
     fetchProviders();
-  }, []);
+  }, [fetchServices, fetchProviders]);
 
   const add = async () => {
     if (!draft.key.trim()) return;
@@ -181,7 +210,7 @@ function ServicesPage() {
     try {
       const data = await fetchApi("/system/services", {
         method: "POST",
-        body: JSON.stringify(newService)
+        body: JSON.stringify(newService),
       });
       setServices((s) => [
         ...s,
@@ -203,7 +232,7 @@ function ServicesPage() {
     try {
       await fetchApi(`/system/services/${id}`, {
         method: "PUT",
-        body: JSON.stringify(patch)
+        body: JSON.stringify(patch),
       });
       setServices((s) => s.map((x) => (x.id === id ? { ...x, ...patch } : x)));
     } catch (e) {
@@ -217,10 +246,10 @@ function ServicesPage() {
       const payload = { ...draftProvider, name };
       const res = await fetchApi("/api/search-providers", {
         method: "POST",
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       });
       if (res.id) {
-        setProviders(p => [...p, { ...payload, id: res.id } as SearchProvider]);
+        setProviders((p) => [...p, { ...payload, id: res.id } as SearchProvider]);
       }
     } catch (e) {
       console.error("Failed to add search provider", e);
@@ -231,14 +260,14 @@ function ServicesPage() {
 
   const saveProvider = async (id: string, patch: Partial<SearchProvider>) => {
     try {
-      const existing = providers.find(x => x.id === id);
+      const existing = providers.find((x) => x.id === id);
       if (!existing) return;
       const payload = { ...existing, ...patch };
       await fetchApi("/api/search-providers", {
         method: "POST",
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       });
-      setProviders(p => p.map(x => (x.id === id ? payload : x)));
+      setProviders((p) => p.map((x) => (x.id === id ? payload : x)));
     } catch (e) {
       console.error("Failed to update search provider", e);
     }
@@ -247,7 +276,7 @@ function ServicesPage() {
   const removeProvider = async (id: string) => {
     try {
       await fetchApi(`/api/search-providers/${id}`, { method: "DELETE" });
-      setProviders(p => p.filter(x => x.id !== id));
+      setProviders((p) => p.filter((x) => x.id !== id));
     } catch (e) {
       console.error("Failed to remove search provider", e);
     }
@@ -257,10 +286,12 @@ function ServicesPage() {
     try {
       const res = await fetchApi(`/system/services/${id}/control`, {
         method: "PUT",
-        body: JSON.stringify({ action })
+        body: JSON.stringify({ action }),
       });
       if (res.ok) {
-        setServices((s) => s.map((x) => (x.id === id ? { ...x, online: res.online, detail: res.detail } : x)));
+        setServices((s) =>
+          s.map((x) => (x.id === id ? { ...x, online: res.online, detail: res.detail } : x)),
+        );
       }
     } catch (e) {
       console.error(`Failed to ${action} service`, e);
@@ -302,15 +333,15 @@ function ServicesPage() {
               className="hover:border-topaz/45 hover:text-topaz"
               onClick={async () => {
                 const ok = await confirmAction({
-                  title: "Restore default services?",
-                  body: "Re-seeds the tower with the studio's baseline services (including PostgreSQL). Your custom entries are removed.",
-                  confirmLabel: "Restore",
-                  tone: "ruby",
+                  title: "Reload services from backend?",
+                  body: "Re-syncs the tower with the database services state.",
+                  confirmLabel: "Reload",
+                  tone: "sapphire",
                 });
-                if (ok) setServices(seedServices);
+                if (ok) fetchServices();
               }}
             >
-              <RotateCcw size={12} /> Restore defaults
+              <RotateCcw size={12} /> Reload
             </JewelButton>
           </div>
         </header>
@@ -424,9 +455,11 @@ function ServicesPage() {
                     try {
                       await fetchApi(`/api/system/services/${s.id}`, {
                         method: "PUT",
-                        body: JSON.stringify(patch)
+                        body: JSON.stringify(patch),
                       });
-                      setServices((rows) => rows.map((r) => (r.id === s.id ? { ...r, ...patch } : r)));
+                      setServices((rows) =>
+                        rows.map((r) => (r.id === s.id ? { ...r, ...patch } : r)),
+                      );
                     } catch (e) {
                       console.error("Failed to update service", e);
                     }
@@ -485,7 +518,7 @@ function ServicesPage() {
                 close
               </button>
             </div>
-            
+
             <div className="mt-4 grid gap-x-5 gap-y-3 md:grid-cols-2">
               <div>
                 <span className={labelCls}>Name</span>
@@ -501,12 +534,25 @@ function ServicesPage() {
                 <select
                   className={fieldCls}
                   value={draftProvider.provider_type}
-                  onChange={(e) => setDraftProvider({ ...draftProvider, provider_type: e.target.value as any })}
+                  onChange={(e) =>
+                    setDraftProvider({
+                      ...draftProvider,
+                      provider_type: e.target.value as SearchProviderType,
+                    })
+                  }
                 >
-                  <option value="tavily" className="bg-panel">Tavily Search API</option>
-                  <option value="searxng" className="bg-panel">SearXNG (Self-Hosted)</option>
-                  <option value="duckduckgo" className="bg-panel">DuckDuckGo (Free HTML)</option>
-                  <option value="brave" className="bg-panel">Brave Search API</option>
+                  <option value="tavily" className="bg-panel">
+                    Tavily Search API
+                  </option>
+                  <option value="searxng" className="bg-panel">
+                    SearXNG (Self-Hosted)
+                  </option>
+                  <option value="duckduckgo" className="bg-panel">
+                    DuckDuckGo (Free HTML)
+                  </option>
+                  <option value="brave" className="bg-panel">
+                    Brave Search API
+                  </option>
                 </select>
               </div>
               <div>
@@ -517,7 +563,12 @@ function ServicesPage() {
                   max="10"
                   className={fieldCls}
                   value={draftProvider.priority}
-                  onChange={(e) => setDraftProvider({ ...draftProvider, priority: parseInt(e.target.value) || 5 })}
+                  onChange={(e) =>
+                    setDraftProvider({
+                      ...draftProvider,
+                      priority: parseInt(e.target.value, 10) || 5,
+                    })
+                  }
                 />
               </div>
               <div className="md:col-span-2">
@@ -539,7 +590,10 @@ function ServicesPage() {
             </div>
 
             <div className="mt-5 flex items-center justify-end gap-3 border-t border-white/[0.06] pt-4">
-              <ResetButton title="Reset Provider?" onReset={() => setDraftProvider({ ...emptySearchDraft })} />
+              <ResetButton
+                title="Reset Provider?"
+                onReset={() => setDraftProvider({ ...emptySearchDraft })}
+              />
               <SaveButton onSave={addProvider} />
             </div>
           </div>
@@ -631,12 +685,24 @@ function ServicesPage() {
                       <select
                         className={fieldCls}
                         value={p.provider_type}
-                        onChange={(e) => saveProvider(p.id, { provider_type: e.target.value as any })}
+                        onChange={(e) =>
+                          saveProvider(p.id, {
+                            provider_type: e.target.value as SearchProviderType,
+                          })
+                        }
                       >
-                        <option value="tavily" className="bg-panel">Tavily Search API</option>
-                        <option value="searxng" className="bg-panel">SearXNG (Self-Hosted)</option>
-                        <option value="duckduckgo" className="bg-panel">DuckDuckGo (Free HTML)</option>
-                        <option value="brave" className="bg-panel">Brave Search API</option>
+                        <option value="tavily" className="bg-panel">
+                          Tavily Search API
+                        </option>
+                        <option value="searxng" className="bg-panel">
+                          SearXNG (Self-Hosted)
+                        </option>
+                        <option value="duckduckgo" className="bg-panel">
+                          DuckDuckGo (Free HTML)
+                        </option>
+                        <option value="brave" className="bg-panel">
+                          Brave Search API
+                        </option>
                       </select>
                     </div>
                     <div>
@@ -647,7 +713,11 @@ function ServicesPage() {
                         max="10"
                         className={fieldCls}
                         value={p.priority}
-                        onChange={(e) => saveProvider(p.id, { priority: parseInt(e.target.value) || 5 })}
+                        onChange={(e) =>
+                          saveProvider(p.id, {
+                            priority: parseInt(e.target.value, 10) || 5,
+                          })
+                        }
                       />
                     </div>
                     <div className="md:col-span-2">

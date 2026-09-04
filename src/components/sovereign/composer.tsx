@@ -11,6 +11,7 @@ import {
   FileText,
   Globe,
   Image as ImageIcon,
+  Lock,
   Maximize2,
   Mic,
   Minimize2,
@@ -40,6 +41,7 @@ import { useSnippets } from "@/lib/snippet-store";
 import { refKey, useRegistry } from "@/lib/registry-store";
 import { routingModes, useProviders } from "@/lib/provider-store";
 import { useAccess } from "@/lib/rbac-store";
+import { currentAccount } from "@/lib/group-store";
 import { EntityAvatar } from "@/components/sovereign/identity";
 import { FileHoverPreview } from "@/components/sovereign/file-preview";
 
@@ -313,12 +315,42 @@ export function Composer({
   const model = activeModels.find((m: any) => m.id === (modelId ?? activeModelId ?? defaultId)) ?? activeModels[0];
   const [effortSub, setEffortSub] = useState(false);
   const { providers, routing } = useProviders();
-  const { sovereign } = useAccess();
+  const { sovereign, role: userRole } = useAccess();
   const [localRoutingMode, setLocalRoutingMode] = useState<string | null>(null);
   const llmProviders = providers.filter((p) => p.kind === "llm" && p.active);
   const [routeOpen, setRouteOpen] = useState(false);
   const [manualProvider, setManualProvider] = useState<string | null>(null);
-  const canOverride = routing.allowUserOverride || sovereign;
+
+  const canOverride = useMemo(() => {
+    if (sovereign) return true;
+    if (!routing.allowUserOverride) return false;
+    const aud = routing.overrideAudience || "everyone";
+    if (aud === "everyone") return true;
+    if (aud === "admins") return false;
+
+    const user = currentAccount();
+    const uName = (user?.username || "").toLowerCase();
+    const roleName = (typeof userRole === "string" ? userRole : (userRole as { name?: string })?.name || user?.role || "").toLowerCase();
+
+    if (aud === "users") {
+      const allowedUsers = (routing.overrideUsers || []).map((u) => u.toLowerCase());
+      return allowedUsers.includes(uName);
+    }
+
+    if (aud === "groups") {
+      const allowedGroups = (routing.overrideGroups || []).map((g) => g.toLowerCase());
+      const userGroup = (user?.provider || user?.template || "").toLowerCase();
+      return allowedGroups.includes(userGroup);
+    }
+
+    if (aud === "roles") {
+      const allowedRoles = (routing.overrideRoles || ["Admin", "Operator"]).map((r) =>
+        r.toLowerCase(),
+      );
+      return roleName ? allowedRoles.includes(roleName) : false;
+    }
+    return true;
+  }, [routing, sovereign, userRole]);
 
   const currentMode = localRoutingMode ?? routing.mode;
   const activeMode = routingModes.find((m) => m.key === currentMode);
@@ -1120,11 +1152,20 @@ export function Composer({
                       <span className="flex items-center gap-1.5">
                         <span
                           className={cn(
-                            "font-mono text-[11px] uppercase tracking-[0.14em]",
-                            manualBlocked ? "text-ruby" : "text-sapphire",
+                            "flex items-center gap-1 font-mono text-[11px] uppercase tracking-[0.14em]",
+                            manualBlocked
+                              ? "text-ruby"
+                              : !canOverride
+                                ? "text-muted-foreground/60"
+                                : "text-sapphire",
                           )}
                         >
-                          {manualBlocked ? "pick provider" : (activeMode?.label ?? "auto")}
+                          {!canOverride && <Lock className="h-2.5 w-2.5 opacity-70" />}
+                          {manualBlocked
+                            ? "pick provider"
+                            : !canOverride
+                              ? `${activeMode?.label ?? "auto"} · locked`
+                              : (activeMode?.label ?? "auto")}
                         </span>
                         <ChevronDown
                           className={cn(
