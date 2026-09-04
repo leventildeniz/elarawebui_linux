@@ -135,9 +135,12 @@ export function createIngestPipeline(deps) {
     else if (charCount < 500) finalQuality = "thin";
     else finalQuality = "ok";
 
-    await pool.query(`UPDATE knowledge_sources SET status='indexed', stage=NULL, indexed_at=now() WHERE id=$1`, [sourceId]).catch(() => {});
+    await pool.query(
+      `UPDATE knowledge_sources SET status='indexed', stage=NULL, chunks=$2, indexed_at=now() WHERE id=$1`,
+      [sourceId, written]
+    ).catch(() => {});
 
-    return { sourceId, chunks: chunkCount, chunksWritten: written, version: 1, parseQuality: finalQuality, parserUsed };
+    return { sourceId, chunks: written, chunksWritten: written, version: 1, parseQuality: finalQuality, parserUsed };
   }
 
   // ---- yt-dlp + whisper media ingestion -----------------------------------

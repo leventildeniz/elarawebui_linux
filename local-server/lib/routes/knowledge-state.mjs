@@ -48,6 +48,24 @@ export async function mountKnowledgeConfigRoutes(app, deps) {
       const embedModel = process.env.EMBED_MODEL || process.env.MLX_EMBED_MODEL || c.embed_model || "BAAI/bge-m3";
       const rerankerModel = process.env.RAG_RERANK_MODEL || process.env.RERANK_MODEL || "bge-reranker-v2-m3";
 
+      // Calculate live health directly from database chunks
+      const [totalChunksRes, embedHealthRes] = await Promise.all([
+        pool.query("SELECT count(*)::int AS total FROM knowledge_chunks").catch(() => ({ rows: [{ total: 0 }] })),
+        pool.query(`
+          SELECT
+            count(*) FILTER (WHERE embedding IS NOT NULL)::int AS embed_ok,
+            count(*) FILTER (WHERE embedding IS NULL)::int AS embed_pending,
+            count(*) FILTER (WHERE fts IS NULL)::int AS fts_null
+          FROM knowledge_chunks
+        `).catch(() => ({ rows: [{ embed_ok: 0, embed_pending: 0, fts_null: 0 }] }))
+      ]);
+
+      const liveChunks = Number(totalChunksRes.rows[0]?.total || 0);
+      const h = embedHealthRes.rows[0] || {};
+      const embedOk = Number(h.embed_ok || 0);
+      const embedPending = Number(h.embed_pending || 0);
+      const ftsNull = Number(h.fts_null || 0);
+
       const state = {
         autoIngestion: c.auto_ingestion,
         autoReEnrich: c.auto_re_enrich,
@@ -55,18 +73,18 @@ export async function mountKnowledgeConfigRoutes(app, deps) {
         embedModel,
         rerankerModel,
         health: {
-          chunks: c.health?.chunks || 0,
-          ftsNull: c.health?.ftsNull || 0,
-          embedOk: c.health?.embedOk || 0,
-          embedPending: c.health?.embedPending || 0,
+          chunks: liveChunks,
+          ftsNull,
+          embedOk,
+          embedPending,
           inProgress: c.health?.inProgress || 0,
           stale: c.health?.stale || 0,
           embedError: c.health?.embedError || 0,
-          parseOk: c.health?.parseOk || 0,
+          parseOk: liveChunks > 0 ? liveChunks : (c.health?.parseOk || 0),
           parseLow: c.health?.parseLow || 0
         },
         sources,
-        webhooks: [], // Kept as empty array just in case frontend legacy store needs it temporarily
+        webhooks: [],
         brandAliases
       };
 

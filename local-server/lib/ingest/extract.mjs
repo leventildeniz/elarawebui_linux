@@ -71,8 +71,8 @@ export function createIngestExtract(deps = {}) {
     isLikelyBinaryBuffer = (b) => false,
     printableBinarySummary = (p, e, b) => "",
     sanitizeContent = (t) => t,
-    // constants
-    MAX_INDEXED_CHARS = 100000,
+    // constants (up to 2M characters ≈ 500 pages per document)
+    MAX_INDEXED_CHARS = 2000000,
     TEXT_EXT = new Set([".txt", ".md"]),
     IMAGE_EXT = new Set([".jpg", ".jpeg", ".png", ".webp"]),
     AV_EXT = new Set([".mp3", ".wav", ".mp4", ".mkv"]),
