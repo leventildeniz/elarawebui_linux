@@ -171,7 +171,7 @@ export async function mountChatOrchestrateRoutes(app, deps) {
                       }
                    };
                 }
-                // URL ise (base64 değilse) Anthropic düz URL'yi block olarak desteklemez, bunu text olarak verelim.
+                // If URL (not base64), Anthropic does not support raw URLs as image blocks; provide as text.
                 return { type: "text", text: `[Image URL: ${url}]` };
              }
              return c;
@@ -198,7 +198,7 @@ export async function mountChatOrchestrateRoutes(app, deps) {
         consolidatedMessages.push(m);
     }
 
-    // Anthropic Tool Formatı OpenAI'dan farklıdır
+    // Anthropic tool specification schema differs from OpenAI format
     let anthropicTools = undefined;
     if (tools && tools.length > 0) {
         anthropicTools = tools.map(t => ({
@@ -379,12 +379,11 @@ export async function mountChatOrchestrateRoutes(app, deps) {
       ...(isLocalEngine && repPenalty !== undefined ? { repetition_penalty: repPenalty, repeat_penalty: repPenalty } : {})
     };
 
-    // OpenAI o1 ve Gemini 3.1+ gibi reasoning modellerine özel effort parametresi desteği
+    // Reasoning effort parameter support for OpenAI o1/o3 and Gemini 3.x series
     if (effort && effort !== "none" && (targetModel.includes("o1") || targetModel.includes("o3") || targetModel.toLowerCase().includes("gemini"))) {
        if (targetModel.toLowerCase().includes("gemini")) {
-           // Gemini 3.x modellerinde OpenAI compatibility API'sinde thinking_config'i
-           // doğrudan root'a koymak 400 hatası veriyor.
-           // Doğru format: "extra_body": { "google": { "thinking_config": { "thinking_level": effort, "include_thoughts": true } } }
+           // In Gemini 3.x OpenAI compatibility API, placing thinking_config in the root causes 400 bad request.
+           // Canonical format: "extra_body": { "google": { "thinking_config": { "thinking_level": effort, "include_thoughts": true } } }
            payload.extra_body = {
                google: {
                    thinking_config: {
@@ -1077,7 +1076,7 @@ When the user asks you a question or assigns a task, intelligently apply the fol
         masterDirectives.push(`[THINKING EFFORT: NONE] DO NOT perform any step-by-step reasoning or deliberation. DO NOT output any <think> tags. Provide your final answer instantly, using your immediate intuition. Be extremely direct and concise.`);
       }
 
-      // @Agent Mention: Eğer sohbette spesifik bir uzman ajan seçilmişse, o ajanın kimliğini ve sistem direktiflerini enjekte et
+      // @Agent Mention: If a specialized agent is targeted, inject the agent persona and system directives
       if (agent_id) {
         try {
           const agtRow = await pool.query(
@@ -1093,7 +1092,7 @@ When the user asks you a question or assigns a task, intelligently apply the fol
         }
       }
 
-      // Explicit Capability Mentions (/Tool, !Skill, #MCP): Kullanıcı bir aracı/yeteneği doğrudan seçtiğinde modele bunu zorunlu kıl
+      // Explicit Capability Mentions (/Tool, !Skill, #MCP): User explicitly attached tools/capabilities to this turn
       const requestedTools = capabilities?.tools || [];
       const requestedSkills = capabilities?.skills || [];
       const requestedMcp = capabilities?.mcp || [];
@@ -1587,13 +1586,10 @@ When the user asks you a question or assigns a task, intelligently apply the fol
               }
           }
 
-          console.log(`[Orchestrate] Stream tamamlandı (Tur ${iteration}). Toplam Chunk: ${chunkCount}, Assembled Length: ${assembled.length}, Çağrılan Tool Sayısı: ${toolCalls.length}`);
+          console.log(`[Orchestrate] Stream completed (Turn ${iteration}). Total chunks: ${chunkCount}, Assembled length: ${assembled.length}, Tool calls: ${toolCalls.length}`);
 
           if (toolCalls.length > 0) {
-              // LLM bir veya birden fazla araca başvurmak istedi.
-
-              // 1. UI'A BİLGİLENDİRME (Arayüz Entegrasyonu)
-              // Arayüz bunu yakalayıp ekranda "Araçlar çalıştırılıyor..." spinner'ı çıkarabilir.
+              // 1. Notify UI: emit tool execution phase
               send({ 
                   phase: "tool_execution", 
                   tools: toolCalls.map(t => {
@@ -1613,19 +1609,19 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                   }) 
               });
 
-              // 2. Asistanın bu niyetini geçmişe ekle (OpenAI standardı)
+              // 2. Append assistant tool calls to message history (OpenAI standard)
               formattedMessages.push({
                   role: "assistant",
                   content: assembled || null,
                   tool_calls: toolCalls
               });
 
-              // 3. Araçları (Tool) tek tek çalıştır ve sonucu UI'a bildir
+              // 3. Execute tools sequentially and stream results to UI
               for (const tc of toolCalls) {
                   const funcName = (tc.function?.name || "").trim();
                   const funcArgs = tc.function?.arguments || "";
                   
-                  let realToolId = toolMap[funcName] || funcName; // tool_xyz -> mcp.github
+                  let realToolId = toolMap[funcName] || funcName;
                   let isMapped = !!toolMap[funcName];
 
                   if (!toolMap[funcName] && toolMap[`tool_${funcName}`]) {
@@ -1643,7 +1639,7 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                       }
                   }
 
-                  // UI'a anlık statü: "github aranıyor..."
+                  // Emit active tool status to UI
                   send({ type: "tool_status", name: realToolId, status: "running" });
 
                   let toolResultStr = "";
@@ -1719,7 +1715,7 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                              }
                           }
                           
-                          // Eğer UI'dan Web Search açılmışsa, Directory'e ekle ki model orada da görebilsin
+                          // If Web Search is enabled in UI, inject sys_web_search into directory discovery
                           if (web_search) {
                               standardTools.push({
                                   id: "sys_web_search",
@@ -1945,7 +1941,7 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                                   toolStatus = "failed";
                               }
                               toolResultStr = JSON.stringify(outputRes);
-                              // Payload Truncation Guard (Büyük çıktılarda KV cache şişmesini ve 1 tok/s yavaşlamasını engeller)
+                              // Payload truncation guard: prevent excessive KV-cache inflation on large output payloads
                               if (toolResultStr.length > 20000) {
                                   const originalLen = toolResultStr.length;
                                   const sample = toolResultStr.slice(0, 18000);
@@ -1970,7 +1966,7 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                           // 2. Call the metaforge master agent
                           let forgeAgentRes = await pool.query(`SELECT id, system_prompt FROM agents WHERE id = 'agt.forge_master' LIMIT 1`);
                           
-                          // Eğer ajan yoksa veya system_prompt'u eksikse/bozulmuşsa seed.mjs'i çalıştır.
+                          // Auto-seed forge_master agent if missing or incomplete
                           if (forgeAgentRes.rows.length === 0 || !forgeAgentRes.rows[0].system_prompt.includes("COMPOSITION GUIDANCE")) {
                               try {
                                   const { ensureMetaForgeAgent } = await import("../meta-forge/seed.mjs");
@@ -2216,14 +2212,14 @@ When the user asks you a question or assigns a task, intelligently apply the fol
               // Persist working memory block
               if (thread_id) {
                   try {
-                      // O anki cevabı (Veya düşünce sürecini) bir "Hafıza Bloğu" olarak kaydediyoruz
+                      // Record turn response as an episodic working memory block
                       const snippet = assembled.substring(0, 45).replace(/\n/g, " ") + "...";
                       const memTokens = promptTokens + responseTokens;
                       const memId = `wrk.${Math.random().toString(36).slice(2, 8)}`;
                       const memLabel = agent_id ? `Agent response: ${snippet}` : `Model response: ${snippet}`;
-                      const memTone = agent_id ? "emerald" : "sapphire"; // Ajan ise yeşil, Model ise mavi (Elara stili)
+                      const memTone = agent_id ? "emerald" : "sapphire";
                       
-                      // YENİ: Thread veritabanında yoksa foreign key hatası (500) vermemesi için önce thread oluşturuluyor.
+                      // Ensure chat thread exists in PostgreSQL to prevent foreign key constraint violations
                       await pool.query(
                           `INSERT INTO chat_threads (id, title) VALUES ($1, 'New chat') ON CONFLICT (id) DO NOTHING`,
                           [thread_id]
@@ -2258,7 +2254,7 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                  }
               }
 
-              // Final UI Log - Gerçekte cevap veren modeli UI'a Telemetri olarak bildiriyoruz
+              // Emit final completion telemetry
               send({
                 latency: {
                   ttftMs: tFirstToken ? (tFirstToken - t0) : 0,
@@ -2271,7 +2267,7 @@ When the user asks you a question or assigns a task, intelligently apply the fol
               send({ type: "done" });
               close();
           }
-      } // === RE-ACT AGENTIC LOOP BİTİŞİ ===
+      } // === END OF RE-ACT AGENTIC LOOP ===
       
       if (!isDone) {
           send({ type: "error", message: "max agent iterations reached" });

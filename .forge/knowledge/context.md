@@ -549,6 +549,35 @@ Bu aşamada `/system` (Logs / Audit) altındaki **Live Debugging** ve **Audit Jo
    - `local-server/lib/routes/telemetry.mjs` & `telemetry-stream.mjs`: Host sensörleri (`CPU`, `RAM`, `NVIDIA GPU SMI`, `Disk I/O`, `Network RX/TX`, `PostgreSQL Conns`) ve AI metrikleri (`Throughput`, `P95 Latency`, `Quality Scores`, `Queue Depth`) doğrudan OS çekirdeğinden ve `provider_usage` tablosundan beslenecek şekilde doğrulandı.
    - `src/components/sovereign/runtime-canvas.tsx` & `src/routes/fleet.tsx`: Active Fleet ajan listesi ve telemetri durumları %100 gerçek veritabanı kayıtlarıyla eşitlendi.
 
-## 51. UP NEXT (Phase 51) - Agentic RAG & Knowledge Hub Validation & Deep Benchmarking
-1. **Agentic RAG & Knowledge Hub Validation:** Departman bazlı space izolasyonu (`rag_space_id`), doküman chunklama ve `bge-reranker-v2-m3` reranker testleri.
-2. **Autonomous DAG Execution Engine Benchmarking:** Karmaşık çok adımlı workflow ve orchestration zincirlerinin canlı icra doğrulaması.
+## 51. Completed (Phase 51) - Agentic RAG & Knowledge Hub Validation & Zero-Mock Architecture
+Bu aşamada **Knowledge Hub** (`/knowledge`), **RAG Documents** (`/rag-documents`), **Agentic RAG Engine** (`local-server/lib/rag/`, `agent-rag.mjs`, `chat-orchestrate.mjs`) ve veritabanı şeması uçtan uca incelenerek senkronize edildi.
+
+### Yapılan Geliştirmeler & Mimari İyileştirmeler:
+1. **PostgreSQL Master Şema & Sütun Uyumluluğu (`v2_master_schema.sql` & `knowledge_chunks`):**
+   - `knowledge_chunks` tablosundaki ayrışmış sütunlar ve JSON metadata arasındaki kopukluk giderildi.
+   - PostgreSQL seviyesinde saklanan üretilmiş sütunlar (`GENERATED ALWAYS AS ... STORED`) tanımlandı:
+     * `brand` $\leftarrow$ `metadata->>'brand'`
+     * `path` $\leftarrow$ `metadata->>'path'`
+     * `product` $\leftarrow$ `metadata->>'product'`
+     * `access_level` $\leftarrow$ `COALESCE(metadata->>'access_level', 'Viewer')`
+     * `file_id` $\leftarrow$ `source_id`
+     * `ord` $\leftarrow$ `seq`
+     * `tsv` $\leftarrow$ `to_tsvector('simple', coalesce(content,''))`
+   - GIN ve B-tree indeksleri oluşturuldu (`idx_knowledge_chunks_tsv`, `idx_knowledge_chunks_brand`, `idx_knowledge_chunks_path`).
+   - Hem v2 standart şeması hem de eski arama motoru sorguları 0 hata ile çalışır hale getirildi.
+2. **RAG Ops & Bakım API Ağ Geçidi Entegrasyonu (`local-server/lib/routes/rag-ops.mjs` & `api-v2.mjs`):**
+   - Eksik olan `mountRagOpsRoutes` modülü API Gateway (`api-v2.mjs`) içine dahil edildi.
+   - UI üzerindeki tüm bakım ve optimizasyon butonları (`Repair FTS`, `Dedupe Chunks`, `Re-derive Brands`, `Reprocess Oversized HTML`, `Re-process HTML & JSON`) gerçek PostgreSQL veritabanına bağlandı ve test edildi.
+3. **Frontend Mock Arındırması (`src/routes/knowledge.tsx` & `src/lib/knowledge-store.ts`):**
+   - `src/routes/knowledge.tsx` içerisindeki `@/mocks` import'u (`syncJobs`, `syncLiveLines`) tamamen temizlendi.
+   - `src/lib/knowledge-store.ts` içerisindeki `@/mocks/knowledge-seed` bağımlılıkları silinerek saf veritabanı başlangıç durumuna geçirildi.
+   - `rag-analytics-store.ts` ve `schedule-store.ts` dosyalarındaki `TS7030` TypeScript derleme uyarıları giderildi (`npx tsc --noEmit` 0 hata ile doğrulandı).
+4. **Kod Dili ve Kurumsal Standartlar (English Standardization):**
+   - `chat-orchestrate.mjs`, `agent-rag.mjs`, `knowledge-retrieve.mjs` ve `rag-ops.mjs` dosyalarındaki tüm Türkçe yorum satırları ve hata mesajları kurumsal İngilizceye çevrildi.
+5. **Ajan & Model RAG İzolasyonu ve Onay Mekanizması:**
+   - Ajan düzenleme (`Edit agent`) Knowledge / RAG sekmesindeki `Brands` ve `Keywords/Alias` alanlarının veritabanı kaydı ve model sistem promptuna enjeksiyonu doğrulandı.
+   - Model kartlarındaki `RAG retrieval (on/off)` anahtarının bağımsız kontrolü teyit edildi.
+
+## 52. UP NEXT (Phase 52) - Autonomous DAG Execution Engine & Multi-Step Workflow Benchmarking
+1. **Autonomous DAG Execution Engine Benchmarking:** Çok adımlı workflow ve orchestration zincirlerinin canlı icra doğrulaması.
+2. **End-to-End System Polish:** Tüm sistem yüzeylerinin son kontrolleri ve canlı yük testleri.

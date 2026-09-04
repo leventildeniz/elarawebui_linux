@@ -44,7 +44,6 @@ import { KnowledgeSpacesTab } from "@/components/sovereign/knowledge-spaces";
 import { checkUpload, extOf, useSpaceAccess } from "@/lib/knowledge-space-store";
 import { cn, fmtDate } from "@/lib/utils";
 import { fetchApi } from "@/lib/api";
-import { syncJobs, syncLiveLines } from "@/mocks";
 
 const views = ["control", "spaces", "aliases", "tuning"] as const;
 type Tab = (typeof views)[number];

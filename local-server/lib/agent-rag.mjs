@@ -330,8 +330,8 @@ export async function buildAgentRagContext(pool, agentId, query) {
       if (typeof mod.classifyIntent === "function" && typeof mod.refineIntentSemantically === "function") {
         const base = mod.classifyIntent(query);
         const refined = await mod.refineIntentSemantically(query, base);
-        // 2026-06-25: cold-fallback'te smalltalk flip'ine güvenme. Yalnız
-        // semantic-bypass VEYA base classifier de smalltalk dediyse skip.
+        // 2026-06-25: Do not rely solely on smalltalk flip in cold-fallback.
+        // Skip only if semantic-bypass OR base classifier indicated smalltalk.
         const _bypassSafe = refined?.mode === "semantic-bypass" || base?.kind === "smalltalk";
         if (refined?.kind === "smalltalk" && refined?.useRag === false && _bypassSafe) {
           console.error(`[AGENT-RAG-DEBUG] agent=${agentId} path=SKIP (central smalltalk/meta gate) mode=${refined.mode || "-"} base=${base?.kind}`);
@@ -349,13 +349,11 @@ export async function buildAgentRagContext(pool, agentId, query) {
     }
   }
 
-  // 2026-06-03 — Brand-mention gate (simetri: chat-stream + chat-orchestrate).
-  // Soruda DB library brand'lerinden biri (alias dahil) geçmiyorsa probe'a
-  // hiç girme; agent'a "no hits" bilgisi gider (agentRagNoHitsDirective UI'dan
-  // kontrol ediliyor → "Kütüphaneme baktım, eşleşen kaynak yok…" tonu).
-  // 2026-06-04 — Alias-aware: brand kelimesi geçmese bile /knowledge/aliases
-  // UI'sinde tanımlı alternatif isim (fortimanager → Fortigate vb.) varsa
-  // gate açılır.
+  // 2026-06-03 — Brand-mention gate (symmetry: chat-stream + chat-orchestrate).
+  // If no database library brand (including aliases) appears in query, skip probe;
+  // agent receives no-hits context.
+  // 2026-06-04 — Alias-aware: even if brand token is absent, gate opens when alternate
+  // name defined in /knowledge/aliases matches.
   try {
     const _rs = _rs0;
     if (_rs.requireBrandMentionForRag !== false) {
@@ -437,9 +435,9 @@ export async function buildAgentRagContext(pool, agentId, query) {
             ? "collections"
             : ((settings.keywords && settings.keywords.length) ? "keywords" : "open")));
 
-  // Agent'ın UI brand scope'u (meta.rag.brands) retrieval'a taşınır;
-  // aksi halde product extractor brand context'siz kalıyor ve sorguda
-  // brand token yoksa product lock devreye girmiyor.
+  // Forward agent UI brand scope (meta.rag.brands) to retrieval;
+  // otherwise product extractor lacks brand context and product lock fails
+  // when brand token is omitted from the user query.
   const _bindingBrandsForRetrieval = _hasMetaBrands
     ? _metaRagBrandsRaw.map((b) => String(b || "").toLowerCase().replace(/[_\-].*$/, "").trim()).filter(Boolean)
     : null;

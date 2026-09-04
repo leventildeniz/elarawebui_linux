@@ -1,10 +1,30 @@
 import { toast } from "sonner";
-import { seedNow } from "@/lib/utils";
 import { useCallback, useEffect, useState } from "react";
-import { builtinWebhooks } from "@/mocks/knowledge-seed";
-import { defaultKnowledge } from "@/mocks/knowledge-seed";
 import { fetchApi } from "@/lib/api";
 import { currentAccount } from "@/lib/group-store";
+
+export const defaultKnowledge: KnowledgeState = {
+  autoIngestion: false,
+  autoReEnrich: false,
+  batchSize: 1000,
+  embedModel: "default",
+  health: {
+    chunks: 0,
+    ftsNull: 0,
+    embedOk: 0,
+    embedPending: 0,
+    inProgress: 0,
+    stale: 0,
+    embedError: 0,
+    parseOk: 0,
+    parseLow: 0,
+  },
+  sources: [],
+  webhooks: [],
+  brandAliases: [],
+};
+
+export const builtinWebhooks: WebhookAdapter[] = [];
 
 let cachedState = defaultKnowledge;
 
@@ -94,8 +114,6 @@ export type KnowledgeState = {
   }[];
 };
 
-export { builtinWebhooks };
-
 export function webhookUrl(w: WebhookAdapter) {
   if (w.urlOverride) return w.urlOverride;
   const host = typeof window !== "undefined" ? window.location.origin : "";
@@ -103,8 +121,6 @@ export function webhookUrl(w: WebhookAdapter) {
 }
 
 export const topEntities: { name: string; kind: string; degree: number }[] = [];
-
-export { defaultKnowledge };
 
 const KEY = "sovereign.knowledge";
 const EVT = "sovereign:knowledge";

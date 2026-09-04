@@ -121,7 +121,7 @@ export function mountKnowledgeRetrieveRoutes(app, deps) {
       const totalChunks = (r.chunks ?? 0) + (r.child_chunks ?? 0);
       const cc = r.crawl_config || null;
       const notes = r.child_count > 0
-        ? `crawl · ${r.child_count} sayfa · ${totalChunks} chunk${cc?.recursive ? ` · depth ${cc.maxDepth ?? "?"}` : ""}`
+        ? `crawl · ${r.child_count} pages · ${totalChunks} chunks${cc?.recursive ? ` · depth ${cc.maxDepth ?? "?"}` : ""}`
         : undefined;
       return {
         id: r.id,

@@ -56,10 +56,9 @@ export function useRagQueries() {
 
   useEffect(() => {
     sync();
-    if (typeof window !== "undefined") {
-      window.addEventListener(EVT, sync);
-      return () => window.removeEventListener(EVT, sync);
-    }
+    if (typeof window === "undefined") return;
+    window.addEventListener(EVT, sync);
+    return () => window.removeEventListener(EVT, sync);
   }, [sync]);
 
   const clear = useCallback(() => setRows([]), []);

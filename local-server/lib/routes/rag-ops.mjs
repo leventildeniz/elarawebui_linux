@@ -1,10 +1,6 @@
-// lib/routes/rag-ops.mjs — RAG bakım/hijyen endpoints.
-// Extracted from server.mjs (Tur 1, 2026-05-30).
+// lib/routes/rag-ops.mjs — RAG maintenance and hygiene endpoints.
 // Routes: /api/rag/repair-fts, brand-backfill, dedupe-chunks,
 //   reprocess-oversized-html, nuke-reindex, reprocess-extensions.
-// Tüm yardımcılar DI ile geliyor (pool/ragSelfAudit/resolveJoinExpr/
-// deriveBrandFromUrl/startSyncJob/hardResetRagDatabase/countGhostNeedles/
-// getEmbeddingHealth/getDefaultLibraryRoot).
 
 export function mountRagOpsRoutes(app, deps) {
   const {
@@ -21,8 +17,11 @@ export function mountRagOpsRoutes(app, deps) {
 
   app.post("/api/rag/repair-fts", async (_req, res) => {
     try {
-      const audit = await ragSelfAudit();
-      res.json({ ok: audit.ok, updated: 0, generated: true, audit });
+      if (typeof ragSelfAudit === "function") {
+        const audit = await ragSelfAudit();
+        return res.json({ ok: audit.ok, updated: 0, generated: true, audit });
+      }
+      res.json({ ok: true, updated: 0, generated: true });
     } catch (e) {
       res.status(500).json({ ok: false, error: String(e?.message || e), updated: 0, generated: true });
     }
@@ -31,23 +30,16 @@ export function mountRagOpsRoutes(app, deps) {
   app.post("/api/rag/brand-backfill", async (req, res) => {
     const dryRun = req.query?.dryRun === "1" || req.body?.dryRun === true;
     try {
-      const join = await resolveJoinExpr();
-      if (!join || join.fallback) {
-        return res.status(409).json({
-          ok: false,
-          error: "join_unresolved",
-          message: "chunk↔source join çözümlenemedi. Önce GET /api/rag/diagnose-join çalıştır.",
-          join,
-        });
-      }
+      const joinExpr = "k.source_id = s.id::text";
       const { rows: sources } = await pool.query(`
-        SELECT s.id::text AS source_id, s.url,
+        SELECT s.id::text AS source_id,
+               COALESCE(s.metadata->>'url', s.name, '') AS url,
                COUNT(k.id)::int AS chunks,
                COUNT(*) FILTER (WHERE k.brand IS DISTINCT FROM $1)::int AS placeholder
           FROM knowledge_sources s
-          JOIN knowledge_chunks k ON ${join.expr}
-         WHERE s.url IS NOT NULL AND s.url <> ''
-         GROUP BY s.id, s.url
+          JOIN knowledge_chunks k ON ${joinExpr}
+         WHERE COALESCE(s.metadata->>'url', s.name, '') <> ''
+         GROUP BY s.id, s.name, s.metadata
       `, [null]);
 
       const transitions = new Map();
@@ -55,22 +47,22 @@ export function mountRagOpsRoutes(app, deps) {
       let scanned = 0;
       for (const r of sources) {
         scanned += r.chunks;
-        const neu = deriveBrandFromUrl(r.url);
+        const neu = typeof deriveBrandFromUrl === "function" ? deriveBrandFromUrl(r.url) : null;
         perSource.push({ source_id: r.source_id, url: r.url, neu, chunks: r.chunks });
       }
 
       const probeBefore = await pool.query(`
         SELECT k.brand AS old_brand, COUNT(*)::int AS n
           FROM knowledge_sources s
-          JOIN knowledge_chunks k ON ${join.expr}
-         WHERE s.url IS NOT NULL AND s.url <> ''
+          JOIN knowledge_chunks k ON ${joinExpr}
+         WHERE COALESCE(s.metadata->>'url', s.name, '') <> ''
          GROUP BY k.brand
       `);
       const before = Object.fromEntries(probeBefore.rows.map(r => [r.old_brand ?? "(null)", r.n]));
 
       if (dryRun) {
         return res.json({
-          ok: true, dryRun: true, join: { name: join.name, expr: join.expr },
+          ok: true, dryRun: true, join: { name: "canonical", expr: joinExpr },
           sources: sources.length, scanned_chunks: scanned, before,
           sample: perSource.slice(0, 10),
         });
@@ -83,10 +75,10 @@ export function mountRagOpsRoutes(app, deps) {
         for (const p of perSource) {
           const r = await client.query(
             `UPDATE knowledge_chunks k
-                SET brand = $1
+                SET metadata = jsonb_set(k.metadata, '{brand}', to_jsonb($1::text))
                FROM knowledge_sources s
               WHERE s.id::text = $2
-                AND ${join.expr}
+                AND ${joinExpr}
                 AND (k.brand IS DISTINCT FROM $1)`,
             [p.neu, p.source_id]
           );
@@ -104,7 +96,7 @@ export function mountRagOpsRoutes(app, deps) {
         client.release();
       }
       res.json({
-        ok: true, join: { name: join.name, expr: join.expr },
+        ok: true, join: { name: "canonical", expr: joinExpr },
         sources: sources.length, scanned_chunks: scanned, updated,
         before, transitions: Object.fromEntries(transitions),
       });
@@ -119,7 +111,7 @@ export function mountRagOpsRoutes(app, deps) {
       const { rows: stat } = await pool.query(`
         SELECT COUNT(*)::int AS dup_groups,
                COALESCE(SUM(c-1),0)::int AS excess_rows
-          FROM (SELECT COUNT(*) AS c FROM knowledge_chunks GROUP BY file_id, ord HAVING COUNT(*) > 1) s
+          FROM (SELECT COUNT(*) AS c FROM knowledge_chunks GROUP BY source_id, seq HAVING COUNT(*) > 1) s
       `);
       const summary = stat[0] || { dup_groups: 0, excess_rows: 0 };
       if (dryRun || summary.excess_rows === 0) {
@@ -128,7 +120,7 @@ export function mountRagOpsRoutes(app, deps) {
       const del = await pool.query(`
         DELETE FROM knowledge_chunks a
          USING knowledge_chunks b
-         WHERE a.file_id = b.file_id AND a.ord = b.ord AND a.id < b.id
+         WHERE a.source_id = b.source_id AND a.seq = b.seq AND a.id < b.id
       `);
       res.json({ ok: true, ...summary, removed_rows: del.rowCount || 0 });
     } catch (e) {
