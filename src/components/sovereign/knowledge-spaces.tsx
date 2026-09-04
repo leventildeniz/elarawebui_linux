@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { motion } from "motion/react";
+import { toast } from "sonner";
 import {
   ArrowUpRight,
   Check,
@@ -224,10 +225,17 @@ export function KnowledgeSpacesTab() {
               sovereign={sovereign}
               canWrite={canWrite(active.id)}
               onCreate={async () => {
-                const id = await createAgent(deriveRagAgent(active));
-                navigate({ to: "/agents", hash: id });
+                const toastId = toast.loading(`Creating RAG librarian for ${active.name}...`);
+                try {
+                  const draft = deriveRagAgent(active);
+                  const id = await createAgent(draft);
+                  toast.success(`Created RAG agent "${draft.name}" for ${active.name}.`, { id: toastId });
+                  navigate({ to: "/agents" });
+                } catch (e: any) {
+                  toast.error(e?.message || "Failed to create RAG agent.", { id: toastId });
+                }
               }}
-              onOpen={(id) => navigate({ to: "/agents", hash: id })}
+              onOpen={() => navigate({ to: "/agents" })}
             />
 
             <div className="mt-6 flex items-center justify-between gap-3 border-t border-border/60 pt-5">

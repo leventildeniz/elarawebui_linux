@@ -1,6 +1,7 @@
 import type { KnowledgeSpace } from "@/lib/knowledge-space-store";
 import type { StudioAgent } from "@/lib/agent-store";
 import type { JewelName } from "@/lib/avatar-library";
+import type { Visibility } from "@/lib/ownership";
 
 /**
  * RAG agents — one librarian per knowledge space.
@@ -11,9 +12,9 @@ import type { JewelName } from "@/lib/avatar-library";
  * agent therefore NARROWS access, it can never widen it.
  */
 
-/** Read-only tool floor every RAG agent is sealed with. */
-export const RAG_AGENT_TOOLS = ["vector.search", "web.fetch"];
-export const RAG_AGENT_SKILLS = ["markdown-report"];
+/** Read-only tool floor every RAG agent is sealed with (RAG is injected natively). */
+export const RAG_AGENT_TOOLS: string[] = [];
+export const RAG_AGENT_SKILLS: string[] = [];
 
 /** Tools a space-bound librarian may never hold — write / exec / secret planes. */
 const FORBIDDEN = /^(fs\.|ssh\.|sql\.|vault\.)|write|exec|delete|deploy|patch/i;
@@ -59,15 +60,34 @@ export function ragSystemPrompt(space: KnowledgeSpace) {
 export function deriveRagAgent(space: KnowledgeSpace): Omit<StudioAgent, "id" | "createdAt"> {
   const name = ragAgentName(space);
   const jewel = toneToJewel[space.tone] ?? "sapphire";
+
+  const isEveryone = (space.readerGroups || []).includes("*") || (space.readerGroups || []).includes("ANY_GROUP");
+  let visibility: Visibility = "workspace";
+  let sharedWith: string[] = [];
+
+  if (isEveryone) {
+    visibility = "workspace";
+    sharedWith = [];
+  } else if ((space.readerGroups || []).length > 0) {
+    visibility = "shared";
+    sharedWith = [...space.readerGroups];
+  } else if ((space.readerUsers || []).length > 0) {
+    visibility = "shared";
+    sharedWith = [...space.readerUsers];
+  } else {
+    visibility = "private";
+    sharedWith = [];
+  }
+
   return {
     name,
     squad: "Knowledge",
     role: "Librarian",
     description: `Read-only retrieval agent bound to the ${space.name} knowledge space.`,
     systemPrompt: ragSystemPrompt(space),
-    modelId: "gemma4-31b-it-6bit",
-    provider: "Local · legacy",
-    runtimePath: "/opt/elara/local-server/.venv/bin/python · Python 3.12.13",
+    modelId: "system_default",
+    provider: "System Default",
+    runtimePath: "",
     scriptPath: `/opt/elara/agents/knowledge/${space.slug || "space"}.py`,
     bridgeHost: "http://localhost",
     port: "3005",
@@ -97,5 +117,7 @@ export function deriveRagAgent(space: KnowledgeSpace): Omit<StudioAgent, "id" | 
     icon: "Library",
     avatar: { seed: `${space.slug || space.id}-librarian`, style: "sigil", jewel },
     stats: { calls: 0, success: 100, latencyMs: 0 },
+    visibility,
+    sharedWith,
   };
 }

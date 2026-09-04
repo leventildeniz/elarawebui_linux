@@ -1086,6 +1086,66 @@ When the user asks you a question or assigns a task, intelligently apply the fol
           if (agtRow.rows.length > 0) {
             const agt = agtRow.rows[0];
             masterDirectives.push(`[ACTIVE AGENT PERSONA ACTIVATED]: You are currently operating as the specialized agent "${agt.name}" (${agt.id}). Adhere strictly to the following instructions:\n${agt.system_prompt || ""}`);
+
+            if (agt.rag) {
+              try {
+                let spaceFileIds = null;
+                if (agt.rag_space_id) {
+                  const spaceSrcRes = await pool.query(`SELECT id::text FROM knowledge_sources WHERE space_id = $1`, [agt.rag_space_id]);
+                  spaceFileIds = spaceSrcRes.rows.map(r => r.id);
+                }
+
+                const parsedKeywords = agt.rag_keywords 
+                  ? agt.rag_keywords.split(',').map(k => k.trim()).filter(Boolean) 
+                  : [];
+
+                const lastUserMsg = [...messages].reverse().find(m => m.role === "user")?.content || "";
+                if (lastUserMsg) {
+                  emitDebug("debug", "rag.search.start", `probing knowledge space for agent ${agt.name || agt.id}`, { agent_id: agt.id, stream: "rag" }, thread_id);
+                  const ragOut = await ragProbeAndFetch({
+                    q: lastUserMsg,
+                    allowedLevels: ["workspace", "private", "public"],
+                    agentId: agt.id,
+                    bindingFileIds: spaceFileIds,
+                    bindingBrands: Array.isArray(agt.rag_brands) ? agt.rag_brands : [],
+                    agentKeywords: parsedKeywords,
+                    caller: "agent-rag"
+                  });
+
+                  if (ragOut && ragOut.rows && ragOut.rows.length > 0) {
+                    emitDebug("info", "rag.search.done", `retrieved ${ragOut.rows.length} chunks · top1=${ragOut.top1 || 0} · ${ragOut.stages?.totalMs || 0}ms`, { hits: ragOut.rows.length, top1: ragOut.top1, ms: ragOut.stages?.totalMs || 0, stream: "rag" }, thread_id);
+                    let ragText = "[RAG KNOWLEDGE]\nHere is context retrieved from the organization's knowledge base:\n\n";
+                    ragOut.rows.forEach(r => {
+                      ragText += `--- SOURCE: ${r.path || 'unknown'} ---\n${r.content}\n\n`;
+                    });
+                    masterDirectives.push(ragText);
+
+                    send({
+                      rag: {
+                        sources: ragOut.rows.map((r, i) => ({
+                          index: i + 1,
+                          name: r.path ? r.path.split('/').pop() : "chunk",
+                          path: r.path,
+                          ord: r.ord ?? 0,
+                          score: Math.round(Math.min(1, Number(r.score) || 0) * 100)
+                        })),
+                        debug: {
+                          queryClean: lastUserMsg,
+                          probe: {
+                            top1: ragOut.top1 || 0,
+                            ms: ragOut.stages?.totalMs || 0
+                          }
+                        },
+                        reranker: ragOut.reranker || { used: false },
+                        fallback: { brands: Array.isArray(agt.rag_brands) ? agt.rag_brands : [] }
+                      }
+                    });
+                  }
+                }
+              } catch (ragError) {
+                console.error(`[Orchestrate] Primary agent RAG failed for agent ${agt.id}:`, ragError);
+              }
+            }
           }
         } catch (e) {
           console.warn("[Orchestrate] Agent persona load failed:", e.message);

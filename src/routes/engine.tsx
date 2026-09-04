@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
 import { Ban as BanIcon, Plus, Shield, ShieldCheck, X } from "lucide-react";
+import { toast } from "sonner";
 import { confirmAction } from "@/components/sovereign/confirm-dialog";
 import { Surface } from "@/components/sovereign/surface";
 import { JewelButton, Sheen, Tag } from "@/components/sovereign/primitives";
@@ -10,6 +11,7 @@ import { fetchApi } from "@/lib/api";
 
 import {
   useEngine,
+  defaultClassifierPrompt,
   type ClassifierMode,
   type GuardOverride,
   type RagMode,
@@ -169,7 +171,11 @@ function IntentRouter() {
           <JewelButton
             variant={config.bypassEnabled ? "danger" : "outline"}
             size="sm"
-            onClick={() => update({ bypassEnabled: !config.bypassEnabled })}
+            onClick={async () => {
+              const next = !config.bypassEnabled;
+              await update({ bypassEnabled: next });
+              toast.success(next ? "Bypass enabled." : "Bypass disabled.");
+            }}
           >
             {config.bypassEnabled ? "Disable bypass" : "Enable bypass"}
           </JewelButton>
@@ -225,7 +231,9 @@ function IntentRouter() {
                   tone: "ruby",
                 });
                 if (!ok) return;
-                reset();
+                await update({ classifierPrompt: defaultClassifierPrompt });
+                setDraftPrompt(defaultClassifierPrompt);
+                toast.success("Intent classifier prompt reset to default.");
               }}
             >
               Reset
@@ -233,7 +241,10 @@ function IntentRouter() {
             <JewelButton
               size="sm"
               disabled={!dirtyPrompt}
-              onClick={() => update({ classifierPrompt: draftPrompt })}
+              onClick={async () => {
+                await update({ classifierPrompt: draftPrompt });
+                toast.success("Intent classifier prompt saved successfully.");
+              }}
             >
               Save
             </JewelButton>

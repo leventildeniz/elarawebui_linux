@@ -29,7 +29,7 @@ export const builtinWebhooks: WebhookAdapter[] = [];
 
 let cachedState = defaultKnowledge;
 
-async function syncBackend() {
+export async function syncKnowledgeBackend() {
   try {
     const res = await fetchApi("/api/knowledge/state");
     cachedState = { ...defaultKnowledge, ...res };
@@ -37,6 +37,10 @@ async function syncBackend() {
   } catch (e) {
     console.warn("Failed to sync knowledge state:", e);
   }
+}
+
+async function syncBackend() {
+  return syncKnowledgeBackend();
 }
 
 /**
@@ -146,7 +150,13 @@ export function useKnowledge() {
     sync();
     window.addEventListener(EVT, sync);
     syncBackend();
-          return () => window.removeEventListener(EVT, sync);
+    const interval = setInterval(() => {
+      syncBackend();
+    }, 3000);
+    return () => {
+      window.removeEventListener(EVT, sync);
+      clearInterval(interval);
+    };
   }, []);
 
   const patch = useCallback((p: Partial<KnowledgeState>) => {
@@ -374,18 +384,28 @@ export function useKnowledge() {
     setState(next);
   }, []);
 
-  const upsertAlias = useCallback((entry: { id?: string; brand: string; aliases: string }) => {
+  const upsertAlias = useCallback(async (entry: { id?: string; brand: string; aliases: string }) => {
     const current = read();
     const id = entry.id ?? uid("ba");
-    const exists = current.brandAliases.some((a) => a.id === id);
+    const exists = current.brandAliases.some((a) => a.id === id || a.brand.toLowerCase() === entry.brand.toLowerCase());
     const next = {
       ...current,
       brandAliases: exists
-        ? current.brandAliases.map((a) => (a.id === id ? { ...a, ...entry, id } : a))
+        ? current.brandAliases.map((a) => (a.id === id || a.brand.toLowerCase() === entry.brand.toLowerCase() ? { ...a, ...entry, id } : a))
         : [...current.brandAliases, { id, brand: entry.brand, aliases: entry.aliases }],
     };
     write(next);
     setState(next);
+    try {
+      const aliasList = entry.aliases.split(",").map((s) => s.trim()).filter(Boolean);
+      await fetchApi("/api/rag/brand-aliases", {
+        method: "POST",
+        body: JSON.stringify({ brand: entry.brand, aliases: aliasList }),
+      });
+      await syncKnowledgeBackend();
+    } catch (e) {
+      console.error("Failed to persist brand alias", e);
+    }
   }, []);
 
   const removeAlias = useCallback((id: string) => {

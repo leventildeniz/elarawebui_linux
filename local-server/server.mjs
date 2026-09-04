@@ -71,8 +71,8 @@ import { initLlmProvider, stream as llmStream, webSearch as llmWebSearch } from 
 // import { initProviderPolicyCache } from './lib/providers/policy-cache.mjs';
 import { initAuditFeed } from './lib/audit-feed.mjs';
 import { initEmbedWorkerStore, embedAndStoreChunks } from './lib/embed-worker/store.mjs';
-import { initEmbedWorkerRuntime, startEmbedWorkerIntervals, ensureWorker, kickWorkerStart, killWorker } from './lib/embed-worker/runtime.mjs';
-import { initRagRetrieval } from './lib/rag/retrieval.mjs';
+import { initEmbedWorkerRuntime, startEmbedWorkerIntervals, ensureWorker, kickWorkerStart, killWorker, ragAutoEmbedDrain } from './lib/embed-worker/runtime.mjs';
+import { initRagRetrieval, semanticSearch } from './lib/rag/retrieval.mjs';
 import { initToolAdapters, invokeTool, listPendingApprovals, decideApproval, ApprovalRequired, ToolPolicyError } from './lib/tool-adapters.mjs';
 import { initWorkflowEngine } from './lib/workflow-engine.mjs';
 import { initIdentitySchema } from './lib/schema-identity.mjs';
@@ -106,7 +106,7 @@ async function startServer() {
     // =============================================================================
     console.log(`[boot] Phase A: Pre-Pool Init...`);
     const probeUtils = initEmbedWorkerProbe({
-      port: config.embedWorkerPort || 3007,
+      port: Number(process.env.EMBED_WORKER_PORT || config.embedWorkerPort || 8082),
       pushLog: (src, msg) => console.log(`[${src}] ${msg}`),
     });
 		
@@ -346,6 +346,8 @@ async function startServer() {
       inspectDirectoryAccess,
       EMBED_DIM_TARGET,
       embed,
+      semanticSearch,
+      semanticFallback: semanticSearch,
       getLibraryRoot: ragUtils.getDefaultLibraryRoot,
       setLibraryRoot: ragUtils.setDefaultLibraryRoot,
       hydrateAllowedAgentsFromDb: () => _cockpit?.hydrateAllowedAgentsFromDb(),
@@ -376,8 +378,9 @@ async function startServer() {
       llmProvider: { stream: llmStream, webSearch: llmWebSearch },
       serverDir: __bootDir,
       EMBED_WORKER_HOST: config.embedWorkerHost || '127.0.0.1',
-      EMBED_WORKER_PORT: config.embedWorkerPort || 3007,
+      EMBED_WORKER_PORT: Number(process.env.EMBED_WORKER_PORT || config.embedWorkerPort || 8082),
       DEFAULT_EMBED_MODEL: process.env.MLX_EMBED_MODEL || 'BAAI/bge-m3',
+      ragAutoEmbedDrain,
       pushLog: (source, msg) => console.log(`[${source}] ${msg}`),
       chatTrace: (id, event, data) => console.log(`[TRACE][${id}] ${event}`, data || ''),
       migrateReady: Promise.resolve(),

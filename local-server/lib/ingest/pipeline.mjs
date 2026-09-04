@@ -43,6 +43,7 @@ export function createIngestPipeline(deps) {
     MAX_INDEXED_CHARS,
     crawlUrl,
     crawlPresetConfig,
+    ragAutoEmbedDrain,
   } = deps;
 
   // ---- Single-file chunk rebuild + immediate/lazy embedding --------------
@@ -61,8 +62,9 @@ export function createIngestPipeline(deps) {
     for (let idx = 0; idx < chunks.length; idx++) {
       if (signal?.aborted) break;
       if (idx > 0 && idx % 15 === 0) await new Promise((r) => setImmediate(r));
-      const chunk = chunks[idx];
-      const enriched = enrichChunkContent({ brand: finalBrand, path: filePath, content: chunk.content });
+      const rawChunk = chunks[idx];
+      const chunk = typeof rawChunk === "string" ? rawChunk : (rawChunk?.content || String(rawChunk || ""));
+      const enriched = enrichChunkContent({ brand: finalBrand, path: filePath, content: chunk });
       const { product, category, version: docVersion } = extractProduct({ brand: finalBrand, path: filePath, filename: null });
       
       const metadata = {
@@ -70,14 +72,21 @@ export function createIngestPipeline(deps) {
         source_type: sourceType, version, source_timestamp: sourceTimestamp,
         page_start: 1, page_end: 1,
         product, product_category: category, doc_version: docVersion,
-        content_enriched: enriched, enriched_at: new Date().toISOString()
+        content_enriched: enriched, enriched_at: new Date().toISOString(),
+        embedding_status: "pending"
       };
 
       const r = await pool.query(
-        `INSERT INTO knowledge_chunks(source_id, space_id, seq, content, metadata)
-         VALUES ($1, $2, $3, $4, $5::jsonb) RETURNING id`,
+        `INSERT INTO knowledge_chunks(source_id, space_id, seq, content, metadata, embedding_status, embedding_attempts)
+         VALUES ($1, $2, $3, $4, $5::jsonb, 'pending', 0) RETURNING id`,
         [fileId, spaceId || null, idx, chunk, JSON.stringify(metadata)]
-      );
+      ).catch(async () => {
+        return pool.query(
+          `INSERT INTO knowledge_chunks(source_id, space_id, seq, content, metadata)
+           VALUES ($1, $2, $3, $4, $5::jsonb) RETURNING id`,
+          [fileId, spaceId || null, idx, chunk, JSON.stringify(metadata)]
+        );
+      });
 
       await linkEntitiesForChunk(r.rows[0].id, chunk).catch(() => {});
       newIds.push(r.rows[0].id);
@@ -140,6 +149,10 @@ export function createIngestPipeline(deps) {
       `UPDATE knowledge_sources SET status='indexed', stage=NULL, chunks=$2, indexed_at=now() WHERE id=$1`,
       [sourceId, written]
     ).catch(() => {});
+
+    if (typeof ragAutoEmbedDrain === "function") {
+      ragAutoEmbedDrain().catch(() => {});
+    }
 
     return { sourceId, chunks: written, chunksWritten: written, version: 1, parseQuality: finalQuality, parserUsed };
   }

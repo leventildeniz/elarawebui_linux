@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { toast } from "sonner";
 import { AnimatePresence, motion } from "motion/react";
 import {
   Activity,
@@ -34,6 +35,7 @@ import { confirmAction } from "@/components/sovereign/confirm-dialog";
 import {
   topEntities,
   useKnowledge,
+  syncKnowledgeBackend,
   type KnowledgeSource,
   type SourceKind,
 } from "@/lib/knowledge-store";
@@ -133,9 +135,16 @@ function ControlTab() {
   );
   const spaceName = (id?: string) => access.spaces.find((x) => x.id === id)?.name ?? "unscoped";
 
-  const refresh = () => {
+  const refresh = async () => {
     setSpin(true);
-    setTimeout(() => setSpin(false), 700);
+    try {
+      await syncKnowledgeBackend();
+      toast.success("Knowledge state refreshed.");
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to refresh knowledge state.");
+    } finally {
+      setTimeout(() => setSpin(false), 500);
+    }
   };
 
   const metrics: {
@@ -219,19 +228,50 @@ function ControlTab() {
         <div className="mt-5 flex flex-wrap items-center gap-2">
           <MaintButton 
             icon={<Zap size={13} />} 
-            onClick={() => fetchApi("/api/rag/repair-fts", { method: "POST" })}
+            onClick={async () => {
+              try {
+                const res = await fetchApi("/api/rag/repair-fts", { method: "POST" });
+                if (res?.ok) toast.success("FTS index verified and repaired successfully.");
+                else toast.error("Failed to repair FTS index.");
+                await syncKnowledgeBackend();
+              } catch (e: any) {
+                toast.error(e?.message || "Failed to repair FTS index.");
+              }
+            }}
           >
             Repair FTS
           </MaintButton>
           <MaintButton 
             icon={<RefreshCw size={13} />}
-            onClick={() => fetchApi("/api/knowledge/embeddings/mark-pending", { method: "POST" })}
+            onClick={async () => {
+              const toastId = toast.loading(`Embedding batch of ${k.batchSize} chunks...`);
+              try {
+                const res = await fetchApi(`/api/rag/retry-embeddings?limit=${k.batchSize}`, { method: "POST" });
+                if (res?.ok) {
+                  toast.success(`Embedded ${res.written ?? 0} chunks (${res.remaining ?? 0} remaining).`, { id: toastId });
+                } else {
+                  toast.error(res?.error || "Embed worker not ready.", { id: toastId });
+                }
+                await syncKnowledgeBackend();
+              } catch (e: any) {
+                toast.error(e?.message || "Embedding request failed.", { id: toastId });
+              }
+            }}
           >
             Retry Embeddings ({k.batchSize})
           </MaintButton>
           <MaintButton 
             icon={<Trash2 size={13} />}
-            onClick={() => fetchApi("/api/knowledge/embeddings/mark-pending", { method: "POST", body: JSON.stringify({ retryErrors: true }) })}
+            onClick={async () => {
+              try {
+                const res = await fetchApi("/api/knowledge/embeddings/mark-pending", { method: "POST", body: JSON.stringify({ retryErrors: true }) });
+                if (res?.ok) toast.success(`Marked ${res.marked ?? 0} errored chunks for background drain.`);
+                else toast.error("Failed to drain errors.");
+                await syncKnowledgeBackend();
+              } catch (e: any) {
+                toast.error(e?.message || "Failed to drain errors.");
+              }
+            }}
           >
             Drain Errors ×3
           </MaintButton>
@@ -255,20 +295,47 @@ function ControlTab() {
           </div>
 
           <MaintButton 
-            icon={<Layers size={13} />}
-            onClick={() => fetchApi("/api/rag/dedupe-chunks", { method: "POST" })}
+            icon={<Layers size={13} />} 
+            onClick={async () => {
+              try {
+                const res = await fetchApi("/api/rag/dedupe-chunks", { method: "POST" });
+                if (res?.ok) toast.success(`Deduplicated: removed ${res.removed_rows ?? 0} duplicate chunk(s).`);
+                else toast.error("Failed to deduplicate chunks.");
+                await syncKnowledgeBackend();
+              } catch (e: any) {
+                toast.error(e?.message || "Failed to deduplicate chunks.");
+              }
+            }}
           >
             Dedupe Chunks
           </MaintButton>
           <MaintButton 
-            icon={<TagIcon size={13} />}
-            onClick={() => fetchApi("/api/rag/brand-backfill", { method: "POST" })}
+            icon={<TagIcon size={13} />} 
+            onClick={async () => {
+              try {
+                const res = await fetchApi("/api/rag/brand-backfill", { method: "POST" });
+                if (res?.ok) toast.success(`Re-derived brands for ${res.scanned_chunks ?? 0} chunks.`);
+                else toast.error("Failed to re-derive brands.");
+                await syncKnowledgeBackend();
+              } catch (e: any) {
+                toast.error(e?.message || "Failed to re-derive brands.");
+              }
+            }}
           >
             Re-derive Brands
           </MaintButton>
           <MaintButton 
-            icon={<Braces size={13} />}
-            onClick={() => fetchApi("/api/rag/reprocess-oversized-html", { method: "POST" })}
+            icon={<Braces size={13} />} 
+            onClick={async () => {
+              try {
+                const res = await fetchApi("/api/rag/reprocess-oversized-html", { method: "POST" });
+                if (res?.ok) toast.success(`Reprocessing ${res.candidates ?? 0} oversized HTML file(s).`);
+                else toast.error("Failed to reprocess HTML.");
+                await syncKnowledgeBackend();
+              } catch (e: any) {
+                toast.error(e?.message || "Failed to reprocess HTML.");
+              }
+            }}
           >
             Reprocess Oversized HTML
           </MaintButton>
@@ -598,7 +665,7 @@ function AddSourceDialog({ onClose }: { onClose: () => void }) {
 function BrandAliasesTab() {
   const k = useKnowledge();
   const [q, setQ] = useState("");
-  const [pulse, setPulse] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
 
   const list = k.brandAliases.filter(
     (a) =>
@@ -622,11 +689,23 @@ function BrandAliasesTab() {
               onChange={(e) => setQ(e.target.value)}
             />
           </div>
-          <JewelButton size="sm" variant="ghost" onClick={async () => {
-            setPulse((p) => p + 1);
-            await k.syncBackend();
-          }}>
-            <RefreshCw size={13} className={pulse % 2 ? "animate-spin" : ""} /> Refresh
+          <JewelButton
+            size="sm"
+            variant="ghost"
+            disabled={refreshing}
+            onClick={async () => {
+              setRefreshing(true);
+              try {
+                await syncKnowledgeBackend();
+                toast.success("Brand aliases refreshed.");
+              } catch (e: any) {
+                toast.error(e?.message || "Failed to refresh brand aliases.");
+              } finally {
+                setTimeout(() => setRefreshing(false), 500);
+              }
+            }}
+          >
+            <RefreshCw size={13} className={cn(refreshing && "animate-spin")} /> Refresh
           </JewelButton>
         </div>
         <Tag tone="amethyst">{k.brandAliases.length} brands indexed</Tag>
@@ -852,8 +931,14 @@ return (
               <Tag tone="emerald">HNSW ready</Tag>
             )}
             <MaintButton icon={<RefreshCw size={13} />} onClick={async () => {
-              await fetchApi("/api/knowledge/cleanup", { method: "POST" }).catch(() => {});
-              k.syncBackend();
+              try {
+                const res = await fetchApi("/api/knowledge/cleanup", { method: "POST" });
+                if (res?.ok) toast.success("Knowledge ghosts cleaned successfully.");
+                else toast.error("Cleanup failed.");
+                syncKnowledgeBackend();
+              } catch (e: any) {
+                toast.error(e?.message || "Cleanup failed.");
+              }
             }}>Cleanup</MaintButton>
             <JewelButton
               size="sm"
@@ -865,18 +950,38 @@ return (
                   confirmLabel: "Nuke",
                   tone: "ruby",
                 });
-                if (ok) k.nuke();
+                if (ok) {
+                  try {
+                    await k.nuke();
+                    toast.success("Vector Forge database nuked and reset.");
+                    syncKnowledgeBackend();
+                  } catch (e: any) {
+                    toast.error(e?.message || "Nuke failed.");
+                  }
+                }
               }}
             >
               <Trash2 size={13} /> Nuke
             </JewelButton>
             <MaintButton icon={<RefreshCw size={13} />} onClick={async () => {
-              await fetchApi("/api/rag/reprocess-extensions", { method: "POST", body: JSON.stringify({ extensions: [".html", ".json"] }) }).catch(() => {});
-              k.syncBackend();
+              try {
+                const res = await fetchApi("/api/rag/reprocess-extensions", { method: "POST", body: JSON.stringify({ extensions: [".html", ".json"] }) });
+                if (res?.ok) toast.success("HTML & JSON reprocessing started in background.");
+                else toast.error("Reprocessing failed.");
+                syncKnowledgeBackend();
+              } catch (e: any) {
+                toast.error(e?.message || "Reprocessing failed.");
+              }
             }}>Re-process HTML &amp; JSON</MaintButton>
             <JewelButton size="sm" onClick={async () => {
-              await fetchApi("/api/knowledge/embeddings/backfill", { method: "POST" }).catch(() => {});
-              k.syncBackend();
+              try {
+                const res = await fetchApi("/api/knowledge/embeddings/backfill", { method: "POST" });
+                if (res?.ok) toast.success("Vector backfill started in background.");
+                else toast.error(res?.error || "Failed to start backfill.");
+                syncKnowledgeBackend();
+              } catch (e: any) {
+                toast.error(e?.message || "Backfill failed.");
+              }
             }}>
               <Zap size={13} /> Start Backfill
             </JewelButton>
@@ -909,30 +1014,51 @@ return (
             <MaintButton icon={<Check size={13} />} onClick={async () => {
               try {
                 const res = await fetchApi("/api/knowledge/embeddings/library-path/validate", { method: "POST", body: JSON.stringify({ path }) });
-                setPathState("validated");
-                setPathStats(res);
-              } catch (e) {
+                if (res?.ok) {
+                  setPathState("validated");
+                  setPathStats(res);
+                  toast.success("Library path validated successfully.");
+                } else {
+                  setPathState("blocked");
+                  toast.error("Directory does not exist or is not readable.");
+                }
+              } catch (e: any) {
                 setPathState("blocked");
+                toast.error(e?.message || "Validation failed.");
               }
             }}>Validate</MaintButton>
             <MaintButton icon={<Check size={13} />} onClick={async () => {
               try {
                 const res = await fetchApi("/api/knowledge/embeddings/library-path", { method: "POST", body: JSON.stringify({ path, scan: false }) });
-                setPathState("applied");
-                setPathStats(res);
-                k.syncBackend();
-              } catch (e) {
+                if (res?.ok) {
+                  setPathState("applied");
+                  setPathStats(res);
+                  toast.success("Library path applied.");
+                  syncKnowledgeBackend();
+                } else {
+                  setPathState("blocked");
+                  toast.error("Failed to apply path.");
+                }
+              } catch (e: any) {
                 setPathState("blocked");
+                toast.error(e?.message || "Failed to apply path.");
               }
             }}>Apply</MaintButton>
             <MaintButton icon={<Search size={13} />} onClick={async () => {
               try {
                 const res = await fetchApi("/api/knowledge/embeddings/library-path", { method: "POST", body: JSON.stringify({ path, scan: true }) });
-                setPathState("applied");
-                setPathStats(res);
-                k.syncBackend();
-              } catch (e) {
+                if (res?.ok) {
+                  setPathState("applied");
+                  setPathStats(res);
+                  toast.success("Library path applied and background scan started.");
+                  syncKnowledgeBackend();
+                } else {
+                  setPathState("blocked");
+                  toast.error("Failed to apply and scan path.");
+                }
+              } catch (e: any) {
                 setPathState("blocked");
+                toast.error(e?.message || "Failed to scan path.");
               }
             }}>Apply + Scan</MaintButton>
           </div>

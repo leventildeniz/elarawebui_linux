@@ -286,38 +286,45 @@ export async function triggerSyncAutoReenrich(brandSet, jobId) {
   }
 }
 
-export function mountBrandAliasesRoutes({ app }) {
+export function mountBrandAliasesRoutes(appOrObj, depsArg) {
+  const app = appOrObj?.app || appOrObj;
   app.get("/api/rag/brand-aliases", async (_req, res) => {
     try {
       const { pool, deriveBrandFromKnowledgeSource } = deps();
       const aliases = await _recoverAliasesFromEnrichedChunks(pool, _readBrandAliases());
       const { rows } = await pool.query(`
         SELECT
-          COALESCE(brand, '') AS brand,
+          COALESCE(NULLIF(brand,''), NULLIF(metadata->>'brand',''), '') AS brand,
           COUNT(*)::int       AS chunk_count,
-          MAX(enriched_at)    AS last_enriched_at
+          MAX(COALESCE(metadata->>'enriched_at', created_at::text)) AS last_enriched_at
           FROM knowledge_chunks
          GROUP BY 1
          ORDER BY chunk_count DESC
       `);
       const brandMap = new Map();
       for (const r of rows) {
-        if (!r.brand || r.brand.startsWith("_")) continue;
-        brandMap.set(r.brand, {
-          name: r.brand,
+        if (!r.brand || r.brand.startsWith("_") || r.brand === 'unbranded') continue;
+        brandMap.set(r.brand.toLowerCase(), {
+          name: r.brand.toLowerCase(),
           chunkCount: r.chunk_count,
           lastEnrichedAt: r.last_enriched_at ? new Date(r.last_enriched_at).toISOString() : null,
         });
       }
 
       const sourceBrands = await pool.query(`
-        SELECT id, name, type, tag, url
-          FROM knowledge_sources
-         WHERE parent_id IS NULL
-         ORDER BY created_at DESC
+        SELECT ks.id, ks.name, ks.kind, ks.brand, ks.folder_id, rf.name AS folder_name
+          FROM knowledge_sources ks
+          LEFT JOIN rag_folders rf ON rf.id = ks.folder_id
+         ORDER BY ks.added_at DESC
       `).catch(() => ({ rows: [] }));
       for (const s of sourceBrands.rows || []) {
-        const name = deriveBrandFromKnowledgeSource(s);
+        let name = s.brand && s.brand !== 'auto-detect' ? s.brand.toLowerCase() : null;
+        if (!name && s.folder_name && !/^(uploads|test folder)$/i.test(s.folder_name)) {
+          name = s.folder_name.toLowerCase();
+        }
+        if (!name && typeof deriveBrandFromKnowledgeSource === "function") {
+          name = deriveBrandFromKnowledgeSource(s);
+        }
         if (!name || name.startsWith("_") || brandMap.has(name)) continue;
         brandMap.set(name, { name, chunkCount: 0, lastEnrichedAt: null });
       }
@@ -333,7 +340,11 @@ export function mountBrandAliasesRoutes({ app }) {
             name: b.name,
             chunkCount: b.chunkCount,
             lastEnrichedAt: b.lastEnrichedAt,
-            aliases: Array.isArray(entry.aliases) ? entry.aliases : [],
+            aliases: Array.isArray(entry.aliases) && entry.aliases.length ? entry.aliases : (
+              b.name === 'fortigate' ? ['fortinet', 'fortios', 'fortimanager', 'fortianalyzer'] :
+              b.name === 'checkpoint' ? ['gaia', 'r81', 'r82', 'smartconsole', 'checkpoint-fw'] :
+              b.name === 'netscaler' ? ['citrix', 'netscaler-adc', 'nitro'] : []
+            ),
             aliasesUpdatedAt: entry.updated_at || null,
             reenrichedAt,
             stale,
@@ -351,7 +362,7 @@ export function mountBrandAliasesRoutes({ app }) {
     }
   });
 
-  app.post("/api/rag/brand-aliases", (req, res) => {
+  app.post("/api/rag/brand-aliases", async (req, res) => {
     const body = req.body || {};
     const brand = String(body.brand || "").trim();
     if (!brand) return res.status(400).json({ ok: false, error: "brand required" });
@@ -363,10 +374,7 @@ export function mountBrandAliasesRoutes({ app }) {
       const existingKeys = _aliasKeysForBrand(obj, brand);
       const existingEntry = _aliasEntryForBrand(obj, brand);
       const before = Array.isArray(existingEntry.aliases) ? existingEntry.aliases.length : 0;
-      // Safety guard: prevent silent wipe of existing aliases by an empty save.
-      // Caller must explicitly pass { confirmDelete: true } to clear all aliases.
       if (aliases.length === 0 && before > 0 && !confirmDelete) {
-        console.warn(`[brand-aliases:write] BLOCKED empty save brand=${brand} before=${before}`);
         return res.status(409).json({
           ok: false,
           reason: "empty_save_blocked",
@@ -382,7 +390,21 @@ export function mountBrandAliasesRoutes({ app }) {
         obj[brand] = { ...existingEntry, aliases, updated_at: new Date().toISOString() };
       }
       _writeBrandAliasesAtomic(obj);
-      console.log(`[brand-aliases:write] brand=${brand} before=${before} after=${aliases.length}${confirmDelete ? " (confirmDelete)" : ""}`);
+
+      // Also persist to PostgreSQL knowledge_brands
+      const { pool } = deps();
+      if (pool) {
+        await pool.query(
+          `INSERT INTO knowledge_brands (id, label, aliases, updated_at)
+           VALUES ($1, $2, $3, now())
+           ON CONFLICT (id) DO UPDATE SET
+             label = EXCLUDED.label,
+             aliases = EXCLUDED.aliases,
+             updated_at = now()`,
+          [`brand_${brand.toLowerCase()}`, brand.toLowerCase(), aliases.join(", ")]
+        ).catch(() => {});
+      }
+
       res.json({ ok: true, brand, aliases, count: aliases.length, before });
     } catch (e) {
       res.status(500).json({ ok: false, error: String(e?.message || e) });

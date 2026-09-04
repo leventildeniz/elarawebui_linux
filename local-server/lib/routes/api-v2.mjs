@@ -53,6 +53,8 @@ import { mountWebhooksCrudRoutes } from './webhooks-crud.mjs';
 import { mountRagFoldersRoutes } from "./rag-folders.mjs";
 import { mountRagDbStatsRoute } from './rag-db-stats.mjs';
 import { mountRagOpsRoutes } from './rag-ops.mjs';
+import { mountBrandAliasesRoutes } from './brand-aliases.mjs';
+import { mountEmbedWorkerRoutes } from '../embed-worker/runtime.mjs';
 import { mountProvidersRoutes } from './providers.mjs';
 import { mountSystemCertsRoutes } from './system-certs.mjs';
 import { mountMailTimeRoutes } from './mail-time.mjs';
@@ -119,6 +121,8 @@ export async function mountApiRoutes(app, deps) {
   await safeMount('RAG Folders', mountRagFoldersRoutes, app, deps);
   await safeMount('RAG DB Stats', mountRagDbStatsRoute, app, deps);
   await safeMount('RAG Ops', mountRagOpsRoutes, app, deps);
+  await safeMount('Brand Aliases', mountBrandAliasesRoutes, app, deps);
+  await safeMount('Embed Worker', mountEmbedWorkerRoutes, app, deps);
   await safeMount('Search Providers', mountSearchProviderRoutes, app, deps);
   await safeMount('System Misc', mountSystemMiscRoutes, app, deps);
   await safeMount('System Runtime', mountSystemRoutes, app, deps);

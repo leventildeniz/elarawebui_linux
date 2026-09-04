@@ -2,19 +2,19 @@
 """
 ELARA Vector Worker — bge-m3 on port 8082.
 
-OpenAI-uyumlu /v1/embeddings endpoint'i sunar. server.mjs içindeki
-mlxEmbed() bu uca POST atar; child_process olarak otomatik ayağa kalkar.
+Provides OpenAI-compatible /v1/embeddings and /v1/rerank endpoints.
+Managed automatically by systemd (elara-worker.service) or child process.
 
-Çalıştırma (manuel):
+Usage (manual):
     python3 -m uvicorn worker:app --host 127.0.0.1 --port 8082
 
 Env:
     EMBED_MODEL              default: BAAI/bge-m3
-    EMBED_DEVICE                 default: auto (mlx > torch.mps > cpu)
-    EMBED_WORKER_MAX_RSS_GB      default: 8.0   (üstü → graceful suicide → middleware respawn)
-    EMBED_WORKER_MAX_REQUESTS    default: 5000  (üstü → graceful suicide)
-    EMBED_WORKER_GC_EVERY        default: 1     (N çağrı sonrası gc + mps/metal empty_cache)
-    EMBED_WORKER_RSS_CHECK_SEC   default: 60    (background RSS denetimi periyodu, 0 = kapalı)
+    EMBED_DEVICE             default: auto (mlx > torch.mps > cpu)
+    EMBED_WORKER_MAX_RSS_GB  default: 8.0   (threshold for graceful memory reset)
+    EMBED_WORKER_MAX_REQUESTS default: 5000 (threshold for lifecycle refresh)
+    EMBED_WORKER_GC_EVERY    default: 1     (frequency of GC and tensor cache cleanup)
+    EMBED_WORKER_RSS_CHECK_SEC default: 60  (background RSS check period, 0 = disabled)
 """
 from __future__ import annotations
 
@@ -46,10 +46,7 @@ GC_EVERY        = max(1, int(os.environ.get("EMBED_WORKER_GC_EVERY", "1")))
 RSS_CHECK_SEC   = int(os.environ.get("EMBED_WORKER_RSS_CHECK_SEC", "60"))
 
 # Reranker (CrossEncoder) — eager-warmed in startup thread.
-# Önceden lazy idi: ilk /v1/rerank çağrısında HF cache'ten model iniyor +
-# CrossEncoder ısınıyor; bu süre RAG_RERANK_TIMEOUT_MS=2500'i geçince
-# middleware abort ediyor ve golden'da `rerank=-` görüyorduk. Warmup ile
-# ilk gerçek istek ~50-150ms düşer. RAG_RERANK_WARMUP=0 → kapatır.
+# Reduces initial inference latency to ~50-150ms. RAG_RERANK_WARMUP=0 disables warmup.
 RERANK_MODEL_NAME = os.environ.get("RAG_RERANK_MODEL", "BAAI/bge-reranker-base").strip().strip('"').strip("'")
 RERANK_MAX_RSS_GB = float(os.environ.get("RERANKER_MAX_RSS_GB", "2.0"))
 RERANK_WARMUP     = os.environ.get("RAG_RERANK_WARMUP", "1") == "1"
@@ -118,32 +115,40 @@ def _try_sentence_transformers() -> bool:
     global backend, backend_name, encode_fn, _torch_empty
     try:
         from sentence_transformers import SentenceTransformer  # type: ignore
+        import torch  # type: ignore
+
+        # Tune CPU concurrency to avoid thread thrashing across vCPUs
+        threads = min(4, max(1, os.cpu_count() or 4))
+        torch.set_num_threads(threads)
+        try:
+            torch.set_num_interop_threads(1)
+        except Exception:
+            pass
+
         device = "cpu"
-        torch_mod = None
         if DEVICE_PREF in ("auto", "mps"):
             try:
-                import torch  # type: ignore
-                torch_mod = torch
                 if torch.backends.mps.is_available():
                     device = "mps"
             except Exception:
                 pass
-        log.info("loading via sentence_transformers: %s on %s", MODEL_NAME, device)
+        log.info("loading via sentence_transformers: %s on %s (threads=%d)", MODEL_NAME, device, threads)
         model = SentenceTransformer(MODEL_NAME, device=device)
+        model.eval()
         backend = model
         backend_name = f"sentence_transformers:{device}"
 
         def _encode(texts: List[str]) -> List[List[float]]:
-            # Batch size limited to 32 by default to prevent VRAM spikes during drain
-            arr = model.encode(texts, batch_size=32, normalize_embeddings=True, convert_to_numpy=True)
-            res = [vec.tolist() for vec in arr]
-            del arr
-            return res
+            with torch.inference_mode():
+                arr = model.encode(texts, batch_size=64, normalize_embeddings=True, convert_to_numpy=True, show_progress_bar=False)
+                res = [vec.tolist() for vec in arr]
+                del arr
+                return res
 
         encode_fn = _encode
-        if torch_mod is not None and device == "mps":
+        if device == "mps":
             try:
-                _torch_empty = torch_mod.mps.empty_cache  # type: ignore
+                _torch_empty = torch.mps.empty_cache  # type: ignore
             except Exception:
                 _torch_empty = None
         return True
@@ -152,18 +157,15 @@ def _try_sentence_transformers() -> bool:
         return False
 
 
-# NOT: Model yüklemesi modül-seviyesinden çıkarıldı. ASGI lifespan startup
-# event'i içinde **bir kez** yüklenir (leak-hunt v2, 2026-05). Bu sayede
-# `worker:app` import edildiği anda (örn. uvicorn worker tipi reload, test
-# probe, IDE introspection) model RAM'e girmez. Çift Python child senaryosu
-# (PID A: import-only, PID B: serving) artık tek serving prosesine düşer.
+# Note: Model loading occurs inside the ASGI lifespan startup handler
+# to ensure a single serving process without redundant pre-import overhead.
 
 # ---------------------------------------------------------------------------
-# Cache cleanup + RSS suicide guards
+# Cache cleanup + RSS watchdog guards
 # ---------------------------------------------------------------------------
 
 def _rss_gb() -> float:
-    """Process RSS in GB. psutil tercih edilir, yoksa resource fallback."""
+    """Process RSS in GB. Uses psutil where available with resource fallback."""
     try:
         import psutil  # type: ignore
         return psutil.Process().memory_info().rss / (1024 ** 3)
@@ -180,9 +182,7 @@ def _rss_gb() -> float:
 
 
 def _mps_gb() -> float:
-    """torch.mps allocated bytes (GPU heap). psutil RSS bunu yansıtmıyor —
-    macOS'ta Metal shared memory IOSurface'ta tutuluyor, process RSS'ine
-    kısmen düşüyor. 8-10GB worker footprint vakasının kök sebebi buydu."""
+    """torch.mps allocated memory (GPU heap) in GB."""
     try:
         import torch  # type: ignore
         if torch.backends.mps.is_available():
@@ -193,10 +193,7 @@ def _mps_gb() -> float:
 
 
 def _mlx_metal_gb() -> float:
-    """MLX Metal heap (active/peak). mlx_embeddings backend kullanıldığında
-    torch.mps=0 olduğu için ölçüm kör kalıyordu — 31GB spike'ın kök sebebi.
-    mx.metal.get_active_memory() varsa onu kullanır; yoksa get_peak_memory()
-    fallback. İkisi de yoksa 0 döner (zararsız)."""
+    """MLX Metal heap (active/peak) in GB."""
     try:
         import mlx.core as mx  # type: ignore
         for fn_name in ("get_active_memory", "get_peak_memory"):
@@ -212,14 +209,7 @@ def _mlx_metal_gb() -> float:
 
 
 def _footprint_gb() -> float:
-    """Backend-aware footprint. Çift sayım yasak:
-    - mlx_embeddings*  → RSS + mlx.metal       (torch.mps=0, anlamsız)
-    - sentence_transformers:mps → RSS + torch.mps (mlx.metal HARİÇ;
-      torch'un MPS heap'i mlx.metal ile aynı sayfaları görüyor olabilir,
-      ikisini toplamak watchdog'u sahte suicide'a sürüklüyordu).
-    - cpu/diğer       → sadece RSS
-    /health'te mlx_metal_gb alanı görünürlük için ayrı raporlanır.
-    """
+    """Backend-aware memory footprint."""
     name = (backend_name or "").lower()
     if name.startswith("mlx_embeddings"):
         return _rss_gb() + _mlx_metal_gb()
@@ -228,25 +218,16 @@ def _footprint_gb() -> float:
     return _rss_gb()
 
 
-# Soft cap: footprint > MAX_RSS_GB * SOFT_CAP_RATIO → suicide DEĞİL, sadece
-# cleanup_caches() + torch.mps.empty_cache(). Çoğu zaman restart bile gerekmesin.
+# Soft cap ratio for pro-active garbage collection before hard limits
 SOFT_CAP_RATIO = 0.75
 _last_soft_relief_ts = 0.0
 
 
-
-
-
-
-
 def cleanup_caches() -> None:
-    """Çağrı sonrası tensor cache'lerini geri ver — RAM monoton büyümesin.
-
-    leak-hunt 2026-05-18: tek gc.collect() yetmiyordu; çift pass + macOS
-    malloc_zone_pressure_relief eklendi. Worker plato'su 1.05GB → ~0.6GB."""
+    """Release intermediate tensor caches to maintain steady-state RAM."""
     try:
         gc.collect()
-        gc.collect()  # 2. pass: gen-1 → gen-2 promotion sonrası tutulanları yakala
+        gc.collect()
     except Exception:
         pass
     if _mx_clear is not None:
@@ -255,8 +236,6 @@ def cleanup_caches() -> None:
     if _torch_empty is not None:
         try: _torch_empty()
         except Exception: pass
-    # macOS: system allocator'a "kullanmadığım sayfaları geri al" sinyali.
-    # Linux'ta no-op (sembol yok), hata atmaz.
     try:
         import ctypes
         libc = ctypes.CDLL("libc.dylib")
@@ -274,7 +253,7 @@ def cleanup_caches() -> None:
 
 REQ_COUNT = 0
 START_TS = time.time()
-DIM = 0  # startup hook içinde set edilir
+DIM = 0  # Initialized during startup hook
 
 # ---------------------------------------------------------------------------
 # FastAPI surface
@@ -300,15 +279,12 @@ def _rss_watchdog_loop():
 
 @app.on_event("startup")
 def _startup_load_model() -> None:
-    """Model yüklemesi burada — modül seviyesinde değil. Tek serving proses."""
+    """Load model during startup phase in a single dedicated serving process."""
     global DIM
     if encode_fn is not None:
-        # Halihazırda yüklü (örn. test fixture). Idempotent.
         return
     if not (_try_mlx() or _try_sentence_transformers()):
-        log.error("No embedding backend available. Install one of:")
-        log.error("  pip install mlx-embeddings        # Apple Silicon — fastest")
-        log.error("  pip install sentence-transformers torch  # cross-platform fallback")
+        log.error("No embedding backend available. Install sentence-transformers and torch.")
         os._exit(1)
     DIM = len(encode_fn(["dim_probe"])[0])
     cleanup_caches()
@@ -321,8 +297,7 @@ def _startup_load_model() -> None:
 
 
 def _warmup_reranker() -> None:
-    """Boot'ta CrossEncoder'ı yükle ve 1 dummy predict at — ilk gerçek istek
-    HF indirme/ısınma cezasını ödemesin. Hata olursa worker normal devam eder."""
+    """Warm up CrossEncoder model on boot to reduce first request latency."""
     global _rerank_warmed, _rerank_last_ms, _rerank_load_err
     if not _load_reranker():
         log.warning("[rerank-warmup] load failed: %s", _rerank_load_err)
@@ -340,12 +315,10 @@ def _warmup_reranker() -> None:
 
 @app.on_event("shutdown")
 def _shutdown_cleanup() -> None:
-    """Lifespan shutdown — model'i ve cache'leri açıkça boşalt.
-    leak-hunt 2026-05-18: SIGTERM sonrası Python proses RAM'i hemen iade
-    etmiyordu (8 hayalet PID = 8 GB). Bu hook ile cleanup deterministik."""
+    """Deterministic release of model and tensor buffers on shutdown."""
     global backend, encode_fn
     try:
-        log.info("[shutdown] cleanup başlıyor · rss=%.2fGB · req_count=%d", _rss_gb(), REQ_COUNT)
+        log.info("[shutdown] cleanup starting · rss=%.2fGB · req_count=%d", _rss_gb(), REQ_COUNT)
     except Exception:
         pass
     try:
@@ -354,17 +327,17 @@ def _shutdown_cleanup() -> None:
     except Exception:
         pass
     cleanup_caches()
-    cleanup_caches()  # double pass — Metal heap için
+    cleanup_caches()
     try:
-        log.info("[shutdown] tamam · rss=%.2fGB", _rss_gb())
+        log.info("[shutdown] complete · rss=%.2fGB", _rss_gb())
     except Exception:
         pass
 
 
 def _install_signal_handlers() -> None:
-    """SIGTERM/SIGINT'te uvicorn'dan önce kendi cleanup'ımızı çalıştır."""
+    """Ensure graceful cleanup on SIGTERM / SIGINT."""
     def _handler(signum, _frame):
-        log.warning("[signal] %s alındı → cleanup + exit", signum)
+        log.warning("[signal] %s received -> cleanup and exit", signum)
         try:
             _shutdown_cleanup()
         except Exception:
@@ -444,10 +417,8 @@ def embeddings(req: EmbedReq) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Reranker (CrossEncoder) — opsiyonel kalite katmanı
-# Lazy-load: ilk /v1/rerank çağrısında yüklenir; boot süresini şişirmez.
-# RAM sınırı aşılırsa graceful suicide ile middleware respawn alır.
-# Hata olursa 503 + detay döner; embed pipeline'ı bozmaz.
+# Reranker (CrossEncoder) — Optional precision re-ranking layer
+# Lazy-load: Loaded on demand during inference to keep boot memory minimal.
 # ---------------------------------------------------------------------------
 
 class RerankReq(BaseModel):
@@ -515,7 +486,7 @@ def rerank(req: RerankReq) -> dict:
     _rerank_last_ms = int(dt)
     _rerank_warmed = True
     log.info("rerank n=%d in %.0fms rss=%.2fGB", len(docs), dt, _rss_gb())
-    # Reranker'a özel RAM guard — footprint (RSS + MPS) bazlı.
+    # Reranker memory footprint guard
     fp = _footprint_gb()
     return {
         "object": "list",

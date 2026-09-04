@@ -28,7 +28,7 @@ export async function embedAndStoreChunks(ids, texts, opts = {}) {
   
   await ensureWorker().catch((e) => pushLog("worker", `[ensure-error] ${e?.message || e}`));
   const signal = opts.signal && typeof opts.signal === "object" ? opts.signal : null;
-  const BATCH = Math.max(8, Math.min(128, Number(process.env.EMBED_STORE_BATCH) || 32));
+  const BATCH = Math.max(8, Math.min(256, Number(process.env.EMBED_STORE_BATCH) || 64));
   const embModel = process.env.EMBED_MODEL || process.env.MLX_EMBED_MODEL || "BAAI/bge-m3";
   let written = 0;
 
@@ -52,6 +52,7 @@ export async function embedAndStoreChunks(ids, texts, opts = {}) {
         const r = await pool.query(
           `UPDATE knowledge_chunks
               SET embedding = $1::jsonb,
+                  embedding_status = 'ok',
                   metadata = jsonb_set(
                     jsonb_set(
                       jsonb_set(COALESCE(metadata, '{}'::jsonb), '{embedded_at}', to_jsonb(now())),
@@ -61,7 +62,21 @@ export async function embedAndStoreChunks(ids, texts, opts = {}) {
                   )
             WHERE id = $2`,
           [JSON.stringify(v), idSlice[j], embModel]
-        );
+        ).catch(async () => {
+          return pool.query(
+            `UPDATE knowledge_chunks
+                SET embedding = $1::jsonb,
+                    metadata = jsonb_set(
+                      jsonb_set(
+                        jsonb_set(COALESCE(metadata, '{}'::jsonb), '{embedded_at}', to_jsonb(now())),
+                        '{embedding_model}', to_jsonb($3::text)
+                      ),
+                      '{embedding_status}', '"ok"'
+                    )
+              WHERE id = $2`,
+            [JSON.stringify(v), idSlice[j], embModel]
+          );
+        });
         if (r.rowCount > 0) written++;
       } catch (writeErr) {
         if (process.env.DEBUG_RAG) console.error("[embed:write]", writeErr.message);
@@ -99,16 +114,16 @@ export async function getEmbeddingHealth() {
       SELECT
         COUNT(*)::int AS total,
         COUNT(*) FILTER (WHERE embedding IS NULL)::int AS missing,
-        COUNT(*) FILTER (WHERE embedding IS NULL OR COALESCE(embedding_status,'pending')='pending')::int AS pending,
-        COUNT(*) FILTER (WHERE embedding_status='ok' AND embedding IS NOT NULL)::int AS done,
-        COUNT(*) FILTER (WHERE embedding_status='error')::int AS errored,
+        COUNT(*) FILTER (WHERE embedding IS NULL OR COALESCE(metadata->>'embedding_status','pending')='pending')::int AS pending,
+        COUNT(*) FILTER (WHERE metadata->>'embedding_status'='ok' AND embedding IS NOT NULL)::int AS done,
+        COUNT(*) FILTER (WHERE metadata->>'embedding_status'='error')::int AS errored,
         COUNT(DISTINCT root)::int AS roots,
         COUNT(DISTINCT path)::int AS files
       FROM knowledge_chunks
     `),
     pool.query(`
       SELECT root, COUNT(*)::int AS chunks, COUNT(DISTINCT path)::int AS files,
-             COUNT(*) FILTER (WHERE embedding IS NULL OR COALESCE(embedding_status,'pending')='pending')::int AS pending
+             COUNT(*) FILTER (WHERE embedding IS NULL OR COALESCE(metadata->>'embedding_status','pending')='pending')::int AS pending
         FROM knowledge_chunks
        GROUP BY root
        ORDER BY chunks DESC
@@ -126,7 +141,7 @@ export async function getEmbeddingHealth() {
     `).catch(() => ({ rows: [] })),
     pool.query(`SELECT current_database() AS database, current_setting('app.embed_dim', true) AS app_embed_dim`).catch(() => ({ rows: [{}] })),
     pool.query(`SELECT COUNT(*)::int AS files FROM knowledge_files`).catch(() => ({ rows: [{ files: 0 }] })),
-    pool.query(`SELECT COUNT(*)::int AS chunks, COUNT(*) FILTER (WHERE embedding IS NULL OR COALESCE(embedding_status,'pending')='pending')::int AS pending FROM knowledge_chunks WHERE root=$1`, [DEFAULT_LIBRARY_ROOT]).catch(() => ({ rows: [{ chunks: 0, pending: 0 }] })),
+    pool.query(`SELECT COUNT(*)::int AS chunks, COUNT(*) FILTER (WHERE embedding IS NULL OR COALESCE(metadata->>'embedding_status','pending')='pending')::int AS pending FROM knowledge_chunks WHERE root=$1`, [DEFAULT_LIBRARY_ROOT]).catch(() => ({ rows: [{ chunks: 0, pending: 0 }] })),
     libraryAccessPromise,
     pool.query(`
       SELECT id, name, type, tag, url, chunks, version,

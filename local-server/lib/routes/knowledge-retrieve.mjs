@@ -306,13 +306,16 @@ export function mountKnowledgeRetrieveRoutes(app, deps) {
       const retryErrors = !!req.body?.retryErrors;
       const r = await pool.query(
         `UPDATE knowledge_chunks
-            SET embedding_status='pending', embedded_at=NULL
+            SET embedding_status='pending', embedded_at=NULL, embedding_attempts=0
           WHERE embedding IS NULL
              OR embedding_status IS NULL
              OR embedding_status='pending'
              OR ($1::boolean AND embedding_status='error')`,
         [retryErrors]
       );
+      if (typeof deps.ragAutoEmbedDrain === "function") {
+        setTimeout(() => { deps.ragAutoEmbedDrain().catch(() => {}); }, 100).unref?.();
+      }
       const health = await getEmbeddingHealth();
       res.json({ ok: true, marked: r.rowCount || 0, ...health });
     } catch (e) {
@@ -509,7 +512,7 @@ export function mountKnowledgeRetrieveRoutes(app, deps) {
       res.json({
         ok: true, context, denied: 0, retriever, searchedKeywords,
         sources: rows.map((r, i) => ({ index: i + 1, id: r.source_id, name: path.basename(r.path || ""), path: r.path, ord: r.ord, page: r.page_start ?? null, pageEnd: r.page_end ?? r.page_start ?? null, score: Math.round(Math.min(1, Number(r.score)||0)*100), brand: r.brand || null, access_level: r.access_level })),
-        notice: rows.length ? null : `Kütüphaneyi şu anahtar kelimelerle taradım: ${searchedKeywords.join(", ") || q}`,
+        notice: rows.length ? null : `Queried knowledge index with keywords: ${searchedKeywords.join(", ") || q}`,
       });
     } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e), searchedKeywords }); }
   });

@@ -66,7 +66,7 @@ export function mountAgentsCrudRoutes(app, deps) {
            skills, tools, adapters, targets,
            mcp_servers, packs,
            rag, rag_brands, rag_keywords, rag_space_id,
-           icon, avatar, stats, owner_id, owner_name, updated_at
+           icon, avatar, stats, owner_id, owner_name, visibility, shared_with, updated_at
          ) VALUES (
            $1, $2, $3, $4, $5, $6, $7, $8, $9,
            $10,
@@ -75,7 +75,7 @@ export function mountAgentsCrudRoutes(app, deps) {
            $23, $24, $25, $26,
            $35, $36,
            $27, $28, $29, $30,
-           $31, $32, $33, $34, $37, now()
+           $31, $32, $33, $34, $37, $38, $39::jsonb, now()
          ) ON CONFLICT (id) DO UPDATE SET
            name=EXCLUDED.name, squad=EXCLUDED.squad, role=EXCLUDED.role, description=EXCLUDED.description,
            system_prompt=EXCLUDED.system_prompt, model_id=EXCLUDED.model_id, model_ref=EXCLUDED.model_ref, provider=EXCLUDED.provider,
@@ -89,6 +89,8 @@ export function mountAgentsCrudRoutes(app, deps) {
            icon=EXCLUDED.icon, avatar=EXCLUDED.avatar,
            owner_id=COALESCE(agents.owner_id, EXCLUDED.owner_id),
            owner_name=COALESCE(agents.owner_name, EXCLUDED.owner_name),
+           visibility=COALESCE(EXCLUDED.visibility, agents.visibility),
+           shared_with=COALESCE(EXCLUDED.shared_with, agents.shared_with),
            updated_at=now()`,
         [
           id, name,
@@ -126,7 +128,9 @@ export function mountAgentsCrudRoutes(app, deps) {
           a.ownerId || a.owner_id || owner,
           JSON.stringify(a.mcpServers ?? a.mcpClients ?? []),
           JSON.stringify(a.packs || []),
-          a.ownerName || a.owner_name || null
+          a.ownerName || a.owner_name || null,
+          a.visibility || (a.sharedWith?.length ? "shared" : "private"),
+          JSON.stringify(a.sharedWith || a.shared_with || [])
         ]
       );
       

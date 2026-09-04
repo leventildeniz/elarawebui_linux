@@ -30,40 +30,39 @@ export function mountRagOpsRoutes(app, deps) {
   app.post("/api/rag/brand-backfill", async (req, res) => {
     const dryRun = req.query?.dryRun === "1" || req.body?.dryRun === true;
     try {
-      const joinExpr = "k.source_id = s.id::text";
       const { rows: sources } = await pool.query(`
         SELECT s.id::text AS source_id,
+               s.name,
+               s.brand,
+               s.folder_id,
+               rf.name AS folder_name,
                COALESCE(s.metadata->>'url', s.name, '') AS url,
-               COUNT(k.id)::int AS chunks,
-               COUNT(*) FILTER (WHERE k.brand IS DISTINCT FROM $1)::int AS placeholder
+               COUNT(k.id)::int AS chunks
           FROM knowledge_sources s
-          JOIN knowledge_chunks k ON ${joinExpr}
-         WHERE COALESCE(s.metadata->>'url', s.name, '') <> ''
-         GROUP BY s.id, s.name, s.metadata
-      `, [null]);
+          LEFT JOIN knowledge_chunks k ON k.source_id = s.id::text
+          LEFT JOIN rag_folders rf ON rf.id = s.folder_id
+         GROUP BY s.id, s.name, s.brand, s.folder_id, rf.name, s.metadata
+      `);
 
       const transitions = new Map();
       const perSource = [];
       let scanned = 0;
       for (const r of sources) {
-        scanned += r.chunks;
-        const neu = typeof deriveBrandFromUrl === "function" ? deriveBrandFromUrl(r.url) : null;
-        perSource.push({ source_id: r.source_id, url: r.url, neu, chunks: r.chunks });
+        scanned += (r.chunks || 0);
+        let neu = r.brand && r.brand !== 'auto-detect' ? r.brand.toLowerCase() : null;
+        if (!neu && r.folder_id && r.folder_id !== 'uploads' && r.folder_name) {
+          neu = r.folder_name.toLowerCase();
+        }
+        if (!neu && typeof deriveBrandFromUrl === "function") {
+          neu = deriveBrandFromUrl(r.url);
+        }
+        perSource.push({ source_id: r.source_id, url: r.url, neu: neu || "general", chunks: r.chunks || 0 });
       }
-
-      const probeBefore = await pool.query(`
-        SELECT k.brand AS old_brand, COUNT(*)::int AS n
-          FROM knowledge_sources s
-          JOIN knowledge_chunks k ON ${joinExpr}
-         WHERE COALESCE(s.metadata->>'url', s.name, '') <> ''
-         GROUP BY k.brand
-      `);
-      const before = Object.fromEntries(probeBefore.rows.map(r => [r.old_brand ?? "(null)", r.n]));
 
       if (dryRun) {
         return res.json({
-          ok: true, dryRun: true, join: { name: "canonical", expr: joinExpr },
-          sources: sources.length, scanned_chunks: scanned, before,
+          ok: true, dryRun: true,
+          sources: sources.length, scanned_chunks: scanned,
           sample: perSource.slice(0, 10),
         });
       }
@@ -73,13 +72,14 @@ export function mountRagOpsRoutes(app, deps) {
       try {
         await client.query("BEGIN");
         for (const p of perSource) {
+          const rSrc = await client.query(
+            `UPDATE knowledge_sources SET brand = $1 WHERE id = $2`,
+            [p.neu, p.source_id]
+          );
           const r = await client.query(
-            `UPDATE knowledge_chunks k
-                SET metadata = jsonb_set(k.metadata, '{brand}', to_jsonb($1::text))
-               FROM knowledge_sources s
-              WHERE s.id::text = $2
-                AND ${joinExpr}
-                AND (k.brand IS DISTINCT FROM $1)`,
+            `UPDATE knowledge_chunks
+                SET metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), '{brand}', to_jsonb($1::text))
+              WHERE source_id = $2`,
             [p.neu, p.source_id]
           );
           if (r.rowCount > 0) {
@@ -87,6 +87,16 @@ export function mountRagOpsRoutes(app, deps) {
             const key = `→ ${p.neu ?? "(null)"}`;
             transitions.set(key, (transitions.get(key) || 0) + r.rowCount);
           }
+
+          // Also upsert into knowledge_brands
+          await client.query(
+            `INSERT INTO knowledge_brands (id, label, chunks, files)
+             VALUES ($1, $2, $3, 1)
+             ON CONFLICT (id) DO UPDATE SET
+               chunks = knowledge_brands.chunks + EXCLUDED.chunks,
+               files = knowledge_brands.files + 1`,
+            [`brand_${p.neu}`, p.neu, p.chunks]
+          ).catch(() => {});
         }
         await client.query("COMMIT");
       } catch (e) {
@@ -96,9 +106,9 @@ export function mountRagOpsRoutes(app, deps) {
         client.release();
       }
       res.json({
-        ok: true, join: { name: "canonical", expr: joinExpr },
+        ok: true,
         sources: sources.length, scanned_chunks: scanned, updated,
-        before, transitions: Object.fromEntries(transitions),
+        transitions: Object.fromEntries(transitions),
       });
     } catch (e) {
       res.status(500).json({ ok: false, error: String(e?.message || e) });

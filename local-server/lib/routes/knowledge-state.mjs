@@ -14,10 +14,57 @@ export async function mountKnowledgeConfigRoutes(app, deps) {
       // Fetch sources
       const srcRes = await pool.query("SELECT * FROM knowledge_sources ORDER BY added_at DESC");
 
-      // Fetch brand aliases (aggregate chunks per brand)
-      const brandRes = await pool.query("SELECT * FROM knowledge_brands ORDER BY id ASC");
+      // Dynamic brand aggregation from active sources and collections
+      const [brandDbRes, brandStatsRes] = await Promise.all([
+        pool.query("SELECT * FROM knowledge_brands ORDER BY id ASC").catch(() => ({ rows: [] })),
+        pool.query(`
+          SELECT
+            LOWER(COALESCE(NULLIF(ks.brand,''), NULLIF(rf.name,''), 'unbranded')) AS brand,
+            COUNT(kc.id)::int AS chunk_count,
+            MAX(COALESCE(kc.metadata->>'enriched_at', ks.indexed_at::text, ks.added_at::text)) AS last_enriched
+          FROM knowledge_sources ks
+          LEFT JOIN knowledge_chunks kc ON kc.source_id = ks.id::text
+          LEFT JOIN rag_folders rf ON rf.id = ks.folder_id
+          WHERE ks.folder_id IS DISTINCT FROM 'uploads'
+          GROUP BY 1
+        `).catch(() => ({ rows: [] }))
+      ]);
 
-      // Map sources
+      const savedBrandMap = new Map();
+      for (const b of brandDbRes.rows) {
+        savedBrandMap.set(b.label.toLowerCase(), b);
+      }
+
+      const brandMap = new Map();
+      for (const s of brandStatsRes.rows) {
+        if (!s.brand || s.brand === 'unbranded' || s.brand === 'auto-detect' || s.brand.startsWith('_')) continue;
+        const saved = savedBrandMap.get(s.brand);
+        const aliases = saved?.aliases || "";
+        const daysAgo = s.last_enriched ? Math.max(0, Math.floor((Date.now() - new Date(s.last_enriched).getTime()) / (1000 * 86400))) : 0;
+        brandMap.set(s.brand, {
+          id: saved?.id || `brand_${s.brand}`,
+          brand: s.brand,
+          aliases,
+          chunks: Number(s.chunk_count || 0),
+          enrichedDaysAgo: daysAgo
+        });
+      }
+
+      for (const b of brandDbRes.rows) {
+        const lower = b.label.toLowerCase();
+        if (!brandMap.has(lower)) {
+          brandMap.set(lower, {
+            id: b.id,
+            brand: lower,
+            aliases: b.aliases || '',
+            chunks: Number(b.chunks || 0),
+            enrichedDaysAgo: 0
+          });
+        }
+      }
+
+      const brandAliases = Array.from(brandMap.values()).sort((a, b) => (b.chunks ?? 0) - (a.chunks ?? 0));
+
       const sources = srcRes.rows.map(s => ({
         id: s.id,
         name: s.name,
@@ -36,15 +83,6 @@ export async function mountKnowledgeConfigRoutes(app, deps) {
         stage: s.stage || "",
       }));
 
-      // Map brand aliases
-      const brandAliases = brandRes.rows.map(b => ({
-        id: b.id,
-        brand: b.label,
-        aliases: "", // aliases might need a separate mapping or just live on knowledge_brands
-        chunks: b.chunks || 0,
-        enrichedDaysAgo: 0
-      }));
-
       const embedModel = process.env.EMBED_MODEL || process.env.MLX_EMBED_MODEL || c.embed_model || "BAAI/bge-m3";
       const rerankerModel = process.env.RAG_RERANK_MODEL || process.env.RERANK_MODEL || "bge-reranker-v2-m3";
 
@@ -54,16 +92,22 @@ export async function mountKnowledgeConfigRoutes(app, deps) {
         pool.query(`
           SELECT
             count(*) FILTER (WHERE embedding IS NOT NULL)::int AS embed_ok,
-            count(*) FILTER (WHERE embedding IS NULL)::int AS embed_pending,
+            count(*) FILTER (WHERE embedding IS NULL AND COALESCE(metadata->>'embedding_status','pending') NOT IN ('in_progress','error','stale'))::int AS embed_pending,
+            count(*) FILTER (WHERE metadata->>'embedding_status' = 'in_progress')::int AS in_progress,
+            count(*) FILTER (WHERE metadata->>'embedding_status' = 'stale')::int AS stale,
+            count(*) FILTER (WHERE metadata->>'embedding_status' = 'error')::int AS embed_error,
             count(*) FILTER (WHERE fts IS NULL)::int AS fts_null
           FROM knowledge_chunks
-        `).catch(() => ({ rows: [{ embed_ok: 0, embed_pending: 0, fts_null: 0 }] }))
+        `).catch(() => ({ rows: [{ embed_ok: 0, embed_pending: 0, in_progress: 0, stale: 0, embed_error: 0, fts_null: 0 }] }))
       ]);
 
       const liveChunks = Number(totalChunksRes.rows[0]?.total || 0);
       const h = embedHealthRes.rows[0] || {};
       const embedOk = Number(h.embed_ok || 0);
       const embedPending = Number(h.embed_pending || 0);
+      const inProgress = Number(h.in_progress || 0);
+      const stale = Number(h.stale || 0);
+      const embedError = Number(h.embed_error || 0);
       const ftsNull = Number(h.fts_null || 0);
 
       const state = {
@@ -77,9 +121,9 @@ export async function mountKnowledgeConfigRoutes(app, deps) {
           ftsNull,
           embedOk,
           embedPending,
-          inProgress: c.health?.inProgress || 0,
-          stale: c.health?.stale || 0,
-          embedError: c.health?.embedError || 0,
+          inProgress,
+          stale,
+          embedError,
           parseOk: liveChunks > 0 ? liveChunks : (c.health?.parseOk || 0),
           parseLow: c.health?.parseLow || 0
         },

@@ -18,10 +18,14 @@ export function createPythonResolver({ serverDir }) {
       seen.add(key);
       return { file, args };
     };
-    const venvPython = path.join(serverDir, ".venv", "bin", "python");
+    const dotVenvPython = path.join(serverDir, ".venv", "bin", "python");
+    const venvPython3 = path.join(serverDir, "venv", "bin", "python3");
+    const venvPython = path.join(serverDir, "venv", "bin", "python");
     return [
       add(process.env.PYTHON_BIN || process.env.PYTHON, []),
+      fs.existsSync(venvPython3) ? add(venvPython3, []) : null,
       fs.existsSync(venvPython) ? add(venvPython, []) : null,
+      fs.existsSync(dotVenvPython) ? add(dotVenvPython, []) : null,
       add("uv", ["run", "python"]),
       add("python3", []),
       add("python", []),

@@ -1,17 +1,9 @@
-// lib/embed-worker/runtime.mjs — Tur 3b
-// Embed worker lifecycle + claim/janitor/drain + 4 endpoint.
-// State zincirleri:
-//   • workerProc/Status/LastError/StartedAt → SERVER.MJS `let` (40+ reader),
-//     modül `setProc/setStatus/setLastError/setStartedAt/getProc/getStatus`
-//     callback'leriyle mutate eder.
-//   • respawnTimestamps + workerLocked + lastHealMs + _ensureInflight +
-//     _claimColumnsReady + RAG_AUTO_EMBED_RUNNING → MODÜL ÖZEL state.
-//   • SELF_HEAL_COOLDOWN_MS + RESPAWN_MAX_IN_WINDOW → server.mjs `let`
-//     (runtime watchdog cockpit mutate ediyor); modül getter ile okur.
+// lib/embed-worker/runtime.mjs — Embed worker lifecycle & batch claim engine
+// Agnostic Python Worker supervisor and PostgreSQL claim/drain queue.
 
 let D = null;
 
-// Module-private state (eskiden server.mjs'te `let`).
+// Module-private state
 let respawnTimestamps = [];
 let workerLocked = false;
 let lastHealMs = 0;
@@ -53,7 +45,7 @@ function _trackRespawn() {
   respawnTimestamps.push(now);
   if (respawnTimestamps.length > D.getRespawnMax()) {
     workerLocked = true;
-    D.pushLog("worker", `[circuit-breaker] ${respawnTimestamps.length} respawn / ${Math.round(RESPAWN_WINDOW_MS / 60000)}dk → worker KİLİTLİ. Manuel reset: POST /api/system/restart-worker`);
+    D.pushLog("worker", `[circuit-breaker] ${respawnTimestamps.length} respawns in ${Math.round(RESPAWN_WINDOW_MS / 60000)}m -> worker locked. Manual reset: POST /api/system/restart-worker`);
   }
 }
 
@@ -79,12 +71,12 @@ export function kickWorkerStart(reason = "lazy") {
 async function _ensureWorkerImpl() {
   if (workerLocked) {
     D.setStatus("down-locked");
-    const err = `circuit-breaker: çok fazla respawn (${respawnTimestamps.length} / ${Math.round(RESPAWN_WINDOW_MS / 60000)}dk). Manuel reset gerekli.`;
+    const err = `circuit-breaker: excessive respawns (${respawnTimestamps.length} in ${Math.round(RESPAWN_WINDOW_MS / 60000)}m). Manual reset required.`;
     D.setLastError(err);
     return { spawned: false, status: D.getStatus(), error: err };
   }
   if (D.getProc() && D.getStatus() !== "down") return { spawned: false, status: D.getStatus() };
-  // Status "down" ama child hâlâ alive ise (deadline race) önce öldür ki çift child olmasın.
+  
   const proc0 = D.getProc();
   if (proc0 && proc0.exitCode === null) {
     const ghostPid = proc0.pid;
@@ -100,25 +92,25 @@ async function _ensureWorkerImpl() {
       void D.warmEmbedWorker("external");
       return { spawned: false, status: D.getStatus() };
     }
-    D.pushLog("worker", `[self-heal] /health ok ama /v1/embeddings boş döndü → zombi external worker, kendi worker'ımızı spawn etmek için port temizleniyor`);
+    D.pushLog("worker", `[self-heal] /health responded ok but /v1/embeddings empty -> clearing zombie worker port`);
   }
   if (await D.isPortOpen(D.EMBED_WORKER_PORT)) {
     const cooldownMs = D.getSelfHealCooldownMs();
     if (Date.now() - lastHealMs > cooldownMs) {
       const killed = await D.killPortOwnerAndWait(D.EMBED_WORKER_PORT, 5000);
-      D.pushLog("worker", `[self-heal] zombi worker tespit edildi (port ${D.EMBED_WORKER_PORT} bağlı, /health cevapsız) → ${killed} PID öldürüldü ve exit doğrulandı, yeniden spawn ediliyor (cooldown=${cooldownMs / 1000}sn)`);
+      D.pushLog("worker", `[self-heal] zombie worker detected on port ${D.EMBED_WORKER_PORT} -> killed ${killed} pids, respawning (cooldown=${cooldownMs / 1000}s)`);
       lastHealMs = Date.now();
       D.setProc(null);
       D.setStatus("down");
       _trackRespawn();
       if (workerLocked) {
-        const err = `circuit-breaker tetiklendi · respawn=${respawnTimestamps.length}`;
+        const err = `circuit-breaker triggered · respawns=${respawnTimestamps.length}`;
         D.setLastError(err);
         return { spawned: false, status: "down-locked", error: err };
       }
     } else {
       D.setStatus("down");
-      const err = `port ${D.EMBED_WORKER_PORT} occupied (self-heal cooldown · son heal ${Math.round((Date.now() - lastHealMs) / 1000)}sn önce / cooldown=${cooldownMs / 1000}sn)`;
+      const err = `port ${D.EMBED_WORKER_PORT} occupied (self-heal cooldown · last heal ${Math.round((Date.now() - lastHealMs) / 1000)}s ago / cooldown=${cooldownMs / 1000}s)`;
       D.setLastError(err);
       return { spawned: false, status: D.getStatus(), error: err };
     }
@@ -291,7 +283,7 @@ export async function countPendingEmbeddings() {
   const r = await D.pool.query(
     `SELECT COUNT(*)::bigint AS n
        FROM knowledge_chunks
-      WHERE embedding IS NULL OR COALESCE(embedding_status,'pending') IN ('pending','error')`
+      WHERE embedding IS NULL OR COALESCE(metadata->>'embedding_status','pending') IN ('pending','error')`
   );
   return Number(r.rows[0]?.n || 0);
 }
@@ -307,7 +299,7 @@ async function _ensureClaimColumns() {
     _claimColumnsReady = !!r.rowCount;
   } catch { _claimColumnsReady = false; }
   if (!_claimColumnsReady) {
-    console.warn("[rag:queue] embedding_locked_at kolonu yok — 20260524 migration'ı bekleniyor; legacy yol kullanılıyor.");
+    console.warn("[rag:queue] embedding_locked_at column not present; using legacy fallback queue.");
   }
   return _claimColumnsReady;
 }
@@ -319,14 +311,14 @@ export async function claimEmbeddingBatch(jobId, limit, opts = {}) {
   if (!ready) {
     const r = await D.pool.query(
       `SELECT id,
-              CASE WHEN $2::int = 1 THEN COALESCE(content_enriched, content) ELSE content END AS content
+              CASE WHEN $2::int = 1 THEN COALESCE(metadata->>'content_enriched', content) ELSE content END AS content
          FROM knowledge_chunks
-        WHERE embedding IS NULL OR COALESCE(embedding_status,'pending') IN ('pending','error')
+        WHERE embedding IS NULL OR COALESCE(metadata->>'embedding_status','pending') IN ('pending','error')
         ORDER BY id LIMIT $1`, [lim, useEnriched]);
     if (r.rows.length) {
       const ids = r.rows.map((x) => x.id);
       await D.pool.query(
-        `UPDATE knowledge_chunks SET embedding_status='pending' WHERE id = ANY($1::bigint[])`,
+        `UPDATE knowledge_chunks SET metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), '{embedding_status}', '"in_progress"') WHERE id = ANY($1::bigint[])`,
         [ids]
       ).catch(() => {});
     }
@@ -335,7 +327,7 @@ export async function claimEmbeddingBatch(jobId, limit, opts = {}) {
   const sql = `
     WITH claimed AS (
       SELECT id FROM knowledge_chunks
-       WHERE embedding_status IN ('pending','stale','error')
+       WHERE (embedding IS NULL OR embedding_status IS NULL OR embedding_status IN ('pending','stale','error'))
          AND COALESCE(embedding_attempts, 0) < 5
        ORDER BY id
        LIMIT $1
@@ -349,9 +341,9 @@ export async function claimEmbeddingBatch(jobId, limit, opts = {}) {
       FROM claimed
      WHERE kc.id = claimed.id
     RETURNING kc.id,
-              CASE WHEN $3::int = 1 THEN COALESCE(kc.content_enriched, kc.content) ELSE kc.content END AS content`;
+              CASE WHEN $3::int = 1 THEN COALESCE(kc.metadata->>'content_enriched', kc.content) ELSE kc.content END AS content`;
   const r = await D.pool.query(sql, [lim, jobId, useEnriched]).catch((e) => {
-    console.warn(`[rag:claim] sql hata: ${e?.message || e}`);
+    console.warn(`[rag:claim] sql error: ${e?.message || e}`);
     return { rows: [] };
   });
   return r.rows;
@@ -392,12 +384,12 @@ export async function ragAutoEmbedDrain() {
   if (RAG_AUTO_EMBED_RUNNING) return;
   if (String(process.env.RAG_AUTO_EMBED || "1") === "0") return;
   RAG_AUTO_EMBED_RUNNING = true;
-  const BATCH = Math.max(50, Math.min(1000, Number(process.env.RAG_AUTO_EMBED_BATCH) || 300));
-  const SLEEP_MS = Math.max(500, Number(process.env.RAG_AUTO_EMBED_SLEEP_MS) || 1500);
+  const BATCH = Math.max(50, Math.min(2000, Number(process.env.RAG_AUTO_EMBED_BATCH) || 500));
+  const SLEEP_MS = Math.max(10, Number(process.env.RAG_AUTO_EMBED_SLEEP_MS) || 50);
   const jobId = `auto-${process.pid}-${Date.now().toString(36)}`;
   let totalDone = 0;
   try {
-    console.log(`[rag:auto-embed] başlatıldı (job=${jobId}, batch=${BATCH}, sleep=${SLEEP_MS}ms)`);
+    console.log(`[rag:auto-embed] started (job=${jobId}, batch=${BATCH}, sleep=${SLEEP_MS}ms)`);
     while (true) {
       let alive = false;
       try {
@@ -408,8 +400,8 @@ export async function ragAutoEmbedDrain() {
         }
       } catch {}
       if (!alive) {
-        console.warn(`[rag:auto-embed] worker hazır değil (status=${D.getStatus()}, alive=false), 30sn bekle`);
-        await new Promise((r) => setTimeout(r, 30000));
+        console.warn(`[rag:auto-embed] worker not ready (status=${D.getStatus()}, alive=false), waiting 15s`);
+        await new Promise((r) => setTimeout(r, 15000));
         continue;
       }
       try {
@@ -417,32 +409,35 @@ export async function ragAutoEmbedDrain() {
           .then((r) => (r.ok ? r.json() : null)).catch(() => null);
         if (h && Number(h.footprint_gb) > 0 && Number(h.max_rss_gb) > 0) {
           const ratio = Number(h.footprint_gb) / Number(h.max_rss_gb);
-          if (ratio >= 0.93) {
-            console.warn(`[rag:auto-embed] footprint ${h.footprint_gb}GB/${h.max_rss_gb}GB (${(ratio * 100).toFixed(0)}%) — 30sn backpressure`);
-            await new Promise((r) => setTimeout(r, 30000));
+          if (ratio >= 0.95) {
+            console.warn(`[rag:auto-embed] footprint ${h.footprint_gb}GB/${h.max_rss_gb}GB (${(ratio * 100).toFixed(0)}%) — 15s backpressure`);
+            await new Promise((r) => setTimeout(r, 15000));
             continue;
           }
         }
       } catch {}
       const claimed = await claimEmbeddingBatch(jobId, BATCH, { useEnriched: !!D.getRagSettings().useEnrichedContent });
-      if (!claimed.length) { console.log(`[rag:auto-embed] tamam — toplam yazıldı: ${totalDone}`); break; }
+      if (!claimed.length) { 
+        if (totalDone > 0) console.log(`[rag:auto-embed] complete — total written: ${totalDone}`); 
+        break; 
+      }
       const ids = claimed.map((x) => x.id);
       const texts = claimed.map((x) => String(x.content || "").slice(0, 1500));
       const written = await D.embedAndStoreChunks(ids, texts).catch((e) => {
-        console.warn(`[rag:auto-embed] batch hata: ${e.message || e}`);
+        console.warn(`[rag:auto-embed] batch error: ${e.message || e}`);
         return 0;
       });
       totalDone += written;
       if (written === 0) {
-        console.warn(`[rag:auto-embed] batch 0 yazdı — embed worker yanıtsız, 30sn bekle`);
-        await new Promise((r) => setTimeout(r, 30000));
+        console.warn(`[rag:auto-embed] batch wrote 0 — embed worker unresponsive, waiting 15s`);
+        await new Promise((r) => setTimeout(r, 15000));
       } else {
-        if (totalDone % (BATCH * 5) < BATCH) console.log(`[rag:auto-embed] ilerliyor: +${totalDone}`);
-        await new Promise((r) => setTimeout(r, SLEEP_MS));
+        if (totalDone % (BATCH * 2) < BATCH) console.log(`[rag:auto-embed] progress: +${totalDone}`);
+        await new Promise((r) => setImmediate(r));
       }
     }
   } catch (e) {
-    console.warn(`[rag:auto-embed] durdu: ${e.message || e}`);
+    console.warn(`[rag:auto-embed] stopped: ${e.message || e}`);
   } finally {
     RAG_AUTO_EMBED_RUNNING = false;
   }
@@ -471,7 +466,7 @@ export function mountEmbedWorkerRoutes(app) {
           workerStatus: D.getStatus(),
           workerLastError: D.getLastError(),
           lastEmbedError: D.getLastEmbedError(),
-          hint: "Worker zombi olabilir. POST /api/system/restart-worker ile resetle, sonra tekrar dene.",
+          hint: "Worker may be offline or starting. Check logs or trigger POST /api/system/restart-worker.",
         });
       }
       const claimed = await claimEmbeddingBatch(jobId, limit, { useEnriched: !!D.getRagSettings().useEnrichedContent });
@@ -480,6 +475,10 @@ export function mountEmbedWorkerRoutes(app) {
       const texts = claimed.map((x) => String(x.content || "").slice(0, 1500));
       const written = await D.embedAndStoreChunks(ids, texts).catch(() => 0);
       const ok = written > 0 || ids.length === 0;
+
+      // Also kick background auto-drain to continue draining remaining items
+      setTimeout(() => { ragAutoEmbedDrain().catch(() => {}); }, 100).unref?.();
+
       res.json({
         ok, jobId,
         scanned: ids.length,

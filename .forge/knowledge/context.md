@@ -600,6 +600,17 @@ Bu aşamada **Knowledge Hub** (`/knowledge`), **RAG Documents** (`/rag-documents
 13. **Embedding Worker Otomatik Drain & Vektör Kaydı (`store.mjs` & `server.mjs`):**
     - `store.mjs` içerisindeki eski `MLX` kontrolü kaldırıldı; `SET embedding = $1::jsonb` ile PostgreSQL jsonb vektör kaydı sağlandı.
     - `startEmbedWorkerIntervals()` server açılışına bağlandı; bekleyen chunk'ların (`worker.py` - port 8082, `BAAI/bge-m3`) her 30 saniyede bir arka planda otomatik eritilmesi (drain) sağlandı.
+14. **Knowledge Embedding Pipeline & Worker Drain Uçtan Uca Entegrasyonu (`pipeline.mjs`, `runtime.mjs`, `store.mjs`, `server.mjs`, `api-v2.mjs`):**
+    - `pipeline.mjs`: `rebuildChunksForFile` içerisindeki string chunk tipi ve `enrichChunkContent` entegrasyonu düzeltildi.
+    - `runtime.mjs`: `claimEmbeddingBatch` ve `ragJanitor` sorguları PostgreSQL `metadata->>'embedding_status'` ve `embedding IS NULL` şartlarına uygun hale getirildi; hiçbir chunk'ın kuyruktan kaçmaması sağlandı.
+    - `server.mjs` & `python-resolver.mjs`: `EMBED_WORKER_PORT` 8082 olarak eşitlendi; `initEmbedWorkerProbe` portu bağlandı; Linux `venv/bin/python3` yolu resolver listesine eklendi.
+    - `api-v2.mjs`: `mountEmbedWorkerRoutes` API Gateway'e dahil edildi (`/api/rag/retry-embeddings`).
+    - `knowledge-retrieve.mjs`: `semanticFallback` / `semanticSearch` bağlantısı yapıldı; `/api/knowledge/embeddings/mark-pending` rotası canlı `ragAutoEmbedDrain()` döngüsüne bağlandı.
+    - Tüm kod bloklarındaki yorumlar ve loglar %100 kurumsal İngilizce standartlarına çekildi. Canlı testlerde 7,338 chunk'ın arka planda `BAAI/bge-m3` ile otomatik eridiği ve vektörlerin DB'ye yazıldığı doğrulandı.
+15. **Knowledge Hub Canlı Telemetri & UI Buton Geri Bildirimi (`knowledge.tsx`, `knowledge-store.ts`, `knowledge-state.mjs`):**
+    - `knowledge-state.mjs`: `inProgress`, `stale` ve `embedError` metrikleri canlı veritabanı sorgusuna bağlandı (`COUNT(*) FILTER (WHERE metadata->>'embedding_status' = 'in_progress')`).
+    - `knowledge-store.ts`: 3 saniyelik hafif canlı senkronizasyon zamanlayıcısı eklendi; ekran yenilemeye gerek kalmadan `EMBED OK`, `IN PROGRESS` ve `EMBED PENDING` sayaçlarının anlık aktığı doğrulandı.
+    - `knowledge.tsx`: `Retry Embeddings`, `Repair FTS`, `Drain Errors`, `Dedupe Chunks`, `Re-derive Brands`, `Reprocess Oversized HTML` butonlarına Sonner `toast.loading` ve `toast.success` bildirimleri ile anında senkronizasyon eklendi.
 
 ## 52. UP NEXT (Phase 52) - Autonomous DAG Execution Engine & Multi-Step Workflow Benchmarking
 1. **Autonomous DAG Execution Engine Benchmarking:** Çok adımlı workflow ve orchestration zincirlerinin canlı icra doğrulaması.

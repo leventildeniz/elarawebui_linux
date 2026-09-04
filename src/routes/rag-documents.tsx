@@ -878,11 +878,17 @@ function IngestPanel({
     for (const f of accepted) {
       setFiles((prev) => prev.map((x) => (x.id === f.id ? { ...x, phase: "uploading", progress: 20 } : x)));
 
+      const derivedBrand = (folder.autoTags && folder.autoTags.length > 0 && folder.autoTags[0])
+        ? folder.autoTags[0].toLowerCase()
+        : (folder.name && !/^(uploads|test folder)$/i.test(folder.name))
+          ? folder.name.toLowerCase()
+          : "";
+
       try {
         const id = await k.addSource({
           name: f.name,
           kind: "file",
-          brand: "",
+          brand: derivedBrand,
           space: space.id,
           owner: me.userId,
           ownerName: currentAccount()?.username ?? "",

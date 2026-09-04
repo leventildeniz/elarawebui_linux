@@ -341,7 +341,24 @@ export function mountKnowledgeIngestRoutes(app, deps) {
         extracted = { ok: true, content: req.file.buffer.toString("utf8").slice(0, MAX_INDEXED_CHARS) };
       }
       if (!extracted.ok) return res.status(415).json({ ok: false, error: extracted.error || "extract failed" });
-      const brand = deriveBrandFromUrl(req.body?.url) || req.body?.brand || null;
+      
+      let brand = req.body?.brand && req.body.brand !== "auto-detect" ? String(req.body.brand).trim().toLowerCase() : null;
+      if (!brand && req.body?.folderId && req.body.folderId !== "uploads") {
+        const folderRow = await pool.query("SELECT name, auto_tags FROM rag_folders WHERE id=$1", [req.body.folderId]).catch(() => ({ rows: [] }));
+        if (folderRow.rows.length) {
+          const fName = folderRow.rows[0].name || "";
+          const fTags = Array.isArray(folderRow.rows[0].auto_tags) ? folderRow.rows[0].auto_tags : [];
+          if (fTags.length && fTags[0]) {
+            brand = fTags[0].toLowerCase();
+          } else if (fName) {
+            brand = fName.toLowerCase();
+          }
+        }
+      }
+      if (!brand && typeof deriveBrandFromUrl === "function") {
+        brand = deriveBrandFromUrl(req.body?.url);
+      }
+
       const sourceType = AV_EXT.has(ext) ? (VIDEO_EXT.has(ext) ? "video" : "audio")
                        : IMAGE_EXT.has(ext) ? "image"
                        : VISIO_EXT.has(ext) ? "visio"
