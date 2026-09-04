@@ -121,11 +121,13 @@ export function checkUpload(
   file: { name: string; sizeMb?: number },
   ctx: SpaceCtx,
 ): string | null {
-  if (ctx.sovereign) return null;
   if (!canWriteSpace(space, ctx)) return `You are not a contributor of ${space.name}.`;
   const ext = extOf(file.name);
-  if (space.allowedTypes.length && ext && !space.allowedTypes.includes(ext)) {
-    return `${space.name} accepts only ${space.allowedTypes.join(" / ").toUpperCase()} — .${ext} rejected.`;
+  if (space.allowedTypes && space.allowedTypes.length > 0 && ext) {
+    const cleanTypes = space.allowedTypes.map((t) => t.toLowerCase().replace(/^\./, ""));
+    if (!cleanTypes.includes(ext.toLowerCase())) {
+      return `${space.name} accepts only ${cleanTypes.join(" / ").toUpperCase()} — .${ext} rejected.`;
+    }
   }
   if (file.sizeMb != null && space.maxMb && file.sizeMb > space.maxMb) {
     return `File is ${file.sizeMb.toFixed(1)} MB — ${space.name} caps uploads at ${space.maxMb} MB.`;

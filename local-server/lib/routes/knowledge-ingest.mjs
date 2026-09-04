@@ -296,11 +296,44 @@ export function mountKnowledgeIngestRoutes(app, deps) {
   // POST /api/knowledge/file — embed an uploaded file (multipart 'file')
   app.post("/api/knowledge/file", knowledgeFileUpload.single("file"), async (req, res) => {
     if (!req.file) return res.status(400).json({ ok: false, error: "file required" });
+    const ext = path.extname(req.file.originalname).toLowerCase();
+    const fileSizeMb = req.file.size ? req.file.size / (1024 * 1024) : 0;
+
+    // Access space constraints validation (file size and allowed extensions)
+    if (req.body?.spaceId) {
+      try {
+        const spaceRes = await pool.query(
+          "SELECT id, name, max_mb, allowed_types FROM knowledge_spaces WHERE id = $1",
+          [req.body.spaceId]
+        );
+        if (spaceRes.rows.length > 0) {
+          const sp = spaceRes.rows[0];
+          if (sp.max_mb && fileSizeMb > sp.max_mb) {
+            return res.status(400).json({
+              ok: false,
+              error: `File is ${fileSizeMb.toFixed(1)} MB — ${sp.name} space caps uploads at ${sp.max_mb} MB.`,
+            });
+          }
+          const allowed = Array.isArray(sp.allowed_types)
+            ? sp.allowed_types.map((t) => String(t).toLowerCase().replace(/^\./, ""))
+            : [];
+          const cleanExt = ext.replace(/^\./, "");
+          if (allowed.length > 0 && cleanExt && !allowed.includes(cleanExt)) {
+            return res.status(400).json({
+              ok: false,
+              error: `${sp.name} space accepts only ${allowed.join(" / ").toUpperCase()} — .${cleanExt} rejected.`,
+            });
+          }
+        }
+      } catch (spaceErr) {
+        console.warn("[knowledge/file] space validation error:", spaceErr);
+      }
+    }
+
     const tmpName = `upload-${Date.now()}-${req.file.originalname}`;
     const tmpPath = path.join(UPLOAD_DIR, tmpName);
     try {
       await fs.promises.writeFile(tmpPath, req.file.buffer);
-      const ext = path.extname(req.file.originalname).toLowerCase();
       let extracted = { ok: true, content: "" };
       if (TEXT_EXT.has(ext) || BINARY_DOC_EXT.has(ext) || IMAGE_EXT.has(ext) || AV_EXT.has(ext) || VISIO_EXT.has(ext)) {
         extracted = await extractFileContent(tmpPath, ext);
