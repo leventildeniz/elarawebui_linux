@@ -577,6 +577,13 @@ Bu aşamada **Knowledge Hub** (`/knowledge`), **RAG Documents** (`/rag-documents
 5. **Ajan & Model RAG İzolasyonu ve Onay Mekanizması:**
    - Ajan düzenleme (`Edit agent`) Knowledge / RAG sekmesindeki `Brands` ve `Keywords/Alias` alanlarının veritabanı kaydı ve model sistem promptuna enjeksiyonu doğrulandı.
    - Model kartlarındaki `RAG retrieval (on/off)` anahtarının bağımsız kontrolü teyit edildi.
+6. **Intent Sınıflandırıcının Sadeleştirilmesi & 0ms Fast-Path (`intent-classifier.mjs` & `scoring.mjs`):**
+   - 14 adımlı gereksiz retry döngüsü kaldırıldı; embed worker hazır olmadığında teknik soruların küçük sohbet sanılması engellendi.
+   - `extractQueryTerms` Unicode NFC normalizasyonuna çekilerek Türkçe karakterlerin stop-word kontrolünden kaçması engellendi.
+   - Selamlaşma ve hal hatır sormalar **0 ms** içinde anında yakalanıp modelin RAG yüküyle donması/kilitlenmesi önlendi.
+   - Çift dilli asistan kimlik soruları (`who are you`, `tell me about yourself`, `kimsin`, `yeteneklerin neler`) hafifletildi.
+7. **`diagnoseChatTrace` ve Yetim Kodların Silinmesi (`util.mjs` & `system-misc.mjs`):**
+   - UI'da karşılığı olmayan, eski terminal debug çıktısı `diagnoseChatTrace` fonksiyonu ve `system-misc.mjs` içindeki yetim bağımlılığı tamamen silindi; `/api/debug/chat/:traceId` saf JSON formatına çekildi.
 
 ## 52. UP NEXT (Phase 52) - Autonomous DAG Execution Engine & Multi-Step Workflow Benchmarking
 1. **Autonomous DAG Execution Engine Benchmarking:** Çok adımlı workflow ve orchestration zincirlerinin canlı icra doğrulaması.
