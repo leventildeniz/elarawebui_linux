@@ -30,41 +30,28 @@ import {
 
 // ── Static config ─────────────────────────────────────────────────────────
 export const DEFAULT_CLASSIFIER_PROMPT =
-  "Classify the user message below. If it needs the Library/RAG (technical docs, network, security, " +
-  "product/device configuration, error/log analysis, version, CVE, etc.), reply with a single word: RAG. " +
-  "If the user is EXPLICITLY REQUESTING the system to create a NEW skill, tool, agent, or capability pack NOW, reply with a single word: FORGE. " +
-  "FORGE is only for a direct creation request where the user wants a new artifact produced in this turn. " +
-  "Descriptive status updates, future plans, permissions/authority discussions, celebrations, roadmap talk, or general chit-chat that merely mentions skill/tool/agent/pack/create are NOT FORGE — they are CHAT. " +
-  "If the user asks about the assistant itself, its agents, team, tools, skills, capabilities, or identity, reply with a single word: META. " +
-  "If it is a greeting, social small-talk, personal chit-chat, or a descriptive/declarative statement about capabilities, reply with a single word: CHAT. " +
-  "Output only RAG, FORGE, META, or CHAT — nothing else.\n\n" +
+  "Classify the user message below.\n" +
+  "- If it requires documentation, network/security appliance configuration, error/log analysis, CVE, or technical guidance, reply with: RAG\n" +
+  "- If the user is explicitly requesting the creation or synthesis of a NEW skill, tool, agent, or workflow in this turn, reply with: FORGE\n" +
+  "- If the user asks about the assistant's identity, agents, squads, tools, or capabilities, reply with: META\n" +
+  "- If it is a greeting, polite acknowledgement, or general conversational chit-chat, reply with: CHAT\n\n" +
+  "Output only a single word: RAG, FORGE, META, or CHAT.\n\n" +
   "Examples:\n" +
-  "- \"phishing triage skill yaz\" → FORGE\n" +
-  "- \"yeni bir tool oluştur, whois sorgulasın\" → FORGE\n" +
-  "- \"bunu yapan bir agent tasarla\" → FORGE\n" +
-  "- \"DFIR için capability pack öner\" → FORGE\n" +
   "- \"design a tool for pcap analysis\" → FORGE\n" +
-  "- \"draft an agent that triages alerts\" → FORGE\n" +
-  "- \"bugün artık kendi ajan, tool ve skill'lerini create edebilecek yetkilere kavuştun\" → CHAT\n" +
-  "- \"MCP server ve client connectivity sağlayabileceğiz, feature ekledik\" → CHAT\n" +
-  "- \"harika, artık kendi tool'larını yazabiliyorsun\" → CHAT\n" +
-  "- \"you can now create your own agents\" → CHAT\n" +
-  "- \"Sana daha geniş yetkiler vereceğiz, az kaldı bu yazılım oturacak\" → CHAT\n" +
-  "- \"yazılımı geliştiriyoruz, sana daha geniş yetkiler vereceğiz\" → CHAT\n" +
-  "- \"Firewall 7.4 IPsec site-to-site nasıl kurulur\" → RAG\n" +
-  "- \"Checkpoint R81 SmartConsole log analizi\" → RAG\n" +
-  "- \"hangi ajanların var\" → META\n" +
-  "- \"selam nasılsın\" → CHAT";
-
-
-
+  "- \"create a new agent to triage security alerts\" → FORGE\n" +
+  "- \"draft a skill for whois lookups\" → FORGE\n" +
+  "- \"how to configure IPsec site-to-site VPN on Fortigate 7.4\" → RAG\n" +
+  "- \"troubleshoot BGP routing convergence issue\" → RAG\n" +
+  "- \"who are you and what can you do\" → META\n" +
+  "- \"list all available agents in your squad\" → META\n" +
+  "- \"hello, good morning\" → CHAT\n" +
+  "- \"thank you for your help\" → CHAT";
 
 const LEGACY_CLASSIFIER_PROMPT_NO_FORGE =
-  "Classify the user message below. If it needs the Library/RAG (technical docs, network, security, " +
-  "product/device configuration, error/log analysis, version, CVE, etc.), reply with a single word: RAG. " +
-  "If the user asks about the assistant itself, its agents, team, tools, skills, capabilities, or identity, reply with a single word: META. " +
-  "If it is a greeting, social small-talk, or personal chit-chat, reply with a single word: CHAT. " +
-  "Output only RAG, META, or CHAT — nothing else.";
+  "Classify the user message below. If it requires technical docs/configuration/troubleshooting, reply: RAG. " +
+  "If the user asks about the assistant, agents, or tools, reply: META. " +
+  "If it is a greeting or social conversation, reply: CHAT. " +
+  "Output only RAG, META, or CHAT.";
 
 export const RUNTIME_INTENT_CFG = {
   technicalThreshold: Number(process.env.INTENT_TECHNICAL_THRESHOLD ?? 0.5),
@@ -75,24 +62,18 @@ export const RUNTIME_INTENT_CFG = {
 };
 
 export const INTENT_ANCHORS = {
-  rag: "Teknik döküman, kütüphane sorgusu, network güvenlik cihaz konfigürasyonu, firewall, WAF (Web Application Firewall), CDN, load balancer, ADC, reverse proxy, IDS/IPS, DDoS koruma, VPN, SSL VPN, DNS, authentication, RADIUS, LDAP, syslog, NAT, routing, BGP, OSPF, HA cluster, hotfix, CVE, hata mesajı, log analizi, packet capture, komut çıktısı, CLI, API, REST, kullanıcı yaratma, kural ekleme, policy, troubleshooting. Örnek sorular: 'Firewall HA cluster nasıl kurulur?', 'WAF rule nasıl yazılır?', 'SSL profile konfigürasyonu', 'Threat log troubleshooting'.",
-  smalltalk: "Selam, merhaba, naber, nasılsın, ne haber, iyi misin, ne yapıyorsun, günaydın, iyi günler, iyi akşamlar, kolay gelsin, teşekkürler, sağol, görüşürüz, hoşçakal, kısa sosyal sohbet, kişisel selamlaşma, hatır sorma, gündelik chit-chat. Teknik içerik YOK, ürün/cihaz/komut/sürüm/hata sözü geçmez.",
-  meta: "Asistanın kendisi, kimliği, yetenekleri, sistemi hakkında soru. Örnekler: 'sen kimsin', 'kendinden bahset', 'sen nesin', 'adın ne', 'hangi modeli kullanıyorsun', 'hangi versiyondasın', 'kim tarafından yapıldın', 'seni kim yarattı', 'ne yapabilirsin', 'yeteneklerin neler', 'neler biliyorsun', 'hangi araçlara sahipsin', 'hangi tool var', 'hangi skill var', 'uzmanlık alanların neler', 'who are you', 'what are you', 'introduce yourself', 'tell me about yourself', 'what can you do', 'which model are you', 'what tools do you have', 'what are your specialties'. Belirli bir teknik konu/cihaz/marka SORULMUYOR, soru asistanın kendisine ya da yeteneklerine yönelik.",
-  agent_manifest: "Kullanıcı asistanın ajan/agent kadrosunu, ekibini, squad'ını, takımını görmek/öğrenmek istiyor. Cevap olarak tüm ajanların adı ve görevi tek tek listelenmeli, squad özeti değil. Örnekler: 'ajanlarını tanıt', 'ajanlarını detaylı tanıt', 'ajanlarını detaylı şekilde tanıtabilir misin', 'ajanlarını anlat', 'ajanlarını açıkla', 'ajanlarını listele', 'ajanlarını say', 'ajan ordunu say', 'kaç ajanın var', 'hangi ajanların var', 'ajanların kimler', 'ekibinde kimler var', 'ekibini tanıt', 'ekibini anlat', 'ekibindeki kişileri sırala', 'takımın kim', 'takımını tanıt', 'squad'larını anlat', 'squad'larındaki üyeleri say', 'hangi squad'lar var', 'bana ajanlarını anlat', 'kim ne iş yapıyor', 'her ajan ne yapıyor', 'ajanlarının görev tanımları neler', 'introduce your agents', 'list your agents', 'describe your agents', 'walk me through your agents', 'walk me through your squad', 'who are your agents', 'how many agents do you have', 'tell me about your team', 'give me the full agent roster', 'overview of your agents', 'show me every agent'. Soru asistanın kim olduğunu değil, KADROSUNU sorar; cevap manifest'ten deterministik gelmeli.",
-  meta_forge: "Kullanıcı bu turda sisteme YENİ bir artifact ürettirmek istiyor: skill, tool, agent veya capability pack. Odak mevcut yetenekleri konuşmak, gelecekte verilecek izinleri anlatmak, roadmap/statü paylaşmak ya da asistanın neler yapabileceğini sormak değil; doğrudan yeni bir parça oluşturma talebi. Pozitif örnekler: 'phishing triage skill yaz', 'whois sorgulayan bir tool oluştur', 'DFIR incident responder agent tasarla', 'log parser pack üret', 'threat-hunt skill hazırla', 'pcap analiz toolu oluştur', 'CVE lookup skill ekle kadroya', 'MITRE ATT&CK mapping agent tasarla', 'malware sandbox tool draftla', 'SOAR playbook agentı oluştur', 'brute-force detection skill yaz', 'DNS tunneling detection tool üret', 'YARA rule generator skill hazırla', 'threat-intel enrichment pack öner', 'compliance audit agent tasarla', 'firewall rule reviewer skill yaz', 'anomaly detection agent ekle', 'kadroya OSINT recon agent ekle', 'vulnerability scanner tool forge et', 'endpoint response skill üret', 'design a phishing triage skill', 'build me a SIEM detection tool', 'draft a DFIR agent', 'create a log parser pack', 'craft me a capability pack'. Bu anchor yalnızca aday üretir; Meta-Forge açılması için LLM adjudicator ayrıca FORGE demelidir.",
+  rag: "Technical documentation, knowledge base retrieval, network and security appliance configuration, firewall policies, WAF rules, CDN, load balancers, reverse proxies, IDS/IPS, DDoS mitigation, VPN tunnels, DNS, authentication, RADIUS, LDAP, syslog, NAT, routing protocols, BGP, OSPF, HA clusters, hotfix releases, CVE advisories, error log analysis, packet capture, CLI commands, API endpoints, policy configuration, and troubleshooting.",
+  smalltalk: "Conversational greetings, social small-talk, pleasantries, polite acknowledgements, hello, hi, good morning, thank you, how are you, casual chat without technical questions or device inquiries.",
+  meta: "Questions about the assistant's own identity, system capabilities, model specifications, tools, skills, or operational architecture. Examples: who are you, what can you do, introduce yourself, what models are you running, which tools do you have, what are your specialties.",
+  agent_manifest: "Requests to list, describe, or introduce the roster of available agents, operational squads, worker profiles, and team capabilities. Examples: introduce your agents, list all agents, who is on your team, describe your squad members, overview of your agents.",
+  meta_forge: "Explicit requests to create, forge, build, generate, or compose a new skill, tool, autonomous agent, workflow, or capability package. Examples: design a phishing triage skill, build a SIEM detection tool, draft an incident response agent, create a log parser pack, forge a network scanner tool.",
 };
 
 function _normMetaText(s) {
   return String(s || "")
     .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[ıİ]/g, "i")
-    .replace(/[şŞ]/g, "s")
-    .replace(/[çÇ]/g, "c")
-    .replace(/[ğĞ]/g, "g")
-    .replace(/[üÜ]/g, "u")
-    .replace(/[öÖ]/g, "o");
+    .normalize("NFC")
+    .replace(/[\u0300-\u036f]/g, "");
 }
 
 export function isAssistantMetaQuestion(text) {
@@ -100,20 +81,15 @@ export function isAssistantMetaQuestion(text) {
   if (!raw) return false;
   const t = ` ${_normMetaText(raw).replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim()} `;
   if (!t.trim()) return false;
-  // FORGE-BYPASS 2026-07-06: creation/build verbs are Meta-Forge signals, not
-  // meta-questions about the assistant. Without this guard, "Elara, yeni tool
-  // yap: X" is short-circuited to smalltalk/semantic-meta and the semantic
-  // classifier + LLM adjudicator never see the request. Verbs are aligned
-  // with the meta_forge anchor prose above.
-  const hasCreationVerb = /\b(?:yap|yapabilir|yapar|olustur|olusturur|yaz|yazar|uret|uretir|ekle|ekler|tasarla|tasarlar|hazirla|hazirlar|draftla|forge|forgele|create|creates|build|builds|design|designs|draft|drafts|craft|crafts|generate|generates|make|makes|add|adds)\b/.test(t);
+  
+  // Creation/build verbs signal Meta-Forge requests, not meta-identity questions
+  const hasCreationVerb = /\b(?:create|creates|build|builds|design|designs|draft|drafts|craft|crafts|generate|generates|make|makes|add|adds|forge|yap|olustur|yaz|uret|ekle|tasarla|hazirla)\b/.test(t);
   if (hasCreationVerb) return false;
-  const aboutAssistant = /\b(?:elara|sen|sana|seni|senin|your|you|yourself)\b/.test(t)
-    || /\b(?:ajanlarin|ajanlarini|ajanlariniz|ajanlarinizi|ekibin|ekibini|takimin|takimini|yeteneklerin|yeteneklerini)\b/.test(t)
-    || /\b(?:your agents|your team|your tools|your skills|your capabilities)\b/.test(t);
+  
+  const aboutAssistant = /\b(?:elara|you|your|yourself|sen|sana|seni|senin|ekip|takim|team|squad)\b/.test(t);
   if (!aboutAssistant) return false;
-  return /\b(?:ajan|ajanlar|agent|agents|ekip|takim|team|squad|tool|tools|skill|skills|yetenek|capabilities|kendini|listele|anlat|describe|introduce|list|what can you do|about yourself)\b/.test(t)
-    || /\b(?:tanit|tanita|tanimla|sirala|say|describe|introduce|list)[a-z]*\b/.test(t)
-    || /\b(?:kimsin|nesin|ne yapabilirsin|who are you|what are you|who made you|who created you|who built you)\b/.test(t);
+  
+  return /\b(?:who are you|what are you|what can you do|who made you|who created you|who built you|about yourself|introduce yourself|tell me about yourself|list agents|list your agents|describe your agents|show agents|your capabilities|your tools|your skills|kimsin|nesin|ne yapabilirsin|kendini tanit|ajanlarini tanit|yeteneklerin neler)\b/.test(t);
 }
 
 // Meta-forge lane detection — semantic confirmation (2026-07-04):
@@ -289,10 +265,10 @@ export async function llmIntentClassify(text, cfg = RUNTIME_INTENT_CFG) {
     if (out.startsWith("RAG")) return "rag";
     if (out.startsWith("FORGE") || out.startsWith("META_FORGE") || out.startsWith("META-FORGE")) return "meta_forge";
     if (out.startsWith("META")) return "meta";
-    if (out.startsWith("SOHBET") || out.startsWith("CHAT") || out.startsWith("SMALL")) return "smalltalk";
+    if (out.startsWith("CHAT") || out.startsWith("SMALLTALK") || out.startsWith("SMALL")) return "smalltalk";
     return null;
   } catch (e) {
-    _pushLog("server", runtimeFetchError(e, { provider: runtimeIsLocal(base, provider) ? "MLX" : "Legacy HTTP", publicBase: base, upstreamBase: runtimeUpstreamBase(base, provider), model: mdl, phase: "intent" }));
+    _pushLog("server", runtimeFetchError(e, { provider: runtimeIsLocal(base, provider) ? "Local LLM" : "Remote HTTP", publicBase: base, upstreamBase: runtimeUpstreamBase(base, provider), model: mdl, phase: "intent" }));
     return null;
   }
 }
@@ -331,8 +307,7 @@ export async function refineIntentSemantically(text, base, cfg = RUNTIME_INTENT_
 
 
 
-  // Cold-aware elastik budget: embed worker / MLX henüz "warm" değilse
-  // sınıflandırıcıya daha uzun süre tanı. Warm hatta bedavası 900ms kalır.
+  // Elastic warmup budget: provide more time when embed worker is warming up
   const RAG_SETTINGS_NOW = _getRagSettings() || {};
   // Warm budget bumped 900→1800ms (C-plan 2026-07-03) so LLM adjudication
   // on rag-classified turns has room to complete without timing out.
