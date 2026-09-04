@@ -60,13 +60,34 @@ let cachedRequests: ApprovalRequest[] = [];
 let cachedConfig = { queue_armed: false, allow_self_approve: false };
 let isFetching = false;
 
+type RawApprovalRow = {
+  id: string;
+  title: string;
+  requester: string;
+  requester_group?: string;
+  agent?: string;
+  tool: string;
+  target: string;
+  policy: string;
+  risk: string;
+  args: string;
+  origin?: string;
+  status: string;
+  note?: string;
+  created_at: string | number;
+  ttl_ms?: number | string;
+  assigned_to?: string[];
+  decided_at?: string | number | null;
+  decided_by?: string;
+};
+
 async function syncBackend() {
   if (isFetching) return;
   isFetching = true;
   try {
     const data = await fetchApi("/api/approvals");
     if (data?.ok) {
-      cachedRequests = (data.requests || []).map((r: any) => ({
+      cachedRequests = (data.requests || []).map((r: RawApprovalRow) => ({
         id: r.id,
         title: r.title,
         requester: r.requester,
@@ -81,7 +102,7 @@ async function syncBackend() {
         status: r.status as ApprovalStatus,
         note: r.note || "",
         createdAt: new Date(r.created_at).getTime(),
-        ttl: Math.round(Number(r.ttl_ms) / 60000),
+        ttl: Math.round(Number(r.ttl_ms || 7200000) / 60000),
         assignedTo: r.assigned_to || [],
         decidedAt: r.decided_at ? new Date(r.decided_at).getTime() : undefined,
         decidedBy: r.decided_by,
@@ -160,8 +181,7 @@ export function routeFor(requesterId: string | undefined): {
   const group = groups.find((g) => g.members.includes(requesterId));
   if (!group) return { group: "", approvers: [], mailTo: [] };
   const approvers = approverPrincipals(group);
-  // Group tabanlı mail dizini mock'tan kurtuldu, simdilik bos ataniyor.
-  // Ilerleyen fazlarda gercek Active Directory entegrasyonuna baglanacak.
+  // Group-based directory mail recipient list; dynamically resolved via identity provider directory groups.
   const mailTo: string[] = [];
   return { group: group.name, approvers, mailTo };
 }

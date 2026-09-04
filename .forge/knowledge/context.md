@@ -541,6 +541,13 @@ Bu aşamada `/system` (Logs / Audit) altındaki **Live Debugging** ve **Audit Jo
    - `src/routes/policy.tsx`: GenGuard ve Policy Engine kural tablolarında her kural satırına FortiGate tarzı doğrudan Audit Journal'a (`stream=policy&q=<kural_adı>`) bağlanan `ScrollText` log butonu eklendi; İzolasyon sekmelerindeki yönlendirme butonları kaldırılarak saf güvenlik yapılandırma görünümü korundu.
    - `src/routes/system.tsx` & `src/components/sovereign/audit-panel.tsx`: Derin arama ve filtreleme URL parametreleri (`stream`, `q`, `view=audit/debug`, `tab=live`) desteklendi.
    - `local-server/lib/routes/chat-orchestrate.mjs`: Sohbet girişinde `guard_rules` (GenGuard) kuralları gerçek zamanlı çalıştırılarak prompt injection veya kara liste eşleşmelerinde isteğin engellenmesi (`DENY`), kullanıcıya güvenlik uyarısı verilmesi ve audit günlüğüne kaydedilmesi sağlandı.
+11. **Approval Queue & Action Required (Attention Bell) Çift Yönlü Entegrasyonu:**
+   - `src/components/sovereign/attention-bell.tsx`: Sağ üstteki evrensel eylem uyarı widget'ı (`AttentionBell`), hem insan onayı bekleyen hassas işlem biletlerini (`/api/approvals` $\rightarrow$ `approval_requests`), hem de MetaForge tarafından sentezlenen ve onay bekleyen planları (`/api/meta-forge/plans` $\rightarrow$ `forge_plans`) eş zamanlı takip ederek operatöre anlık rozet bildirimi (`... on your desk`) sunacak şekilde doğrulandı.
+   - `local-server/lib/routes/approvals.mjs`: Onay kararları (`decide`), yeni onay talepleri (`request`) ve kuyruk konfigürasyon güncellemeleri canlı `broadcastAudit` ve `agent_logs` hattına bağlandı (`gate` / `governance`).
+12. **Runtime Monitor & Fleet Telemetry Gerçek Sensör & DB Entegrasyonu:**
+   - `src/lib/telemetry-live.ts`: Telemetri motoru içerisindeki eski sözde-rastgele matematik üreteçleri (`walk`, `Math.random`) tamamen arındırıldı.
+   - `local-server/lib/routes/telemetry.mjs` & `telemetry-stream.mjs`: Host sensörleri (`CPU`, `RAM`, `NVIDIA GPU SMI`, `Disk I/O`, `Network RX/TX`, `PostgreSQL Conns`) ve AI metrikleri (`Throughput`, `P95 Latency`, `Quality Scores`, `Queue Depth`) doğrudan OS çekirdeğinden ve `provider_usage` tablosundan beslenecek şekilde doğrulandı.
+   - `src/components/sovereign/runtime-canvas.tsx` & `src/routes/fleet.tsx`: Active Fleet ajan listesi ve telemetri durumları %100 gerçek veritabanı kayıtlarıyla eşitlendi.
 
 ## 51. UP NEXT (Phase 51) - Agentic RAG & Knowledge Hub Validation & Deep Benchmarking
 1. **Agentic RAG & Knowledge Hub Validation:** Departman bazlı space izolasyonu (`rag_space_id`), doküman chunklama ve `bge-reranker-v2-m3` reranker testleri.

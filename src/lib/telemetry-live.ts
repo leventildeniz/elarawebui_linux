@@ -57,14 +57,14 @@ export type LiveTelemetry = {
   ai: AiSample;
   dbTables: DbTable[];
   inventory: {
-    agents: { total: number, active: number };
-    workflows: { total: number, active: number };
-    orchestrators: { total: number, active: number };
-    skills: { total: number, active: number };
-    tools: { total: number, active: number };
-    packs: { total: number, active: number };
-    mcp: { total: number, active: number };
-    users: { total: number, active: number };
+    agents: { total: number; active: number };
+    workflows: { total: number; active: number };
+    orchestrators: { total: number; active: number };
+    skills: { total: number; active: number };
+    tools: { total: number; active: number };
+    packs: { total: number; active: number };
+    mcp: { total: number; active: number };
+    users: { total: number; active: number };
   };
   dbMetrics: {
     cacheHitRatio: number;
@@ -180,23 +180,40 @@ export function useLiveTelemetry(paused = false): LiveTelemetry {
   const pausedRef = useRef(paused);
   pausedRef.current = paused;
 
-  const prevDbStats = useRef<Record<string, any>>({});
+  const prevDbStats = useRef<
+    Record<
+      string,
+      {
+        idxScans?: number;
+        seqScans?: number;
+        inserts?: number;
+        updates?: number;
+        deletes?: number;
+        txnTotal?: number;
+        tupFetched?: number;
+        tupWrites?: number;
+      }
+    >
+  >({});
 
   const aiFetchedRef = useRef(false);
 
   useEffect(() => {
     let es: EventSource | null = null;
-    let reconnectTimer: any = null;
+    let reconnectTimer: NodeJS.Timeout | null = null;
 
     const connect = () => {
       if (es) {
         es.close();
       }
-      
-      const sessionId = typeof window !== "undefined" ? localStorage.getItem("sovereign.sessionId") : null;
-      const url = sessionId ? `/api/telemetry/stream?session_id=${sessionId}` : "/api/telemetry/stream";
+
+      const sessionId =
+        typeof window !== "undefined" ? localStorage.getItem("sovereign.sessionId") : null;
+      const url = sessionId
+        ? `/api/telemetry/stream?session_id=${sessionId}`
+        : "/api/telemetry/stream";
       es = new EventSource(url);
-      
+
       es.onmessage = (msg) => {
         if (pausedRef.current) return;
         try {
@@ -213,41 +230,42 @@ export function useLiveTelemetry(paused = false): LiveTelemetry {
                 dbPool: data.host.dbPool ?? s.host.dbPool,
                 loadAvg: data.host.loadAvg ?? s.host.loadAvg,
                 uptimeSec: data.host.uptimeSec ?? s.host.uptimeSec,
-                
-                // Keep simulated visual values for fields not returned by backend
                 gpu: data.host.gpu ?? 0,
                 vram: data.host.vram ?? 0,
                 gpuTemp: data.host.gpuTemp ?? 0,
-                swap: walk(s.host.swap, 1.2, 0, 22),
+                swap: data.host.swap ?? 0,
                 diskRead: data.host.diskRead ?? 0,
                 diskWrite: data.host.diskWrite ?? 0,
                 netRx: data.host.netRx ?? 0,
                 netTx: data.host.netTx ?? 0,
-                netErrors: Math.random() > 0.97 ? s.host.netErrors + 1 : s.host.netErrors,
-                dbQps: walk(s.host.dbQps, 120, 40, 1800),
+                netErrors: data.host.netErrors ?? 0,
+                dbQps: data.host.dbQps ?? 0,
                 dbLagMs: data.host.dbLagMs ?? 0,
-                sessions: Math.max(1, Math.round(s.host.sessions + (Math.random() > 0.9 ? (Math.random() > 0.5 ? 1 : -1) : 0))),
+                sessions: data.host.sessions ?? 1,
               };
-              
-              const ai: AiSample = {
-                ...s.ai,
-                throughput: walk(s.ai.throughput, 2600, 1800, 26000),
-                p50: walk(s.ai.p50, 40, 90, 900),
-                p95: walk(s.ai.p95, 90, 160, 2400),
-                ttft: walk(s.ai.ttft, 60, 90, 1400),
-                // RAG simulated placeholders
-                hallucination: walk(s.ai.hallucination, 0.5, 0.1, 9),
-                groundedness: walk(s.ai.groundedness, 1.2, 78, 99.6),
-                refusalRate: walk(s.ai.refusalRate, 0.2, 0, 4),
-                cacheHit: walk(s.ai.cacheHit, 4, 22, 96),
-                costPerHour: walk(s.ai.costPerHour, 0.7, 0.4, 42),
-              };
+
+              const ai: AiSample = data.ai
+                ? {
+                    throughput: data.ai.throughput ?? s.ai.throughput,
+                    p50: data.ai.p50 ?? s.ai.p50,
+                    p95: data.ai.p95 ?? s.ai.p95,
+                    ttft: data.ai.ttft ?? s.ai.ttft,
+                    hallucination: data.ai.hallucination ?? s.ai.hallucination,
+                    groundedness: data.ai.groundedness ?? s.ai.groundedness,
+                    toolErrorRate: data.ai.toolErrorRate ?? s.ai.toolErrorRate,
+                    refusalRate: data.ai.refusalRate ?? s.ai.refusalRate,
+                    cacheHit: data.ai.cacheHit ?? s.ai.cacheHit,
+                    guardrailBlocks: data.ai.guardrailBlocks ?? s.ai.guardrailBlocks,
+                    queueDepth: data.ai.queueDepth ?? s.ai.queueDepth,
+                    costPerHour: data.ai.costPerHour ?? s.ai.costPerHour,
+                  }
+                : s.ai;
 
               return {
                 ...s,
                 host,
                 inventory: data.inventory || s.inventory,
-                ai: aiFetchedRef.current ? s.ai : ai, // Fully trust DB payload
+                ai,
                 tick: data.tick ?? s.tick + 1,
                 history: {
                   cpu: push(s.history.cpu, host.cpu),
@@ -255,9 +273,9 @@ export function useLiveTelemetry(paused = false): LiveTelemetry {
                   ram: push(s.history.ram, host.ram),
                   netRx: push(s.history.netRx, host.netRx),
                   netTx: push(s.history.netTx, host.netTx),
-                  throughput: push(s.history.throughput, aiFetchedRef.current ? s.ai.throughput : ai.throughput),
-                  p95: push(s.history.p95, aiFetchedRef.current ? s.ai.p95 : ai.p95),
-                  hallucination: push(s.history.hallucination, aiFetchedRef.current ? s.ai.hallucination : ai.hallucination),
+                  throughput: push(s.history.throughput, ai.throughput),
+                  p95: push(s.history.p95, ai.p95),
+                  hallucination: push(s.history.hallucination, ai.hallucination),
                 },
               };
             });
@@ -278,7 +296,7 @@ export function useLiveTelemetry(paused = false): LiveTelemetry {
 
     return () => {
       if (es) es.close();
-      clearTimeout(reconnectTimer);
+      if (reconnectTimer) clearTimeout(reconnectTimer);
     };
   }, []);
 
@@ -291,96 +309,160 @@ export function useLiveTelemetry(paused = false): LiveTelemetry {
         const res = await fetchApi("/api/telemetry/db-detail");
         if (res && Array.isArray(res.tables)) {
           setState((s) => {
-            const newTables: DbTable[] = res.tables.map((t: any) => {
-              let kind: DbTable["kind"] = "core";
-              if (t.schema === "rag" || t.name.includes("vector") || t.name.includes("knowledge") || t.name.includes("chunk")) kind = "vector";
-              else if (t.schema === "governance" || t.name.includes("audit") || t.name.includes("log") || t.name.includes("history")) kind = "audit";
-              else if (t.schema === "billing" || t.name.includes("queue") || t.name.includes("events") || t.name.includes("usage") || t.name.includes("runs") || t.name.includes("ledger")) kind = "queue";
-              
-              const prev = prevDbStats.current[t.name];
-              let reads = 0, writes = 0, seqScans = 0, indexHit = 99.9;
-              
-              if (prev) {
-                // Approximate reads/writes per 10s interval
-                reads = Math.max(0, (t.idxScans || 0) + (t.seqScans || 0) - (prev.idxScans + prev.seqScans));
-                writes = Math.max(0, (t.inserts || 0) + (t.updates || 0) + (t.deletes || 0) - (prev.inserts + prev.updates + prev.deletes));
-                seqScans = Math.max(0, (t.seqScans || 0) - prev.seqScans);
-                const totalScans = (t.idxScans || 0) + (t.seqScans || 0);
-                if (totalScans > 0) {
-                   indexHit = ((t.idxScans || 0) / totalScans) * 100;
+            const newTables: DbTable[] = res.tables.map(
+              (t: {
+                name: string;
+                schema: string;
+                rows?: number;
+                bytes?: number;
+                deadRows?: number;
+                idxScans?: number;
+                seqScans?: number;
+                inserts?: number;
+                updates?: number;
+                deletes?: number;
+              }) => {
+                let kind: DbTable["kind"] = "core";
+                if (
+                  t.schema === "rag" ||
+                  t.name.includes("vector") ||
+                  t.name.includes("knowledge") ||
+                  t.name.includes("chunk")
+                )
+                  kind = "vector";
+                else if (
+                  t.schema === "governance" ||
+                  t.name.includes("audit") ||
+                  t.name.includes("log") ||
+                  t.name.includes("history")
+                )
+                  kind = "audit";
+                else if (
+                  t.schema === "billing" ||
+                  t.name.includes("queue") ||
+                  t.name.includes("events") ||
+                  t.name.includes("usage") ||
+                  t.name.includes("runs") ||
+                  t.name.includes("ledger")
+                )
+                  kind = "queue";
+
+                const prev = prevDbStats.current[t.name];
+                let reads = 0;
+                let writes = 0;
+                let seqScans = 0;
+                let indexHit = 99.9;
+
+                if (prev) {
+                  reads = Math.max(
+                    0,
+                    (t.idxScans || 0) +
+                      (t.seqScans || 0) -
+                      ((prev.idxScans || 0) + (prev.seqScans || 0)),
+                  );
+                  writes = Math.max(
+                    0,
+                    (t.inserts || 0) +
+                      (t.updates || 0) +
+                      (t.deletes || 0) -
+                      ((prev.inserts || 0) + (prev.updates || 0) + (prev.deletes || 0)),
+                  );
+                  seqScans = Math.max(0, (t.seqScans || 0) - (prev.seqScans || 0));
+                  const totalScans = (t.idxScans || 0) + (t.seqScans || 0);
+                  if (totalScans > 0) {
+                    indexHit = ((t.idxScans || 0) / totalScans) * 100;
+                  }
                 }
-              }
 
-              prevDbStats.current[t.name] = {
-                idxScans: t.idxScans || 0,
-                seqScans: t.seqScans || 0,
-                inserts: t.inserts || 0,
-                updates: t.updates || 0,
-                deletes: t.deletes || 0,
-              };
-              
-              // Normalize per second (interval is 10s)
-              reads = Math.round(reads / 10);
-              writes = Math.round(writes / 10);
-              seqScans = Math.round(seqScans / 10);
+                prevDbStats.current[t.name] = {
+                  idxScans: t.idxScans || 0,
+                  seqScans: t.seqScans || 0,
+                  inserts: t.inserts || 0,
+                  updates: t.updates || 0,
+                  deletes: t.deletes || 0,
+                };
 
-              const deadRows = t.deadRows || 0;
-              const totalRowsForBloat = (t.rows || 0) + deadRows;
-              const bloatPct = totalRowsForBloat > 0 ? (deadRows / totalRowsForBloat) * 100 : 0;
+                reads = Math.round(reads / 10);
+                writes = Math.round(writes / 10);
+                seqScans = Math.round(seqScans / 10);
 
-              return {
-                name: t.name,
-                schema: t.schema,
-                rows: t.rows || 0,
-                deadRows,
-                sizeMb: Number(((t.bytes || 0) / (1024 * 1024)).toFixed(1)),
-                indexMb: 0,
-                kind,
-                s: prev ? {
-                  reads,
-                  writes,
-                  seqScans,
-                  indexHit,
-                  bloat: bloatPct, 
-                  latencyMs: 1 + Math.random() * 2, // simulated visual metric
-                  locks: Math.random() > 0.9 ? 1 : 0, // simulated visual metric
-                } : undefined,
-              };
-            });
-            
-            // Stop merging with mock data so we only see the actual DB state!
+                const deadRows = t.deadRows || 0;
+                const totalRowsForBloat = (t.rows || 0) + deadRows;
+                const bloatPct = totalRowsForBloat > 0 ? (deadRows / totalRowsForBloat) * 100 : 0;
+
+                return {
+                  name: t.name,
+                  schema: t.schema,
+                  rows: t.rows || 0,
+                  deadRows,
+                  sizeMb: Number(((t.bytes || 0) / (1024 * 1024)).toFixed(1)),
+                  indexMb: 0,
+                  kind,
+                  s: prev
+                    ? {
+                        reads,
+                        writes,
+                        seqScans,
+                        indexHit,
+                        bloat: bloatPct,
+                        latencyMs: 1,
+                        locks: 0,
+                      }
+                    : undefined,
+                };
+              },
+            );
+
             const merged = [...newTables];
-            
+
             let throughput = s.dbMetrics.throughput;
             let clusterReads = s.dbMetrics.clusterReads;
             let clusterWrites = s.dbMetrics.clusterWrites;
 
-            if (prevDbStats.current["txnTotal"] !== undefined && res.txnTotal !== undefined) {
-               throughput = Math.max(0, Math.round((res.txnTotal - prevDbStats.current["txnTotal"]) / 10));
+            const prevStats = prevDbStats.current;
+            if (prevStats["global"]?.txnTotal !== undefined && res.txnTotal !== undefined) {
+              throughput = Math.max(
+                0,
+                Math.round((res.txnTotal - (prevStats["global"].txnTotal || 0)) / 10),
+              );
             }
-            if (prevDbStats.current["tupFetched"] !== undefined && res.tupFetched !== undefined) {
-               clusterReads = Math.max(0, Math.round((res.tupFetched - prevDbStats.current["tupFetched"]) / 10));
+            if (prevStats["global"]?.tupFetched !== undefined && res.tupFetched !== undefined) {
+              clusterReads = Math.max(
+                0,
+                Math.round((res.tupFetched - (prevStats["global"].tupFetched || 0)) / 10),
+              );
             }
-            if (prevDbStats.current["tupWrites"] !== undefined) {
-               const currentWrites = (res.tupInserted || 0) + (res.tupUpdated || 0) + (res.tupDeleted || 0);
-               clusterWrites = Math.max(0, Math.round((currentWrites - prevDbStats.current["tupWrites"]) / 10));
-               prevDbStats.current["tupWrites"] = currentWrites;
-            } else {
-               prevDbStats.current["tupWrites"] = (res.tupInserted || 0) + (res.tupUpdated || 0) + (res.tupDeleted || 0);
+            const currentWrites =
+              (res.tupInserted || 0) + (res.tupUpdated || 0) + (res.tupDeleted || 0);
+            if (prevStats["global"]?.tupWrites !== undefined) {
+              clusterWrites = Math.max(
+                0,
+                Math.round((currentWrites - (prevStats["global"].tupWrites || 0)) / 10),
+              );
             }
 
-            prevDbStats.current["txnTotal"] = res.txnTotal || 0;
-            prevDbStats.current["tupFetched"] = res.tupFetched || 0;
+            prevStats["global"] = {
+              txnTotal: res.txnTotal || 0,
+              tupFetched: res.tupFetched || 0,
+              tupWrites: currentWrites,
+            };
 
-            const idleInTx = (res.activity || []).filter((a: any) => a.state === 'idle in transaction').length;
-            const slowQueries = (res.slowQueries || []).filter((q: any) => q.meanMs > 500).length;
+            const idleInTx = (res.activity || []).filter(
+              (a: { state?: string }) => a.state === "idle in transaction",
+            ).length;
+            const slowQueries = (res.slowQueries || []).filter(
+              (q: { meanMs?: number }) => (q.meanMs || 0) > 500,
+            ).length;
 
-            return { 
-              ...s, 
+            return {
+              ...s,
               dbTables: merged,
               dbMetrics: {
                 ...s.dbMetrics,
-                cacheHitRatio: res.cacheHitRatio !== null && res.cacheHitRatio !== undefined ? Number((res.cacheHitRatio * 100).toFixed(2)) : s.dbMetrics.cacheHitRatio,
+                cacheHitRatio:
+                  res.cacheHitRatio !== null && res.cacheHitRatio !== undefined
+                    ? Number((res.cacheHitRatio * 100).toFixed(2))
+                    : s.dbMetrics.cacheHitRatio,
                 deadlocks: res.deadlocks || 0,
                 tempFiles: res.tempFiles || 0,
                 tempBytes: res.tempBytes || 0,
@@ -391,11 +473,13 @@ export function useLiveTelemetry(paused = false): LiveTelemetry {
                 clusterWrites,
                 autovacuum: res.autovacuum || "idle",
                 totalSizeBytes: res.sizeBytes || 0,
-              }
+              },
             };
           });
         }
-      } catch (err) {}
+      } catch (err) {
+        console.warn("[telemetry] DB detail notice:", err);
+      }
     };
 
     fetchDb();
@@ -428,10 +512,12 @@ export function useLiveTelemetry(paused = false): LiveTelemetry {
               refusalRate: res.refusalRate || 0,
               cacheHit: res.cacheHit || 0,
               costPerHour: res.costPerHour || 0,
-            }
+            },
           }));
         }
-      } catch (e) {}
+      } catch (e) {
+        console.warn("[telemetry] AI metrics notice:", e);
+      }
     };
 
     fetchAi();
@@ -580,13 +666,24 @@ export function providerUsage(tick: number): ProviderUsage[] {
 }
 
 /** Per-principal usage split across the providers that account actually routes to. */
+export type AgentStatusItem = {
+  id: string;
+  name: string;
+  kind: string;
+  metrics?: { calls?: number; success?: number };
+  calls?: number;
+  success?: number;
+  meta?: string;
+  runtime?: string;
+};
+
 // Fetch agent status detail
 export function useAgentTelemetryStatus(paused = false) {
-  const [agentsStatus, setAgentsStatus] = useState<any[]>([]);
-  
+  const [agentsStatus, setAgentsStatus] = useState<AgentStatusItem[]>([]);
+
   const pausedRef = useRef(paused);
   pausedRef.current = paused;
-  
+
   useEffect(() => {
     const fetchStatus = async () => {
       if (pausedRef.current) return;
@@ -596,7 +693,9 @@ export function useAgentTelemetryStatus(paused = false) {
         if (res && Array.isArray(res.agents)) {
           setAgentsStatus(res.agents);
         }
-      } catch (err) {}
+      } catch (err) {
+        console.warn("[telemetry] agent-status notice:", err);
+      }
     };
 
     fetchStatus();
@@ -606,8 +705,26 @@ export function useAgentTelemetryStatus(paused = false) {
 
   return agentsStatus;
 }
+
+export type OperatorAccountUsage = {
+  accountId: string;
+  providerId: string;
+  providerName: string;
+  hosting: "local" | "cloud";
+  tokensIn: number;
+  tokensOut: number;
+  requests: number;
+  p95: number;
+};
+
 export function useOperatorTelemetryStatus(paused = false) {
-  const [data, setData] = useState({ providers: [] as ProviderUsage[], accounts: [] as any[] });
+  const [data, setData] = useState<{
+    providers: ProviderUsage[];
+    accounts: OperatorAccountUsage[];
+  }>({
+    providers: [],
+    accounts: [],
+  });
   const pausedRef = useRef(paused);
   pausedRef.current = paused;
 
@@ -620,11 +737,13 @@ export function useOperatorTelemetryStatus(paused = false) {
         if (res && res.ok) {
           setData({ providers: res.providers || [], accounts: res.accounts || [] });
         }
-      } catch (err) {}
+      } catch (err) {
+        console.warn("[telemetry] operator-usage notice:", err);
+      }
     };
 
     fetchUsage();
-    const id = window.setInterval(fetchUsage, 10000); // 10s is fine for ledger
+    const id = window.setInterval(fetchUsage, 10000);
     return () => window.clearInterval(id);
   }, []);
 

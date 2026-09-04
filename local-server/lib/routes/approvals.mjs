@@ -1,7 +1,34 @@
 import { requireSession } from "../session-gate.mjs";
 
-export async function mountApprovalRoutes(app, { pool }) {
+export async function mountApprovalRoutes(app, deps) {
+  const { pool, broadcastAudit, enqueueWrite } = deps;
   const admin = requireSession();
+
+  const emitApprovalLog = (level, action, message, meta = {}) => {
+    const fullMeta = { tag: "gate", stream: "governance", ...meta };
+    if (broadcastAudit) {
+      try {
+        broadcastAudit({
+          agent: "approvals",
+          level,
+          message: `approval.${action}: ${message}`,
+          meta: fullMeta,
+        });
+      } catch (err) {
+        console.warn("[approvals] broadcastAudit notice:", err.message);
+      }
+    }
+    if (enqueueWrite) {
+      try {
+        enqueueWrite(
+          `INSERT INTO agent_logs(agent, level, message, meta) VALUES ($1,$2,$3,$4)`,
+          ["approvals", level, `approval.${action}:${message}`, fullMeta]
+        );
+      } catch (err) {
+        console.warn("[approvals] enqueueWrite notice:", err.message);
+      }
+    }
+  };
 
   // --- GET APPROVAL STATE ---
   app.get("/api/approvals", admin, async (req, res) => {
@@ -64,6 +91,7 @@ export async function mountApprovalRoutes(app, { pool }) {
         status: r.status === 'denied' ? 'rejected' : r.status
       }));
 
+      emitApprovalLog("info", "decide", `${ids.join(", ")} marked ${status} by ${by || "admin"}`, { ids, status, by });
       res.json({ ok: true, decided: updated });
     } catch (e) { res.status(400).json({ error: e.message }); }
   });
@@ -88,6 +116,7 @@ export async function mountApprovalRoutes(app, { pool }) {
       const r = rows[0];
       r.status = r.status === 'denied' ? 'rejected' : r.status;
       
+      emitApprovalLog("warn", "request", `${draft.title} (${draft.id}) requested by ${draft.requester}`, { id: draft.id, requester: draft.requester, tool: draft.tool });
       res.json({ ok: true, request: r });
     } catch (e) { res.status(400).json({ error: e.message }); }
   });
@@ -108,6 +137,7 @@ export async function mountApprovalRoutes(app, { pool }) {
          WHERE id='singleton' RETURNING *`,
         [nextArmed, nextSelf]
       );
+      emitApprovalLog("warn", "config", `queue armed=${nextArmed} self-approval=${nextSelf}`, { armed: nextArmed, selfApproval: nextSelf });
       res.json({ ok: true, config: rows[0] });
     } catch (e) { res.status(400).json({ error: e.message }); }
   });

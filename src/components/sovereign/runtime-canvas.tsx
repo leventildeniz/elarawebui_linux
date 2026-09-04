@@ -2,7 +2,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Activity, AlertTriangle, Check, ChevronDown, Pause, Play, Plus, X } from "lucide-react";
 import { Sheen } from "./primitives";
-import { agentSample, useAgentTelemetryStatus, useLiveTelemetry, type LiveTelemetry } from "@/lib/telemetry-live";
+import {
+  agentSample,
+  useAgentTelemetryStatus,
+  useLiveTelemetry,
+  type LiveTelemetry,
+  type AgentStatusItem,
+} from "@/lib/telemetry-live";
 import { useModels } from "@/lib/model-store";
 import { useEngine } from "@/lib/engine-store";
 
@@ -472,11 +478,13 @@ export function RuntimeMonitor({ open, onClose }: { open: boolean; onClose: () =
       if (raw) {
         const parsed = JSON.parse(raw) as string[];
         if (Array.isArray(parsed) && parsed.length > 0) {
-           setWidgets(parsed);
-           return;
+          setWidgets(parsed);
+          return;
         }
       }
-    } catch {}
+    } catch {
+      /* ignore */
+    }
     // Fallback if empty or invalid
     setWidgets(DEFAULT_WIDGETS);
   }, []);
@@ -511,14 +519,14 @@ export function RuntimeMonitor({ open, onClose }: { open: boolean; onClose: () =
   const capacity = useMemo(() => {
     // 1. Get the current active model from the Engine (Orchestrator) config
     const activeModelId = engine.activeModelId;
-    
+
     // 2. Fetch that exact model from the PostgreSQL models list
-    const activeModel = models.find(m => m.id === activeModelId || m.modelId === activeModelId);
-    
+    const activeModel = models.find((m) => m.id === activeModelId || m.modelId === activeModelId);
+
     // 3. Bind exactly to its maxTokens. If it's a new DB with zero configs, fallback gracefully, but never hardcode generic logic.
     return activeModel?.maxTokens ?? 4096;
   }, [models, engine.activeModelId]);
-  
+
   const budgetPct = Math.min(100, (activeRate / capacity) * 100);
   const budgetTone = budgetPct > 90 ? "ruby" : budgetPct > 70 ? "topaz" : "emerald";
 
@@ -535,7 +543,10 @@ export function RuntimeMonitor({ open, onClose }: { open: boolean; onClose: () =
     if (t.host.netErrors > 0)
       out.push({ tone: "topaz", text: `${t.host.netErrors} network errors observed` });
     if (activeRate > capacity * 0.9)
-      out.push({ tone: "ruby", text: `throughput ${(activeRate/1000).toFixed(1)}k/s near capacity` });
+      out.push({
+        tone: "ruby",
+        text: `throughput ${(activeRate / 1000).toFixed(1)}k/s near capacity`,
+      });
     return out.slice(0, 4);
   }, [t, activeRate, capacity]);
 
@@ -692,10 +703,12 @@ export function RuntimeMonitor({ open, onClose }: { open: boolean; onClose: () =
                 <div className="mb-3 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="mono-label">active fleet</span>
-                    <select 
-                      className="bg-transparent font-mono text-[9.5px] uppercase tracking-wider text-muted-foreground outline-none transition-colors hover:text-foreground cursor-pointer focus:ring-0 [&>option]:bg-raised [&>option]:text-foreground"
+                    <select
+                      className="cursor-pointer bg-transparent font-mono text-[9.5px] uppercase tracking-wider text-muted-foreground outline-none transition-colors hover:text-foreground focus:ring-0 [&>option]:bg-raised [&>option]:text-foreground"
                       value={fleetFilter}
-                      onChange={(e) => setFleetFilter(e.target.value as any)}
+                      onChange={(e) =>
+                        setFleetFilter(e.target.value as "agent" | "workflow" | "orchestrator")
+                      }
                     >
                       <option value="agent">Agents</option>
                       <option value="workflow">Workflows</option>
@@ -703,77 +716,91 @@ export function RuntimeMonitor({ open, onClose }: { open: boolean; onClose: () =
                     </select>
                   </div>
                   <span className="font-mono text-[10px] text-muted-foreground/45">
-                    {agentsStatus.filter(a => a.kind === fleetFilter && a.runtime === "executing").length - Object.values(held).filter(Boolean).length} running
+                    {agentsStatus.filter((a) => a.kind === fleetFilter && a.runtime === "executing")
+                      .length - Object.values(held).filter(Boolean).length}{" "}
+                    running
                   </span>
                 </div>
                 <div className="space-y-2">
-                  {agentsStatus.filter((a: any) => a.kind === fleetFilter).slice(0, 10).map((a: any) => {
-                    const s = agentSample(a.id, t.tick);
-                    const isHeld = held[a.id];
-                    const isExecuting = a.runtime === "executing";
-                    const load = isHeld ? 0 : (isExecuting ? Math.max(60, s.load) : 0);
-                    const tone = a.kind === "workflow" ? "emerald" : a.kind === "orchestrator" ? "amethyst" : "sapphire";
-                    return (
-                      <div
-                        key={a.id}
-                        className="group rounded-[10px] border border-white/[0.06] bg-white/[0.012] px-3 py-2.5 transition-colors hover:border-white/[0.13]"
-                      >
-                        <div className="flex items-center gap-2.5">
-                          <span className="relative inline-flex h-2 w-2 shrink-0">
-                            {!isHeld && !paused && isExecuting && (
+                  {agentsStatus
+                    .filter((a) => a.kind === fleetFilter)
+                    .slice(0, 10)
+                    .map((a) => {
+                      const s = agentSample(a.id, t.tick);
+                      const isHeld = held[a.id];
+                      const isExecuting = a.runtime === "executing";
+                      const load = isHeld ? 0 : isExecuting ? Math.max(60, s.load) : 0;
+                      const tone =
+                        a.kind === "workflow"
+                          ? "emerald"
+                          : a.kind === "orchestrator"
+                            ? "amethyst"
+                            : "sapphire";
+                      return (
+                        <div
+                          key={a.id}
+                          className="group rounded-[10px] border border-white/[0.06] bg-white/[0.012] px-3 py-2.5 transition-colors hover:border-white/[0.13]"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <span className="relative inline-flex h-2 w-2 shrink-0">
+                              {!isHeld && !paused && isExecuting && (
+                                <span
+                                  className="absolute inset-0 animate-ping rounded-full opacity-50"
+                                  style={{ background: `var(--${tone})` }}
+                                />
+                              )}
                               <span
-                                className="absolute inset-0 animate-ping rounded-full opacity-50"
-                                style={{ background: `var(--${tone})` }}
+                                className="relative h-2 w-2 rounded-full"
+                                style={{
+                                  background: isHeld ? "rgba(148,163,184,0.5)" : `var(--${tone})`,
+                                }}
                               />
-                            )}
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <div className="truncate text-[12.5px]">{a.name}</div>
+                              <div className="font-mono text-[10px] text-muted-foreground/55">
+                                {a.id} {a.meta ? `· ${a.meta}` : ""}
+                              </div>
+                            </div>
                             <span
-                              className="relative h-2 w-2 rounded-full"
+                              className="font-mono text-[11.5px]"
+                              style={{ color: isHeld ? "rgba(148,163,184,0.6)" : `var(--${tone})` }}
+                            >
+                              {load.toFixed(0)}%
+                            </span>
+                            <button
+                              onClick={() => setHeld((p) => ({ ...p, [a.id]: !p[a.id] }))}
+                              aria-label={isHeld ? `Resume ${a.name}` : `Pause ${a.name}`}
+                              title={isHeld ? "Resume agent" : "Pause agent"}
+                              className="rounded-md border border-white/[0.08] p-1 text-muted-foreground/60 opacity-0 transition-all hover:border-sapphire/40 hover:text-foreground group-hover:opacity-100"
+                            >
+                              {isHeld ? (
+                                <Play className="h-3 w-3" />
+                              ) : (
+                                <Pause className="h-3 w-3" />
+                              )}
+                            </button>
+                          </div>
+                          <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-white/[0.05]">
+                            <motion.div
+                              animate={{ width: `${load}%` }}
+                              transition={{ type: "spring", stiffness: 110, damping: 20 }}
+                              className="h-full rounded-full"
                               style={{
-                                background: isHeld ? "rgba(148,163,184,0.5)" : `var(--${tone})`,
+                                background: isHeld ? "rgba(148,163,184,0.35)" : `var(--${tone})`,
+                                boxShadow: isHeld ? "none" : `0 0 10px -2px var(--${tone})`,
                               }}
                             />
-                          </span>
-                          <div className="min-w-0 flex-1">
-                            <div className="truncate text-[12.5px]">{a.name}</div>
-                            <div className="font-mono text-[10px] text-muted-foreground/55">
-                              {a.id} {a.meta ? `· ${a.meta}` : ""}
-                            </div>
                           </div>
-                          <span
-                            className="font-mono text-[11.5px]"
-                            style={{ color: isHeld ? "rgba(148,163,184,0.6)" : `var(--${tone})` }}
-                          >
-                            {load.toFixed(0)}%
-                          </span>
-                          <button
-                            onClick={() => setHeld((p) => ({ ...p, [a.id]: !p[a.id] }))}
-                            aria-label={isHeld ? `Resume ${a.name}` : `Pause ${a.name}`}
-                            title={isHeld ? "Resume agent" : "Pause agent"}
-                            className="rounded-md border border-white/[0.08] p-1 text-muted-foreground/60 opacity-0 transition-all hover:border-sapphire/40 hover:text-foreground group-hover:opacity-100"
-                          >
-                            {isHeld ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
-                          </button>
+                          <div className="mt-1.5 flex items-center justify-between font-mono text-[10px] text-muted-foreground/45">
+                            <span>{isHeld || !isExecuting ? "0" : Math.round(s.tokens)} tok/s</span>
+                            <span>p95 {isHeld || !isExecuting ? "0" : Math.round(s.p95)} ms</span>
+                            <span>q {isHeld || !isExecuting ? 0 : s.queue}</span>
+                            <span>ctx {isHeld || !isExecuting ? "0" : s.ctx.toFixed(0)}%</span>
+                          </div>
                         </div>
-                        <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-white/[0.05]">
-                          <motion.div
-                            animate={{ width: `${load}%` }}
-                            transition={{ type: "spring", stiffness: 110, damping: 20 }}
-                            className="h-full rounded-full"
-                            style={{
-                              background: isHeld ? "rgba(148,163,184,0.35)" : `var(--${tone})`,
-                              boxShadow: isHeld ? "none" : `0 0 10px -2px var(--${tone})`,
-                            }}
-                          />
-                        </div>
-                        <div className="mt-1.5 flex items-center justify-between font-mono text-[10px] text-muted-foreground/45">
-                          <span>{isHeld || !isExecuting ? "0" : Math.round(s.tokens)} tok/s</span>
-                          <span>p95 {isHeld || !isExecuting ? "0" : Math.round(s.p95)} ms</span>
-                          <span>q {isHeld || !isExecuting ? 0 : s.queue}</span>
-                          <span>ctx {isHeld || !isExecuting ? "0" : s.ctx.toFixed(0)}%</span>
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
                 </div>
               </div>
             </div>

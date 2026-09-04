@@ -591,15 +591,24 @@ function AgentsTelemetry() {
             
             // First map from realistic data if available, fallback to wave
             let s = agentSample(e.id, t.tick);
-            const liveStat = agentsStatus.find(a => a.id === e.id && a.kind === e.kind);
+            const liveStat = agentsStatus.find((a) => a.id === e.id && a.kind === e.kind);
             if (liveStat) {
               const isExecuting = liveStat.runtime === "executing";
+              const calls = liveStat.calls ?? liveStat.metrics?.calls ?? 0;
+              const success = liveStat.success ?? liveStat.metrics?.success ?? 0;
+              const errors =
+                success > 0
+                  ? Number(((calls - success) / (calls || 1)).toFixed(2))
+                  : calls > 0
+                    ? 1
+                    : 0;
+
               s = {
                 ...s,
                 load: isExecuting ? Math.max(60, s.load) : 0,
                 tokens: isExecuting ? s.tokens : 0,
                 p95: isExecuting ? s.p95 : 0,
-                errors: liveStat.success > 0 ? Number(((liveStat.calls - liveStat.success) / liveStat.calls).toFixed(2)) : (liveStat.calls > 0 ? 1 : 0),
+                errors,
                 queue: isExecuting ? Math.max(1, s.queue) : 0,
                 ctx: isExecuting ? s.ctx : 0,
               };
@@ -1045,9 +1054,10 @@ function OperatorsTelemetry() {
               
               const s = agentSample(a.id, t.tick);
               const memberOf = groupsOf(a.id);
-              
-              // We aggregate agent success/calls for an operator context, just visual integration since we lack true user <-> agent linkage in this mock slice.
-              const opAgentCalls = agentsStatus.reduce((acc, st) => acc + (st.calls || 0), 0) / Math.max(1, online.length);
+
+              const opAgentCalls =
+                agentsStatus.reduce((acc, st) => acc + (st.calls ?? st.metrics?.calls ?? 0), 0) /
+                Math.max(1, online.length);
               
               return (
                 <div
