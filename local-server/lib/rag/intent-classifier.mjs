@@ -13,6 +13,7 @@ import { toCompletionBody } from "../chat-prompt.mjs";
 import {
   RAG_STOP as _RAG_STOP,
   RAG_STOP_ASCII as _RAG_STOP_ASCII,
+  extractQueryTerms,
 } from "./scoring.mjs";
 import {
   hydrateRuntimeProviderFromDb,
@@ -106,13 +107,13 @@ export function isAssistantMetaQuestion(text) {
   // with the meta_forge anchor prose above.
   const hasCreationVerb = /\b(?:yap|yapabilir|yapar|olustur|olusturur|yaz|yazar|uret|uretir|ekle|ekler|tasarla|tasarlar|hazirla|hazirlar|draftla|forge|forgele|create|creates|build|builds|design|designs|draft|drafts|craft|crafts|generate|generates|make|makes|add|adds)\b/.test(t);
   if (hasCreationVerb) return false;
-  const aboutAssistant = /\b(?:elara|sen|sana|seni|senin|your|you)\b/.test(t)
+  const aboutAssistant = /\b(?:elara|sen|sana|seni|senin|your|you|yourself)\b/.test(t)
     || /\b(?:ajanlarin|ajanlarini|ajanlariniz|ajanlarinizi|ekibin|ekibini|takimin|takimini|yeteneklerin|yeteneklerini)\b/.test(t)
     || /\b(?:your agents|your team|your tools|your skills|your capabilities)\b/.test(t);
   if (!aboutAssistant) return false;
-  return /\b(?:ajan|ajanlar|agent|agents|ekip|takim|team|squad|tool|tools|skill|skills|yetenek|capabilities|kendini|listele|anlat|describe|introduce|list|what can you do)\b/.test(t)
+  return /\b(?:ajan|ajanlar|agent|agents|ekip|takim|team|squad|tool|tools|skill|skills|yetenek|capabilities|kendini|listele|anlat|describe|introduce|list|what can you do|about yourself)\b/.test(t)
     || /\b(?:tanit|tanita|tanimla|sirala|say|describe|introduce|list)[a-z]*\b/.test(t)
-    || /\b(?:kimsin|nesin|ne yapabilirsin)\b/.test(t);
+    || /\b(?:kimsin|nesin|ne yapabilirsin|who are you|what are you|who made you|who created you|who built you)\b/.test(t);
 }
 
 // Meta-forge lane detection — semantic confirmation (2026-07-04):
@@ -197,8 +198,6 @@ export async function ensureAnchorVecs() {
   if (_anchorVecsPromise) return _anchorVecsPromise;
   _anchorVecsPromise = (async () => {
     const t0 = Date.now();
-    const settings = _getRagSettings() || {};
-    const budgetMs = Math.max(900, Number(settings.warmupIntentBudgetMs ?? process.env.INTENT_ROUTER_WARMUP_BUDGET_MS ?? 3500));
     const anchorsInput = [
       INTENT_ANCHORS.rag,
       INTENT_ANCHORS.smalltalk,
@@ -207,33 +206,24 @@ export async function ensureAnchorVecs() {
       INTENT_ANCHORS.meta_forge,
     ];
     let vecs = null;
-    let attempts = 0;
     let lastErr = null;
-    while (!_anchorVecs && (Date.now() - t0) < budgetMs) {
-      attempts += 1;
-      try {
-        vecs = await _mlxEmbed(anchorsInput).catch((e) => { lastErr = e; return null; });
-      } catch (e) {
-        lastErr = e;
-        vecs = null;
-      }
-      if (vecs && vecs.length >= anchorsInput.length && anchorsInput.every((_, i) => vecs[i]?.length)) {
-        _anchorVecs = {
-          rag: vecs[0],
-          smalltalk: vecs[1],
-          meta: vecs[2],
-          agent_manifest: vecs[3],
-          meta_forge: vecs[4],
-        };
-        _anchorsReady = true;
-        break;
-      }
-      const elapsed = Date.now() - t0;
-      if (elapsed >= budgetMs) break;
-      await _sleep(Math.min(250, Math.max(50, budgetMs - elapsed)));
+    try {
+      vecs = await _mlxEmbed(anchorsInput).catch((e) => { lastErr = e; return null; });
+    } catch (e) {
+      lastErr = e;
+      vecs = null;
+    }
+    if (vecs && vecs.length >= anchorsInput.length && anchorsInput.every((_, i) => vecs[i]?.length)) {
+      _anchorVecs = {
+        rag: vecs[0],
+        smalltalk: vecs[1],
+        meta: vecs[2],
+        agent_manifest: vecs[3],
+        meta_forge: vecs[4],
+      };
+      _anchorsReady = true;
     }
     _lastAnchorInitMs = Date.now() - t0;
-    try { console.log(`[intent:probe] anchor_init ms=${_lastAnchorInitMs} ok=${!!_anchorVecs} manifest=${!!_anchorVecs?.agent_manifest} forge=${!!_anchorVecs?.meta_forge} attempts=${attempts}${lastErr ? ` err=${String(lastErr?.message || lastErr).slice(0, 120)}` : ""}`); } catch {}
     return _anchorVecs;
   })();
   try { return await _anchorVecsPromise; } finally { _anchorVecsPromise = null; }
@@ -312,8 +302,6 @@ export async function refineIntentSemantically(text, base, cfg = RUNTIME_INTENT_
   const out = { ...base };
   if (!text || cfg.forceRagMode === "always" || cfg.forceRagMode === "never") return out;
   // Explicit invocation override — @[foo.py] / !slug / /slug.
-  // Kullanıcı agent/skill/tool çağırdıysa smalltalk lane devreye GİREMEZ.
-  // UI composer prefix sözleşmesi: @=agent, !=skill, /=tool.
   if (/(^|\s)@\[[^\]]+\.py\s*\]/i.test(text)
       || /(^|\s)![a-z0-9][a-z0-9_-]{1,}/i.test(text)
       || /(^|\s)\/[a-z0-9][a-z0-9_-]{1,}/i.test(text)) {
@@ -323,6 +311,16 @@ export async function refineIntentSemantically(text, base, cfg = RUNTIME_INTENT_
   if (isAssistantMetaQuestion(text)) {
     out.kind = "smalltalk"; out.useRag = false; out.mode = "semantic-meta";
     out.intentClassifyReason = "assistant_meta_text";
+    return out;
+  }
+
+  // Fast-path: If input is only conversational greetings/stop words, immediately return smalltalk (0ms)
+  const queryTerms = extractQueryTerms(text);
+  if (queryTerms.length === 0) {
+    out.kind = "smalltalk";
+    out.useRag = false;
+    out.mode = "fast-greeting";
+    out.intentClassifyReason = "greeting_stop_terms";
     return out;
   }
   // Meta-forge deterministic keyword gate REMOVED (Tur 6B, 2026-07-04).
@@ -462,23 +460,18 @@ export async function refineIntentSemantically(text, base, cfg = RUNTIME_INTENT_
       if (allStop) { decision = "smalltalk"; reason = "stop_set_match"; }
     }
   }
-  // Cold-fallback: classifier kararsız + kısa greeting-benzeri input ise
-  // smalltalk lane'ine düş. Teknik sorular (digit/path/uzun token/uzun text)
-  // hariç tutulur → "firewall ha cluster" cold turda bile RAG'a gider.
+  // Deterministic fallback: when anchor embed is unavailable
   let coldFallback = false;
   if (decision == null) {
-    const coldOn = RAG_SETTINGS_NOW.coldFallbackToSmalltalk !== false;
     const raw = String(text || "").trim();
-    if (coldOn && raw.length > 0 && raw.length <= 32) {
-      const toks = raw.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, " ").split(/\s+/).filter(Boolean);
-      const hasDigit = /\d/.test(raw);
-      const hasPunctPath = /[./:_\-\\@]/.test(raw);
-      const hasLongTok = toks.some(t => t.length > 10);
-      if (toks.length > 0 && toks.length <= 4 && !hasDigit && !hasPunctPath && !hasLongTok) {
-        decision = "smalltalk";
-        coldFallback = true;
-        reason = "cold_fallback";
-      }
+    const terms = extractQueryTerms(raw);
+    if (terms.length === 0) {
+      decision = "smalltalk";
+      coldFallback = true;
+      reason = "fallback_no_terms";
+    } else {
+      decision = "rag";
+      reason = "fallback_technical_terms";
     }
   }
   // PROBE-2026-06-03: surface budget/probe info even on null-decision path so
@@ -574,6 +567,10 @@ export function classifyIntent(q, cfg = RUNTIME_INTENT_CFG) {
   if (cfg.forceRagMode === "always") return { kind: "query", useRag: true, score: 1, mode: "always" };
   if (cfg.forceRagMode === "never")  return { kind: "smalltalk", useRag: false, score: 0, mode: "never" };
   if (isAssistantMetaQuestion(text)) return { kind: "smalltalk", useRag: false, score: 0, mode: "semantic-meta", classifyReason: "assistant_meta_text" };
+  const terms = extractQueryTerms(text);
+  if (terms.length === 0) {
+    return { kind: "smalltalk", useRag: false, score: 0, mode: "fast-greeting", classifyReason: "no_meaningful_terms" };
+  }
   const score = scoreTechnicalSignal(text);
   const threshold = clampThreshold(cfg.technicalThreshold);
   const obviousChitchat = text.length <= 8 && score < threshold * 0.6;

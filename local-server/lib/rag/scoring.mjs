@@ -44,7 +44,7 @@ export function stripTurkishSuffix(tok) {
 export function extractQueryTerms(query) {
   const raw = String(query || "")
     .toLowerCase()
-    .normalize("NFKD")
+    .normalize("NFC")
     .replace(/[^\p{L}\p{N}.]+/gu, " ")
     .split(/\s+/);
   const out = new Set();

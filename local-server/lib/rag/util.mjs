@@ -21,52 +21,6 @@ export function createRagUtil(deps) {
     bootstrapWatchers,
   } = deps;
 
-  function diagnoseChatTrace(events) {
-    if (!events || events.length === 0) return "Trace bulunamadı (id yanlış olabilir).";
-    const stages = events.map(e => e.stage);
-    const has = (s) => stages.includes(s);
-    const ev = (s) => events.find(e => e.stage === s);
-    const hasFirstToken = has("mlx.first_token.received") || has("mlx.first_token");
-    const slotAcquired = has("local.slot.acquired");
-    const enqueued = has("mlx.queue.enqueued");
-    const last = events[events.length - 1];
-
-    const abortEv = ev("client.aborted") || ev("mlx.client_abort");
-    if (abortEv && !hasFirstToken) {
-      const reason = String(abortEv.detail?.reason || abortEv.detail?.error || "client closed").slice(0, 120);
-      return `İstemci bağlantıyı kapattı (${reason}) — MLX hâlâ ayakta olabilir, restart gerekmiyor.`;
-    }
-
-    const resetEv = ev("mlx.first_token_timeout") || ev("mlx.reset") || ev("error.thrown");
-    const diag = resetEv?.detail?.diag || null;
-    if (resetEv && diag) {
-      if (diag.clientAborted) {
-        return `İstemci bağlantıyı kapattı — MLX sağlam, restart gerekmiyor.`;
-      }
-      if (enqueued && !diag.slotAcquired) {
-        return `KUYRUK TIKANDI · istek slot alamadı (queueWaitMs≈${diag.queueWaitMs}ms) — başka bir üretim slotu tutuyor (zombi slot olabilir). Çözüm: Restart MLX.`;
-      }
-      if (diag.slotAcquired && !diag.firstToken) {
-        const budgetMs = resetEv.detail?.budgetMs || 0;
-        return `LOCAL SESSİZ · slot alındı (queueWaitMs=${diag.queueWaitMs}ms), fetch=${diag.fetchStarted} ama ${process.env.LOCAL_RUNTIME_PORT || 8001} ${budgetMs ? Math.round(budgetMs/1000) + "sn" : ""} içinde token üretmedi. Doğrudan test edip (curl :${process.env.LOCAL_RUNTIME_PORT || 8001}) LOCAL sağlamsa middleware/abort hattı, değilse Restart Local.`;
-      }
-    }
-    if (has("mlx.headers_timeout")) return `Local header timeout — auto-reset tetiklendi (${process.env.LOCAL_RUNTIME_PORT || 8001} cevap vermedi).`;
-    if (has("mlx.first_token_timeout")) return "MLX first-token timeout — model yüklendi ama token üretmedi.";
-    if (has("mlx.reset")) return "MLX bağlantısı resetlendi (Model Meşgul).";
-
-    if (hasFirstToken) {
-      const ft = ev("mlx.first_token.received");
-      const q = ft?.detail?.queueWaitMs, g = ft?.detail?.mlxGenMs;
-      if (has("mlx.stream.done")) return `Akış tamamlandı · queueWait=${q ?? "?"}ms mlxGen=${g ?? "?"}ms.`;
-      return `Token üretiliyor · queueWait=${q ?? "?"}ms mlxGen=${g ?? "?"}ms.`;
-    }
-    if (enqueued && !slotAcquired) return `Kuyrukta bekliyor · henüz slot alınmadı (son aşama: ${last?.stage}).`;
-    if (slotAcquired) return `Slot alındı, ilk token bekleniyor (son aşama: ${last?.stage}).`;
-    if (last?.stage === "sse.closed") return "SSE kapandı, token üretilmedi.";
-    return `Devam ediyor · son aşama: ${last?.stage}`;
-  }
-
   function _makeThinkStripper() { return makeThinkStripper(getRagSettings()); }
 
   function _ragNumber(value, fallback) {
@@ -219,17 +173,15 @@ export function createRagUtil(deps) {
     } catch {}
   }
 
-  // UI = TEK MERCİİ (2026-06-02). Backend free-answer turunda kendi promptunu
-  // eklemez. Tek istisna: knob `stripPriorCitationsOnFreeAnswer` ON ise (default)
-  // önceki assistant mesajlarının sonundaki "Kaynaklar:/Sources:/References:"
-  // footer bloğu sökülür — aksi halde model RAG kapalıyken bile bu formatı
-  // taklit edip kitap adı uydurabilir (halüsinasyon citation).
+  // UI is the single source of truth. Backend in free-answer turns does not add its own prompt.
+  // Exception: when stripPriorCitationsOnFreeAnswer is ON (default), strip trailing citation footers
+  // from prior assistant messages to prevent model hallucination mimicking citation formats.
   function _stripCitationFooter(text) {
     if (typeof text !== "string" || !text) return text;
-    // En sondaki "Kaynaklar:" / "Kaynaklar\n" / "Sources:" / "References:" başlığından itibaren sil.
+    // Strip from trailing sources/references header
     const re = /\n{1,3}(?:\*\*\s*)?(?:kaynak(?:ça|lar)?|sources?|references?|citations?)\s*(?:\*\*)?\s*:?\s*\n[\s\S]*$/i;
     const stripped = text.replace(re, "").trimEnd();
-    return stripped.length >= 16 ? stripped : text; // çok agresif kesme guard'ı
+    return stripped.length >= 16 ? stripped : text;
   }
   function buildFreeAnswerMessages(messages, _reason = "rag_bypass", _ctx = null) {
     if (!Array.isArray(messages)) return [];
@@ -245,7 +197,6 @@ export function createRagUtil(deps) {
 
 
   return {
-    diagnoseChatTrace,
     _makeThinkStripper,
     _ragNumber,
     _ragBool,

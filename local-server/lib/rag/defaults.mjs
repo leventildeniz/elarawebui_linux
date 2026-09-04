@@ -58,45 +58,27 @@ export function buildRagDefaults({ envNumber, TIMEOUT_BUDGETS }) {
     streamToolCallTimeoutMs: Math.max(2000, envNumber("STREAM_TOOL_CALL_TIMEOUT_MS", 30000)),
     includeToolPromptsInAgent: String(process.env.INCLUDE_TOOL_PROMPTS_IN_AGENT ?? "1") !== "0",
     suppressToolManifestOnSmalltalk: String(process.env.SUPPRESS_TOOL_MANIFEST_ON_SMALLTALK ?? "1") !== "0",
-    // 2026-06-03 — UI tek mercii: operator agent system_prompt'una manifesti
-    // UI'dan elden yazıyorsa backend ELARA_AGENT_TOOLS enjeksiyonunu KAPAT.
-    // OFF (default) = backend hiç eklemez (tek kaynak = UI prompt).
-    // ON = eski davranış (smalltalk gate'i hariç her turda otomatik enjekte).
+    // UI is single authority: if system prompt is authored manually,
+    // turn OFF backend ELARA_AGENT_TOOLS injection.
     injectAgentToolsManifest: String(process.env.INJECT_AGENT_TOOLS_MANIFEST ?? "0") === "1",
-    // 2026-06-03 — Cold/warmup intent classifier hardening.
-    // warmupIntentBudgetMs: embed worker soğukken refineIntentSemantically
-    // her hat için bu süreye kadar bekler; warm hat sıcakken default 900ms.
-    // coldFallbackToSmalltalk: sınıflandırıcı kararsız kaldığında (null) kısa
-    // greeting-benzeri input (≤4 token, ≤32 char, digit/path/uzun token yok)
-    // smalltalk lane'ine düşer → manifest sızıntısı + hang önlenir.
+    // Cold/warmup intent classifier hardening:
+    // warmupIntentBudgetMs: budget for initial anchor embedding when model starts cold.
+    // coldFallbackToSmalltalk: short ambiguous inputs fall back to smalltalk lane.
     warmupIntentBudgetMs: Math.max(900, envNumber("INTENT_ROUTER_WARMUP_BUDGET_MS", 3500)),
     coldFallbackToSmalltalk: String(process.env.INTENT_COLD_FALLBACK_SMALLTALK ?? "1") !== "0",
-    // Backend agent bridge: model çıktısında ".py" / "@[script.py]" geçince
-    // otomatik yerel ajan spawn et. DEFAULT OFF — pasif mention'lar (ajan
-    // tanıtımı, liste cevapları) execution olarak okunup chat akışını
-    // bloklamasın. Kullanıcı açık `@[script.py]` yazdığında chat tarafı
-    // (frontend) zaten doğrudan spawn eder; bu knob sadece backend'in
-    // model output'una bakıp kendi başına ajan tetiklemesini açar/kapatır.
+    // Backend agent auto-dispatch from model output (default OFF)
     autoDispatchAgentsFromModelOutput: String(process.env.AUTO_DISPATCH_AGENTS_FROM_MODEL ?? "0") !== "0",
-    // 2026-06-02 (revize) — Pre-LLM user→agent dispatch DEFAULT OFF.
-    // Kullanıcı `@[script.py]` yazdığında stream/orchestrate hattı bunu
-    // tag olarak görsün ve `detectAgentIntent`/`tryStreamAgentExec` zincirini
-    // tetiklesin. Default ON (2026-06-03): model RAG kapalıyken ajanın kendi
-    // RAG'ı (ELARA_AGENT_RAG_ENABLED) devreye girebilsin. Kapatmak için
-    // env `USER_AGENT_MENTION_DISPATCH=0` veya RAG paneli switch.
+    // Pre-LLM user mention dispatch
     userAgentMentionDispatch: String(process.env.USER_AGENT_MENTION_DISPATCH ?? "1") !== "0",
     skipOuterLlmOnAgentRewrite: String(process.env.SKIP_OUTER_LLM_ON_AGENT_REWRITE ?? "1") !== "0",
     streamAgentExec: String(process.env.STREAM_AGENT_EXEC ?? "1") !== "0",
     smalltalkProbeThreshold: envNumber("RAG_SMALLTALK_PROBE_THRESHOLD", 0.65),
-    // 2026-06-02 (revize) — Tüm warmup / watchdog / self-heal hatları
-    // default OFF. Açmak Settings → Runtime üzerinden. Önce chat'i
-    // yüklerden arındırıyoruz, sonra teker teker açıp ölçüyoruz.
+    // Warmup / Watchdog / Self-heal runtime flags
     coldWarmupOnDemand: String(process.env.COLD_WARMUP_ON_DEMAND ?? "0") !== "0",
     bootWarmup:         String(process.env.LLM_BOOT_WARMUP_ENABLED ?? "0") !== "0",
     runtimeWatchdogEnabled:String(process.env.RUNTIME_WATCHDOG_ENABLED ?? "0") !== "0",
     selfHealEnabled:    String(process.env.SELF_HEAL_ENABLED ?? "0") !== "0",
-    // 2026-06-26 — Runtime Safety knobs (UI: System Engine → Runtime Safety).
-    // 72B-zamanı koruma katmanları default OFF; UI'dan açılır.
+    // Runtime safety knobs
     keepwarmEnabled:    String(process.env.KEEPWARM_ENABLED ?? "0") === "1",
     keepwarmIntervalMs: Math.max(15_000, envNumber("KEEPWARM_MS", 45_000)),
     localQueueConcurrency:   Math.max(1, Math.min(4, envNumber("QUEUE_CONCURRENCY", 2))),
@@ -118,27 +100,14 @@ export function buildRagDefaults({ envNumber, TIMEOUT_BUDGETS }) {
     libraryAnchorDynamic:    String(process.env.RAG_LIBRARY_ANCHOR_DYNAMIC ?? "1") !== "0",
     outOfLibraryFallback:    String(process.env.RAG_OUT_OF_LIBRARY_FALLBACK ?? "1") !== "0",
     libraryBrandCacheTtlMs:  Math.max(30_000, envNumber("RAG_LIBRARY_BRAND_CACHE_TTL_MS", 300_000)),
-    // 2026-06-03 — Brand-mention gate. Probe'dan ÖNCE: soruda DB library
-    // brand'lerinden biri (alias dahil) geçmiyorsa RAG hiç çalışmaz, sessizce
-    // free-answer'a düşer. Statik vendor listesine GEREK YOK — DB tek mercii.
+    // Brand-mention gate: if no library brand appears in query, skip RAG and answer directly
     requireBrandMentionForRag: String(process.env.RAG_REQUIRE_BRAND_MENTION ?? "1") !== "0",
-    // 2026-06-03 (akşam) — Gürültü-brand kilidi. knowledge_chunks'ta
-    // <N chunk'lı brand'ler (eski auto-tag, tek-satırlık mention'lar)
-    // library brand sayılmaz → gate "match" yapmaz → cisco/huawei gibi
-    // sızıntılar kapanır. 0 = eşik kapalı (eski davranış).
+    // Minimum chunk threshold to consider brand part of the active library
     libraryBrandMinChunks: Math.max(0, envNumber("RAG_LIBRARY_BRAND_MIN_CHUNKS", 100)),
     stripPriorCitationsOnFreeAnswer: String(process.env.RAG_STRIP_PRIOR_CITATIONS ?? "1") !== "0",
-    // 2026-06-03 — Elara → Ajan auto-delegation. Default OFF (opt-in).
-    // Açıkken: kullanıcı sorusu non-smalltalk ise ve `@[script.py]` explicit
-    // tag yoksa, picker en uygun ajanı keyword/brand skoru ile seçer ve
-    // mevcut `userAgentMentionDispatch` rewrite hattına bağlar. Skor altında
-    // kalırsa Elara normal yoldan cevaplar.
+    // Auto-route to agent when non-smalltalk and no explicit tag present
     agentAutoRoute:             String(process.env.AGENT_AUTO_ROUTE ?? "0") === "1",
     agentAutoRouteMinScore:     Math.max(1, envNumber("AGENT_AUTO_ROUTE_MIN_SCORE", 2)),
-    // Smalltalk gate önünde auto-route'u atlat. "teşekkürler / harika / sağol /
-    // kendini tanıt" gibi turlarda jenerik token'lar (bilgi/konu/strateji) zayıf
-    // skorla ajan keyword setlerine denk gelip Elara'yı bypass ediyordu.
-    // refineIntentSemantically smalltalk dönerse auto-route skip.
     agentAutoRouteSkipSmalltalk: String(process.env.AGENT_AUTO_ROUTE_SKIP_SMALLTALK ?? "1") !== "0",
     agentMultiBrand:            String(process.env.AGENT_MULTI_BRAND ?? "1") !== "0",
     // 2026-06-29 — Elara agent manifest injection mode.
@@ -213,8 +182,7 @@ export function buildRagDefaults({ envNumber, TIMEOUT_BUDGETS }) {
 
     agentRagContextChars:       Math.max(3000, envNumber("AGENT_RAG_CONTEXT_CHARS", 12000)),
     agentExecTimeoutMs:         Math.max(30_000, envNumber("AGENT_EXEC_TIMEOUT_MS", 180_000)),
-    // Ajan "bilmiyorum" döndüğünde (hits=0 veya kısa/refuse pattern) Elara
-    // devralıp kendi bilgisinden cevaplasın mı. UI'da banner görünür.
+    // When agent returns no hits / refusal, allow main engine fallback
     agentInsufficientFallback:  String(process.env.AGENT_INSUFFICIENT_FALLBACK ?? "1") !== "0",
     agentInsufficientMinChars:  Math.max(20, envNumber("AGENT_INSUFFICIENT_MIN_CHARS", 80)),
     agentFallbackBanner:        String(process.env.AGENT_FALLBACK_BANNER ?? "1") !== "0",
@@ -236,33 +204,15 @@ export function buildRagDefaults({ envNumber, TIMEOUT_BUDGETS }) {
     loopGuardSubstringWindow: Math.max(20, envNumber("ELARA_LOOP_GUARD_SUBSTR_WIN", 120)),
     loopGuardSubstringRepeat: Math.max(3,  envNumber("ELARA_LOOP_GUARD_SUBSTR_REP", 20)),
     loopGuardPhraseRepeat:    Math.max(3,  envNumber("ELARA_LOOP_GUARD_PHRASE_REP", 12)),
-    // 2026-06-03 — UI = tek mercii. Hardcoded LLM system prompt'ları artık
-    // RAG_SETTINGS textarea'sından override edilebilir. Boş string ("")
-    // bırakılırsa kodda saklı default devreye girer (lib/system-prompts.mjs).
     inspectorDirective:    "",
     inspectorBrandLock:    "",
     extractorSystemPrompt: "",
     hydeSystemPrompt:      "",
-    // 2026-06-03 (Tur 2) — Planner system prompt UI'ya çekildi.
     plannerSystemPrompt:   "",
-    // 2026-06-03 (Tur 2) — Qwen "/no_think" prefix HyDE + extractor için
-    // sysMsg başına eklenir. Default değer aynen "/no_think\n"; boş ise
-    // hiç prefix eklenmez (think bloku üretebilir).
     thinkOffPrefix:        String(process.env.THINK_OFF_PREFIX ?? "/no_think\n"),
-    // 2026-06-03 (Tur 2) — Agent prompt katmanları UI tek mercii. Boş ise
-    // Python tarafı agents/_shared/config_center.py default'una düşer.
     agentRagWithHitsDirective: "",
     agentRagNoHitsDirective:   "",
     agentToolsManifestFrame:   "",
-    // 2026-06-26 — Product-aware retrieval filter.
-    // Brand-içi product karışmasını çözer (örn. Fortigate altında fortios /
-    // fortimanager / fortianalyzer; A10 altında axapi / agalaxy / ddos).
-    // "off"   = devre dışı (default — geri uyumluluk).
-    // "boost" = soft, rerank skoruna küçük bir bonus ekler (yumuşak yönlendirme).
-    // "hard"  = SQL WHERE'e product=$X eklenir; eşleşmeyen rows hiç gelmez.
-    // productAutoExtract: sorgudan brand+product token'larını DB catalog ile
-    // otomatik çıkar (5dk cache); kapalıysa filter yalnız agent binding ile
-    // önceden işaretlenmiş turlarda devreye girer.
     productFilter:         String(process.env.RAG_PRODUCT_FILTER ?? "off"),
     productFilterBoost:    Math.min(0.50, Math.max(0, envNumber("RAG_PRODUCT_FILTER_BOOST", 0.05))),
     productAutoExtract:    String(process.env.RAG_PRODUCT_AUTO_EXTRACT ?? "1") !== "0",

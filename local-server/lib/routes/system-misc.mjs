@@ -69,7 +69,7 @@ export function mountSystemMiscRoutes(app, deps) {
     pushLog,
     enqueueWrite, broadcastAudit, getWriteQueueDepths,
     sseBegin, auditClients,
-    chatTraceList, diagnoseChatTrace,
+    chatTraceList,
     upload, createLocalId, UPLOAD_DIR,
   } = deps;
 
@@ -422,7 +422,6 @@ export function mountSystemMiscRoutes(app, deps) {
   app.get("/api/debug/chat/:traceId", (req, res) => {
     const traceId = String(req.params.traceId || "");
     const events = chatTraceList(traceId);
-    const diagnosis = diagnoseChatTrace(events);
     const fmt = String(req.query?.format || "").toLowerCase();
     if (fmt === "text" || fmt === "txt") {
       const lines = events.map(e => {
@@ -431,10 +430,10 @@ export function mountSystemMiscRoutes(app, deps) {
         try { detail = e.detail ? JSON.stringify(e.detail) : ""; } catch { detail = String(e.detail); }
         return `[${ts}] ${String(e.level || "info").toUpperCase().padEnd(5)} ${e.stage} ${detail}`;
       });
-      res.type("text/plain; charset=utf-8").send(`# trace ${traceId} (${events.length} events)\n# diagnosis: ${diagnosis}\n` + lines.join("\n") + "\n");
+      res.type("text/plain; charset=utf-8").send(`# trace ${traceId} (${events.length} events)\n` + lines.join("\n") + "\n");
       return;
     }
-    res.json({ ok: true, traceId, diagnosis, events });
+    res.json({ ok: true, traceId, events });
   });
 
   // ---- Uploads ----

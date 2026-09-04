@@ -650,9 +650,8 @@ export async function ragProbeAndFetch({ q, allowedLevels, agentId = null, bindi
       }
 
       // 2026-06-05 — Version-aware candidate fetch (additive, before rerank).
-      // Sorguda sürüm token'i (7.6, R81.20) varsa ve versionPathBoost knob'u
-      // açıksa, PATH ILIKE %version% filtreli ufak bir slice çek ve
-      // vectorRows'a union'la. Aksi halde boost rerank'a 0/N matched kalıyor.
+      // If version tokens (7.6, R81.20) are present and versionPathBoost is active,
+      // pull a slice with PATH ILIKE %version% and union into vectorRows.
       try {
         const _vBoost = Math.min(0.50, Math.max(0, Number(RAG_SETTINGS.versionPathBoost) || 0));
         if (_vBoost > 0 && vectorOK) {
@@ -705,10 +704,9 @@ export async function ragProbeAndFetch({ q, allowedLevels, agentId = null, bindi
 
 
       // 2026-06-04 — Multi-version query split (default OFF, additive).
-      // Sorguda ≥2 distinct major.minor sürüm token'i varsa (örn. "7.4 ile 7.6
-      // farkları"), her sürüm için DİĞER sürüm token'larını söküp ayrı embed +
-      // tiny vector fetch çalıştır, vectorRows'a union'la. Downstream RRF +
-      // diversity caps balans veriyor. Knob OFF iken kod hiç koşmaz.
+      // When query mentions ≥2 distinct major.minor version tokens (e.g. "7.4 vs 7.6"),
+      // strip opposing version tokens and run separate lightweight embedding fetches,
+      // then union into vectorRows before RRF and diversity caps.
       if (RAG_SETTINGS.multiVersionSplit && vectorOK) {
         try {
           const _verRe = /\b(\d+)\.(\d+)(?:\.\d+)?\b/g;
