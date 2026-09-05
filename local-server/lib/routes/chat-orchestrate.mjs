@@ -2381,22 +2381,26 @@ When the user asks you a question or assigns a task, intelligently apply the fol
               emitDebug("debug", "cost.spend", `estimated usage tokens prompt=${promptTokens} response=${responseTokens}`, { promptTokens, responseTokens, stream: "cost" }, thread_id);
 
               // Telemetry, Costs & Quality Engine
-              let _q = { hallucinationScore: 0, groundednessScore: 0, refusalRate: 0, cacheHits: 0, costUsd: 0 };
-              if (calculateAIQuality) {
-                 try {
-                    _q = calculateAIQuality("", assembled, finalProviderUsed.input_cost || 0, finalProviderUsed.output_cost || 0, promptTokens, responseTokens);
-                 } catch(e) { }
-              }
+              const promptText = formattedMessages.map(m => typeof m.content === 'string' ? m.content : JSON.stringify(m.content)).join("\n");
+              const calculatedPromptTokens = approxTokens ? approxTokens(promptText) : Math.max(1, Math.round(promptText.length / 4));
+              const calculatedResponseTokens = approxTokens ? approxTokens(assembled + assembledThinking) : Math.max(1, Math.round((assembled + assembledThinking).length / 4));
+              const totalTokens = calculatedPromptTokens + calculatedResponseTokens;
 
-              const usedModelStr = finalProviderUsed.model_id || finalProviderUsed.model || model || "gpt-3.5-turbo";
-              const sourceNameStr = finalProviderUsed.provider_name || "Custom/Local";
+              const usedModelStr = finalProviderUsed?.model_id || finalProviderUsed?.model || model || "gpt-3.5-turbo";
+              const sourceNameStr = finalProviderUsed?.provider_name || finalProviderUsed?.name || (finalProviderUsed?.kind === "local" ? "Local sovereign runtime" : "Cloud Provider");
+              const provId = finalProviderUsed?.id && finalProviderUsed.id !== "local" ? finalProviderUsed.id : null;
+
+              // Cost calculation ($ per 1M tokens) purely from the model card in DB
+              const inputRate = Number(finalProviderUsed?.input_cost || 0);
+              const outputRate = Number(finalProviderUsed?.output_cost || 0);
+              const costUsd = Number(((calculatedPromptTokens * (inputRate / 1_000_000)) + (calculatedResponseTokens * (outputRate / 1_000_000))).toFixed(6));
 
               // Persist working memory block
               if (thread_id) {
                   try {
                       // Record turn response as an episodic working memory block
                       const snippet = assembled.substring(0, 45).replace(/\n/g, " ") + "...";
-                      const memTokens = promptTokens + responseTokens;
+                      const memTokens = totalTokens;
                       const memId = `wrk.${Math.random().toString(36).slice(2, 8)}`;
                       const memLabel = agent_id ? `Agent response: ${snippet}` : `Model response: ${snippet}`;
                       const memTone = agent_id ? "emerald" : "sapphire";
@@ -2417,23 +2421,31 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                   }
               }
 
-              if (recordUsage) {
-                 try {
-                   recordUsage(pool, {
-                     providerId: finalProviderUsed?.id || "local",
-                     providerName: sourceNameStr,
-                     kind: "llm",
-                     model: usedModelStr,
-                     threadId: thread_id,
-                     promptTokens,
-                     responseTokens,
-                     latencyMs: totalMs,
-                     status: "ok",
-                     ..._q
-                   }).catch(() => {});
-                 } catch(err) {
-                   console.warn("[Orchestrate] Telemetry recordUsage failed:", err.message);
-                 }
+              // Persist provider_usage for FinOps & Usage reporting
+              try {
+                await pool.query(
+                  `INSERT INTO provider_usage (
+                     provider_id, provider_name, kind, model, thread_id,
+                     prompt_tokens, response_tokens, total_tokens, latency_ms, status,
+                     hallucination_score, groundedness_score, refusal_rate, cache_hits, cost_usd
+                   ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+                  [
+                    provId,
+                    sourceNameStr,
+                    "llm",
+                    usedModelStr,
+                    thread_id || null,
+                    calculatedPromptTokens,
+                    calculatedResponseTokens,
+                    totalTokens,
+                    totalMs,
+                    "ok",
+                    0, 100, 0, 0,
+                    costUsd
+                  ]
+                );
+              } catch(usageErr) {
+                console.warn("[Orchestrate] Telemetry provider_usage insert failed:", usageErr.message);
               }
 
               // Emit final completion telemetry
@@ -2441,7 +2453,7 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                 latency: {
                   ttftMs: tFirstToken ? (tFirstToken - t0) : 0,
                   totalMs,
-                  tokensOut: responseTokens,
+                  tokensOut: calculatedResponseTokens,
                   modelOut: usedModelStr
                 }
               });

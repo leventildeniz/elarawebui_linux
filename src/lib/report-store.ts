@@ -42,6 +42,13 @@ export type Breakdown = {
   share: number;
 };
 
+export type CostTariffs = {
+  vectorStorageRate: number;
+  objectStorageRate: number;
+  gpuHourRate: number;
+  egressRate: number;
+};
+
 export type CostLine = {
   item: string;
   category: "inference" | "infrastructure" | "storage" | "egress";
@@ -233,6 +240,19 @@ export async function fetchCostReport(
   return fetchApi(`/reporting/cost${buildQueryString(params)}`);
 }
 
+export async function fetchCostTariffs(): Promise<CostTariffs> {
+  const res = await fetchApi("/reporting/cost/tariffs");
+  return res?.tariffs || { vectorStorageRate: 0, objectStorageRate: 0, gpuHourRate: 0, egressRate: 0 };
+}
+
+export async function saveCostTariffs(tariffs: CostTariffs): Promise<CostTariffs> {
+  const res = await fetchApi("/reporting/cost/tariffs", {
+    method: "PUT",
+    body: JSON.stringify(tariffs),
+  });
+  return res?.tariffs || tariffs;
+}
+
 // ---------------------------------------------------------------------------
 // React Hooks for Live Data Hydration
 // ---------------------------------------------------------------------------
@@ -365,6 +385,7 @@ export function useReportingCost(params: {
   const [data, setData] = useState<{
     totals: Totals;
     lines: CostLine[];
+    tariffs: CostTariffs;
     ledgerTotal: number;
     perRun: number;
     perMillion: number;
@@ -376,6 +397,7 @@ export function useReportingCost(params: {
   }>({
     totals: { runs: 0, tokens: 0, cost: 0, errors: 0, latency: 0, successRate: 100 },
     lines: [],
+    tariffs: { vectorStorageRate: 0, objectStorageRate: 0, gpuHourRate: 0, egressRate: 0 },
     ledgerTotal: 0,
     perRun: 0,
     perMillion: 0,
@@ -385,6 +407,9 @@ export function useReportingCost(params: {
     squads: [],
     loading: true,
   });
+
+  const [tick, setTick] = useState(0);
+  const refetch = () => setTick((t) => t + 1);
 
   useEffect(() => {
     let active = true;
@@ -403,6 +428,7 @@ export function useReportingCost(params: {
             successRate: 100,
           },
           lines: res.lines || [],
+          tariffs: res.tariffs || { vectorStorageRate: 0, objectStorageRate: 0, gpuHourRate: 0, egressRate: 0 },
           ledgerTotal: Number(res.ledgerTotal || 0),
           perRun: Number(res.perRun || 0),
           perMillion: Number(res.perMillion || 0),
@@ -421,7 +447,7 @@ export function useReportingCost(params: {
     return () => {
       active = false;
     };
-  }, [params.span, params.from, params.to]);
+  }, [params.span, params.from, params.to, tick]);
 
-  return data;
+  return { ...data, refetch };
 }

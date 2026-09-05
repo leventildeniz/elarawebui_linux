@@ -54065,3 +54065,272 @@ Node.js v22.22.1
 [vault_audit] redactDeep is not a function
 [vault_audit] redactDeep is not a function
 [Reporting API] Notice creating indices: column "owner_id" does not exist
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[Orchestrate] ❌ Provider Claude 3.7 Sonnet failed: Error: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CekrKAk9sbxuMvYVs46Kz"}
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1561:24
+[fetchOpenAIStream] ❌ LLM API returned 401 for gpt-4o at https://api.openai.com/v1/chat/completions: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] ❌ Provider GPT-4o failed: Error: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1561:24
+[fetchOpenAIStream] ❌ LLM API returned 404 for gemini-3.1-pro at https://generativelanguage.googleapis.com/v1beta/openai/chat/completions: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+[Orchestrate] ❌ Provider Gemini 3.1 Pro failed: Error: Connection to LLM failed: LLM API returned 404: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1561:24
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[Reporting API] Error in /api/reporting/cost: ReferenceError: totals is not defined
+    at file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:738:9
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:631
+      const totalInferenceCost = Number(Number(uRow.total_cost || 0).toFixed(2));
+            ^
+
+SyntaxError: Identifier 'totalInferenceCost' has already been declared
+    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:107:18)
+    at #translate (node:internal/modules/esm/loader:546:20)
+    at afterLoad (node:internal/modules/esm/loader:596:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:601:12)
+    at #createModuleJob (node:internal/modules/esm/loader:624:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:343:34)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:311:41)
+
+Node.js v22.22.1
+file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:631
+      const totalInferenceCost = Number(Number(uRow.total_cost || 0).toFixed(2));
+            ^
+
+SyntaxError: Identifier 'totalInferenceCost' has already been declared
+    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:107:18)
+    at #translate (node:internal/modules/esm/loader:546:20)
+    at afterLoad (node:internal/modules/esm/loader:596:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:601:12)
+    at #createModuleJob (node:internal/modules/esm/loader:624:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:343:34)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:311:41)
+
+Node.js v22.22.1
+file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:631
+      const totalInferenceCost = Number(Number(uRow.total_cost || 0).toFixed(2));
+            ^
+
+SyntaxError: Identifier 'totalInferenceCost' has already been declared
+    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:107:18)
+    at #translate (node:internal/modules/esm/loader:546:20)
+    at afterLoad (node:internal/modules/esm/loader:596:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:601:12)
+    at #createModuleJob (node:internal/modules/esm/loader:624:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:343:34)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:311:41)
+
+Node.js v22.22.1
+file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:631
+      const totalInferenceCost = Number(Number(uRow.total_cost || 0).toFixed(2));
+            ^
+
+SyntaxError: Identifier 'totalInferenceCost' has already been declared
+    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:107:18)
+    at #translate (node:internal/modules/esm/loader:546:20)
+    at afterLoad (node:internal/modules/esm/loader:596:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:601:12)
+    at #createModuleJob (node:internal/modules/esm/loader:624:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:343:34)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:311:41)
+
+Node.js v22.22.1
+file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:631
+      const totalInferenceCost = Number(Number(uRow.total_cost || 0).toFixed(2));
+            ^
+
+SyntaxError: Identifier 'totalInferenceCost' has already been declared
+    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:107:18)
+    at #translate (node:internal/modules/esm/loader:546:20)
+    at afterLoad (node:internal/modules/esm/loader:596:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:601:12)
+    at #createModuleJob (node:internal/modules/esm/loader:624:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:343:34)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:311:41)
+
+Node.js v22.22.1
+file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:631
+      const totalInferenceCost = Number(Number(uRow.total_cost || 0).toFixed(2));
+            ^
+
+SyntaxError: Identifier 'totalInferenceCost' has already been declared
+    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:107:18)
+    at #translate (node:internal/modules/esm/loader:546:20)
+    at afterLoad (node:internal/modules/esm/loader:596:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:601:12)
+    at #createModuleJob (node:internal/modules/esm/loader:624:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:343:34)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:311:41)
+
+Node.js v22.22.1
+file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:631
+      const totalInferenceCost = Number(Number(uRow.total_cost || 0).toFixed(2));
+            ^
+
+SyntaxError: Identifier 'totalInferenceCost' has already been declared
+    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:107:18)
+    at #translate (node:internal/modules/esm/loader:546:20)
+    at afterLoad (node:internal/modules/esm/loader:596:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:601:12)
+    at #createModuleJob (node:internal/modules/esm/loader:624:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:343:34)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:311:41)
+
+Node.js v22.22.1
+file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:631
+      const totalInferenceCost = Number(Number(uRow.total_cost || 0).toFixed(2));
+            ^
+
+SyntaxError: Identifier 'totalInferenceCost' has already been declared
+    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:107:18)
+    at #translate (node:internal/modules/esm/loader:546:20)
+    at afterLoad (node:internal/modules/esm/loader:596:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:601:12)
+    at #createModuleJob (node:internal/modules/esm/loader:624:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:343:34)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:311:41)
+
+Node.js v22.22.1
+file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:631
+      const totalInferenceCost = Number(Number(uRow.total_cost || 0).toFixed(2));
+            ^
+
+SyntaxError: Identifier 'totalInferenceCost' has already been declared
+    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:107:18)
+    at #translate (node:internal/modules/esm/loader:546:20)
+    at afterLoad (node:internal/modules/esm/loader:596:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:601:12)
+    at #createModuleJob (node:internal/modules/esm/loader:624:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:343:34)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:311:41)
+
+Node.js v22.22.1
+file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:631
+      const totalInferenceCost = Number(Number(uRow.total_cost || 0).toFixed(2));
+            ^
+
+SyntaxError: Identifier 'totalInferenceCost' has already been declared
+    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:107:18)
+    at #translate (node:internal/modules/esm/loader:546:20)
+    at afterLoad (node:internal/modules/esm/loader:596:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:601:12)
+    at #createModuleJob (node:internal/modules/esm/loader:624:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:343:34)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:311:41)
+
+Node.js v22.22.1
+file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:631
+      const totalInferenceCost = Number(Number(uRow.total_cost || 0).toFixed(2));
+            ^
+
+SyntaxError: Identifier 'totalInferenceCost' has already been declared
+    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:107:18)
+    at #translate (node:internal/modules/esm/loader:546:20)
+    at afterLoad (node:internal/modules/esm/loader:596:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:601:12)
+    at #createModuleJob (node:internal/modules/esm/loader:624:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:343:34)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:311:41)
+
+Node.js v22.22.1
+file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:631
+      const totalInferenceCost = Number(Number(uRow.total_cost || 0).toFixed(2));
+            ^
+
+SyntaxError: Identifier 'totalInferenceCost' has already been declared
+    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:107:18)
+    at #translate (node:internal/modules/esm/loader:546:20)
+    at afterLoad (node:internal/modules/esm/loader:596:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:601:12)
+    at #createModuleJob (node:internal/modules/esm/loader:624:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:343:34)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:311:41)
+
+Node.js v22.22.1
+file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:631
+      const totalInferenceCost = Number(Number(uRow.total_cost || 0).toFixed(2));
+            ^
+
+SyntaxError: Identifier 'totalInferenceCost' has already been declared
+    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:107:18)
+    at #translate (node:internal/modules/esm/loader:546:20)
+    at afterLoad (node:internal/modules/esm/loader:596:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:601:12)
+    at #createModuleJob (node:internal/modules/esm/loader:624:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:343:34)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:311:41)
+
+Node.js v22.22.1
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[Reporting API] Notice creating indices: column "owner_id" does not exist

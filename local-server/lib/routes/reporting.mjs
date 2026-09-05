@@ -92,12 +92,13 @@ export async function mountReportingRoutes(app, deps) {
   function parseDateRange(reqQuery) {
     const DAY_MS = 86_400_000;
     const now = new Date();
-    const todayEnd = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) + DAY_MS - 1;
+    const todayStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+    const todayEnd = todayStart + DAY_MS - 1;
 
     let days = 30;
     let label = "Last 30 days";
     let slug = "30d";
-    let startMs = todayEnd - 30 * DAY_MS;
+    let startMs = todayStart - (30 - 1) * DAY_MS;
     let endMs = todayEnd;
 
     if (reqQuery.from && reqQuery.to) {
@@ -112,12 +113,12 @@ export async function mountReportingRoutes(app, deps) {
       }
     } else if (reqQuery.span === "7d") {
       days = 7;
-      startMs = todayEnd - 7 * DAY_MS;
+      startMs = todayStart - (7 - 1) * DAY_MS;
       label = "Last 7 days";
       slug = "7d";
     } else if (reqQuery.span === "90d") {
       days = 90;
-      startMs = todayEnd - 90 * DAY_MS;
+      startMs = todayStart - (90 - 1) * DAY_MS;
       label = "Last 90 days";
       slug = "90d";
     }
@@ -468,11 +469,66 @@ export async function mountReportingRoutes(app, deps) {
   });
 
   // =========================================================================
-  // 3. GET /api/reporting/cost
+  // 3. GET /api/reporting/cost & TARIFFS CRUD
   // =========================================================================
+  app.get("/api/reporting/cost/tariffs", async (_req, res) => {
+    try {
+      const { rows } = await pool.query("SELECT value FROM app_settings WHERE key = 'finops.tariffs'");
+      const tariffs = rows[0]?.value || {
+        vectorStorageRate: 0,
+        objectStorageRate: 0,
+        gpuHourRate: 0,
+        egressRate: 0,
+      };
+      res.json({ ok: true, tariffs });
+    } catch (err) {
+      console.error("[Reporting API] Error in GET /api/reporting/cost/tariffs:", err);
+      res.status(500).json({ error: String(err.message || err) });
+    }
+  });
+
+  app.put("/api/reporting/cost/tariffs", async (req, res) => {
+    try {
+      const b = req.body || {};
+      const tariffs = {
+        vectorStorageRate: Number(b.vectorStorageRate ?? 0),
+        objectStorageRate: Number(b.objectStorageRate ?? 0),
+        gpuHourRate: Number(b.gpuHourRate ?? 0),
+        egressRate: Number(b.egressRate ?? 0),
+      };
+
+      await pool.query(
+        `INSERT INTO app_settings (key, value, updated_at)
+         VALUES ('finops.tariffs', $1::jsonb, now())
+         ON CONFLICT (key) DO UPDATE SET value = $1::jsonb, updated_at = now()`,
+        [JSON.stringify(tariffs)]
+      );
+
+      res.json({ ok: true, tariffs });
+    } catch (err) {
+      console.error("[Reporting API] Error in PUT /api/reporting/cost/tariffs:", err);
+      res.status(500).json({ error: String(err.message || err) });
+    }
+  });
+
   app.get("/api/reporting/cost", async (req, res) => {
     try {
       const { days, startDate, endDate, label, slug } = parseDateRange(req.query);
+
+      // Read operator-defined infrastructure & storage tariffs from PostgreSQL (app_settings)
+      let tariffs = { vectorStorageRate: 0, objectStorageRate: 0, gpuHourRate: 0, egressRate: 0 };
+      try {
+        const tariffRes = await pool.query("SELECT value FROM app_settings WHERE key = 'finops.tariffs'");
+        if (tariffRes.rows.length > 0 && tariffRes.rows[0].value) {
+          const v = typeof tariffRes.rows[0].value === "string" ? JSON.parse(tariffRes.rows[0].value) : tariffRes.rows[0].value;
+          tariffs = {
+            vectorStorageRate: Number(v.vectorStorageRate ?? 0),
+            objectStorageRate: Number(v.objectStorageRate ?? 0),
+            gpuHourRate: Number(v.gpuHourRate ?? 0),
+            egressRate: Number(v.egressRate ?? 0),
+          };
+        }
+      } catch (e) { }
 
       // Usage aggregate with input vs output tokens
       const usageRes = await pool.query(
@@ -497,6 +553,8 @@ export async function mountReportingRoutes(app, deps) {
       const errors = Number(uRow.total_errors || 0);
       const latency = Number(uRow.avg_latency || 0);
       const successRate = runs > 0 ? Number((100 - (errors / runs) * 100).toFixed(2)) : 100;
+      const totalInferenceCost = Number(Number(uRow.total_cost || 0).toFixed(2));
+      const totals = { runs, tokens, cost: totalInferenceCost, errors, latency, successRate };
 
       // Provider breakdown
       const providerRes = await pool.query(
@@ -567,17 +625,19 @@ export async function mountReportingRoutes(app, deps) {
       const totalStorageMb = Number(storageRes.rows[0]?.total_mb || 0);
       const totalStorageGb = Number((totalStorageMb / 1024).toFixed(2));
 
-      // Build structured cost line items
-      const inputM = Number((inputTokens / 1_000_000).toFixed(2));
-      const outputM = Number((outputTokens / 1_000_000).toFixed(2));
-      const inputCost = Number((inputM * 2.10).toFixed(2));
-      const outputCost = Number((outputM * 8.40).toFixed(2));
-      const localOffload = providers.find((p) => p.label.toLowerCase().includes("local") || p.label.toLowerCase().includes("sovereign"))?.share || 100;
+      // Build structured cost line items from live database metrics
+      const inputM = Number((inputTokens / 1_000_000).toFixed(3));
+      const outputM = Number((outputTokens / 1_000_000).toFixed(3));
+      const inputCost = inputTokens > 0 && (inputTokens + outputTokens) > 0 
+        ? Number((totalInferenceCost * (inputTokens / (inputTokens + outputTokens))).toFixed(2)) 
+        : 0;
+      const outputCost = Number((totalInferenceCost - inputCost).toFixed(2));
+      const localOffload = providers.find((p) => p.label.toLowerCase().includes("local") || p.label.toLowerCase().includes("sovereign"))?.share || (providers.length === 1 && providers[0].runs === 0 ? 100 : 0);
       const gpuHours = Number((runs / 260).toFixed(1));
-      const gpuCost = Number((gpuHours * 1.15).toFixed(2));
-      const vectorStorageCost = Number((Math.max(1, totalStorageGb) * 0.22).toFixed(2));
-      const objectStorageCost = Number((Math.max(1, totalStorageGb * 2.8) * 0.021).toFixed(2));
-      const egressCost = Number((Math.max(0.1, runs * 0.0005) * 0.08).toFixed(2));
+      const gpuCost = Number((gpuHours * tariffs.gpuHourRate).toFixed(2));
+      const vectorStorageCost = Number((Math.max(1, totalStorageGb) * tariffs.vectorStorageRate).toFixed(2));
+      const objectStorageCost = Number((Math.max(1, totalStorageGb * 2.8) * tariffs.objectStorageRate).toFixed(2));
+      const egressCost = Number((Math.max(0.1, runs * 0.0005) * tariffs.egressRate).toFixed(2));
 
       const lines = [
         {
@@ -585,7 +645,7 @@ export async function mountReportingRoutes(app, deps) {
           category: "inference",
           unit: "1M tokens",
           quantity: `${inputM}M`,
-          rate: "$2.10",
+          rate: "DB Rate",
           amount: inputCost,
         },
         {
@@ -593,7 +653,7 @@ export async function mountReportingRoutes(app, deps) {
           category: "inference",
           unit: "1M tokens",
           quantity: `${outputM}M`,
-          rate: "$8.40",
+          rate: "DB Rate",
           amount: outputCost,
         },
         {
@@ -601,7 +661,7 @@ export async function mountReportingRoutes(app, deps) {
           category: "infrastructure",
           unit: "GPU-hour",
           quantity: `${gpuHours}h`,
-          rate: "$1.15",
+          rate: tariffs.gpuHourRate > 0 ? `$${tariffs.gpuHourRate.toFixed(2)}` : "Sovereign ($0)",
           amount: gpuCost,
         },
         {
@@ -609,7 +669,7 @@ export async function mountReportingRoutes(app, deps) {
           category: "storage",
           unit: "GB-month",
           quantity: `${Math.max(1, totalStorageGb)}GB`,
-          rate: "$0.22",
+          rate: tariffs.vectorStorageRate > 0 ? `$${tariffs.vectorStorageRate.toFixed(3)}` : "$0.00",
           amount: vectorStorageCost,
         },
         {
@@ -617,7 +677,7 @@ export async function mountReportingRoutes(app, deps) {
           category: "storage",
           unit: "GB-month",
           quantity: `${Number(Math.max(1, totalStorageGb * 2.8).toFixed(1))}GB`,
-          rate: "$0.021",
+          rate: tariffs.objectStorageRate > 0 ? `$${tariffs.objectStorageRate.toFixed(3)}` : "$0.00",
           amount: objectStorageCost,
         },
         {
@@ -625,14 +685,14 @@ export async function mountReportingRoutes(app, deps) {
           category: "egress",
           unit: "GB",
           quantity: `${Number(Math.max(0.1, runs * 0.0005).toFixed(2))}GB`,
-          rate: "$0.08",
+          rate: tariffs.egressRate > 0 ? `$${tariffs.egressRate.toFixed(2)}` : "$0.00",
           amount: egressCost,
         },
       ];
 
       const ledgerTotal = Number(lines.reduce((a, l) => a + l.amount, 0).toFixed(2));
-      const perRun = runs > 0 ? Number((ledgerTotal / runs).toFixed(4)) : 0;
-      const perMillion = tokens > 0 ? Number((ledgerTotal / (tokens / 1_000_000)).toFixed(2)) : 0;
+      const perRun = runs > 0 ? Number((totalInferenceCost / runs).toFixed(4)) : 0;
+      const perMillion = tokens > 0 ? Number((totalInferenceCost / (tokens / 1_000_000)).toFixed(2)) : 0;
 
       // Daily burn curve
       const dailyRes = await pool.query(
@@ -676,8 +736,9 @@ export async function mountReportingRoutes(app, deps) {
 
       res.json({
         span: { label, slug, days },
-        totals: { runs, tokens, cost: ledgerTotal, errors, latency, successRate },
+        totals,
         lines,
+        tariffs,
         ledgerTotal,
         perRun,
         perMillion,
@@ -1021,8 +1082,8 @@ export async function mountReportingRoutes(app, deps) {
       // Daily trend
       const daily = [];
       const DAY_MS = 86_400_000;
-      for (let i = days - 1; i >= 0; i--) {
-        const fromMs = endMs - (i + 1) * DAY_MS;
+      for (let i = 0; i < days; i++) {
+        const fromMs = startMs + i * DAY_MS;
         const toMs = fromMs + DAY_MS;
         const dDay = docs.filter((d) => d.addedAt >= fromMs && d.addedAt < toMs);
         const qDay = queries.filter((q) => q.at >= fromMs && q.at < toMs);

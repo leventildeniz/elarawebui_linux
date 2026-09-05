@@ -93,7 +93,17 @@ function OperatorsReport() {
   const { operators: everyone } = useOperatorReports(span, { sortBy: "name" });
   const { operators: list, totals: rt, loading } = useOperatorReports(span, query);
   const [selected, setSelected] = useState<string>("");
-  const active = list.find((u) => u.id === selected) ?? list[0];
+  const active = useMemo(() => {
+    if (selected) {
+      const found = list.find((u) => u.id === selected);
+      if (found) return found;
+    }
+    if (only.length === 1) {
+      const single = list.find((u) => u.id === only[0]);
+      if (single) return single;
+    }
+    return list[0];
+  }, [list, selected, only]);
 
   /** RAG activity resolved for the operators currently in scope. */
   const knowledge = useKnowledge();
@@ -136,7 +146,16 @@ function OperatorsReport() {
   const activeRag = active ? ragFor(active) : undefined;
 
   const toggleOnly = (id: string) =>
-    setOnly((o) => (o.includes(id) ? o.filter((x) => x !== id) : [...o, id]));
+    setOnly((o) => {
+      const exists = o.includes(id);
+      const next = exists ? o.filter((x) => x !== id) : [...o, id];
+      if (!exists) {
+        setSelected(id);
+      } else if (selected === id) {
+        setSelected(next[0] || "");
+      }
+      return next;
+    });
 
   const exportRoster = async () => {
     await exportReportPdf(buildReport("operator-roster", span, undefined, query));
@@ -254,7 +273,10 @@ function OperatorsReport() {
               }))}
               value={only}
               onToggle={toggleOnly}
-              onClear={() => setOnly([])}
+              onClear={() => {
+                setOnly([]);
+                setSelected("");
+              }}
             />
           </div>
 
@@ -303,42 +325,50 @@ function OperatorsReport() {
                 "Status",
               ]}
               align={["left", "left", "left", "right", "right", "right", "right", "right", "left"]}
-              rows={list.map((u) => [
-                <button
-                  key="n"
-                  type="button"
-                  onClick={() => setSelected(u.id)}
-                  className={cn(
-                    "text-left transition-colors hover:text-sapphire",
-                    active?.id === u.id ? "text-sapphire" : "text-foreground",
-                  )}
-                >
-                  <span className="font-medium">{u.name}</span>
-                  <span className="ml-2 font-mono text-[11.5px] text-muted-foreground/60">
-                    @{u.username}
-                  </span>
-                </button>,
-                <span key="r" className="font-mono text-[12px] text-muted-foreground/75">
-                  {u.role}
-                </span>,
-                <span
-                  key="p"
-                  className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground/60"
-                >
-                  {u.provider || "local"}
-                </span>,
-                fmtInt(u.runs),
-                fmtTokens(u.localTokens),
-                fmtTokens(u.cloudTokens),
-                fmtMoney(u.cost),
-                `${u.successRate}%`,
-                <span
-                  key="s"
-                  className="font-mono text-[11px] uppercase tracking-[0.1em] text-muted-foreground/55"
-                >
-                  {u.locked ? "locked" : u.status}
-                </span>,
-              ])}
+              rows={list.map((u) => {
+                const isSelected = active?.id === u.id;
+                return [
+                  <button
+                    key="n"
+                    type="button"
+                    onClick={() => setSelected(u.id)}
+                    className={cn(
+                      "flex items-center text-left transition-colors hover:text-sapphire",
+                      isSelected ? "text-sapphire font-semibold" : "text-foreground",
+                    )}
+                  >
+                    <span>{u.name}</span>
+                    <span className="ml-2 font-mono text-[11.5px] text-muted-foreground/60">
+                      @{u.username}
+                    </span>
+                    {isSelected && (
+                      <span className="ml-2 rounded border border-sapphire/40 bg-sapphire/15 px-1.5 py-0.5 font-mono text-[9.5px] uppercase tracking-wider text-sapphire">
+                        Active
+                      </span>
+                    )}
+                  </button>,
+                  <span key="r" className="font-mono text-[12px] text-muted-foreground/75">
+                    {u.role}
+                  </span>,
+                  <span
+                    key="p"
+                    className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground/60"
+                  >
+                    {u.provider || "local"}
+                  </span>,
+                  fmtInt(u.runs),
+                  fmtTokens(u.localTokens),
+                  fmtTokens(u.cloudTokens),
+                  fmtMoney(u.cost),
+                  `${u.successRate}%`,
+                  <span
+                    key="s"
+                    className="font-mono text-[11px] uppercase tracking-[0.1em] text-muted-foreground/55"
+                  >
+                    {u.locked ? "locked" : u.status}
+                  </span>,
+                ];
+              })}
             />
           ) : (
             <div className="py-8 text-center font-mono text-[12px] text-muted-foreground/50">
@@ -414,29 +444,37 @@ function OperatorsReport() {
             <DataTable
               columns={["Operator", "Documents", "Volume", "Chunks", "Queries", "Last upload"]}
               align={["left", "right", "right", "right", "right", "left"]}
-              rows={ragRoster.map(({ u, r }) => [
-                <button
-                  key="n"
-                  type="button"
-                  onClick={() => setSelected(u.id)}
-                  className={cn(
-                    "text-left transition-colors hover:text-sapphire",
-                    active?.id === u.id ? "text-sapphire" : "text-foreground",
-                  )}
-                >
-                  <span className="font-medium">{u.name}</span>
-                  <span className="ml-2 font-mono text-[11.5px] text-muted-foreground/60">
-                    @{u.username}
-                  </span>
-                </button>,
-                fmtInt(r.docs.length),
-                r.mb ? fmtSize(r.mb) : "—",
-                fmtInt(r.chunks),
-                fmtInt(r.queries.length),
-                <span key="l" className="font-mono text-[11.5px] text-muted-foreground/65">
-                  {r.lastUpload ? new Date(r.lastUpload).toISOString().slice(0, 10) : "—"}
-                </span>,
-              ])}
+              rows={ragRoster.map(({ u, r }) => {
+                const isSelected = active?.id === u.id;
+                return [
+                  <button
+                    key="n"
+                    type="button"
+                    onClick={() => setSelected(u.id)}
+                    className={cn(
+                      "flex items-center text-left transition-colors hover:text-sapphire",
+                      isSelected ? "text-sapphire font-semibold" : "text-foreground",
+                    )}
+                  >
+                    <span>{u.name}</span>
+                    <span className="ml-2 font-mono text-[11.5px] text-muted-foreground/60">
+                      @{u.username}
+                    </span>
+                    {isSelected && (
+                      <span className="ml-2 rounded border border-sapphire/40 bg-sapphire/15 px-1.5 py-0.5 font-mono text-[9.5px] uppercase tracking-wider text-sapphire">
+                        Active
+                      </span>
+                    )}
+                  </button>,
+                  fmtInt(r.docs.length),
+                  r.mb ? fmtSize(r.mb) : "—",
+                  fmtInt(r.chunks),
+                  fmtInt(r.queries.length),
+                  <span key="l" className="font-mono text-[11.5px] text-muted-foreground/65">
+                    {r.lastUpload ? new Date(r.lastUpload).toISOString().slice(0, 10) : "—"}
+                  </span>,
+                ];
+              })}
             />
           ) : (
             <div className="py-8 text-center font-mono text-[12px] text-muted-foreground/50">

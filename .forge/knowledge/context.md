@@ -747,7 +747,43 @@ Bu aşamada ELARA, harici Python bağımlılıklarından arındırılarak in-pro
 
 ---
 
-## 52.2. UP NEXT - AUTONOMOUS DAG EXECUTION ENGINE & MULTI-STEP WORKFLOW BENCHMARKING
+## 52.2. COMPLETED (Phase 52.2) - ENTERPRISE REPORTING, AUTO RAG TELEMETRY, ZERO-HARDCODE FINOPS TARIFFS & OPERATOR DEEP DIVE
+
+Bu aşamada Raporlama & Analitik (Reporting) modülündeki tüm şema uyuşmazlıkları, canlı RAG telemetrisi ve FinOps maliyet motoru tamamen dinamik ve sıfır-hardcode mimariye kavuşturulmuştur:
+
+---
+
+### 🔍 1. RAG Telemetrisi ve Şema Onarımı (`reporting.mjs` & `rag-analytics-store.ts`)
+- **Kök Neden & Problem:**
+  - `knowledge_sources` tablosundan `space` sütunu seçilmeye çalışıldığı için `/api/reporting/rag` 500 hatası veriyordu (`space_id` olması gerekiyordu).
+  - `schedules` tablosundaki foreign key uyuşmazlığı `rag_queries` tablosunun bootstrap edilmesini engelliyordu.
+- **Yapılan İyileştirmeler:**
+  - `space` $\rightarrow$ `space_id` eşleşmesi düzeltildi; DDL şema bootstrap blokları izole edilerek `schedules`, `schedule_deliveries` ve `rag_queries` PostgreSQL tabloları ve indeksleri eksiksiz oluşturuldu.
+  - `chat-orchestrate.mjs` içindeki Primary Agent RAG, Universal Model RAG ve Multi-Agent/DAG RAG arama akışlarına **otomatik telemetri kaydı** eklendi. Yapılan her doküman araması anlık olarak `rag_queries` tablosuna işleniyor; **QUERIES, Query Volume, Top Askers, Most Asked Questions ve Space Routing** grafikleri anlık güncelleniyor.
+
+---
+
+### 💰 2. Sıfır-Hardcode FinOps Maliyet Motoru & Dinamik Tarife Arayüzü (`reporting.cost.tsx`, `reporting.mjs`)
+- **Kök Neden & Problem:**
+  - Disk depolama (vektör/nesne) ve egress için kod içine gömülü sabit oranlar bulunuyordu ve Model Kartındaki fiyatlar yerine harici sabitler kullanılıyordu.
+  - Vektör disk alanı maliyeti tekil token sayısına bölünerek "Cost / 1M Tokens" metriği 227 dolar gibi hatalı rakamlar üretiyordu.
+- **Yapılan İyileştirmeler:**
+  - **Dinamik Model Kartı Entegrasyonu:** LLM çıkarım maliyetleri tamamen veritabanındaki model kartından (`input_cost` & `output_cost`) okunarak hesaplanıyor.
+  - **"Tariff Rates" Modalı:** `Cost & Spend` sayfasında `Last 7 days` seçicisinin hemen önüne **Tariff Rates** butonu ve açılır modal eklendi. Operatör Vektör Depolama, Nesne Depolama, GPU Saat ve Egress birim fiyatlarını dilediği gibi güncelleyebilir veya tek tıkla $0'a sıfırlayabilir (`app_settings.finops.tariffs`).
+  - **Doğru Metrik Ayrımı:** `Cost / Run` ve `Cost / 1M Tokens` metrikleri yalnızca gerçek model çıkarım maliyetine bağlandı.
+
+---
+
+### 👤 3. Operatör Analitiği & RAG Deep Dive Odaklama (`reporting.users.tsx`)
+- **Kök Neden & Problem:**
+  - Üstteki filtre çubuğundan operatör seçildiğinde, alttaki RAG Uploads/Queries panelleri varsayılan olarak listenin ilk sırasındaki `admin` operatörüne kilitli kalıyordu.
+- **Yapılan İyileştirmeler:**
+  - `OperatorPicker`'dan bir kullanıcı seçildiğinde veya Roster/RAG tablolarından operatöre tıklandığında Deep Dive ve RAG panelleri anında o operatöre odaklanıyor (`active`).
+  - İncelenen operatörün yanına görsel `ACTIVE` rozeti eklendi.
+
+---
+
+## 52.3. UP NEXT - AUTONOMOUS DAG EXECUTION ENGINE & MULTI-STEP WORKFLOW BENCHMARKING
 - Çok adımlı otonom workflow ve orchestration zincirlerinin canlı icra doğrulaması.
 - MetaForge tarafından üretilen DAG (Directed Acyclic Graph) yapılarının otonom icra motoru üzerinde adım adım, kesintisiz çalıştırılması.
 - Uçtan uca sistem yük testleri ve Load Balancer hazırlığı.

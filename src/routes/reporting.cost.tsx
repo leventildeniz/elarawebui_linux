@@ -1,7 +1,10 @@
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { AnimatePresence, motion } from "motion/react";
+import { SlidersHorizontal, X, Save, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { Surface } from "@/components/sovereign/surface";
+import { JewelButton } from "@/components/sovereign/primitives";
 import {
   BarList,
   DataTable,
@@ -12,7 +15,14 @@ import {
   Sparkline,
 } from "@/components/sovereign/report-kit";
 import { exportReportPdf } from "@/lib/report-pdf";
-import { fmtInt, fmtMoney, fmtTokens, useReportingCost } from "@/lib/report-store";
+import {
+  type CostTariffs,
+  saveCostTariffs,
+  fmtInt,
+  fmtMoney,
+  fmtTokens,
+  useReportingCost,
+} from "@/lib/report-store";
 
 export const Route = createFileRoute("/reporting/cost")({
   head: () => ({
@@ -38,6 +48,8 @@ export const Route = createFileRoute("/reporting/cost")({
 
 function CostPage() {
   const { span, control, label: spanText, slug: spanId, days, end } = useReportSpan();
+  const [tariffOpen, setTariffOpen] = useState(false);
+
   const queryParams = useMemo(() => {
     if (typeof span === "string") return { span };
     return { from: span.from, to: span.to };
@@ -46,6 +58,7 @@ function CostPage() {
   const {
     totals: t,
     lines,
+    tariffs,
     ledgerTotal,
     perRun,
     perMillion,
@@ -54,6 +67,7 @@ function CostPage() {
     providers,
     squads,
     loading,
+    refetch,
   } = useReportingCost(queryParams);
 
   const exportPdf = async () => {
@@ -125,6 +139,15 @@ function CostPage() {
       meta={`FINOPS LEDGER · ${spanText.toUpperCase()}`}
       action={
         <div className="flex flex-wrap items-center justify-end gap-2">
+          <JewelButton
+            size="sm"
+            variant="outline"
+            className="gap-1.5"
+            onClick={() => setTariffOpen(true)}
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5 text-topaz" strokeWidth={1.75} />
+            <span>Tariff Rates</span>
+          </JewelButton>
           {control}
           <ExportButton onClick={exportPdf} />
         </div>
@@ -214,6 +237,195 @@ function CostPage() {
           </ReportPanel>
         </div>
       </div>
+
+      <TariffsDialog
+        open={tariffOpen}
+        initial={tariffs}
+        onClose={() => setTariffOpen(false)}
+        onSaved={refetch}
+      />
     </Surface>
+  );
+}
+
+function TariffsDialog({
+  open,
+  initial,
+  onClose,
+  onSaved,
+}: {
+  open: boolean;
+  initial: CostTariffs;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [draft, setDraft] = useState<CostTariffs>(initial);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setDraft(initial);
+  }, [initial, open]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await saveCostTariffs(draft);
+      toast.success("Infrastructure & storage tariffs saved");
+      onSaved();
+      onClose();
+    } catch (err: any) {
+      toast.error(`Failed to save tariffs: ${err?.message || err}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleResetToZero = () => {
+    setDraft({
+      vectorStorageRate: 0,
+      objectStorageRate: 0,
+      gpuHourRate: 0,
+      egressRate: 0,
+    });
+  };
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+            className="fixed inset-0 z-40 bg-canvas/70 backdrop-blur-[2px]"
+          />
+          <motion.div
+            role="dialog"
+            aria-label="FinOps Tariff Rates"
+            initial={{ opacity: 0, y: 14, filter: "blur(6px)" }}
+            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+            exit={{ opacity: 0, y: -8, filter: "blur(6px)" }}
+            transition={{ duration: 0.15, ease: [0.22, 1, 0.36, 1] }}
+            className="obsidian-slab fixed left-1/2 top-1/2 z-50 w-[min(92vw,500px)] -translate-x-1/2 -translate-y-1/2 rounded-[16px] border border-white/[0.08] p-6 shadow-2xl"
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-[17px] font-medium tracking-tight">FinOps Tariff Rates</h2>
+                <p className="mt-1 font-mono text-[11px] text-muted-foreground/65">
+                  Unit rates for storage, GPU runtime and egress bandwidth. Set to 0 for pure on-prem / zero-cost modeling.
+                </p>
+              </div>
+              <button
+                onClick={onClose}
+                aria-label="Close"
+                className="text-muted-foreground/60 transition-colors hover:text-foreground"
+                title="Close"
+              >
+                <X className="h-4 w-4" strokeWidth={1.5} />
+              </button>
+            </div>
+
+            <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
+              <div className="space-y-1.5">
+                <label className="flex items-center justify-between font-mono text-[11px] uppercase tracking-wider text-muted-foreground/80">
+                  <span>Vector Store Rate</span>
+                  <span className="text-[10px] text-muted-foreground/50">$ / GB-month</span>
+                </label>
+                <input
+                  type="number"
+                  step="0.001"
+                  min="0"
+                  className="w-full rounded-lg border border-white/[0.08] bg-canvas-deep/70 px-3 py-2 font-mono text-[13px] text-foreground outline-none transition-colors focus:border-topaz/60"
+                  value={draft.vectorStorageRate}
+                  onChange={(e) =>
+                    setDraft((d) => ({ ...d, vectorStorageRate: Number(e.target.value) || 0 }))
+                  }
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="flex items-center justify-between font-mono text-[11px] uppercase tracking-wider text-muted-foreground/80">
+                  <span>Object Storage Rate</span>
+                  <span className="text-[10px] text-muted-foreground/50">$ / GB-month</span>
+                </label>
+                <input
+                  type="number"
+                  step="0.001"
+                  min="0"
+                  className="w-full rounded-lg border border-white/[0.08] bg-canvas-deep/70 px-3 py-2 font-mono text-[13px] text-foreground outline-none transition-colors focus:border-topaz/60"
+                  value={draft.objectStorageRate}
+                  onChange={(e) =>
+                    setDraft((d) => ({ ...d, objectStorageRate: Number(e.target.value) || 0 }))
+                  }
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="flex items-center justify-between font-mono text-[11px] uppercase tracking-wider text-muted-foreground/80">
+                  <span>Local GPU Runtime Rate</span>
+                  <span className="text-[10px] text-muted-foreground/50">$ / GPU-hour</span>
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  className="w-full rounded-lg border border-white/[0.08] bg-canvas-deep/70 px-3 py-2 font-mono text-[13px] text-foreground outline-none transition-colors focus:border-topaz/60"
+                  value={draft.gpuHourRate}
+                  onChange={(e) =>
+                    setDraft((d) => ({ ...d, gpuHourRate: Number(e.target.value) || 0 }))
+                  }
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="flex items-center justify-between font-mono text-[11px] uppercase tracking-wider text-muted-foreground/80">
+                  <span>Egress Bandwidth Rate</span>
+                  <span className="text-[10px] text-muted-foreground/50">$ / GB</span>
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  className="w-full rounded-lg border border-white/[0.08] bg-canvas-deep/70 px-3 py-2 font-mono text-[13px] text-foreground outline-none transition-colors focus:border-topaz/60"
+                  value={draft.egressRate}
+                  onChange={(e) =>
+                    setDraft((d) => ({ ...d, egressRate: Number(e.target.value) || 0 }))
+                  }
+                />
+              </div>
+
+              <div className="mt-6 flex items-center justify-between border-t border-white/[0.06] pt-4">
+                <button
+                  type="button"
+                  onClick={handleResetToZero}
+                  className="inline-flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground/60 transition-colors hover:text-ruby"
+                >
+                  <RotateCcw className="h-3 w-3" />
+                  <span>Reset all to $0</span>
+                </button>
+
+                <div className="flex items-center gap-2">
+                  <JewelButton type="button" size="sm" variant="outline" onClick={onClose}>
+                    Cancel
+                  </JewelButton>
+                  <JewelButton
+                    type="submit"
+                    size="sm"
+                    variant="primary"
+                    disabled={saving}
+                    className="gap-1.5"
+                  >
+                    <Save className="h-3.5 w-3.5" />
+                    <span>{saving ? "Saving…" : "Save Tariffs"}</span>
+                  </JewelButton>
+                </div>
+              </div>
+            </form>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
   );
 }
