@@ -93,7 +93,7 @@ export function createKnowledgeMaintenance(deps) {
         DELETE FROM knowledge_chunks c
          WHERE NOT EXISTS (
            SELECT 1 FROM knowledge_files f
-            WHERE f.id = c.file_id OR (f.root = c.root AND f.path = c.path)
+            WHERE f.id = c.file_id OR (f.root = (c.metadata->>'root') AND f.path = c.path)
          )
            AND NOT EXISTS (
            SELECT 1 FROM knowledge_sources s
@@ -101,7 +101,9 @@ export function createKnowledgeMaintenance(deps) {
          )
       `);
       report.removedChunks += orphanChunks.rowCount || 0;
-      const graph = await purgeGraphOrphans(client).catch(() => ({ removedEdges: 0, removedEntities: 0 }));
+      const graph = typeof purgeGraphOrphans === "function" 
+        ? await purgeGraphOrphans(client).catch(() => ({ removedEdges: 0, removedEntities: 0 }))
+        : { removedEdges: 0, removedEntities: 0 };
       report.removedGraphEdges = graph.removedEdges;
       report.removedGraphEntities = graph.removedEntities;
 
@@ -150,10 +152,10 @@ export function createKnowledgeMaintenance(deps) {
           SELECT ctid, ${mapExpr} AS new_path FROM knowledge_chunks WHERE path IS NOT NULL
         )
         UPDATE knowledge_chunks k
-           SET root=$1, path=m.new_path
+           SET metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), '{path}', to_jsonb(m.new_path))
           FROM mapped m
          WHERE k.ctid=m.ctid
-           AND (k.root IS DISTINCT FROM $1 OR k.path IS DISTINCT FROM m.new_path)
+           AND k.path IS DISTINCT FROM m.new_path
       `, [root]).catch((e) => ({ rowCount: 0, error: e.message }));
 
       if (await tableHasColumn("documents", "path").catch(() => false)) {

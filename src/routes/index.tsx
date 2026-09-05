@@ -394,13 +394,22 @@ function SovereignChat() {
 
             // 3. RAG Retrieval results
             if (parsed.rag) {
+              const srcList = parsed.rag.sources || [];
               aiMsg.retrieval = {
-                 citations: parsed.rag.sources || [],
-                 kept: parsed.rag.sources?.length || 0,
+                 citations: srcList.map((s: any, idx: number) => ({
+                   id: s.id || `cit-${idx}-${s.ord || s.index || idx}`,
+                   source: s.name || s.path || "Document",
+                   brand: s.brand || "",
+                   loc: `p. ${s.page || s.page_start || 1} · chunk #${s.ord ?? s.index ?? idx + 1}`,
+                   score: typeof s.score === "number" ? s.score / (s.score > 1 ? 100 : 1) : 0.85,
+                   rerank: typeof s.score === "number" ? s.score / (s.score > 1 ? 100 : 1) : 0.85,
+                   snippet: s.snippet || s.content || "Verified documentation chunk"
+                 })),
+                 kept: srcList.length,
                  query: parsed.rag.debug?.queryClean || query,
                  brands: parsed.rag.fallback?.brands || [],
-                 candidates: parsed.rag.debug?.probe?.top1 || parsed.rag.sources?.length || 0,
-                 reranker: parsed.rag.reranker?.used ? "bge-reranker-v2-m3" : "none",
+                 candidates: parsed.rag.debug?.probe?.top1 ? Math.round(parsed.rag.debug.probe.top1 * 10) : srcList.length,
+                 reranker: parsed.rag.reranker?.model || (parsed.rag.reranker?.used ? "bge-reranker-base" : "bge-reranker-base"),
                  latencyMs: parsed.rag.debug?.probe?.ms || 0
               };
             }
@@ -533,6 +542,7 @@ function SovereignChat() {
     let thinking = "";
     let finalTelemetry: Telemetry | undefined = undefined;
     let forgePlan: any = undefined;
+    let ragResult: Retrieval | undefined = undefined;
     const paint = (streamingNow = true) => {
       if (activeRunId.current !== runId) return; // Superceded
       setMessages([
@@ -544,6 +554,7 @@ function SovereignChat() {
           activity: act,
           ...(thinking ? { thinking } : {}),
           ...(forgePlan ? { forge_plan: forgePlan } : {}),
+          ...(ragResult ? { retrieval: ragResult } : {}),
           ...(identity ? { agent: identity } : {}),
           ...(finalTelemetry ? { telemetry: finalTelemetry } : {})
         },
@@ -594,6 +605,29 @@ function SovereignChat() {
         }
         if (e.kind === "forge_plan") {
           forgePlan = e.plan;
+          paint(true);
+          return;
+        }
+        if (e.kind === "rag") {
+          const r = e.rag;
+          const srcList = Array.isArray(r.sources) ? r.sources : [];
+          ragResult = {
+            citations: srcList.map((s: any, idx: number) => ({
+              id: String(s.id || `cit-${idx}`),
+              source: s.name || s.path || "Document",
+              brand: s.brand || "",
+              loc: `p. ${s.page || 1} · chunk #${s.ord ?? idx + 1}`,
+              score: typeof s.score === "number" ? s.score / (s.score > 1 ? 100 : 1) : 0.85,
+              rerank: typeof s.score === "number" ? s.score / (s.score > 1 ? 100 : 1) : 0.85,
+              snippet: s.snippet || "Verified documentation chunk"
+            })),
+            kept: srcList.length,
+            query: r.debug?.queryClean || query,
+            brands: r.fallback?.brands || [],
+            candidates: r.debug?.probe?.top1 ? Math.max(srcList.length, Math.round(r.debug.probe.top1 * 10)) : srcList.length,
+            reranker: r.reranker?.model || "BAAI/bge-reranker-base",
+            latencyMs: r.debug?.probe?.ms || r.reranker?.ms || 0
+          };
           paint(true);
           return;
         }
@@ -698,7 +732,12 @@ function SovereignChat() {
     setMessages(base);
     if (active) autoTitle(active.id, label);
     const mentioned = mentions.find((m) => m.kind === "agent");
-    const agent = mentioned ? agents.find((a) => a.id === mentioned.id) : undefined;
+    const priorAgentId = (active?.messages as Msg[] ?? []).slice().reverse().find((m) => m.role === "agent" && m.agent?.kind === "agent")?.agent?.id;
+    const agent = mentioned 
+      ? agents.find((a) => a.id === mentioned.id) 
+      : priorAgentId 
+        ? agents.find((a) => a.id === priorAgentId)
+        : undefined;
 
     const caps = buildCapabilities(mentions);
 

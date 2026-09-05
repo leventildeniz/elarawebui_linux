@@ -6,7 +6,7 @@
   "marginGate": 0.06,
   "rerankEnabled": true,
   "rerankTopN": 12,
-  "rerankTimeoutMs": 2500,
+  "rerankTimeoutMs": 8000,
   "rerankWeight": 0.7,
   "rerankMinScore": 0.1,
   "perSourceCap": 4,

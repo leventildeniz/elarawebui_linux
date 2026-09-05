@@ -379,7 +379,7 @@ async function startServer() {
       serverDir: __bootDir,
       EMBED_WORKER_HOST: config.embedWorkerHost || '127.0.0.1',
       EMBED_WORKER_PORT: Number(process.env.EMBED_WORKER_PORT || config.embedWorkerPort || 8082),
-      DEFAULT_EMBED_MODEL: process.env.MLX_EMBED_MODEL || 'BAAI/bge-m3',
+      DEFAULT_EMBED_MODEL: process.env.EMBED_MODEL || process.env.MLX_EMBED_MODEL || 'BAAI/bge-small-en-v1.5',
       ragAutoEmbedDrain,
       pushLog: (source, msg) => console.log(`[${source}] ${msg}`),
       chatTrace: (id, event, data) => console.log(`[TRACE][${id}] ${event}`, data || ''),

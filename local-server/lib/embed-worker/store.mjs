@@ -28,58 +28,78 @@ export async function embedAndStoreChunks(ids, texts, opts = {}) {
   
   await ensureWorker().catch((e) => pushLog("worker", `[ensure-error] ${e?.message || e}`));
   const signal = opts.signal && typeof opts.signal === "object" ? opts.signal : null;
-  const BATCH = Math.max(8, Math.min(256, Number(process.env.EMBED_STORE_BATCH) || 64));
-  const embModel = process.env.EMBED_MODEL || process.env.MLX_EMBED_MODEL || "BAAI/bge-m3";
+  const BATCH = Math.max(16, Math.min(100, Number(process.env.EMBED_STORE_BATCH) || 64));
+  const embModel = process.env.EMBED_MODEL || process.env.DEFAULT_EMBED_MODEL || 'BAAI/bge-small-en-v1.5';
   let written = 0;
 
   for (let i = 0; i < ids.length; i += BATCH) {
     if (signal?.aborted) break;
     const idSlice = ids.slice(i, i + BATCH);
     const txSlice = texts.slice(i, i + BATCH);
-    const embs = await embed(txSlice, { signal }).catch(() => null);
+    const embs = await embed(txSlice, { signal }).catch((e) => {
+      console.error("[store:embed-call-failed]", e?.message || e);
+      return null;
+    });
     if (signal?.aborted) break;
     if (!embs || embs.length !== idSlice.length) {
+      console.warn(`[store:mismatch] embs=${embs?.length} expected=${idSlice.length}`);
       continue;
     }
+
+    const valueTuples = [];
+    const sqlParams = [embModel];
     for (let j = 0; j < idSlice.length; j++) {
-      if (signal?.aborted) break;
       const v = embs[j];
-      if (!Array.isArray(v) || v.length < 128) {
-        if (process.env.DEBUG_RAG) console.error(`[embed] dim mismatch got=${v?.length}`);
-        continue;
-      }
+      if (!Array.isArray(v) || v.length < 128) continue;
+      sqlParams.push(idSlice[j]);
+      sqlParams.push(JSON.stringify(v));
+      valueTuples.push(`($${sqlParams.length - 1}::bigint, $${sqlParams.length}::jsonb)`);
+    }
+
+    if (valueTuples.length > 0) {
       try {
-        const r = await pool.query(
-          `UPDATE knowledge_chunks
-              SET embedding = $1::jsonb,
-                  embedding_status = 'ok',
-                  metadata = jsonb_set(
-                    jsonb_set(
-                      jsonb_set(COALESCE(metadata, '{}'::jsonb), '{embedded_at}', to_jsonb(now())),
-                      '{embedding_model}', to_jsonb($3::text)
-                    ),
-                    '{embedding_status}', '"ok"'
-                  )
-            WHERE id = $2`,
-          [JSON.stringify(v), idSlice[j], embModel]
-        ).catch(async () => {
-          return pool.query(
-            `UPDATE knowledge_chunks
-                SET embedding = $1::jsonb,
-                    metadata = jsonb_set(
-                      jsonb_set(
-                        jsonb_set(COALESCE(metadata, '{}'::jsonb), '{embedded_at}', to_jsonb(now())),
-                        '{embedding_model}', to_jsonb($3::text)
-                      ),
-                      '{embedding_status}', '"ok"'
-                    )
-              WHERE id = $2`,
-            [JSON.stringify(v), idSlice[j], embModel]
-          );
-        });
-        if (r.rowCount > 0) written++;
-      } catch (writeErr) {
-        if (process.env.DEBUG_RAG) console.error("[embed:write]", writeErr.message);
+        const batchSql = `
+          UPDATE knowledge_chunks AS kc
+             SET embedding = v.val,
+                 embedding_status = 'ok',
+                 embedding_locked_at = NULL,
+                 embedding_job_id = NULL,
+                 metadata = jsonb_set(
+                   jsonb_set(
+                     jsonb_set(COALESCE(kc.metadata, '{}'::jsonb), '{embedded_at}', to_jsonb(now())),
+                     '{embedding_model}', to_jsonb($1::text)
+                   ),
+                   '{embedding_status}', '"ok"'
+                 )
+            FROM (VALUES ${valueTuples.join(", ")}) AS v(id, val)
+           WHERE kc.id = v.id`;
+        const r = await pool.query(batchSql, sqlParams);
+        written += r.rowCount || valueTuples.length;
+      } catch (batchErr) {
+        // Fallback row-by-row in case of a single corrupt row
+        for (let j = 0; j < idSlice.length; j++) {
+          const v = embs[j];
+          if (!Array.isArray(v) || v.length < 128) continue;
+          try {
+            const r = await pool.query(
+              `UPDATE knowledge_chunks
+                  SET embedding = $1::jsonb,
+                      embedding_status = 'ok',
+                      embedding_locked_at = NULL,
+                      embedding_job_id = NULL,
+                      metadata = jsonb_set(
+                        jsonb_set(
+                          jsonb_set(COALESCE(metadata, '{}'::jsonb), '{embedded_at}', to_jsonb(now())),
+                          '{embedding_model}', to_jsonb($3::text)
+                        ),
+                        '{embedding_status}', '"ok"'
+                      )
+                WHERE id = $2::bigint`,
+              [JSON.stringify(v), idSlice[j], embModel]
+            );
+            if (r.rowCount > 0) written++;
+          } catch { /* skip */ }
+        }
       }
     }
   }

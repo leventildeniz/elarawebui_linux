@@ -341,16 +341,16 @@ function ControlTab() {
           </MaintButton>
 
           <Tag tone="emerald" className="ml-auto font-mono text-[11.5px] border-emerald/40 text-emerald shadow-[0_0_16px_-4px_var(--emerald)]">
-            reranker: {k.rerankerModel || "bge-reranker-v2-m3"}
+            embed: {k.embedModel || "ready"}
           </Tag>
         </div>
 
         <div className="mt-5 grid gap-4 rounded-lg border border-white/[0.06] bg-raised/25 p-4 sm:grid-cols-3">
-          <Detail label="index" value="pgvector · hnsw (m=16, ef=64)" />
-          <Detail label="chunking" value="1024 tok · 128 overlap" />
-          <Detail label="reranker" value="bge-reranker-v2-m3" />
-          <Detail label="parser" value="unstructured + OCR fallback" />
-          <Detail label="dedupe" value="simhash · 0.94 threshold" />
+          <Detail label="index" value={k.embedModel ? `pgvector · ${k.embedDim ? `${k.embedDim}D ` : ""}(${k.embedModel})` : "offline"} />
+          <Detail label="chunking" value={k.chunkSize ? `${k.chunkSize} chars · ${k.chunkOverlap || 0} overlap` : "—"} />
+          <Detail label="reranker" value={k.rerankerModel || "inactive"} />
+          <Detail label="parser" value={k.activeParser || "—"} />
+          <Detail label="engine" value={k.activeBackend || "—"} />
           <Detail label="last sweep" value={<ClientClock />} />
         </div>
       </Panel>

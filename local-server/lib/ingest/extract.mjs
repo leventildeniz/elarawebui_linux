@@ -17,7 +17,11 @@
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { resolvePrompt } from "../system-prompts.mjs";
+
+const execFileAsync = promisify(execFile);
 
 
 // ---- Chunking constants (kept here, re-exported for external mounts) -------
@@ -71,8 +75,8 @@ export function createIngestExtract(deps = {}) {
     isLikelyBinaryBuffer = (b) => false,
     printableBinarySummary = (p, e, b) => "",
     sanitizeContent = (t) => t,
-    // constants (up to 2M characters ≈ 500 pages per document)
-    MAX_INDEXED_CHARS = 2000000,
+    // constants (up to 100M characters ≈ 25,000+ pages per document)
+    MAX_INDEXED_CHARS = 100000000,
     TEXT_EXT = new Set([".txt", ".md"]),
     IMAGE_EXT = new Set([".jpg", ".jpeg", ".png", ".webp"]),
     AV_EXT = new Set([".mp3", ".wav", ".mp4", ".mkv"]),
@@ -397,6 +401,22 @@ export function createIngestExtract(deps = {}) {
         return { ok: true, content: buf.toString("utf8").slice(0, MAX_INDEXED_CHARS) };
       }
       if (ext === ".pdf") {
+        try {
+          const { stdout } = await execFileAsync("pdftotext", ["-layout", filePath, "-"], {
+            maxBuffer: 256 * 1024 * 1024,
+            timeout: 120_000,
+          });
+          if (stdout && stdout.trim().length > 0) {
+            return {
+              ok: true,
+              content: stdout.slice(0, MAX_INDEXED_CHARS),
+              parser: "pdftotext",
+            };
+          }
+        } catch (pdfTextErr) {
+          console.warn("[pdf-parser] pdftotext failed, falling back to pdf-parse:", pdfTextErr?.message || pdfTextErr);
+        }
+
         const buf = await fs.promises.readFile(filePath);
         const targetPdf = /CP_R82_SecurityManagement_AdminGuide\.pdf$/i.test(path.basename(filePath));
         const pages = [];
@@ -447,15 +467,7 @@ export function createIngestExtract(deps = {}) {
         } catch (e) {
           const err = String(e?.stack || e?.message || e);
           console.error(`[pdf-parser] pdf-parse failed path=${filePath}\n${err}`);
-          const pdftotext = await execCapture("pdftotext", ["-layout", filePath, "-"], 120_000, 256 * 1024 * 1024).catch((ex) => ({ ok: false, error: String(ex), stdout: "", stderr: "" }));
-          if (pdftotext.ok && pdftotext.stdout.trim()) {
-            const content = `\n\n[PDF_PAGE 1]\n${pdftotext.stdout}`;
-            console.warn(`[pdf-parser] fallback pdftotext ok chars=${content.length} path=${filePath}`);
-            return { ok: true, content: content.slice(0, MAX_INDEXED_CHARS), parser: "pdftotext", parserError: err };
-          }
-          const detail = [err, pdftotext.stderr, pdftotext.error].filter(Boolean).join("\n").slice(0, 4000);
-          console.error(`[pdf-parser] fallback pdftotext failed path=${filePath}\n${detail}`);
-          return { ok: false, error: `pdf parse failed: ${detail}` };
+          return { ok: false, error: `pdf parse failed: ${err}` };
         }
       }
       if (ext === ".docx") {

@@ -7,8 +7,7 @@ export const defaultKnowledge: KnowledgeState = {
   autoIngestion: false,
   autoReEnrich: false,
   batchSize: 1000,
-  embedModel: "BAAI/bge-m3",
-  rerankerModel: "bge-reranker-v2-m3",
+  embedModel: "",
   health: {
     chunks: 0,
     ftsNull: 0,
@@ -28,14 +27,37 @@ export const defaultKnowledge: KnowledgeState = {
 export const builtinWebhooks: WebhookAdapter[] = [];
 
 let cachedState = defaultKnowledge;
+let isSyncing = false;
+let syncTimer: any = null;
+let syncListeners = 0;
 
 export async function syncKnowledgeBackend() {
+  if (isSyncing) return;
+  if (typeof document !== "undefined" && document.hidden) return;
+  isSyncing = true;
   try {
     const res = await fetchApi("/api/knowledge/state");
     cachedState = { ...defaultKnowledge, ...res };
     window.dispatchEvent(new CustomEvent(EVT));
   } catch (e) {
-    console.warn("Failed to sync knowledge state:", e);
+    // Silent degradation during transient server loads
+  } finally {
+    isSyncing = false;
+  }
+}
+
+function startSharedSyncLoop() {
+  if (syncTimer) return;
+  syncKnowledgeBackend();
+  syncTimer = setInterval(() => {
+    syncKnowledgeBackend();
+  }, 2000);
+}
+
+function stopSharedSyncLoop() {
+  if (syncTimer && syncListeners <= 0) {
+    clearInterval(syncTimer);
+    syncTimer = null;
   }
 }
 
@@ -107,7 +129,12 @@ export type KnowledgeState = {
   autoReEnrich: boolean;
   batchSize: 500 | 1000 | 2500;
   embedModel: string;
+  embedDim?: number;
   rerankerModel?: string | undefined;
+  activeBackend?: string;
+  activeParser?: string;
+  chunkSize?: number;
+  chunkOverlap?: number;
   health: KnowledgeHealth;
   sources: KnowledgeSource[];
   webhooks: WebhookAdapter[];
@@ -149,13 +176,12 @@ export function useKnowledge() {
     const sync = () => setState(read());
     sync();
     window.addEventListener(EVT, sync);
-    syncBackend();
-    const interval = setInterval(() => {
-      syncBackend();
-    }, 3000);
+    syncListeners++;
+    startSharedSyncLoop();
     return () => {
       window.removeEventListener(EVT, sync);
-      clearInterval(interval);
+      syncListeners--;
+      stopSharedSyncLoop();
     };
   }, []);
 
@@ -415,7 +441,7 @@ export function useKnowledge() {
     setState(next);
   }, []);
 
-  const nuke = useCallback(() => {
+  const nuke = useCallback(async () => {
     const current = read();
     const next: KnowledgeState = {
       ...current,
@@ -434,6 +460,12 @@ export function useKnowledge() {
     };
     write(next);
     setState(next);
+    try {
+      await fetchApi("/api/knowledge/nuke", { method: "POST" });
+      await syncKnowledgeBackend();
+    } catch (e) {
+      console.error("[nuke:failed]", e);
+    }
   }, []);
 
   return {

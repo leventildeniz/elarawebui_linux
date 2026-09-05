@@ -71,7 +71,7 @@ export async function rerank(query, documents, opts = {}) {
     }
   }
 
-  const timeoutMs = Math.max(500, Math.min(8000, Number(opts.timeoutMs) || RAG_SETTINGS.rerankTimeoutMs || 2500));
+  const timeoutMs = Math.max(500, Math.min(15000, Number(opts.timeoutMs) || RAG_SETTINGS.rerankTimeoutMs || 8000));
   const model = process.env.RAG_RERANK_MODEL || "BAAI/bge-reranker-base";
   const t0 = Date.now();
 

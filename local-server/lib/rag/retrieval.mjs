@@ -230,7 +230,7 @@ export async function _ftsHybridFallback({ q, safeLevels, tau, client = null, bi
               ts_rank_cd(c.tsv, to_tsquery('simple', $2)) AS score
          FROM knowledge_chunks c
         WHERE c.tsv @@ to_tsquery('simple', $2)
-          AND c.access_level = ANY($1::text[])
+          AND ($1::text[] IS NULL OR cardinality($1::text[]) = 0 OR c.access_level = ANY($1::text[]))
           AND ($3::int = 0 OR length(c.content) >= $3::int)
           AND ($4::text[] IS NULL OR c.file_id = ANY($4::text[]))
           AND ($5::text[] IS NULL OR lower(regexp_replace(coalesce(c.brand,''), '[_\-].*$', '')) = ANY($5::text[]))
@@ -255,7 +255,7 @@ export async function _ftsHybridFallback({ q, safeLevels, tau, client = null, bi
            JOIN LATERAL (
              SELECT k.* FROM knowledge_chunks k
               WHERE k.file_id = src.id::text
-                AND k.access_level = ANY($1::text[])
+                AND ($1::text[] IS NULL OR cardinality($1::text[]) = 0 OR k.access_level = ANY($1::text[]))
               ORDER BY k.ord ASC LIMIT 1
            ) c ON true`, [safeLevels, orQ]
       ).catch((e) => { setLastFtsError("source_query", e?.message || e); return { rows: [] }; });
@@ -293,7 +293,7 @@ export async function ragProbeAndFetch({ q, allowedLevels, agentId = null, bindi
   const stages = { embedMs: 0, probeSqlMs: 0, ftsMs: 0, vectorFetchMs: 0, rerankMs: 0, extractorMs: 0, hydeMs: 0, prepMs: 0, totalMs: 0 };
 
   const tau = Math.min(0.95, Math.max(0.10, Number(RAG_SETTINGS.injectThreshold) || 0.45));
-  const safeLevels = Array.isArray(allowedLevels) && allowedLevels.length ? allowedLevels : Object.keys(ROLE_RANK);
+  const safeLevels = (Array.isArray(allowedLevels) && allowedLevels.length) ? allowedLevels : null;
   const _caller = String(caller || (agentId ? "agent" : "chat"));
   const _packKeywords = await getActivePackBrandFilter(agentId).catch(() => []);
 
@@ -493,24 +493,24 @@ export async function ragProbeAndFetch({ q, allowedLevels, agentId = null, bindi
       ? `WITH filtered AS MATERIALIZED (
            SELECT id, brand, embedding
              FROM knowledge_chunks
-            WHERE embedding IS NOT NULL AND access_level = ANY($2::text[])
+            WHERE embedding IS NOT NULL AND ($2::text[] IS NULL OR cardinality($2::text[]) = 0 OR access_level = ANY($2::text[]))
               AND ($3::int = 0 OR length(content) >= $3::int)
               AND ($4::text[] IS NULL OR file_id = ANY($4::text[]))
               AND lower(regexp_replace(coalesce(brand,''), '[_\\-].*$', '')) = ANY($5::text[])
               AND ($6::text IS NULL OR lower(product) = $6::text)
          )
-         SELECT id, brand, 1 - (embedding <=> $1::vector) AS score
+         SELECT id, brand, 1 - (embedding::text::vector <=> $1::vector) AS score
            FROM filtered
-          ORDER BY embedding <=> $1::vector
+          ORDER BY embedding::text::vector <=> $1::vector
           LIMIT 4`
-      : `SELECT id, brand, 1 - (embedding <=> $1::vector) AS score
+      : `SELECT id, brand, 1 - (embedding::text::vector <=> $1::vector) AS score
            FROM knowledge_chunks
-          WHERE embedding IS NOT NULL AND access_level = ANY($2::text[])
+          WHERE embedding IS NOT NULL AND ($2::text[] IS NULL OR cardinality($2::text[]) = 0 OR access_level = ANY($2::text[]))
             AND ($3::int = 0 OR length(content) >= $3::int)
             AND ($4::text[] IS NULL OR file_id = ANY($4::text[]))
             AND ($5::text[] IS NULL OR lower(regexp_replace(coalesce(brand,''), '[_\\-].*$', '')) = ANY($5::text[]))
             AND ($6::text IS NULL OR lower(product) = $6::text)
-          ORDER BY embedding <=> $1::vector
+          ORDER BY embedding::text::vector <=> $1::vector
           LIMIT 4`;
 
     const _tProbe0 = Date.now();
@@ -537,7 +537,7 @@ export async function ragProbeAndFetch({ q, allowedLevels, agentId = null, bindi
       // detector hit). In those cases we are demonstrably IN-library; the
       // string-match gate was false-negative on queries like
       // "fortimanager 7.6 vlan" where the lib brand is "Fortigate".
-      const _alreadyLocked = !!_explicitBrandLock || !!_productHardArg || !!(_effectiveBrandsArg && _effectiveBrandsArg.length);
+      const _alreadyLocked = !!_explicitBrandLock || !!_productHardArg || !!(_effectiveBrandsArg && _effectiveBrandsArg.length) || !!(_bindingFileIds && _bindingFileIds.length) || _caller === 'agent-rag' || _caller === 'agent';
       if (_boost > 0 && !_alreadyLocked) {
         const _libBrands = await getLibraryBrands();
         const _libMatch = detectLibraryMatch(qForRetrieval, _libBrands);
@@ -565,7 +565,10 @@ export async function ragProbeAndFetch({ q, allowedLevels, agentId = null, bindi
     stages.ftsMs += Date.now() - _tFts1;
 
     const ftsTop = fts.top1 || 0;
-    const vectorOK = top1 >= effectiveTau;
+    if ((_bindingFileIds && _bindingFileIds.length) || _caller === 'agent-rag' || _caller === 'agent') {
+      effectiveTau = Math.min(effectiveTau, 0.35);
+    }
+    const vectorOK = top1 >= effectiveTau || (top1 >= 0.35 && (_bindingFileIds?.length || _caller === 'agent-rag'));
     const ftsOK    = ftsTop >= 0.10;
     if (RAG_SETTINGS.strictProbeGate && !vectorOK) {
       return { decision: "skip", reason: "below_threshold_strict", rows: [], top1, ftsTop, tau: effectiveTau, explicitBrandLock: _explicitBrandLock, effectiveBrandsArg: _effectiveBrandsArg, libraryMatch: _libraryMatchForDiag, ftsRows: (fts.rows || []).length, ftsError: fts.error || getLastFtsError(), stages };
@@ -617,17 +620,17 @@ export async function ragProbeAndFetch({ q, allowedLevels, agentId = null, bindi
       const full = await client.query(
         `WITH pool AS (
            SELECT id, file_id, path, ord, brand, product, access_level, content, page_start, page_end,
-                  1 - (embedding <=> $1::vector) AS score,
-                  embedding <=> $1::vector       AS distance
+                  1 - (embedding::text::vector <=> $1::vector) AS score,
+                  embedding::text::vector <=> $1::vector       AS distance
              FROM knowledge_chunks
-            WHERE embedding IS NOT NULL AND access_level = ANY($2::text[])
+            WHERE embedding IS NOT NULL AND ($2::text[] IS NULL OR cardinality($2::text[]) = 0 OR access_level = ANY($2::text[]))
               AND ($6::int = 0 OR length(content) >= $6::int)
               AND (cardinality($7::text[]) = 0
                    OR lower(regexp_replace(coalesce(brand,''), '[_\-].*$', '')) = ANY($7::text[]))
               AND ($8::text[] IS NULL OR file_id = ANY($8::text[]))
               AND ($9::text[] IS NULL OR lower(regexp_replace(coalesce(brand,''), '[_\-].*$', '')) = ANY($9::text[]))
               AND ($10::text IS NULL OR lower(product) = $10::text)
-            ORDER BY embedding <=> $1::vector
+            ORDER BY embedding::text::vector <=> $1::vector
             LIMIT $3
          ), ranked AS (
            SELECT *,
@@ -672,15 +675,15 @@ export async function ragProbeAndFetch({ q, allowedLevels, agentId = null, bindi
               const like = `%${tok}%`;
               const _sub = await client.query(
                 `SELECT id, file_id, path, ord, brand, product, access_level, content, page_start, page_end,
-                        1 - (embedding <=> $1::vector) AS score
+                        1 - (embedding::text::vector <=> $1::vector) AS score
                    FROM knowledge_chunks
-                  WHERE embedding IS NOT NULL AND access_level = ANY($2::text[])
+                  WHERE embedding IS NOT NULL AND ($2::text[] IS NULL OR cardinality($2::text[]) = 0 OR access_level = ANY($2::text[]))
                     AND ($3::int = 0 OR length(content) >= $3::int)
                     AND ($4::text[] IS NULL OR file_id = ANY($4::text[]))
                     AND ($5::text[] IS NULL OR lower(regexp_replace(coalesce(brand,''), '[_\\-].*$', '')) = ANY($5::text[]))
                     AND ($6::text IS NULL OR lower(product) = $6::text)
                     AND (path ILIKE $7 OR coalesce(content,'') ILIKE $7)
-                  ORDER BY embedding <=> $1::vector
+                  ORDER BY embedding::text::vector <=> $1::vector
                   LIMIT $8`,
                 [qStrFetch, safeLevels, _minChunkChars, _bindingFileIds, _effectiveBrandsArg, _productHardArg, like, _vPerLimit]
               ).catch((e) => { console.warn(`[VERSION-CANDIDATE] sql fail tok=${tok}: ${e.message}`); return null; });
@@ -744,16 +747,16 @@ export async function ragProbeAndFetch({ q, allowedLevels, agentId = null, bindi
               const vStr = `[${arr[0].join(",")}]`;
               const sub = await client.query(
                 `SELECT id, file_id, path, ord, brand, product, access_level, content, page_start, page_end,
-                        1 - (embedding <=> $1::vector) AS score
+                        1 - (embedding::text::vector <=> $1::vector) AS score
                    FROM knowledge_chunks
-                  WHERE embedding IS NOT NULL AND access_level = ANY($2::text[])
+                  WHERE embedding IS NOT NULL AND ($2::text[] IS NULL OR cardinality($2::text[]) = 0 OR access_level = ANY($2::text[]))
                     AND ($3::int = 0 OR length(content) >= $3::int)
                     AND (cardinality($4::text[]) = 0
                          OR lower(regexp_replace(coalesce(brand,''), '[_\-].*$', '')) = ANY($4::text[]))
                     AND ($5::text[] IS NULL OR file_id = ANY($5::text[]))
                     AND ($6::text[] IS NULL OR lower(regexp_replace(coalesce(brand,''), '[_\-].*$', '')) = ANY($6::text[]))
                     AND ($8::text IS NULL OR lower(product) = $8::text)
-                  ORDER BY embedding <=> $1::vector
+                  ORDER BY embedding::text::vector <=> $1::vector
                   LIMIT $7`,
                 [vStr, safeLevels, _minChunkChars, _packKeywords, _bindingFileIds, _effectiveBrandsArg, _perLimit, _productHardArg]
               ).catch(() => null);
@@ -1157,10 +1160,10 @@ export async function semanticSearch({ q, allowedLevels, matchedBrand, matchedBr
         await client.query(`SET LOCAL statement_timeout = '4s'`).catch(() => {});
         const r = await client.query(
           `SELECT file_id, path, ord, brand, access_level, content, page_start, page_end,
-                  1 - (embedding <=> $1::vector) AS score
+                  1 - (embedding::text::vector <=> $1::vector) AS score
              FROM knowledge_chunks
             WHERE ${where}
-            ORDER BY embedding <=> $1::vector
+            ORDER BY embedding::text::vector <=> $1::vector
             LIMIT ${slot}`, params);
         if (r.rows.length) {
           return r.rows.filter(x => Number(x.score) >= min).slice(0, topK)

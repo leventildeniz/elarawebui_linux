@@ -90,17 +90,9 @@ export function mountKnowledgeMaintenanceRoutes(app, deps) {
 
   app.post("/api/knowledge/nuke", async (req, res) => {
     try {
-      await pool.query("BEGIN");
-      await pool.query("TRUNCATE TABLE knowledge_chunks CASCADE");
-      await pool.query("TRUNCATE TABLE knowledge_sources CASCADE");
-      await pool.query("TRUNCATE TABLE memory_working CASCADE");
-      await pool.query("TRUNCATE TABLE memory_episodic CASCADE");
-      await pool.query("TRUNCATE TABLE memory_facts CASCADE");
-      const graph = await purgeGraphOrphans(pool).catch(() => ({ removedEdges: 0, removedEntities: 0 }));
-      await pool.query("COMMIT");
-      res.json({ ok: true, nuked: true, graph });
+      await pool.query("TRUNCATE TABLE knowledge_chunks, knowledge_sources, memory_working, memory_episodic, memory_facts CASCADE");
+      res.json({ ok: true, nuked: true });
     } catch (e) {
-      await pool.query("ROLLBACK").catch(() => {});
       res.status(500).json({ ok: false, error: String(e.message || e) });
     }
   });

@@ -52575,3 +52575,1359 @@ Node.js v22.22.1
 [Reporting API] Notice during schema initialization: column "owner_id" does not exist
 [vault_audit] redactDeep is not a function
 [vault_audit] redactDeep is not a function
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[rag:auto-embed] worker not ready (status=down, alive=false), waiting 30s
+[rag:queue] embedding_locked_at column not present; using legacy fallback queue.
+[rag:auto-embed] worker not ready (status=down, alive=false), waiting 30s
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[rag:queue] embedding_locked_at column not present; using legacy fallback queue.
+[rag:auto-embed] stopped: column "content_enriched" does not exist
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[rag:auto-embed] stopped: column "content_enriched" does not exist
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[rag:queue] embedding_locked_at column not present; using legacy fallback queue.
+[rag:auto-embed] stopped: column "embedding_status" does not exist
+[rag:auto-embed] stopped: column "embedding_status" does not exist
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[rag:queue] embedding_locked_at column not present; using legacy fallback queue.
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[rag:retrieve:fts] column "page_start" does not exist
+[rag:queue] embedding_locked_at column not present; using legacy fallback queue.
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[rag:retrieve:fts] column "page_start" does not exist
+[rag:queue] embedding_locked_at column not present; using legacy fallback queue.
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[rag:queue] embedding_locked_at column not present; using legacy fallback queue.
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[rag:queue] embedding_locked_at column not present; using legacy fallback queue.
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[rag:queue] embedding_locked_at column not present; using legacy fallback queue.
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[rag:queue] embedding_locked_at column not present; using legacy fallback queue.
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[knowledge-state] GET failed: ReferenceError: sources is not defined
+    at file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/knowledge-state.mjs:117:9
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+[knowledge-state] GET failed: ReferenceError: sources is not defined
+    at file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/knowledge-state.mjs:117:9
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+[knowledge-state] GET failed: ReferenceError: sources is not defined
+    at file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/knowledge-state.mjs:117:9
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+[knowledge-state] GET failed: ReferenceError: sources is not defined
+    at file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/knowledge-state.mjs:117:9
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+[knowledge-state] GET failed: ReferenceError: sources is not defined
+    at file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/knowledge-state.mjs:117:9
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+[knowledge-state] GET failed: ReferenceError: sources is not defined
+    at file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/knowledge-state.mjs:117:9
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+[rag:queue] embedding_locked_at column not present; using legacy fallback queue.
+[knowledge-state] GET failed: ReferenceError: sources is not defined
+    at file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/knowledge-state.mjs:117:9
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+[knowledge-state] GET failed: ReferenceError: sources is not defined
+    at file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/knowledge-state.mjs:117:9
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+[knowledge-state] GET failed: ReferenceError: sources is not defined
+    at file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/knowledge-state.mjs:117:9
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+[knowledge-state] GET failed: ReferenceError: sources is not defined
+    at file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/knowledge-state.mjs:117:9
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+[knowledge-state] GET failed: ReferenceError: sources is not defined
+    at file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/knowledge-state.mjs:117:9
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+[knowledge-state] GET failed: ReferenceError: sources is not defined
+    at file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/knowledge-state.mjs:117:9
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+[knowledge-state] GET failed: ReferenceError: sources is not defined
+    at file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/knowledge-state.mjs:117:9
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+[knowledge-state] GET failed: ReferenceError: sources is not defined
+    at file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/knowledge-state.mjs:117:9
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+[knowledge-state] GET failed: ReferenceError: sources is not defined
+    at file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/knowledge-state.mjs:117:9
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+[knowledge-state] GET failed: ReferenceError: sources is not defined
+    at file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/knowledge-state.mjs:117:9
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+[knowledge-state] GET failed: ReferenceError: sources is not defined
+    at file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/knowledge-state.mjs:117:9
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+[knowledge-state] GET failed: ReferenceError: sources is not defined
+    at file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/knowledge-state.mjs:117:9
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+[knowledge-state] GET failed: ReferenceError: sources is not defined
+    at file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/knowledge-state.mjs:117:9
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+[knowledge-state] GET failed: ReferenceError: sources is not defined
+    at file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/knowledge-state.mjs:117:9
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+[knowledge-state] GET failed: ReferenceError: sources is not defined
+    at file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/knowledge-state.mjs:117:9
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+[knowledge-state] GET failed: ReferenceError: sources is not defined
+    at file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/knowledge-state.mjs:117:9
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+[knowledge-state] GET failed: ReferenceError: sources is not defined
+    at file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/knowledge-state.mjs:117:9
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+[knowledge-state] GET failed: ReferenceError: sources is not defined
+    at file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/knowledge-state.mjs:117:9
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+[knowledge-state] GET failed: ReferenceError: sources is not defined
+    at file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/knowledge-state.mjs:117:9
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+[knowledge-state] GET failed: ReferenceError: sources is not defined
+    at file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/knowledge-state.mjs:117:9
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+[knowledge-state] GET failed: ReferenceError: sources is not defined
+    at file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/knowledge-state.mjs:117:9
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+[knowledge-state] GET failed: ReferenceError: sources is not defined
+    at file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/knowledge-state.mjs:117:9
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[rag:queue] embedding_locked_at column not present; using legacy fallback queue.
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[rag:queue] embedding_locked_at column not present; using legacy fallback queue.
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[rag:queue] embedding_locked_at column not present; using legacy fallback queue.
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[rag:queue] embedding_locked_at column not present; using legacy fallback queue.
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[rag:queue] embedding_locked_at column not present; using legacy fallback queue.
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[rag:queue] embedding_locked_at column not present; using legacy fallback queue.
+[POST /api/agents] error: insert or update on table "agents" violates foreign key constraint "agents_model_id_fkey"
+[POST /api/agents] error: insert or update on table "agents" violates foreign key constraint "agents_model_id_fkey"
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[rag:queue] embedding_locked_at column not present; using legacy fallback queue.
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[rag:queue] embedding_locked_at column not present; using legacy fallback queue.
+[pg async write:side] invalid input syntax for type uuid: "chat_1788554161793"
+[PROBE-SQL] FAIL: operator does not exist: jsonb <=> vector brandLock=null brandsArg=null
+[pg async write:side] invalid input syntax for type uuid: "chat_1788554161793"
+[TCP-KILLER] Request Error to 192.168.0.18:8001: socket hang up
+[Orchestrate] ❌ Provider Gemma 4 31B Local failed: Error: Connection to LLM failed: socket hang up
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1461:24
+[Orchestrate] ❌ Provider Claude 3.7 Sonnet failed: Error: Connection to LLM failed: Aborted before request started
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1461:24
+[TCP-KILLER] Request Error to api.anthropic.com:443: Aborted before request started
+[Orchestrate] ❌ Provider GPT-4o failed: Error: Connection to LLM failed: Aborted before request started
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1461:24
+[TCP-KILLER] Request Error to api.openai.com:443: Aborted before request started
+[Orchestrate] ❌ Provider Gemini 3.1 Pro failed: Error: Connection to LLM failed: Aborted before request started
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1461:24
+[TCP-KILLER] Request Error to generativelanguage.googleapis.com:443: Aborted before request started
+[Orchestrate] ❌ Provider Gemini 3.7 Flash failed: Error: Connection to LLM failed: Aborted before request started
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1461:24
+[TCP-KILLER] Request Error to generativelanguage.googleapis.com:443: Aborted before request started
+[Orchestrate] ❌ Provider Gemini 3.8 Flash failed: Error: Connection to LLM failed: Aborted before request started
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1461:24
+[TCP-KILLER] Request Error to generativelanguage.googleapis.com:443: Aborted before request started
+[Orchestrate] ❌ Provider Gemini 3.1 Flash Lite failed: Error: Connection to LLM failed: Aborted before request started
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1461:24
+[Orchestrate] ❌ Provider Gemma 4 31B Local (Provider Fallback) failed: Error: Connection to LLM failed: Aborted before request started
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1461:24
+[TCP-KILLER] Request Error to generativelanguage.googleapis.com:443: Aborted before request started
+[TCP-KILLER] Request Error to 192.168.0.18:8001: Aborted before request started
+[Orchestrate] ❌ Provider Gemini 3.1 Flash Lite (Provider Fallback) failed: Error: Connection to LLM failed: Aborted before request started
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1461:24
+[TCP-KILLER] Request Error to generativelanguage.googleapis.com:443: Aborted before request started
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[pg async write:side] invalid input syntax for type uuid: "chat_1788554161793"
+[PROBE-SQL] FAIL: operator does not exist: jsonb <=> vector brandLock=null brandsArg=null
+[pg async write:side] invalid input syntax for type uuid: "chat_1788554161793"
+[rag:queue] embedding_locked_at column not present; using legacy fallback queue.
+[Orchestrate] Tool execution error (tool_tool_web_fetch) - Real ID (tool.web_fetch): ToolPolicyError: agent agt.4r791a not allowed for tool tool.web_fetch
+    at invokeTool (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/tool-adapters.mjs:381:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:2205:45
+[pg async write:side] invalid input syntax for type uuid: "chat_1788554161793"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788554161793"
+[TCP-KILLER] Request Error to 192.168.0.18:8001: Client Aborted
+[pg async write:side] invalid input syntax for type uuid: "chat_1788554161793"
+[PROBE-SQL] FAIL: operator does not exist: jsonb <=> vector brandLock=null brandsArg=null
+[pg async write:side] invalid input syntax for type uuid: "chat_1788554161793"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788554161793"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788554161793"
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[rag:queue] embedding_locked_at column not present; using legacy fallback queue.
+[pg async write:side] invalid input syntax for type uuid: "chat_1788555140157"
+[PROBE-SQL] FAIL: operator does not exist: jsonb <=> vector brandLock=null brandsArg=null
+[pg async write:side] invalid input syntax for type uuid: "chat_1788555140157"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788555140157"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788555140157"
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[rag:retrieve:fts] column "page_start" does not exist
+[rag:queue] embedding_locked_at column not present; using legacy fallback queue.
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[rag:queue] embedding_locked_at column not present; using legacy fallback queue.
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[rag:queue] embedding_locked_at column not present; using legacy fallback queue.
+[pg async write:side] invalid input syntax for type uuid: "chat_1788556697201"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788556697201"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788556697201"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788556697201"
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[pg async write:side] invalid input syntax for type uuid: "chat_1788556697201"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788556697201"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788556697201"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788556697201"
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[pg async write:side] invalid input syntax for type uuid: "chat_1788556697201"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788556697201"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788556697201"
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[rag:queue] embedding_locked_at column not present; using legacy fallback queue.
+[pg async write:side] invalid input syntax for type uuid: "chat_1788556697201"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788556697201"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788556697201"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788556697201"
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[pg async write:side] invalid input syntax for type uuid: "chat_1788557392404"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788557392404"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788557392404"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788557392404"
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[pg async write:side] invalid input syntax for type uuid: "chat_1788557392404"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788557392404"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788557392404"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788557392404"
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[pg async write:side] invalid input syntax for type uuid: "chat_1788557392404"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788557392404"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788557392404"
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[rag:queue] embedding_locked_at column not present; using legacy fallback queue.
+[pg async write:side] invalid input syntax for type uuid: "chat_1788557948813"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788557948813"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788557948813"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788557948813"
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[rag:queue] embedding_locked_at column not present; using legacy fallback queue.
+[pg async write:side] invalid input syntax for type uuid: "chat_1788558179329"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788558179329"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788558179329"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788558179329"
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[pg async write:side] invalid input syntax for type uuid: "chat_1788558179329"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788558179329"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788558179329"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788558179329"
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[pg async write:side] invalid input syntax for type uuid: "chat_1788558179329"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788558179329"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788558179329"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788558179329"
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[purgeGraphOrphans] relation "knowledge_entity_mentions" does not exist
+[purgeGraphOrphans] relation "knowledge_entity_mentions" does not exist
+[purgeGraphOrphans] relation "knowledge_entity_mentions" does not exist
+[purgeGraphOrphans] relation "knowledge_entity_mentions" does not exist
+[purgeGraphOrphans] relation "knowledge_entity_mentions" does not exist
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[rag:queue] embedding_locked_at column not present; using legacy fallback queue.
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[linkEntities] relation "knowledge_entities" does not exist
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[rag:queue] embedding_locked_at column not present; using legacy fallback queue.
+[purgeGraphOrphans] relation "knowledge_entity_mentions" does not exist
+[rag:auto-embed] worker not ready (status=online-auto, alive=false), waiting 15s
+[rag:auto-embed] worker not ready (status=online-auto, alive=false), waiting 15s
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[rag:auto-embed] worker not ready (status=online-auto, alive=false), waiting 15s
+[rag:auto-embed] worker not ready (status=online-auto, alive=false), waiting 15s
+[rag:auto-embed] worker not ready (status=online-auto, alive=false), waiting 15s
+[rag:auto-embed] worker not ready (status=online-auto, alive=false), waiting 15s
+[rag:auto-embed] worker not ready (status=online-auto, alive=false), waiting 15s
+[rag:auto-embed] worker not ready (status=online-auto, alive=false), waiting 15s
+[rag:auto-embed] worker not ready (status=online-auto, alive=false), waiting 15s
+[rag:auto-embed] worker not ready (status=online-auto, alive=false), waiting 15s
+[rag:auto-embed] worker not ready (status=online-auto, alive=false), waiting 15s
+[rag:auto-embed] worker not ready (status=online-auto, alive=false), waiting 15s
+[rag:auto-embed] worker not ready (status=online-auto, alive=false), waiting 15s
+[rag:auto-embed] worker not ready (status=online-auto, alive=false), waiting 15s
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[rag:auto-embed] batch wrote 0 — embed worker unresponsive, waiting 15s
+[rag:auto-embed] worker not ready (status=online-external, alive=false), waiting 15s
+[rag:auto-embed] worker not ready (status=online-external, alive=false), waiting 15s
+[rag:auto-embed] worker not ready (status=online-external, alive=false), waiting 15s
+[rag:auto-embed] worker not ready (status=online-external, alive=false), waiting 15s
+[rag:auto-embed] worker not ready (status=online-external, alive=false), waiting 15s
+[rag:auto-embed] worker not ready (status=online-external, alive=false), waiting 15s
+[rag:auto-embed] worker not ready (status=online-external, alive=false), waiting 15s
+[rag:auto-embed] worker not ready (status=online-external, alive=false), waiting 15s
+[rag:auto-embed] worker not ready (status=online-external, alive=false), waiting 15s
+[rag:auto-embed] worker not ready (status=online-external, alive=false), waiting 15s
+[rag:auto-embed] worker not ready (status=online-external, alive=false), waiting 15s
+[rag:auto-embed] worker not ready (status=online-external, alive=false), waiting 15s
+[rag:auto-embed] worker not ready (status=online-external, alive=false), waiting 15s
+[rag:auto-embed] worker not ready (status=online-external, alive=false), waiting 15s
+[rag:auto-embed] worker not ready (status=online-external, alive=false), waiting 15s
+[rag:auto-embed] worker not ready (status=online-external, alive=false), waiting 15s
+[rag:auto-embed] worker not ready (status=online-external, alive=false), waiting 15s
+[rag:auto-embed] worker not ready (status=online-external, alive=false), waiting 15s
+[rag:auto-embed] worker not ready (status=online-external, alive=false), waiting 15s
+[rag:auto-embed] worker not ready (status=online-external, alive=false), waiting 15s
+[rag:auto-embed] worker not ready (status=online-external, alive=false), waiting 15s
+[rag:auto-embed] worker not ready (status=online-external, alive=false), waiting 15s
+[rag:auto-embed] worker not ready (status=online-external, alive=false), waiting 15s
+[rag:auto-embed] worker not ready (status=online-external, alive=false), waiting 15s
+[rag:auto-embed] worker not ready (status=online-external, alive=false), waiting 15s
+[rag:auto-embed] worker not ready (status=online-external, alive=false), waiting 15s
+[rag:auto-embed] worker not ready (status=online-external, alive=false), waiting 15s
+[rag:auto-embed] worker not ready (status=online-external, alive=false), waiting 15s
+[rag:auto-embed] worker not ready (status=online-external, alive=false), waiting 15s
+[rag:auto-embed] batch wrote 0 — embed worker unresponsive, waiting 15s
+[rag:auto-embed] batch wrote 0 — embed worker unresponsive, waiting 15s
+[rag:auto-embed] worker not ready (status=online-external, alive=false), waiting 15s
+[rag:auto-embed] worker not ready (status=online-external, alive=false), waiting 15s
+[rag:auto-embed] batch wrote 0 — embed worker unresponsive, waiting 15s
+[rag:auto-embed] batch wrote 0 — embed worker unresponsive, waiting 15s
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[rag:auto-embed] worker not ready (status=online-external, alive=false), waiting 15s
+[rag:auto-embed] worker not ready (status=online-external, alive=false), waiting 15s
+[rag:auto-embed] worker not ready (status=online-external, alive=false), waiting 15s
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[rag:auto-embed] batch wrote 0 — embed worker unresponsive, waiting 15s
+[rag:auto-embed] batch wrote 0 — embed worker unresponsive, waiting 15s
+[rag:auto-embed] batch wrote 0 — embed worker unresponsive, waiting 15s
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[rag:auto-embed] batch wrote 0 — embed worker unresponsive, waiting 15s
+[rag:auto-embed] batch wrote 0 — embed worker unresponsive, waiting 15s
+[rag:auto-embed] footprint 4.092GB/4GB (102%) — 15s backpressure
+[rag:auto-embed] batch wrote 0 — embed worker unresponsive, waiting 15s
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[rag:auto-embed] footprint 7.785GB/8GB (97%) — 15s backpressure
+[rag:auto-embed] footprint 7.752GB/8GB (97%) — 15s backpressure
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[rag:auto-embed] batch wrote 0 — embed worker unresponsive, waiting 15s
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[rag:auto-embed] batch wrote 0 — embed worker unresponsive, waiting 15s
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[rag:auto-embed] batch wrote 0 — embed worker unresponsive, waiting 15s
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[rag:auto-embed] batch wrote 0 — embed worker unresponsive, waiting 15s
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[rag:auto-embed] batch wrote 0 — embed worker unresponsive, waiting 15s
+[rag:auto-embed] footprint 4.687GB/4GB (117%) — 15s backpressure
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[rag:auto-embed] footprint 7.811GB/8GB (98%) — 15s backpressure
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=4
+[rag:auto-embed] batch wrote 0 — embed worker unresponsive, waiting 15s
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=4
+[rag:auto-embed] batch wrote 0 — embed worker unresponsive, waiting 15s
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=4
+[rag:auto-embed] batch wrote 0 — embed worker unresponsive, waiting 15s
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[rag:auto-embed] footprint 4.084GB/4GB (102%) — 15s backpressure
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[purgeGraphOrphans] relation "knowledge_entity_mentions" does not exist
+[purgeGraphOrphans] relation "knowledge_entity_mentions" does not exist
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=20
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=4
+[rag:auto-embed] batch wrote 0 — embed worker unresponsive, waiting 15s
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/knowledge-retrieve.mjs:328
+        const claim = await sjClaim(pool, "backfill", { batch: Number(req.body?.batch) || 32, retryErrors: !!req.body?.retryErrors })
+                            ^
+
+TypeError: sjClaim is not a function
+    at file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/knowledge-retrieve.mjs:328:29
+    at Layer.handle [as handle_request] (/home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/express/lib/router/layer.js:95:5)
+    at next (/home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/express/lib/router/route.js:144:13)
+    at Route.dispatch (/home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/express/lib/router/route.js:114:3)
+    at Layer.handle [as handle_request] (/home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/express/lib/router/layer.js:95:5)
+    at /home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/express/lib/router/index.js:284:15
+    at Function.process_params (/home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/express/lib/router/index.js:346:12)
+    at next (/home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/express/lib/router/index.js:280:10)
+    at file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/server.mjs:441:7
+    at Layer.handle [as handle_request] (/home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/express/lib/router/layer.js:95:5)
+
+Node.js v22.22.1
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/knowledge-retrieve.mjs:339
+        const claim = await sjClaim(pool, "backfill", { batch: Number(req.body?.batch) || 32, retryErrors: !!req.body?.retryErrors })
+                            ^
+
+TypeError: sjClaim is not a function
+    at file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/knowledge-retrieve.mjs:339:29
+    at Layer.handle [as handle_request] (/home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/express/lib/router/layer.js:95:5)
+    at next (/home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/express/lib/router/route.js:144:13)
+    at Route.dispatch (/home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/express/lib/router/route.js:114:3)
+    at Layer.handle [as handle_request] (/home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/express/lib/router/layer.js:95:5)
+    at /home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/express/lib/router/index.js:284:15
+    at Function.process_params (/home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/express/lib/router/index.js:346:12)
+    at next (/home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/express/lib/router/index.js:280:10)
+    at file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/server.mjs:441:7
+    at Layer.handle [as handle_request] (/home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/express/lib/router/layer.js:95:5)
+
+Node.js v22.22.1
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[purgeGraphOrphans] relation "knowledge_entity_mentions" does not exist
+[purgeGraphOrphans] relation "knowledge_entity_mentions" does not exist
+[purgeGraphOrphans] relation "knowledge_entity_mentions" does not exist
+[knowledge/file] INGEST FAILED: error: insert or update on table "knowledge_chunks" violates foreign key constraint "knowledge_chunks_source_id_fkey"
+    at /home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async rebuildChunksForFile (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/ingest/pipeline.mjs:97:21)
+    at async ingestSource (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/ingest/pipeline.mjs:147:21)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/knowledge-ingest.mjs:371:22 {
+  length: 339,
+  severity: 'ERROR',
+  code: '23503',
+  detail: 'Key (source_id)=(88a7c658-67c8-45a1-973c-36f8cc324a41) is not present in table "knowledge_sources".',
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: 'public',
+  table: 'knowledge_chunks',
+  column: undefined,
+  dataType: undefined,
+  constraint: 'knowledge_chunks_source_id_fkey',
+  file: 'ri_triggers.c',
+  line: '2772',
+  routine: 'ri_ReportViolation'
+}
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[purgeGraphOrphans] relation "knowledge_entity_mentions" does not exist
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[rag:auto-embed] batch wrote 0 — embed worker unresponsive, waiting 15s
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=4
+[rag:auto-embed] batch wrote 0 — embed worker unresponsive, waiting 15s
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[purgeGraphOrphans] relation "knowledge_entity_mentions" does not exist
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=4
+[rag:auto-embed] batch wrote 0 — embed worker unresponsive, waiting 15s
+[purgeGraphOrphans] relation "knowledge_entity_mentions" does not exist
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[purgeGraphOrphans] relation "knowledge_entity_mentions" does not exist
+[purgeGraphOrphans] relation "knowledge_entity_mentions" does not exist
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[purgeGraphOrphans] relation "knowledge_entity_mentions" does not exist
+[rag:auto-embed] batch wrote 0 — embed worker unresponsive, waiting 15s
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[pg async write:side] invalid input syntax for type uuid: "chat_1788574356238"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788574356238"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788574356238"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788574356238"
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[pg async write:side] invalid input syntax for type uuid: "chat_1788574356238"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788574356238"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788574356238"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788574356238"
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[pg async write:side] invalid input syntax for type uuid: "chat_1788574356238"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788574356238"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788574356238"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788574356238"
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[pg async write:side] invalid input syntax for type uuid: "chat_1788574535518"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788574535518"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788574535518"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788574535518"
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[purgeGraphOrphans] relation "knowledge_entity_mentions" does not exist
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=32
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=128
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=128
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=128
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=128
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=128
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=128
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=128
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=128
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=116
+[rag:auto-embed] batch wrote 0 — embed worker unresponsive, waiting 15s
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=116
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=128
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=128
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=128
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[purgeGraphOrphans] relation "knowledge_entity_mentions" does not exist
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=116
+[rag:auto-embed] batch wrote 0 — embed worker unresponsive, waiting 15s
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=128
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=128
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=128
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=128
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=128
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=128
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=128
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=116
+[rag:auto-embed] batch wrote 0 — embed worker unresponsive, waiting 15s
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=64
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=50
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=36
+[rag:auto-embed] batch wrote 0 — embed worker unresponsive, waiting 15s
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[store:mismatch] embs=undefined expected=64
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): The operation was aborted due to timeout
+[rag:auto-embed] worker not ready (status=down, alive=false), waiting 15s
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[rag:auto-embed] worker not ready (status=down, alive=false), waiting 15s
+[rag:auto-embed] worker not ready (status=down, alive=false), waiting 15s
+[rag:auto-embed] worker not ready (status=down, alive=false), waiting 15s
+[rag:auto-embed] worker not ready (status=down, alive=false), waiting 15s
+[rag:auto-embed] worker not ready (status=down, alive=false), waiting 15s
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[store:mismatch] embs=undefined expected=64
+[rag:auto-embed] batch wrote 0 — waiting 3s
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[store:mismatch] embs=undefined expected=64
+[rag:auto-embed] batch wrote 0 — waiting 3s
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[store:mismatch] embs=undefined expected=64
+[rag:auto-embed] batch wrote 0 — waiting 3s
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[store:mismatch] embs=undefined expected=64
+[rag:auto-embed] batch wrote 0 — waiting 3s
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[store:mismatch] embs=undefined expected=64
+[rag:auto-embed] batch wrote 0 — waiting 3s
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[store:mismatch] embs=undefined expected=64
+[rag:auto-embed] batch wrote 0 — waiting 3s
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[embed-provider] fetch attempt 2/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[store:mismatch] embs=undefined expected=64
+[rag:auto-embed] batch wrote 0 — waiting 3s
+[embed-provider] fetch attempt 1/2 failed (http://127.0.0.1:8082/v1/embeddings): fetch failed
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[pg async write:side] invalid input syntax for type uuid: "chat_1788580075538"
+[PROBE-SQL] FAIL: different vector dimensions 2 and 384 brandLock=fortigate brandsArg=["fortigate"]
+[pg async write:side] invalid input syntax for type uuid: "chat_1788580075538"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788580075538"
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[pg async write:side] invalid input syntax for type uuid: "chat_1788580252380"
+[PROBE-SQL] FAIL: different vector dimensions 2 and 384 brandLock=fortigate brandsArg=["fortigate"]
+[pg async write:side] invalid input syntax for type uuid: "chat_1788580252380"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788580252380"
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[pg async write:side] invalid input syntax for type uuid: "chat_1788580999267"
+[PROBE-SQL] FAIL: different vector dimensions 2 and 384 brandLock=fortigate brandsArg=["fortigate"]
+[pg async write:side] invalid input syntax for type uuid: "chat_1788580999267"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788580999267"
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[pg async write:side] invalid input syntax for type uuid: "chat_1788581029679"
+[PROBE-SQL] FAIL: different vector dimensions 2 and 384 brandLock=fortigate brandsArg=["fortigate"]
+[pg async write:side] invalid input syntax for type uuid: "chat_1788581029679"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788581029679"
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[pg async write:side] invalid input syntax for type uuid: "chat_1788581652542"
+[PROBE-SQL] FAIL: different vector dimensions 2 and 384 brandLock=fortigate brandsArg=["fortigate"]
+[pg async write:side] invalid input syntax for type uuid: "chat_1788581652542"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788581652542"
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[pg async write:side] invalid input syntax for type uuid: "chat_1788581775247"
+[PROBE-SQL] FAIL: different vector dimensions 2 and 384 brandLock=fortigate brandsArg=["fortigate"]
+[pg async write:side] invalid input syntax for type uuid: "chat_1788581775247"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788581775247"
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[PROBE-SQL] FAIL: different vector dimensions 2 and 384 brandLock=fortigate brandsArg=["fortigate"]
+[Orchestrate] ❌ Provider Claude 3.7 Sonnet failed: Error: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CejeTNZP7NuZ53bG53i5Y"}
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1517:24
+[fetchOpenAIStream] ❌ LLM API returned 401 for gpt-4o at https://api.openai.com/v1/chat/completions: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] ❌ Provider GPT-4o failed: Error: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1517:24
+[fetchOpenAIStream] ❌ LLM API returned 404 for gemini-3.1-pro at https://generativelanguage.googleapis.com/v1beta/openai/chat/completions: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+[Orchestrate] ❌ Provider Gemini 3.1 Pro failed: Error: Connection to LLM failed: LLM API returned 404: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1517:24
+[TCP-KILLER] Request Error to generativelanguage.googleapis.com:443: Client Aborted
+[Orchestrate] ❌ Provider Claude 3.7 Sonnet failed: Error: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CejeteHNy2X6Z1pDU79Hs"}
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1517:24
+[fetchOpenAIStream] ❌ LLM API returned 401 for gpt-4o at https://api.openai.com/v1/chat/completions: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] ❌ Provider GPT-4o failed: Error: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1517:24
+[fetchOpenAIStream] ❌ LLM API returned 404 for gemini-3.1-pro at https://generativelanguage.googleapis.com/v1beta/openai/chat/completions: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+[Orchestrate] ❌ Provider Gemini 3.1 Pro failed: Error: Connection to LLM failed: LLM API returned 404: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1517:24
+[TCP-KILLER] Request Error to generativelanguage.googleapis.com:443: Client Aborted
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[Orchestrate] ❌ Provider Claude 3.7 Sonnet failed: Error: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011Cejf3iA3XTsenfxoDYEGw"}
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1517:24
+[fetchOpenAIStream] ❌ LLM API returned 401 for gpt-4o at https://api.openai.com/v1/chat/completions: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] ❌ Provider GPT-4o failed: Error: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1517:24
+[fetchOpenAIStream] ❌ LLM API returned 404 for gemini-3.1-pro at https://generativelanguage.googleapis.com/v1beta/openai/chat/completions: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+[Orchestrate] ❌ Provider Gemini 3.1 Pro failed: Error: Connection to LLM failed: LLM API returned 404: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1517:24
+[TCP-KILLER] Request Error to generativelanguage.googleapis.com:443: Client Aborted
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[pg async write:side] invalid input syntax for type uuid: "chat_1788582524900"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788582524900"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788582524900"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788582524900"
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[pg async write:side] invalid input syntax for type uuid: "chat_1788582524900"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788582524900"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788582524900"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788582524900"
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[pg async write:side] invalid input syntax for type uuid: "chat_1788582620414"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788582620414"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788582620414"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788582620414"
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[Reporting API] Notice during schema initialization: column "owner_id" does not exist
+[pg async write:side] invalid input syntax for type uuid: "chat_1788583033422"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788583033422"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788583033422"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788583033422"
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[pg async write:side] invalid input syntax for type uuid: "chat_1788583107171"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788583107171"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788583107171"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788583107171"
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[pg async write:side] invalid input syntax for type uuid: "chat_1788583394296"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788583394296"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788583394296"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788583394296"
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[pg async write:side] invalid input syntax for type uuid: "chat_1788583424462"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788583424462"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788583424462"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788583424462"
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[pg async write:side] invalid input syntax for type uuid: "chat_1788583561160"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788583561160"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788583561160"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788583561160"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788583561160"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788583561160"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788583561160"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788583561160"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788583561160"
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[pg async write:side] invalid input syntax for type uuid: "chat_1788583561160"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788583561160"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788583561160"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788583561160"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788583561160"
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[pg async write:side] invalid input syntax for type uuid: "chat_1788583561160"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788583561160"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788583561160"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788583561160"
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[capabilities] sp_skills skipped: column "slug" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[pg async write:side] invalid input syntax for type uuid: "chat_1788583561160"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788583561160"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788583561160"
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[pg async write:side] invalid input syntax for type uuid: "chat_1788583561160"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788583561160"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788583561160"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788583561160"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788583561160"
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function
+[capabilities] sp_skills skipped: column "slug" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[pg async write:side] invalid input syntax for type uuid: "chat_1788583561160"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788583561160"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788583561160"
+[Orchestrate] Telemetry recordUsage failed: enqueueWrite is not a function

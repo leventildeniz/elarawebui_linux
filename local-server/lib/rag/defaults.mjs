@@ -13,7 +13,7 @@ export function buildRagDefaults({ envNumber, TIMEOUT_BUDGETS }) {
     strictProbeGate: String(process.env.RAG_STRICT_PROBE_GATE ?? "1") === "1",
     rerankEnabled:    String(process.env.RAG_RERANK_ENABLED ?? "1") === "1",
     rerankTopN:       envNumber("RAG_RERANK_TOP_N",       12),
-    rerankTimeoutMs:  envNumber("RAG_RERANK_TIMEOUT_MS",  2500),
+    rerankTimeoutMs:  envNumber("RAG_RERANK_TIMEOUT_MS",  8000),
     rerankWeight:     envNumber("RAG_RERANK_WEIGHT",      0.7),
     rerankMinScore:   envNumber("RAG_RERANK_MIN_SCORE",   0.10),
     minSupportSources: Math.max(0, envNumber("RAG_MIN_SUPPORT_SOURCES", 6)),

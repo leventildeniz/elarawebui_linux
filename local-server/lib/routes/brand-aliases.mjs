@@ -340,11 +340,7 @@ export function mountBrandAliasesRoutes(appOrObj, depsArg) {
             name: b.name,
             chunkCount: b.chunkCount,
             lastEnrichedAt: b.lastEnrichedAt,
-            aliases: Array.isArray(entry.aliases) && entry.aliases.length ? entry.aliases : (
-              b.name === 'fortigate' ? ['fortinet', 'fortios', 'fortimanager', 'fortianalyzer'] :
-              b.name === 'checkpoint' ? ['gaia', 'r81', 'r82', 'smartconsole', 'checkpoint-fw'] :
-              b.name === 'netscaler' ? ['citrix', 'netscaler-adc', 'nitro'] : []
-            ),
+            aliases: Array.isArray(entry.aliases) ? entry.aliases : [],
             aliasesUpdatedAt: entry.updated_at || null,
             reenrichedAt,
             stale,

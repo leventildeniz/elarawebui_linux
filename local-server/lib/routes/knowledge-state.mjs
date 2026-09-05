@@ -14,18 +14,18 @@ export async function mountKnowledgeConfigRoutes(app, deps) {
       // Fetch sources
       const srcRes = await pool.query("SELECT * FROM knowledge_sources ORDER BY added_at DESC");
 
-      // Dynamic brand aggregation from active sources and collections
+      // Dynamic brand aggregation from active collections, sources, and knowledge_brands
       const [brandDbRes, brandStatsRes] = await Promise.all([
         pool.query("SELECT * FROM knowledge_brands ORDER BY id ASC").catch(() => ({ rows: [] })),
         pool.query(`
           SELECT
-            LOWER(COALESCE(NULLIF(ks.brand,''), NULLIF(rf.name,''), 'unbranded')) AS brand,
+            LOWER(COALESCE(NULLIF(rf.name,''), NULLIF(ks.brand,''), 'unbranded')) AS brand,
             COUNT(kc.id)::int AS chunk_count,
             MAX(COALESCE(kc.metadata->>'enriched_at', ks.indexed_at::text, ks.added_at::text)) AS last_enriched
-          FROM knowledge_sources ks
+          FROM rag_folders rf
+          FULL OUTER JOIN knowledge_sources ks ON ks.folder_id = rf.id
           LEFT JOIN knowledge_chunks kc ON kc.source_id = ks.id::text
-          LEFT JOIN rag_folders rf ON rf.id = ks.folder_id
-          WHERE ks.folder_id IS DISTINCT FROM 'uploads'
+          WHERE COALESCE(rf.id, '') IS DISTINCT FROM 'uploads'
           GROUP BY 1
         `).catch(() => ({ rows: [] }))
       ]);
@@ -83,8 +83,19 @@ export async function mountKnowledgeConfigRoutes(app, deps) {
         stage: s.stage || "",
       }));
 
-      const embedModel = process.env.EMBED_MODEL || process.env.MLX_EMBED_MODEL || c.embed_model || "BAAI/bge-m3";
-      const rerankerModel = process.env.RAG_RERANK_MODEL || process.env.RERANK_MODEL || "bge-reranker-v2-m3";
+      // Dynamic worker probe for live model metadata
+      let workerHealth = null;
+      try {
+        const workerPort = Number(process.env.EMBED_WORKER_PORT || 8082);
+        const wr = await fetch(`http://127.0.0.1:${workerPort}/health`, { signal: AbortSignal.timeout(1500) });
+        if (wr.ok) workerHealth = await wr.json();
+      } catch {}
+
+      const embedModel = workerHealth?.model || c.embed_model || process.env.EMBED_MODEL || null;
+      const embedDim = workerHealth?.dim || null;
+      const rerankerModel = workerHealth?.reranker?.model || process.env.RAG_RERANK_MODEL || null;
+      const activeBackend = workerHealth?.backend || (workerHealth?.ok ? "ready" : "offline");
+      const activeParser = "pdftotext (C++) + fallback";
 
       // Calculate live health directly from database chunks
       const [totalChunksRes, embedHealthRes] = await Promise.all([
@@ -92,10 +103,10 @@ export async function mountKnowledgeConfigRoutes(app, deps) {
         pool.query(`
           SELECT
             count(*) FILTER (WHERE embedding IS NOT NULL)::int AS embed_ok,
-            count(*) FILTER (WHERE embedding IS NULL AND COALESCE(metadata->>'embedding_status','pending') NOT IN ('in_progress','error','stale'))::int AS embed_pending,
-            count(*) FILTER (WHERE metadata->>'embedding_status' = 'in_progress')::int AS in_progress,
-            count(*) FILTER (WHERE metadata->>'embedding_status' = 'stale')::int AS stale,
-            count(*) FILTER (WHERE metadata->>'embedding_status' = 'error')::int AS embed_error,
+            count(*) FILTER (WHERE embedding IS NULL AND COALESCE(embedding_status, metadata->>'embedding_status', 'pending') NOT IN ('in_progress','error','stale'))::int AS embed_pending,
+            count(*) FILTER (WHERE COALESCE(embedding_status, metadata->>'embedding_status') = 'in_progress')::int AS in_progress,
+            count(*) FILTER (WHERE COALESCE(embedding_status, metadata->>'embedding_status') = 'stale')::int AS stale,
+            count(*) FILTER (WHERE COALESCE(embedding_status, metadata->>'embedding_status') = 'error')::int AS embed_error,
             count(*) FILTER (WHERE fts IS NULL)::int AS fts_null
           FROM knowledge_chunks
         `).catch(() => ({ rows: [{ embed_ok: 0, embed_pending: 0, in_progress: 0, stale: 0, embed_error: 0, fts_null: 0 }] }))
@@ -115,7 +126,12 @@ export async function mountKnowledgeConfigRoutes(app, deps) {
         autoReEnrich: c.auto_re_enrich,
         batchSize: c.batch_size,
         embedModel,
+        embedDim,
         rerankerModel,
+        activeBackend,
+        activeParser,
+        chunkSize: 1200,
+        chunkOverlap: 150,
         health: {
           chunks: liveChunks,
           ftsNull,

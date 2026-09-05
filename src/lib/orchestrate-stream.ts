@@ -58,6 +58,7 @@ export type OrchestrateEvent =
   | { kind: "out"; text: string }
   /** Telemetry emitted at the end. */
   | { kind: "telemetry"; latency: { ttftMs: number; totalMs: number; tokensOut: number; modelOut?: string } }
+  | { kind: "rag"; rag: any }
   | { kind: "forge_plan"; plan: any }
   | { kind: "error"; message: string }
   | { kind: "done" };
@@ -75,6 +76,9 @@ export function parseOrchestrateFrame(raw: string): OrchestrateEvent | null {
 
   if (data["forge_plan"]) {
     return { kind: "forge_plan", plan: data["forge_plan"] };
+  }
+  if (data["rag"]) {
+    return { kind: "rag", rag: data["rag"] };
   }
 
   if (phase === "tool_execution") {

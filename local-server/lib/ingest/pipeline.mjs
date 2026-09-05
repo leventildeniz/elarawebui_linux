@@ -59,41 +59,50 @@ export function createIngestPipeline(deps) {
     const newIds = [];
     const newTexts = [];
     const RAG_SETTINGS = getRagSettings();
-    for (let idx = 0; idx < chunks.length; idx++) {
+    const BATCH_SIZE = 64;
+
+    for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
       if (signal?.aborted) break;
-      if (idx > 0 && idx % 15 === 0) await new Promise((r) => setImmediate(r));
-      const rawChunk = chunks[idx];
-      const chunk = typeof rawChunk === "string" ? rawChunk : (rawChunk?.content || String(rawChunk || ""));
-      const enriched = enrichChunkContent({ brand: finalBrand, path: filePath, content: chunk });
-      const { product, category, version: docVersion } = extractProduct({ brand: finalBrand, path: filePath, filename: null });
-      
-      const metadata = {
-        root, path: filePath, access_level: accessLevel, brand: finalBrand,
-        source_type: sourceType, version, source_timestamp: sourceTimestamp,
-        page_start: 1, page_end: 1,
-        product, product_category: category, doc_version: docVersion,
-        content_enriched: enriched, enriched_at: new Date().toISOString(),
-        embedding_status: "pending"
-      };
+      const slice = chunks.slice(i, i + BATCH_SIZE);
+      const values = [];
+      const placeholders = [];
+      let paramIdx = 1;
 
-      const r = await pool.query(
-        `INSERT INTO knowledge_chunks(source_id, space_id, seq, content, metadata, embedding_status, embedding_attempts)
-         VALUES ($1, $2, $3, $4, $5::jsonb, 'pending', 0) RETURNING id`,
-        [fileId, spaceId || null, idx, chunk, JSON.stringify(metadata)]
-      ).catch(async () => {
-        return pool.query(
-          `INSERT INTO knowledge_chunks(source_id, space_id, seq, content, metadata)
-           VALUES ($1, $2, $3, $4, $5::jsonb) RETURNING id`,
-          [fileId, spaceId || null, idx, chunk, JSON.stringify(metadata)]
-        );
-      });
+      for (let j = 0; j < slice.length; j++) {
+        const idx = i + j;
+        const rawChunk = slice[j];
+        const chunk = typeof rawChunk === "string" ? rawChunk : (rawChunk?.content || String(rawChunk || ""));
+        const enriched = enrichChunkContent({ brand: finalBrand, path: filePath, content: chunk });
+        const { product, category, version: docVersion } = extractProduct({ brand: finalBrand, path: filePath, filename: null });
+        
+        const metadata = {
+          root, path: filePath, access_level: accessLevel, brand: finalBrand,
+          source_type: sourceType, version, source_timestamp: sourceTimestamp,
+          page_start: 1, page_end: 1,
+          product, product_category: category, doc_version: docVersion,
+          content_enriched: enriched, enriched_at: new Date().toISOString(),
+          embedding_status: "pending"
+        };
 
-      await linkEntitiesForChunk(r.rows[0].id, chunk).catch(() => {});
-      newIds.push(r.rows[0].id);
+        placeholders.push(`($${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}::jsonb)`);
+        values.push(fileId, spaceId || null, idx, chunk, JSON.stringify(metadata));
 
-      const embText = RAG_SETTINGS?.useEnrichedContent ? enriched : chunk;
-      newTexts.push(String(embText).slice(0, 1500));
-      n++;
+        const embText = RAG_SETTINGS?.useEnrichedContent ? enriched : chunk;
+        newTexts.push(String(embText).slice(0, 1500));
+        n++;
+      }
+
+      if (placeholders.length > 0) {
+        const sql = `INSERT INTO knowledge_chunks(source_id, space_id, seq, content, metadata) VALUES ${placeholders.join(", ")} RETURNING id`;
+        const res = await pool.query(sql, values);
+        for (const row of res.rows) {
+          newIds.push(row.id);
+        }
+      }
+
+      if (i > 0 && i % (BATCH_SIZE * 4) === 0) {
+        await new Promise((r) => setImmediate(r));
+      }
     }
 
     if (awaitEmbeddings) {
@@ -111,7 +120,7 @@ export function createIngestPipeline(deps) {
   // ---- Universal Ingestion ------------------------------------------------
   async function ingestSource({ id, name, type, content, url = null, tag = null, brand = null, accessLevel = "Viewer", sourceTimestamp = null, awaitEmbeddings = false, parentId = null, crawlConfig = null, parserUsed = null, parseQuality = null, title = null, spaceId = null, ownerId = null, ownerName = null, sizeMb = 0, folderId = null, userTags = [] }) {
     const sourceId = id || createLocalId();
-    const safeContent = sanitizeContent(content).slice(0, MAX_INDEXED_CHARS);
+    const safeContent = sanitizeContent(content).slice(0, 100000000);
     const chunkCount = Math.max(1, Math.ceil(safeContent.length / 800));
     const contentHash = createHash("sha256").update(safeContent).digest("hex");
     const charCount = safeContent.length;

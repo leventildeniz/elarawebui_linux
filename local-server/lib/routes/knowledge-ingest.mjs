@@ -32,7 +32,7 @@ const VISIO_EXT = new Set([".vsdx", ".vsdm", ".vstx", ".vstm", ".vsd", ".vss", "
 const INDEXABLE_EXT = new Set([...TEXT_EXT, ...BINARY_DOC_EXT, ...IMAGE_EXT, ...AV_EXT, ...VISIO_EXT]);
 
 const MAX_FILE_BYTES = 500 * 1024 * 1024;
-const MAX_INDEXED_CHARS = 2000000;
+const MAX_INDEXED_CHARS = 100000000;
 const FTS_INPUT_CHAR_LIMIT = 500000;
 
 export function mountKnowledgeIngestRoutes(app, deps) {
@@ -75,7 +75,7 @@ export function mountKnowledgeIngestRoutes(app, deps) {
         } catch {}
         const content = `# ${title}\nVideo URL: ${url}\n\n# Transcript\n${transcript}`;
         const result = await ingestSource({
-          name: title, type: "video", content, url, tag: "YouTube Video", brand: "youtube", awaitEmbeddings: true,
+          name: title, type: "video", content, url, tag: "YouTube Video", brand: "youtube", awaitEmbeddings: false,
         });
         const autoReenrich = maybeAutoReenrich({ brand: "youtube", perRequestFlag: _coerceBool(req.body?.autoReEnrich), source: "fetch:youtube" });
         return res.json({
@@ -104,7 +104,7 @@ export function mountKnowledgeIngestRoutes(app, deps) {
             .map(c => `**u/${c.author}** (${c.score}↑): ${c.body}`);
           const title = post.title || `Reddit r/${redditMatch[1]}`;
           const content = `# ${title}\nSubreddit: r/${redditMatch[1]} · u/${post.author||"?"} · ${post.score||0}↑\nURL: ${url}\n\n# Post\n${post.selftext || "(link post)"}\n\n# Comments (${comments.length})\n${comments.join("\n\n")}`;
-          const result = await ingestSource({ name: title, type: "url", content, url, tag: "Reddit Thread", brand: "reddit", awaitEmbeddings: true ,
+          const result = await ingestSource({ name: title, type: "url", content, url, tag: "Reddit Thread", brand: "reddit", awaitEmbeddings: false ,
         spaceId: req.body?.spaceId || null, ownerId: req.body?.ownerId || null, ownerName: req.body?.ownerName || null,
       });
           const autoReenrich = maybeAutoReenrich({ brand: "reddit", perRequestFlag: _coerceBool(req.body?.autoReEnrich), source: "fetch:reddit" });
@@ -138,7 +138,7 @@ export function mountKnowledgeIngestRoutes(app, deps) {
           const lines = messages.reverse().map(m => `**${m.author?.username || "?"}** [${m.timestamp || ""}]: ${m.content || ""}${(m.attachments||[]).map(a=>`\n  ↪ ${a.url}`).join("")}`);
           const title = `Discord channel ${channelId}`;
           const content = `# ${title}\n${url}\n\n${lines.join("\n\n")}`;
-          const result = await ingestSource({ name: title, type: "messaging", content, url, tag: "Discord Export", brand: "discord", awaitEmbeddings: true });
+          const result = await ingestSource({ name: title, type: "messaging", content, url, tag: "Discord Export", brand: "discord", awaitEmbeddings: false });
           const autoReenrich = maybeAutoReenrich({ brand: "discord", perRequestFlag: _coerceBool(req.body?.autoReEnrich), source: "fetch:discord" });
           return res.json({ ok: true, id: result.sourceId, url, title, tag: "Discord Export", chunks: result.chunks, brand: "discord", preview: lines.slice(0,3).join("\n").slice(0,600), autoReenrich });
         }
@@ -241,7 +241,7 @@ export function mountKnowledgeIngestRoutes(app, deps) {
           const result = await ingestSource({
             name: extracted.title || path.basename(urlPath) || url,
             type: "url", content: extracted.content, url, tag: `URL ${extGuess.slice(1).toUpperCase()}`,
-            brand, awaitEmbeddings: true,
+            brand, awaitEmbeddings: false,
             parserUsed: extracted.parser || `url-${extGuess.slice(1)}`,
             parseQuality: extracted.parseQuality || "ok",
             title: extracted.title || null,
@@ -263,7 +263,7 @@ export function mountKnowledgeIngestRoutes(app, deps) {
         return res.status(200).json({ ok: false, error: `Page produced too little usable text (parser=${htmlParser}, quality=${quality}). The page may be a JS-rendered SPA — try a sitemap URL or a static mirror.` });
       }
       const result = await ingestSource({
-        name: title || url, type: "url", content: text, url, tag: "Web Source", brand, awaitEmbeddings: true,
+        name: title || url, type: "url", content: text, url, tag: "Web Source", brand, awaitEmbeddings: false,
         parserUsed: htmlParser, parseQuality: quality, title: title || null,
         spaceId: req.body?.spaceId || null, ownerId: req.body?.ownerId || null, ownerName: req.body?.ownerName || null,
       });
@@ -286,7 +286,7 @@ export function mountKnowledgeIngestRoutes(app, deps) {
       const resolvedBrand = (url ? deriveBrandFromUrl(url) : null) || brand || null;
       const result = await ingestSource({
         name: name || `inline-${new Date().toISOString().slice(0,10)}.txt`,
-        type: "text", content: text, tag: tag || "Inline Text", brand: resolvedBrand, awaitEmbeddings: true,
+        type: "text", content: text, tag: tag || "Inline Text", brand: resolvedBrand, awaitEmbeddings: false,
       });
       const autoReenrich = maybeAutoReenrich({ brand: resolvedBrand, perRequestFlag: _coerceBool(req.body?.autoReEnrich), source: "text" });
       res.json({ ok: true, id: result.sourceId, chunks: result.chunks, autoReenrich });
@@ -370,7 +370,7 @@ export function mountKnowledgeIngestRoutes(app, deps) {
                        : "Uploaded File";
       const result = await ingestSource({
         name: req.file.originalname, type: sourceType,
-        content: extracted.content, tag: req.body?.tag !== undefined ? req.body.tag : defaultTag, brand, awaitEmbeddings: true,
+        content: extracted.content, tag: req.body?.tag !== undefined ? req.body.tag : defaultTag, brand, awaitEmbeddings: false,
         parserUsed: extracted.parser || null, parseQuality: extracted.parseQuality || null, title: extracted.title || null,
         spaceId: req.body?.spaceId || null, ownerId: req.body?.ownerId || null, ownerName: req.body?.ownerName || null,
         sizeMb: req.file.size ? req.file.size / (1024 * 1024) : 0,

@@ -23,7 +23,7 @@ export function initEmbedWorkerProbe({
   }
 
   // Zombi detection: /health can lie. Real round-trip → numeric vector back.
-  async function verifyEmbedAlive(timeoutMs = 3000) {
+  async function verifyEmbedAlive(timeoutMs = 8000) {
     try {
       const model = process.env.MLX_EMBED_MODEL || defaultModel;
       const r = await fetch(`${base}/v1/embeddings`, {

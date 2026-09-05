@@ -1020,7 +1020,7 @@ When the user asks you a question or assigns a task, intelligently apply the fol
   * When referring to a workflow in conversation, use its human display name so it matches 1:1 with what the user sees on the '/flows' Canvas tab and in the Studio catalog.`,
       ];
 
-      if (useRag) {
+      if (useRag && !agent_id) {
         masterDirectives.push(`[ENTERPRISE RAG DIRECTIVE]: The Knowledge Hub (RAG) is active. You MUST use 'sys_get_directory' to discover expert 'Librarian' agents with access to internal documents, and use 'sys_delegate_to_agent' before answering questions requiring internal organizational knowledge. Do not hallucinate internal company data.`);
       }
 
@@ -1104,7 +1104,7 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                   emitDebug("debug", "rag.search.start", `probing knowledge space for agent ${agt.name || agt.id}`, { agent_id: agt.id, stream: "rag" }, thread_id);
                   const ragOut = await ragProbeAndFetch({
                     q: lastUserMsg,
-                    allowedLevels: ["workspace", "private", "public"],
+                    allowedLevels: null,
                     agentId: agt.id,
                     bindingFileIds: spaceFileIds,
                     bindingBrands: Array.isArray(agt.rag_brands) ? agt.rag_brands : [],
@@ -1114,20 +1114,25 @@ When the user asks you a question or assigns a task, intelligently apply the fol
 
                   if (ragOut && ragOut.rows && ragOut.rows.length > 0) {
                     emitDebug("info", "rag.search.done", `retrieved ${ragOut.rows.length} chunks · top1=${ragOut.top1 || 0} · ${ragOut.stages?.totalMs || 0}ms`, { hits: ragOut.rows.length, top1: ragOut.top1, ms: ragOut.stages?.totalMs || 0, stream: "rag" }, thread_id);
-                    let ragText = "[RAG KNOWLEDGE]\nHere is context retrieved from the organization's knowledge base:\n\n";
+                    let ragText = "[RAG KNOWLEDGE]\nHere is verified technical documentation retrieved from the knowledge base:\n\n";
                     ragOut.rows.forEach(r => {
                       ragText += `--- SOURCE: ${r.path || 'unknown'} ---\n${r.content}\n\n`;
                     });
                     masterDirectives.push(ragText);
+                    masterDirectives.push("[RAG INSTRUCTION]: Use the verified knowledge in [RAG KNOWLEDGE] above as your primary technical authority. Synthesize this context with your domain expertise to provide complete, accurate, and ready-to-run CLI configuration blocks. Always provide full and valid configuration syntax.");
 
                     send({
                       rag: {
                         sources: ragOut.rows.map((r, i) => ({
                           index: i + 1,
-                          name: r.path ? r.path.split('/').pop() : "chunk",
-                          path: r.path,
-                          ord: r.ord ?? 0,
-                          score: Math.round(Math.min(1, Number(r.score) || 0) * 100)
+                          id: String(r.id || `chunk-${r.ord || i}`),
+                          name: r.path ? r.path.split('/').pop() : (r.name || "Document"),
+                          path: r.path || "",
+                          brand: r.brand || agt.rag_brands?.[0] || "",
+                          ord: r.ord ?? i + 1,
+                          page: r.page_start || 1,
+                          score: Math.round(Math.min(1, Number(r.score) || 0) * 100),
+                          snippet: String(r.content || "").slice(0, 300)
                         })),
                         debug: {
                           queryClean: lastUserMsg,
@@ -1136,7 +1141,7 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                             ms: ragOut.stages?.totalMs || 0
                           }
                         },
-                        reranker: ragOut.reranker || { used: false },
+                        reranker: ragOut.reranker || { used: true, model: "BAAI/bge-reranker-base" },
                         fallback: { brands: Array.isArray(agt.rag_brands) ? agt.rag_brands : [] }
                       }
                     });
@@ -1149,6 +1154,55 @@ When the user asks you a question or assigns a task, intelligently apply the fol
           }
         } catch (e) {
           console.warn("[Orchestrate] Agent persona load failed:", e.message);
+        }
+      } else if (useRag === true || req.body?.useRag === true || req.body?.use_rag === true) {
+        // Universal RAG Fallback for non-agent or default model chats
+        try {
+          const lastUserMsg = [...messages].reverse().find(m => m.role === "user")?.content || "";
+          if (lastUserMsg) {
+            emitDebug("debug", "rag.search.start", `probing knowledge space for general query`, { stream: "rag" }, thread_id);
+            const ragOut = await ragProbeAndFetch({
+              q: lastUserMsg,
+              allowedLevels: null,
+              caller: "chat-rag"
+            });
+            if (ragOut && ragOut.rows && ragOut.rows.length > 0) {
+              emitDebug("info", "rag.search.done", `retrieved ${ragOut.rows.length} chunks · top1=${ragOut.top1 || 0} · ${ragOut.stages?.totalMs || 0}ms`, { hits: ragOut.rows.length, top1: ragOut.top1, ms: ragOut.stages?.totalMs || 0, stream: "rag" }, thread_id);
+              let ragText = "[RAG KNOWLEDGE]\nHere is verified technical documentation retrieved from the knowledge base:\n\n";
+              ragOut.rows.forEach(r => {
+                ragText += `--- SOURCE: ${r.path || 'unknown'} ---\n${r.content}\n\n`;
+              });
+              masterDirectives.push(ragText);
+              masterDirectives.push("[RAG INSTRUCTION]: Use the verified knowledge in [RAG KNOWLEDGE] above as your primary technical authority. Synthesize this context with your domain expertise to provide complete, accurate, and ready-to-run CLI configuration blocks. Always provide full and valid configuration syntax.");
+
+              send({
+                rag: {
+                  sources: ragOut.rows.map((r, i) => ({
+                    index: i + 1,
+                    id: String(r.id || `chunk-${r.ord || i}`),
+                    name: r.path ? r.path.split('/').pop() : (r.name || "Document"),
+                    path: r.path || "",
+                    brand: r.brand || "",
+                    ord: r.ord ?? i + 1,
+                    page: r.page_start || 1,
+                    score: Math.round(Math.min(1, Number(r.score) || 0) * 100),
+                    snippet: String(r.content || "").slice(0, 300)
+                  })),
+                  debug: {
+                    queryClean: lastUserMsg,
+                    probe: {
+                      top1: ragOut.top1 || 0,
+                      ms: ragOut.stages?.totalMs || 0
+                    }
+                  },
+                  reranker: ragOut.reranker || { used: true, model: "BAAI/bge-reranker-base" },
+                  fallback: { brands: [] }
+                }
+              });
+            }
+          }
+        } catch (genRagErr) {
+          console.error("[Orchestrate] General RAG probe failed:", genRagErr);
         }
       }
 
@@ -1328,79 +1382,81 @@ When the user asks you a question or assigns a task, intelligently apply the fol
       }
 
       // 3.6. META-FORGE Autonomy & System Tools
-      // Inject zero-shot system tools so the core engine can inspect directory, delegate, or execute tools
-      if (!toolMap["sys_get_directory"]) {
-          openAiTools.push({
-              type: "function",
-              function: {
-                  name: "sys_get_directory",
-                  description: "Lists all available specialized agents, tools, skills, MCP servers, workflows, orchestrations, and webhooks in the system. Use this when you need to inspect existing capabilities, registered pipelines, or external endpoints.",
-                  parameters: {
-                      type: "object",
-                      properties: {
-                          intent: { type: "string", description: "What kind of agent/tool/workflow/webhook are you looking for?" }
-                      },
-                      required: []
-                  }
-              }
-          });
-          toolMap["sys_get_directory"] = "sys_get_directory";
-      }
+      // Inject zero-shot system tools for main conversational orchestrator (when not chatting with a specialized agent)
+      if (!agent_id || agent_id === "meta-forge" || (capabilities && (capabilities.tools?.length > 0 || capabilities.skills?.length > 0))) {
+        if (!toolMap["sys_get_directory"]) {
+            openAiTools.push({
+                type: "function",
+                function: {
+                    name: "sys_get_directory",
+                    description: "Lists all available specialized agents, tools, skills, MCP servers, workflows, orchestrations, and webhooks in the system. Use this when you need to inspect existing capabilities, registered pipelines, or external endpoints.",
+                    parameters: {
+                        type: "object",
+                        properties: {
+                            intent: { type: "string", description: "What kind of agent/tool/workflow/webhook are you looking for?" }
+                        },
+                        required: []
+                    }
+                }
+            });
+            toolMap["sys_get_directory"] = "sys_get_directory";
+        }
 
-      if (!toolMap["sys_delegate_to_agent"]) {
-          openAiTools.push({
-              type: "function",
-              function: {
-                  name: "sys_delegate_to_agent",
-                  description: "Delegates a specific sub-task to an expert agent by their ID (found via sys_get_directory). The sub-agent will work in the background and return the final report.",
-                  parameters: {
-                      type: "object",
-                      properties: {
-                          agent_id: { type: "string", description: "The ID of the target expert agent (e.g., 'agt.netsec')" },
-                          instructions: { type: "string", description: "Detailed prompt/instructions for the sub-agent to execute." }
-                      },
-                      required: ["agent_id", "instructions"]
-                  }
-              }
-          });
-          toolMap["sys_delegate_to_agent"] = "sys_delegate_to_agent";
-      }
+        if (!toolMap["sys_delegate_to_agent"]) {
+            openAiTools.push({
+                type: "function",
+                function: {
+                    name: "sys_delegate_to_agent",
+                    description: "Delegates a specific sub-task to an expert agent by their ID (found via sys_get_directory). The sub-agent will work in the background and return the final report.",
+                    parameters: {
+                        type: "object",
+                        properties: {
+                            agent_id: { type: "string", description: "The ID of the target expert agent (e.g., 'agt.netsec')" },
+                            instructions: { type: "string", description: "Detailed prompt/instructions for the sub-agent to execute." }
+                        },
+                        required: ["agent_id", "instructions"]
+                    }
+                }
+            });
+            toolMap["sys_delegate_to_agent"] = "sys_delegate_to_agent";
+        }
 
-      if (!toolMap["sys_delegate_to_metaforge"]) {
-          openAiTools.push({
-              type: "function",
-              function: {
-                  name: "sys_delegate_to_metaforge",
-                  description: "Triggers MetaForge (the autonomous engineer) to synthesize, generate, and propose new tools, skills, agents, automated Workflows (DAG), or Orchestration Chains. Call this whenever the user asks to create/register a new capability or multi-step workflow/chain into the system.",
-                  parameters: {
-                      type: "object",
-                      properties: {
-                          intent: { type: "string", description: "Detailed description of the tool, agent, workflow DAG, or orchestration chain you need created." }
-                      },
-                      required: ["intent"]
-                  }
-              }
-          });
-          toolMap["sys_delegate_to_metaforge"] = "sys_delegate_to_metaforge";
-      }
+        if (!toolMap["sys_delegate_to_metaforge"]) {
+            openAiTools.push({
+                type: "function",
+                function: {
+                    name: "sys_delegate_to_metaforge",
+                    description: "Triggers MetaForge (the autonomous engineer) to synthesize, generate, and propose new tools, skills, agents, automated Workflows (DAG), or Orchestration Chains. Call this whenever the user asks to create/register a new capability or multi-step workflow/chain into the system.",
+                    parameters: {
+                        type: "object",
+                        properties: {
+                            intent: { type: "string", description: "Detailed description of the tool, agent, workflow DAG, or orchestration chain you need created." }
+                        },
+                        required: ["intent"]
+                    }
+                }
+            });
+            toolMap["sys_delegate_to_metaforge"] = "sys_delegate_to_metaforge";
+        }
 
-      if (!toolMap["sys_execute_tool"]) {
-          openAiTools.push({
-              type: "function",
-              function: {
-                  name: "sys_execute_tool",
-                  description: "Executes a specific tool or MCP capability by its ID (found via sys_get_directory) autonomously. Pass the required parameters exactly as specified in the directory.",
-                  parameters: {
-                      type: "object",
-                      properties: {
-                          tool_id: { type: "string", description: "The ID of the target tool (e.g., 'tool.weather')" },
-                          params: { type: "object", description: "A JSON object containing the required arguments for the tool." }
-                      },
-                      required: ["tool_id", "params"]
-                  }
-              }
-          });
-          toolMap["sys_execute_tool"] = "sys_execute_tool";
+        if (!toolMap["sys_execute_tool"]) {
+            openAiTools.push({
+                type: "function",
+                function: {
+                    name: "sys_execute_tool",
+                    description: "Executes a specific tool or MCP capability by its ID (found via sys_get_directory) autonomously. Pass the required parameters exactly as specified in the directory.",
+                    parameters: {
+                        type: "object",
+                        properties: {
+                            tool_id: { type: "string", description: "The ID of the target tool (e.g., 'tool.weather')" },
+                            params: { type: "object", description: "A JSON object containing the required arguments for the tool." }
+                        },
+                        required: ["tool_id", "params"]
+                    }
+                }
+            });
+            toolMap["sys_execute_tool"] = "sys_execute_tool";
+        }
       }
 
       if (web_search && !toolMap["sys_web_search"]) {
@@ -1832,7 +1888,7 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                                       // Call ragProbeAndFetch scoped to the sub-agent's allowed spaces/brands
                                       const ragOut = await ragProbeAndFetch({
                                           q: targetInstructions,
-                                          allowedLevels: ["workspace", "private", "public"],
+                                          allowedLevels: null,
                                           agentId: subAgent.id,
                                           bindingFileIds: spaceFileIds, // STRICT SPACE BOUNDARY
                                           bindingBrands: Array.isArray(subAgent.rag_brands) ? subAgent.rag_brands : [],

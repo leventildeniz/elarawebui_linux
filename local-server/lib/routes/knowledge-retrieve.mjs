@@ -5,6 +5,7 @@
 // and passes the same reference to knowledge-sync mount.
 
 import path from "node:path";
+import os from "node:os";
 
 // Module-level sources cache (single-flight + 2s TTL).
 let __sourcesCache = { at: 0, payload: null, inflight: null };
@@ -262,7 +263,10 @@ export function mountKnowledgeRetrieveRoutes(app, deps) {
   // ---- /api/knowledge/embeddings/library-path/validate ---------------------
   app.post("/api/knowledge/embeddings/library-path/validate", async (req, res) => {
     try {
-      const candidate = path.resolve(process.cwd(), String(req.body?.path || "").trim().replace(/^~\/?/, ""));
+      const rawPath = String(req.body?.path || "").trim();
+      const candidate = rawPath.startsWith("~")
+        ? path.resolve(os.homedir(), rawPath.replace(/^~[\\\/]?/, ""))
+        : path.resolve(process.cwd(), rawPath);
       if (!candidate || candidate === "/") return res.status(400).json({ ok: false, error: "path required" });
       const access = await inspectDirectoryAccess(candidate, { recursive: false, sampleLimit: 8 });
       const verified = !!access.exists && !!access.isDirectory && !!access.readable;
@@ -275,24 +279,31 @@ export function mountKnowledgeRetrieveRoutes(app, deps) {
   // ---- /api/knowledge/embeddings/library-path (save+optional scan) ---------
   app.post("/api/knowledge/embeddings/library-path", async (req, res) => {
     try {
-      const candidate = path.resolve(process.cwd(), String(req.body?.path || "").trim().replace(/^~\/?/, ""));
+      const rawPath = String(req.body?.path || "").trim();
+      const candidate = rawPath.startsWith("~")
+        ? path.resolve(os.homedir(), rawPath.replace(/^~[\\\/]?/, ""))
+        : path.resolve(process.cwd(), rawPath);
       if (!candidate || candidate === "/") return res.status(400).json({ ok: false, error: "path required" });
       const access = await inspectDirectoryAccess(candidate, { recursive: false, sampleLimit: 8 });
       if (!access.exists || !access.isDirectory || !access.readable) {
         return res.status(400).json({ ok: false, error: "path is not a readable directory", access });
       }
-      setLibraryRoot(candidate);
-      persistLibraryRoot(candidate);
-      const pathSync = await syncCanonicalLibraryPaths().catch((e) => ({ error: e.message }));
+      if (typeof setLibraryRoot === "function") setLibraryRoot(candidate);
+      if (typeof persistLibraryRoot === "function") persistLibraryRoot(candidate);
+      const pathSync = typeof syncCanonicalLibraryPaths === "function" 
+        ? await syncCanonicalLibraryPaths().catch((e) => ({ error: e.message }))
+        : { ok: true };
       let scan = null;
       if (req.body?.scan) {
-        ensureWorker().catch((e) => pushLog("worker", `[ensure-error] ${e?.message || e}`));
+        if (typeof ensureWorker === "function") ensureWorker().catch((e) => pushLog?.("worker", `[ensure-error] ${e?.message || e}`));
         scan = { started: true, async: true, root: candidate };
-        reindexRoot(candidate, { recursive: true, forcePdfChunks: true, forceChunks: true, allFileTypes: true })
-          .then((r) => console.log("[library:apply-scan] done", r?.scanned ?? 0, "scanned"))
-          .catch((e) => console.warn("[library:apply-scan] failed", e?.message || e));
+        if (typeof reindexRoot === "function") {
+          reindexRoot(candidate, { recursive: true, forcePdfChunks: true, forceChunks: true, allFileTypes: true })
+            .then((r) => console.log("[library:apply-scan] done", r?.scanned ?? 0, "scanned"))
+            .catch((e) => console.warn("[library:apply-scan] failed", e?.message || e));
+        }
       }
-      const health = await getEmbeddingHealth();
+      const health = typeof getEmbeddingHealth === "function" ? await getEmbeddingHealth() : {};
       res.json({ ok: true, path: candidate, pathSync, scan, ...health });
     } catch (e) {
       res.status(500).json({ ok: false, error: String(e.message || e) });
@@ -306,7 +317,7 @@ export function mountKnowledgeRetrieveRoutes(app, deps) {
       const retryErrors = !!req.body?.retryErrors;
       const r = await pool.query(
         `UPDATE knowledge_chunks
-            SET embedding_status='pending', embedded_at=NULL, embedding_attempts=0
+            SET embedding_status='pending', embedding_locked_at=NULL, embedding_job_id=NULL, embedding_attempts=0
           WHERE embedding IS NULL
              OR embedding_status IS NULL
              OR embedding_status='pending'
@@ -316,7 +327,7 @@ export function mountKnowledgeRetrieveRoutes(app, deps) {
       if (typeof deps.ragAutoEmbedDrain === "function") {
         setTimeout(() => { deps.ragAutoEmbedDrain().catch(() => {}); }, 100).unref?.();
       }
-      const health = await getEmbeddingHealth();
+      const health = typeof getEmbeddingHealth === "function" ? await getEmbeddingHealth() : {};
       res.json({ ok: true, marked: r.rowCount || 0, ...health });
     } catch (e) {
       res.status(500).json({ ok: false, error: String(e.message || e) });
@@ -392,7 +403,7 @@ export function mountKnowledgeRetrieveRoutes(app, deps) {
         if (await sjCheckStop(pool, jobId)) { stopped = true; break; }
         const r = await pool.query(
           `SELECT id,
-                  CASE WHEN $3::int = 1 THEN COALESCE(content_enriched, content) ELSE content END AS content
+                  CASE WHEN $3::int = 1 THEN COALESCE(metadata->>'content_enriched', content) ELSE content END AS content
              FROM knowledge_chunks
             WHERE ${whereClause} AND id > $1
             ORDER BY id LIMIT $2`,
@@ -442,11 +453,10 @@ export function mountKnowledgeRetrieveRoutes(app, deps) {
   app.post("/api/knowledge/retrieve", async (req, res) => {
     const q = String(req.body?.query ?? "").trim();
     const role = String(req.body?.role ?? "Viewer").trim();
-    const limit = Math.min(8, Math.max(1, Number(req.body?.limit) || 5));
-    const expanded = expandQueryTerms(q);
-    const searchedKeywords = expanded.slice(0, 12);
-    if (!q) return res.json({ ok: true, context: "", sources: [], denied: 0, searchedKeywords: [] });
-    const userRank = ROLE_RANK[normalizeAccessLevel(role)] ?? 0;
+    const userRank = ROLE_RANK[role] ?? 1;
+    const limit = Math.min(20, Math.max(1, Number(req.body?.limit ?? 5)));
+    const searchedKeywords = expandQueryTerms ? expandQueryTerms(q) : [];
+    const expanded = searchedKeywords;
     const allowedLevels = Object.entries(ROLE_RANK)
       .filter(([, rank]) => rank <= userRank).map(([name]) => name);
     try {
@@ -455,8 +465,12 @@ export function mountKnowledgeRetrieveRoutes(app, deps) {
           notice: "Yetkiniz dahilinde bu dökümana ulaşılamadı" });
       }
       const brandRows = await pool.query("SELECT DISTINCT brand FROM knowledge_chunks WHERE brand IS NOT NULL").catch(() => ({ rows: [] }));
-      const matchedBrand = aliasMatchedBrand(q, brandRows.rows.map(r => r.brand).filter(Boolean));
-      const orQuery = buildOrTsQuery(expanded.length ? expanded : [q]);
+      const matchedBrand = typeof aliasMatchedBrand === "function" 
+        ? aliasMatchedBrand(q, brandRows.rows.map(r => r.brand).filter(Boolean))
+        : null;
+      const orQuery = typeof buildOrTsQuery === "function"
+        ? buildOrTsQuery(expanded.length ? expanded : [q])
+        : (expanded.length ? expanded.join(" | ") : q.replace(/[^\p{L}\p{N}]/gu, " ").trim().split(/\s+/).join(" | "));
       let rows = [];
       let retriever = null;
       if (orQuery) {
@@ -491,9 +505,14 @@ export function mountKnowledgeRetrieveRoutes(app, deps) {
         if (rows.length) retriever = "ilike-expanded";
       }
       const topScore = rows.length ? Math.max(...rows.map(r => Number(r.score) || 0)) : 0;
-      if (isTechnicalQuery(q, expanded) || !rows.length || rows.length < limit || topScore < semanticAssistThreshold()) {
-        const sem = await semanticFallback({ q, allowedLevels, matchedBrand: null, limit });
-        if (sem.length) {
+      const needsSemantic = (typeof isTechnicalQuery === "function" && isTechnicalQuery(q, expanded)) 
+        || !rows.length 
+        || rows.length < limit 
+        || (typeof semanticAssistThreshold === "function" ? topScore < semanticAssistThreshold() : topScore < 0.5);
+
+      if (needsSemantic && typeof semanticFallback === "function") {
+        const sem = await semanticFallback({ q, allowedLevels, matchedBrand: null, limit }).catch(() => []);
+        if (sem && sem.length) {
           const merged = new Map(rows.map(r => [`${r.source_id}:${r.ord}`, r]));
           for (const r of sem) {
             const key = `${r.source_id}:${r.ord}`;
