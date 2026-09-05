@@ -1,6 +1,7 @@
 // local-server/lib/rerank-provider.mjs
-// Agnostic Rerank Provider
-// Handles communication with the Embedding/Rerank Worker (Python) with robust lazy-spawn and error tracking.
+// Agnostic Rerank Provider with Native In-Process ONNX Runtime & Python HTTP Fallback
+
+import { onnxRerank, getOnnxStatus } from "./onnx-pipeline.mjs";
 
 let _pushLog = (..._a) => {};
 let _getWorkerStatus = () => "down";
@@ -42,20 +43,40 @@ export function getLastRerankAt() { return _lastRerankAt; }
 // ── Rerank RPC ───────────────────────────────────────────────────────────
 export async function rerank(query, documents, opts = {}) {
   const RAG_SETTINGS = _getRagSettings();
-  if (!RAG_SETTINGS.rerankEnabled) { 
+  if (RAG_SETTINGS && RAG_SETTINGS.rerankEnabled === false) { 
     _setRerankError("disabled", "rerankEnabled=false"); 
     return null; 
   }
   
   if (!query || !Array.isArray(documents) || documents.length === 0) return null;
 
+  const preferEngine = process.env.RERANK_ENGINE || process.env.EMBED_ENGINE || "onnx";
+  const t0 = Date.now();
+
+  // 1. Primary: Native In-Process ONNX Runtime
+  if (preferEngine !== "python") {
+    try {
+      const scored = await onnxRerank(query, documents, opts);
+      if (Array.isArray(scored) && scored.length > 0) {
+        _lastRerankError = null;
+        _lastRerankMs = Date.now() - t0;
+        _lastRerankAt = Date.now();
+        return scored;
+      }
+    } catch (onnxErr) {
+      console.warn("[rerank-provider] ONNX in-process rerank failed, falling back to HTTP worker:", onnxErr?.message || onnxErr);
+      _setRerankError("onnx_fallback", onnxErr?.message || onnxErr);
+    }
+  }
+
+  // 2. Fallback: External Python Worker (Port 8082)
   const base = (process.env.EMBED_BASE_URL || `http://${_EMBED_WORKER_HOST}:${_EMBED_WORKER_PORT}`).replace(/\/$/, "");
   
   if (base.includes(`:${_EMBED_WORKER_PORT}`)) {
     let workerStatus = _getWorkerStatus();
     if (workerStatus !== "online-auto" && workerStatus !== "online-external") {
       _kickWorkerStart("rerank-lazy-spawn");
-      const waitMs = Math.max(500, Math.min(1500, Number(opts.timeoutMs) || RAG_SETTINGS.rerankTimeoutMs || 2500));
+      const waitMs = Math.max(500, Math.min(1500, Number(opts.timeoutMs) || RAG_SETTINGS?.rerankTimeoutMs || 2500));
       try {
         await Promise.race([
           _ensureWorker(),
@@ -71,9 +92,8 @@ export async function rerank(query, documents, opts = {}) {
     }
   }
 
-  const timeoutMs = Math.max(500, Math.min(15000, Number(opts.timeoutMs) || RAG_SETTINGS.rerankTimeoutMs || 8000));
+  const timeoutMs = Math.max(500, Math.min(15000, Number(opts.timeoutMs) || RAG_SETTINGS?.rerankTimeoutMs || 8000));
   const model = process.env.RAG_RERANK_MODEL || "BAAI/bge-reranker-base";
-  const t0 = Date.now();
 
   try {
     const r = await fetch(`${base}/v1/rerank`, {

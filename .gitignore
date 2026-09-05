@@ -1,6 +1,8 @@
 # Logs
 logs
 *.log
+*.err
+*.out
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -20,6 +22,8 @@ dist-ssr
 *.zip
 audit_results.json
 local-server/uploads/backups/
+.cache
+local-server/.cache
 
 # Wrangler / Cloudflare
 .wrangler/
