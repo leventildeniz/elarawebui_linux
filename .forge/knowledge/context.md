@@ -667,6 +667,72 @@ Bu aşamada sistemin upload, embedding, dinamik model yapılandırması ve aray�
 - **PDF Ekstraksiyonu:** `pdftotext` (C++ native, non-blocking)
 - **DB & Tablolar:** PostgreSQL `elara_db` (0 hata, tüm bakım tuşları canlı doğrulanmış)
 
-## 52. UP NEXT (Phase 52) - Autonomous DAG Execution Engine & Multi-Step Workflow Benchmarking
-1. **Autonomous DAG Execution Engine Benchmarking:** Çok adımlı workflow ve orchestration zincirlerinin canlı icra doğrulaması.
-2. **End-to-End System Polish:** Tüm sistem yüzeylerinin son kontrolleri ve canlı yük testleri.
+## 51.2. VECTOR WORKER STABİLİZASYONU, MULTI-ROW BATCH SQL, 9.384 CHUNK INGESTION & RETRIEVAL CARD ENTEGRASYONU
+
+Bu aşamada sistemin Vector Worker mimarisi, toplu SQL yazma performansı, döküman boyutu sınırları ve Chat RAG UI deneyimi uçtan uca mükemmelleştirilmiştir:
+
+---
+
+### 🛡️ 1. Vector Worker "Split-Brain" Çatışması ve İntihar Döngülerinin Temizlenmesi
+- **Kök Sebep & Problem:**
+  * Node.js (`runtime.mjs`), sunucuda zaten çalışan `systemd` (`elara-worker.service`) servisine rağmen işlemci yük altında 1-2 saniye geç yanıt verdiğinde arkadan gizlice ikinci bir `child_process.spawn("python3 uvicorn...")` başlatmaya çalışıyor ve Port 8082 üzerinde `[Errno 98] Address already in use` çakışması patlatıyordu.
+  * `worker.py` içindeki agresif RSS bekçileri, soft-cap kilitleri ve her istekte çağrılan `malloc_trim(0)` bellek korumaları, worker'ın yük altında kendi kendini öldürmesine (`os._exit(1)` / `status=3`) sebep oluyordu.
+- **Yapılan Düzeltmeler:**
+  * **Tek Patron İlkesi:** Node.js'ten tüm sahte process spawn mantığı silindi; Node.js yalnızca **saf bir HTTP Client** olarak port 8082 ile konuşacak şekilde izole edildi.
+  * **Saf FastAPI + PyTorch Worker (`local-server/worker.py`):** `worker.py` tüm intihar bekçilerinden arındırılarak temiz, kararlı, saf bir FastAPI + PyTorch `SentenceTransformers` (`BAAI/bge-small-en-v1.5`) & `CrossEncoder` (`BAAI/bge-reranker-base`) servisine dönüştürüldü.
+  * **Timeout & Tolerans Artışı:** Node.js HTTP timeout süresi 30 saniyeden **120 saniyeye**, Reranker timeout süresi ise **8.000 ms'ye** çıkarılarak CPU yoğunluğundaki tüm sahte kopmalar engellendi.
+
+---
+
+### 📦 2. 2M Karakter Sınırının Kaldırılması & 9.384 Parçalık Tam Döküman Ingestion'ı
+- **Kök Sebep & Problem:**
+  * Eski `pdf-parse` bellek şişmesini önlemek için konulmuş `MAX_INDEXED_CHARS = 2,000,000` (~400 sayfa) sınırı nedeniyle, 4.000+ sayfalık `FortiOS-7.6.6-CLI_Reference.pdf` dökümanının sadece içindekiler tablosu alınıyor; 1.620. sayfadaki `config system interface` ve 3.974. sayfadaki `config router bgp` komut detayları kesiliyordu.
+- **Yapılan Düzeltmeler:**
+  * `extract.mjs`, `pipeline.mjs` ve `knowledge-ingest.mjs` içindeki sınır **100 Milyon karaktere (~25.000 sayfa)** çıkarıldı.
+  * Dökümanın tüm 4.000+ sayfası **9.384 parça (chunk)** olarak PostgreSQL'e eksiksiz yazıldı.
+
+---
+
+### ⚡ 3. Multi-Row Batch SQL ile Süper Hızlı Embedding Kaydı
+- **Kök Sebep & Problem:**
+  * Worker 32-64 parçalık embedding hesaplasa bile, `store.mjs` her parçayı tek tek `for` döngüsünde 9.000 ayrı SQL `UPDATE` sorgusuyla yazmaya çalışıyor ve devasa ağ/havuz gecikmesi oluşturuyordu.
+- **Yapılan Düzeltmeler:**
+  * `store.mjs` içine **Multi-Row Batch SQL (`UPDATE knowledge_chunks AS kc SET ... FROM (VALUES ($1::bigint, $2::jsonb), ...) AS v(id, val) WHERE kc.id = v.id`)** mimarisi eklendi. 64 parçanın embedding ve durum güncellemesi tek bir milisaniyelik SQL işlemiyle tamamlanıyor.
+  * 9.384 parçanın tamamı **%100 başarıyla (`EMBED OK: 9,384`, `PENDING: 0`, `IN PROGRESS: 0`, `ERROR: 0`)** embed edildi.
+
+---
+
+### 🚫 4. Hardcode Marka İsimlerinin Sıfır-Toleransla Kazınması
+- `chat-orchestrate.mjs`, `src/routes/index.tsx` ve `brand-aliases.mjs` içinde kalmış tüm hardcoded `"fortigate"`, `"checkpoint"`, `"netscaler"` fallback dizileri ve stringleri tamamen silindi. Marka ve alias'lar **%100 dinamik** olarak veritabanı ve kullanıcı girdilerinden okunuyor.
+
+---
+
+### 🎨 5. RetrievalCard (RAG · RERANKED) UI Entegrasyonu & Kusursuz Akış
+- **Kök Sebep & Problem:**
+  * `orchestrate-stream.ts` gelen `{ rag: ... }` SSE paketini tanımadığı için yutuyor ve arayüz kartı çizemiyordu.
+  * Akış başında kart hemen çizildiğinde Thinking bloğu kartın üstüne, metin ise araya girerek çirkin bir layout zıplaması (UI jump) yaratıyordu.
+- **Yapılan Düzeltmeler:**
+  * `orchestrate-stream.ts` içine `{ kind: "rag", rag }` ayrıştırıcısı eklendi.
+  * `src/routes/index.tsx` içinde kartın görünme anı **metin akışı tamamlandığı an (`!m.streaming && m.retrieval`)** olarak ayarlandı. Cevap bittiği anda yeşil zümrüt çerçeveli **`RAG · RERANKED`** kartı cevabın altında pürüzsüzce açılıyor.
+
+---
+
+### 🧠 6. Akıllı Ajan Mühendislik Sentezi (Refusal Fix)
+- `Technical_Librarian` ve evrensel `chat-orchestrate.mjs` prompt kuralları güncellendi. Ajanlar RAG bağlamını birincil otorite olarak alırken, bunu uzmanlık bilgisiyle sentezleyerek kullanıcıya robotik *"dokümanda yok"* demek yerine **çalışan, eksiksiz CLI konfigürasyon bloklarını (`config system interface` vb.)** üretiyor.
+
+---
+
+## 52. UP NEXT (Phase 52) - NATIVE IN-PROCESS ONNX RUNTIME MİMARİSİ (ZERO-PYTHON) & AUTONOMOUS DAG EXECUTION ENGINE
+
+### 🎯 1. Native In-Process ONNX Runtime Migration (`@xenova/transformers` / `onnxruntime-node`)
+- **Hedef:** 1.000 kişilik kurumsal ortam ve Load Balancer (LB) arkasında sıfır Python bağımlılığı, sıfır ağ gecikmesi ve 5ms TTFT ile C++ native SIMD (AVX2/AVX-512) embedding & reranking mimarisine geçiş.
+- **Kapsam:**
+  1. `@xenova/transformers` / `onnxruntime-node` paketlerinin sisteme dahil edilmesi.
+  2. `bge-small-en-v1.5` (INT8 Kuantize) ve `bge-reranker-base` modellerinin in-process C++ threadpool ile çağrılması.
+  3. Python worker bağımlılığının opsiyonel/yedek moda çekilmesi.
+  4. Platform-Agnostik (Linux, macOS Metal/CoreML, Windows DirectML) %100 doğrulanması.
+
+### 🎯 2. Autonomous DAG Execution Engine & Multi-Step Workflow Benchmarking
+- Çok adımlı otonom workflow ve orchestration zincirlerinin canlı icra doğrulaması.
+- MetaForge tarafından üretilen DAG (Directed Acyclic Graph) yapılarının otonom icra motoru üzerinde adım adım, kesintisiz çalıştırılması.
+- Uçtan uca sistem cilalaması ve canlı yük testleri.
