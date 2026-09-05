@@ -54054,3 +54054,14 @@ Node.js v22.22.1
   routine: 'parserOpenTable'
 }
 [Reporting API] Notice creating indices: column "owner_id" does not exist
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[Reporting API] Notice creating indices: column "owner_id" does not exist

@@ -1145,6 +1145,28 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                         fallback: { brands: Array.isArray(agt.rag_brands) ? agt.rag_brands : [] }
                       }
                     });
+
+                    // Asynchronously record RAG telemetry in PostgreSQL
+                    const principalName = actorCtx?.username || actorCtx?.user?.name || req.session?.username || "admin";
+                    const pId = actorCtx?.userId || actorId || "admin";
+                    const qId = `rq.${Date.now().toString(36)}.${Math.random().toString(36).slice(2, 6)}`;
+                    const uniqueDocs = new Set(ragOut.rows.map(r => r.path)).size;
+                    pool.query(
+                      `INSERT INTO rag_queries (id, at, query, principal, principal_id, agent, spaces, blocked, docs, chunks, hit)
+                       VALUES ($1, now(), $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10)`,
+                      [
+                        qId,
+                        lastUserMsg,
+                        principalName,
+                        pId,
+                        agt.name || agt.id || "Agent",
+                        JSON.stringify(agt.rag_space_id ? [agt.rag_space_id] : (Array.isArray(agt.rag_brands) ? agt.rag_brands : [])),
+                        0,
+                        uniqueDocs,
+                        ragOut.rows.length,
+                        true
+                      ]
+                    ).catch(err => console.warn("[RAG Telemetry] Failed to log query:", err.message));
                   }
                 }
               } catch (ragError) {
@@ -1199,6 +1221,28 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                   fallback: { brands: [] }
                 }
               });
+
+              // Asynchronously record RAG telemetry in PostgreSQL
+              const principalName = actorCtx?.username || actorCtx?.user?.name || req.session?.username || "admin";
+              const pId = actorCtx?.userId || actorId || "admin";
+              const qId = `rq.${Date.now().toString(36)}.${Math.random().toString(36).slice(2, 6)}`;
+              const uniqueDocs = new Set(ragOut.rows.map(r => r.path)).size;
+              pool.query(
+                `INSERT INTO rag_queries (id, at, query, principal, principal_id, agent, spaces, blocked, docs, chunks, hit)
+                 VALUES ($1, now(), $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10)`,
+                [
+                  qId,
+                  lastUserMsg,
+                  principalName,
+                  pId,
+                  "Sovereign Brain",
+                  JSON.stringify([]),
+                  0,
+                  uniqueDocs,
+                  ragOut.rows.length,
+                  true
+                ]
+              ).catch(err => console.warn("[RAG Telemetry] Failed to log query:", err.message));
             }
           }
         } catch (genRagErr) {
@@ -1925,6 +1969,28 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                                               fallback: { brands: Array.isArray(subAgent.rag_brands) ? subAgent.rag_brands : [] }
                                             }
                                           });
+
+                                          // Asynchronously record RAG telemetry in PostgreSQL
+                                          const principalName = actorCtx?.username || actorCtx?.user?.name || req.session?.username || "admin";
+                                          const pId = actorCtx?.userId || actorId || "admin";
+                                          const qId = `rq.${Date.now().toString(36)}.${Math.random().toString(36).slice(2, 6)}`;
+                                          const uniqueDocs = new Set(ragOut.rows.map(r => r.path)).size;
+                                          pool.query(
+                                            `INSERT INTO rag_queries (id, at, query, principal, principal_id, agent, spaces, blocked, docs, chunks, hit)
+                                             VALUES ($1, now(), $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10)`,
+                                            [
+                                              qId,
+                                              targetInstructions,
+                                              principalName,
+                                              pId,
+                                              subAgent.name || subAgent.id || "Sub-Agent",
+                                              JSON.stringify(subAgent.rag_space_id ? [subAgent.rag_space_id] : (Array.isArray(subAgent.rag_brands) ? subAgent.rag_brands : [])),
+                                              0,
+                                              uniqueDocs,
+                                              ragOut.rows.length,
+                                              true
+                                            ]
+                                          ).catch(err => console.warn("[RAG Telemetry] Failed to log query:", err.message));
                                       }
                                   } catch (ragError) {
                                       console.error(`[Orchestrate] Agentic RAG failed for agent ${subAgent.id}:`, ragError);
