@@ -783,6 +783,15 @@ Bu aşamada Raporlama & Analitik (Reporting) modülündeki tüm şema uyuşmazl�
 
 ---
 
+### 🛡️ 4. Active Fleet & Runtime Monitor Sistem Ajanı İzolasyonu (`telemetry.mjs`, `runtime-canvas.tsx`, `metrics.mjs`)
+- **Kök Neden & Problem:**
+  - MetaForge dahili sistem ajanı (`agt.forge_master`) `/agents` sayfasında gizlenmiş olmasına rağmen, sağ çekmecedeki Runtime Monitor (Active Fleet) listesinde ve envanter telemetrisinde listeleniyordu.
+- **Yapılan İyileştirmeler:**
+  - `/api/telemetry/agent-status`, `/api/telemetry/stream` ve `metrics.mjs` SQL sorgularına `WHERE id != 'agt.forge_master' AND squad != 'System' AND id NOT LIKE 'sys.%'` filtreleri uygulandı.
+  - `runtime-canvas.tsx` UI bileşenine defense-in-depth prensibiyle hem sayaç hem de liste düzeyinde sistem ajanı filtrelemesi eklendi.
+
+---
+
 ## 52.3. UP NEXT - AUTONOMOUS DAG EXECUTION ENGINE & MULTI-STEP WORKFLOW BENCHMARKING
 - Çok adımlı otonom workflow ve orchestration zincirlerinin canlı icra doğrulaması.
 - MetaForge tarafından üretilen DAG (Directed Acyclic Graph) yapılarının otonom icra motoru üzerinde adım adım, kesintisiz çalıştırılması.

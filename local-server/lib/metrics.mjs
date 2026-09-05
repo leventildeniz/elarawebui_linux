@@ -183,7 +183,7 @@ export function installMetrics({ app, pool, sseBegin, execAsync }) {
       let agentTelemetry = [];
       try {
         const { rows } = await pool.query(
-          "SELECT id, name, status, last_active, calls, success, meta FROM agents ORDER BY name ASC"
+          "SELECT id, name, status, last_active, calls, success, meta FROM agents WHERE id != 'agt.forge_master' AND squad != 'System' AND id NOT LIKE 'sys.%' ORDER BY name ASC"
         );
         const now = Date.now();
         agentTelemetry = rows.map((r) => {
@@ -303,7 +303,7 @@ export function installMetrics({ app, pool, sseBegin, execAsync }) {
     };
     out.gpuFailedSticky = GPU_FAILED;
     try {
-      const q = await pool.query("SELECT id, name, status, last_active, calls, success FROM agents ORDER BY name ASC");
+      const q = await pool.query("SELECT id, name, status, last_active, calls, success FROM agents WHERE id != 'agt.forge_master' AND squad != 'System' AND id NOT LIKE 'sys.%' ORDER BY name ASC");
       out.agentsQuery = {
         ok: true, rowCount: q.rowCount,
         withLastActive: q.rows.filter(r => r.last_active).length,

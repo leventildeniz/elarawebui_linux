@@ -534,6 +534,7 @@ export function mountTelemetryRoutes(app, deps) {
     try {
       const { rows } = await pool.query(`
         SELECT id::text, name, 'agent' as kind, stats as metrics, model_ref as meta FROM agents
+        WHERE id != 'agt.forge_master' AND squad != 'System' AND id NOT LIKE 'sys.%'
         UNION ALL
         SELECT id::text, name, 'workflow' as kind, jsonb_build_object('calls', runs, 'success', runs) as metrics, 'workflow' as meta FROM workflows
         UNION ALL

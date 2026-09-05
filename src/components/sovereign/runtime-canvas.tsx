@@ -716,14 +716,14 @@ export function RuntimeMonitor({ open, onClose }: { open: boolean; onClose: () =
                     </select>
                   </div>
                   <span className="font-mono text-[10px] text-muted-foreground/45">
-                    {agentsStatus.filter((a) => a.kind === fleetFilter && a.runtime === "executing")
+                    {agentsStatus.filter((a) => a.kind === fleetFilter && a.id !== "agt.forge_master" && !a.id.startsWith("sys.") && a.runtime === "executing")
                       .length - Object.values(held).filter(Boolean).length}{" "}
                     running
                   </span>
                 </div>
                 <div className="space-y-2">
                   {agentsStatus
-                    .filter((a) => a.kind === fleetFilter)
+                    .filter((a) => a.kind === fleetFilter && a.id !== "agt.forge_master" && !a.id.startsWith("sys."))
                     .slice(0, 10)
                     .map((a) => {
                       const s = agentSample(a.id, t.tick);

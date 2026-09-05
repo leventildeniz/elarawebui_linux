@@ -111,7 +111,7 @@ export function mountTelemetryStreamRoute(app, pool) {
         try {
           const resCounts = await pool.query(`
             SELECT
-              (SELECT jsonb_build_object('total', count(*), 'active', count(case when enabled=true and live=true then 1 end)) FROM agents) as agents,
+              (SELECT jsonb_build_object('total', count(*), 'active', count(case when enabled=true and live=true then 1 end)) FROM agents WHERE id != 'agt.forge_master' AND squad != 'System' AND id NOT LIKE 'sys.%') as agents,
               (SELECT jsonb_build_object('total', count(*), 'active', count(case when status='live' then 1 end)) FROM workflows) as workflows,
               (SELECT jsonb_build_object('total', count(*), 'active', count(case when status='live' then 1 end)) FROM orchestrations) as orchestrations,
               (SELECT jsonb_build_object('total', count(*), 'active', count(case when enabled=true then 1 end)) FROM skills) as skills,
