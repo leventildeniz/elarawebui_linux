@@ -54,8 +54,12 @@ export async function embed(texts, opts = {}) {
         return embs;
       }
     } catch (onnxErr) {
-      console.warn("[embed-provider] ONNX in-process embed failed, falling back to HTTP worker:", onnxErr?.message || onnxErr);
-      _setEmbedError("onnx_fallback", onnxErr?.message || onnxErr);
+      const reason = onnxErr?.message || String(onnxErr);
+      console.warn(`⚠️ [EMBED:FALLBACK] In-process ONNX engine failed -> Falling back to external Python Worker (:${_EMBED_WORKER_PORT}). Reason: ${reason}`);
+      try {
+        _pushLog("engine", `[EMBED:FALLBACK] In-process ONNX failed -> Falling back to external Python Worker (:${_EMBED_WORKER_PORT}). Reason: ${reason}`);
+      } catch { /* ignore */ }
+      _setEmbedError("onnx_fallback", reason);
     }
   }
 

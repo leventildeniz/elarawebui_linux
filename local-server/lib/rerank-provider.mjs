@@ -64,8 +64,12 @@ export async function rerank(query, documents, opts = {}) {
         return scored;
       }
     } catch (onnxErr) {
-      console.warn("[rerank-provider] ONNX in-process rerank failed, falling back to HTTP worker:", onnxErr?.message || onnxErr);
-      _setRerankError("onnx_fallback", onnxErr?.message || onnxErr);
+      const reason = onnxErr?.message || String(onnxErr);
+      console.warn(`⚠️ [RERANK:FALLBACK] In-process ONNX engine failed -> Falling back to external Python Worker (:${_EMBED_WORKER_PORT}). Reason: ${reason}`);
+      try {
+        _pushLog("engine", `[RERANK:FALLBACK] In-process ONNX failed -> Falling back to external Python Worker (:${_EMBED_WORKER_PORT}). Reason: ${reason}`);
+      } catch { /* ignore */ }
+      _setRerankError("onnx_fallback", reason);
     }
   }
 
