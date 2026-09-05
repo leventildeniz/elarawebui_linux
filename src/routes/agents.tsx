@@ -198,7 +198,11 @@ function PickerRow({
 
   const available = catalog.filter((c) => !selected.includes(normId(c)));
   const [pick, setPick] = useState("");
-  const value = available.find((c) => normId(c) === pick) ? pick : (available.length && available[0] ? normId(available[0]) : "");
+  const value = available.find((c) => normId(c) === pick)
+    ? pick
+    : available.length && available[0]
+      ? normId(available[0])
+      : "";
 
   return (
     <div className="rounded-xl border border-white/[0.06] bg-raised/20 p-4">
@@ -468,7 +472,7 @@ function AgentDetail({
   const navigate = useNavigate();
   const [prompt, setPrompt] = useState(agent.systemPrompt);
   const [dirty, setDirty] = useState(false);
-  
+
   useEffect(() => {
     setPrompt(agent.systemPrompt);
     setDirty(false);
@@ -736,7 +740,7 @@ function AgentEditor({
   const dynamicSkillCatalog = skillList.map((s) => ({ id: s.id, label: s.name }));
   const dynamicToolCatalog = toolList.map((t) => ({ id: t.id, label: t.name }));
   const dynamicAdapterCatalog = adapterList.map((a) => ({ id: a.id, label: a.name || a.id }));
-  const dynamicTargetCatalog = targetList.map(t => ({ id: t.name, label: t.name }));
+  const dynamicTargetCatalog = targetList.map((t) => ({ id: t.name, label: t.name }));
   const dynamicPackCatalog = capabilityPackList.map((p) => ({ id: p.id, label: p.name }));
   /** A space-bound librarian is sealed read-only and cannot leave its space. */
   const { spaces } = useSpaces();
@@ -805,11 +809,19 @@ function AgentEditor({
                 </Field>
                 <Field label="squad">
                   <select
-                    value={draft.squad && draft.squad !== "Unassigned" ? draft.squad : (squadNames[0] || "")}
+                    value={
+                      draft.squad && draft.squad !== "Unassigned"
+                        ? draft.squad
+                        : squadNames[0] || ""
+                    }
                     onChange={(e) => set({ squad: e.target.value })}
                     className={cn(input, "font-mono")}
                   >
-                    {[...new Set([...squadNames, draft.squad].filter(s => s && s !== "Unassigned"))].map((s) => (
+                    {[
+                      ...new Set(
+                        [...squadNames, draft.squad].filter((s) => s && s !== "Unassigned"),
+                      ),
+                    ].map((s) => (
                       <option key={s} value={s} className="bg-panel">
                         {s}
                       </option>
@@ -844,9 +856,11 @@ function AgentEditor({
                 <Field label="model" hint="Inherit from registry or system default.">
                   <select
                     value={
-                      (!draft.modelId || draft.modelId === "system_default")
-                        ? "system_default" 
-                        : models.some((m) => m.id === draft.modelId) ? draft.modelId : "__custom"
+                      !draft.modelId || draft.modelId === "system_default"
+                        ? "system_default"
+                        : models.some((m) => m.id === draft.modelId)
+                          ? draft.modelId
+                          : "__custom"
                     }
                     onChange={(e) => {
                       const v = e.target.value;
@@ -860,12 +874,17 @@ function AgentEditor({
                       }
                     }}
                     className={cn(
-                      input, 
-                      "font-mono", 
-                      (!draft.modelId || draft.modelId === "system_default") && "text-[#00ffaa] border-[#00ffaa]/30 shadow-[0_0_15px_-5px_#00ffaa]/20"
+                      input,
+                      "font-mono",
+                      (!draft.modelId || draft.modelId === "system_default") &&
+                        "text-[#00ffaa] border-[#00ffaa]/30 shadow-[0_0_15px_-5px_#00ffaa]/20",
                     )}
                   >
-                    <option value="system_default" className="bg-panel font-bold tracking-wider" style={{ color: '#00ffaa' }}>
+                    <option
+                      value="system_default"
+                      className="bg-panel font-bold tracking-wider"
+                      style={{ color: "#00ffaa" }}
+                    >
                       ✦ Use System Default
                     </option>
                     {models.map((m) => (
@@ -881,25 +900,35 @@ function AgentEditor({
                 <Field label="provider (brain)">
                   <input
                     value={draft.provider}
-                    disabled={draft.modelId === "system_default" || models.some((m) => m.id === draft.modelId)}
+                    disabled={
+                      draft.modelId === "system_default" ||
+                      models.some((m) => m.id === draft.modelId)
+                    }
                     onChange={(e) => set({ provider: e.target.value })}
-                    className={cn(input, (draft.modelId === "system_default" || models.some((m) => m.id === draft.modelId)) && "opacity-60 cursor-not-allowed")}
+                    className={cn(
+                      input,
+                      (draft.modelId === "system_default" ||
+                        models.some((m) => m.id === draft.modelId)) &&
+                        "opacity-60 cursor-not-allowed",
+                    )}
                   />
                 </Field>
               </div>
 
-              {draft.modelId !== "system_default" && !!draft.modelId && !models.some((m) => m.id === draft.modelId) && (
-                <Field
-                  label="custom model id"
-                  hint="Provide a raw model ID string (e.g. gpt-4o, claude-3-sonnet)"
-                >
-                  <input
-                    value={draft.modelId}
-                    onChange={(e) => set({ modelId: e.target.value })}
-                    className={cn(input, "font-mono")}
-                  />
-                </Field>
-              )}
+              {draft.modelId !== "system_default" &&
+                !!draft.modelId &&
+                !models.some((m) => m.id === draft.modelId) && (
+                  <Field
+                    label="custom model id"
+                    hint="Provide a raw model ID string (e.g. gpt-4o, claude-3-sonnet)"
+                  >
+                    <input
+                      value={draft.modelId}
+                      onChange={(e) => set({ modelId: e.target.value })}
+                      className={cn(input, "font-mono")}
+                    />
+                  </Field>
+                )}
 
               <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-white/[0.07] bg-raised/25 p-4">
                 <div>
@@ -981,8 +1010,8 @@ function AgentEditor({
               <PickerRow
                 label="tools"
                 catalog={
-                  boundSpace 
-                    ? dynamicToolCatalog.filter((t) => !isDestructiveTool(t.id)) 
+                  boundSpace
+                    ? dynamicToolCatalog.filter((t) => !isDestructiveTool(t.id))
                     : dynamicToolCatalog
                 }
                 selected={(draft.tools || []).filter((t) => !boundSpace || !isDestructiveTool(t))}
@@ -1070,7 +1099,7 @@ function AgentEditor({
                     <Plus size={13} /> Add
                   </JewelButton>
                 </div>
-                {(!draft.customParams || draft.customParams.length === 0) ? (
+                {!draft.customParams || draft.customParams.length === 0 ? (
                   <div className="mt-2 font-mono text-[11.5px] text-muted-foreground/50">
                     No custom parameters.
                   </div>
@@ -1147,7 +1176,7 @@ function AgentEditor({
               <div>
                 <div className="mono-label mb-2">brands · {(draft.ragBrands || []).length}</div>
                 <div className="flex flex-wrap gap-1.5">
-                  {k.brandAliases.map((b: any) => (
+                  {k.brandAliases.map((b: { id: string; brand: string; chunks?: number }) => (
                     <Chip
                       key={b.id}
                       active={(draft.ragBrands || []).includes(b.id)}
@@ -1303,6 +1332,11 @@ function AgentOrchestrator() {
   const [editorFor, setEditorFor] = useState<string | "new" | null>(null);
   const [draft, setDraft] = useState<Draft>(emptyAgent);
   const [toast, setToast] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const squadName = squads.find((s) => s.id === activeSquad)?.name ?? null;
   const scoped = squadName ? agents.filter((a) => a.squad === squadName) : agents;
@@ -1331,14 +1365,18 @@ function AgentOrchestrator() {
     <Surface
       title="Agent Orchestrator"
       crumb="Agents"
-      meta={`local bridge · ${squadName ? `squad ${squadName.toLowerCase()}` : "all squads"} · ${scoped.length} agents · ${live} live`}
+      meta={`local bridge · ${squadName ? `squad ${squadName.toLowerCase()}` : "all squads"} · ${mounted ? scoped.length : 0} agents · ${mounted ? live : 0} live`}
       wide
       action={
         <div className="flex flex-wrap items-center gap-2">
           <JewelButton
             size="sm"
             variant="outline"
-            onClick={() => flash("Roster refreshed from the local bridge.")}
+            onClick={() => {
+              window.dispatchEvent(new CustomEvent("sovereign:agents"));
+              window.dispatchEvent(new CustomEvent("sovereign:squads"));
+              flash("Roster refreshed from the local bridge.");
+            }}
           >
             Refresh
           </JewelButton>
@@ -1350,10 +1388,10 @@ function AgentOrchestrator() {
     >
       <div className="flex flex-wrap gap-1.5">
         <Chip active={tab === "roster"} onClick={() => setTab("roster")}>
-          Roster · {scoped.length}
+          Roster · <span suppressHydrationWarning>{mounted ? scoped.length : 0}</span>
         </Chip>
         <Chip active={tab === "history"} onClick={() => setTab("history")}>
-          Run history · {scopedRuns.length}
+          Run history · <span suppressHydrationWarning>{mounted ? scopedRuns.length : 0}</span>
         </Chip>
       </div>
 

@@ -12,7 +12,12 @@ export function SquadTabs() {
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [name, setName] = useState("");
+  const [mounted, setMounted] = useState(false);
   const ref = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (creating) ref.current?.focus();
@@ -60,7 +65,7 @@ export function SquadTabs() {
   return (
     <div className="ml-2 hidden items-center gap-1.5 md:flex">
       <Tab active={active === "all"} tone="sapphire" onClick={() => setActive("all")}>
-        All · {(agents || []).length}
+        All · <span suppressHydrationWarning>{mounted ? (agents || []).length : 0}</span>
       </Tab>
 
       {(squads || []).map((s) => {
@@ -84,7 +89,7 @@ export function SquadTabs() {
             onRename={() => setEditing(s.id)}
             onRemove={() => deleteSquad(s.id, s.name, n)}
           >
-            {s.name} · {n}
+            {s.name} · <span suppressHydrationWarning>{mounted ? n : 0}</span>
           </Tab>
         );
       })}

@@ -75,26 +75,7 @@ const KEY = "sovereign.agents";
 const RUNS_KEY = "sovereign.agents.runs";
 const EVT = "sovereign:agents";
 
-
 export { seedAgents };
-
-const runAgents = seedAgents.filter((a) => a.stats.calls > 0);
-
-export const seedRuns: AgentRun[] = Array.from({ length: 40 }, (_, i) => {
-  const a = runAgents[i % runAgents.length]!;
-  const status: AgentRun["status"] = i % 11 === 3 ? "error" : "ok";
-  return {
-    id: `run.${i}`,
-    agentId: a.id,
-    agent: a.name.toLowerCase(),
-    source: "agent-history",
-    user: "admin",
-    adapter: "spawn",
-    status,
-    startedAt: seedNow() - i * 5400000,
-    durationMs: status === "error" ? 15 + (i % 5) : 8000 + ((i * 3137) % 32000),
-  };
-});
 
 export const emptyAgent: Omit<StudioAgent, "id" | "createdAt"> = {
   name: "",
@@ -150,8 +131,10 @@ function read(): StudioAgent[] {
 
 function write(list: StudioAgent[]) {
   try {
-    window.localStorage.setItem(KEY, JSON.stringify(list));
-    window.dispatchEvent(new CustomEvent(EVT));
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(KEY, JSON.stringify(list));
+      window.dispatchEvent(new CustomEvent(EVT));
+    }
   } catch {
     /* ignore */
   }
@@ -171,28 +154,58 @@ function readRuns(): AgentRun[] {
 
 function writeRuns(list: AgentRun[]) {
   try {
-    window.localStorage.setItem(RUNS_KEY, JSON.stringify(list));
-    window.dispatchEvent(new CustomEvent(EVT));
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(RUNS_KEY, JSON.stringify(list));
+      window.dispatchEvent(new CustomEvent(EVT));
+    }
   } catch {
     /* ignore */
   }
 }
 
+// In-Memory global caches across route transitions
+let _cachedAgents: StudioAgent[] = [];
+let _cachedRuns: AgentRun[] = [];
+let _isAgentsLoaded = false;
+
 export function useAgents() {
-  const [agents, setAgents] = useState<StudioAgent[]>([]);
-  const [runs, setRuns] = useState<AgentRun[]>([]);
+  const [agents, setAgents] = useState<StudioAgent[]>(() => {
+    if (_cachedAgents.length > 0) return _cachedAgents;
+    const local = read();
+    if (local.length > 0) {
+      _cachedAgents = local;
+      return local;
+    }
+    return [];
+  });
+
+  const [runs, setRuns] = useState<AgentRun[]>(() => {
+    if (_cachedRuns.length > 0) return _cachedRuns;
+    const local = readRuns();
+    if (local.length > 0) {
+      _cachedRuns = local;
+      return local;
+    }
+    return [];
+  });
+
   const ctx = useOwnerCtx();
 
   useEffect(() => {
+    let mounted = true;
+
     const sync = async () => {
       try {
         const [agentsData, runsData, historyData] = await Promise.all([
           fetchApi("/api/agents").catch(() => null),
           fetchApi("/api/agents/runs").catch(() => null),
-          fetchApi("/api/agents/run-history").catch(() => null)
+          fetchApi("/api/agents/run-history").catch(() => null),
         ]);
-        
-        if (Array.isArray(agentsData)) {
+
+        if (mounted && Array.isArray(agentsData)) {
+          _cachedAgents = agentsData;
+          _isAgentsLoaded = true;
+          write(agentsData);
           setAgents(agentsData);
 
           // Dynamically extract missing squads from DB and save them so they never disappear
@@ -200,75 +213,112 @@ export function useAgents() {
           const existingNames = new Set(existingSquads.map((sq) => sq.name));
           let addedSquads = false;
           const newSquads = [...existingSquads];
-          agentsData.forEach((a: any) => {
+          agentsData.forEach((a: StudioAgent) => {
             if (a.squad && a.squad !== "Unassigned" && !existingNames.has(a.squad)) {
               newSquads.push({
                 id: a.squad.toLowerCase().replace(/\s+/g, "-"),
                 name: a.squad,
-                tone: squadTones[newSquads.length % squadTones.length]!
+                tone: squadTones[newSquads.length % squadTones.length]!,
               });
               existingNames.add(a.squad);
               addedSquads = true;
             }
           });
           if (addedSquads) {
-            window.localStorage.setItem(SQUADS_KEY, JSON.stringify(newSquads));
-            window.dispatchEvent(new CustomEvent(SQ_EVT));
+            writeSquads(newSquads);
           }
-
-        } else {
-          setAgents(read()); // Read from localStorage
+        } else if (mounted && _cachedAgents.length === 0) {
+          setAgents(read());
         }
 
-        let nextRuns: AgentRun[] = [];
+        const nextRuns: AgentRun[] = [];
 
         if (runsData && Array.isArray(runsData.runs)) {
-          const live = runsData.runs.map((r: any) => ({
-            id: r.runId || `run.${Math.random().toString(36).slice(2)}`,
-            agentId: r.agentId,
-            agent: (Array.isArray(agentsData) ? agentsData : read()).find((a: any) => a.id === r.agentId)?.name?.toLowerCase() || r.agentId,
-            source: r.source || "console",
-            user: "admin",
-            adapter: "spawn",
-            status: "running" as const,
-            startedAt: r.startedAt || Date.now(),
-            durationMs: r.ageMs || 0
-          }));
+          const activeList = Array.isArray(agentsData) ? agentsData : _cachedAgents;
+          const live = runsData.runs.map(
+            (r: {
+              runId?: string;
+              agentId: string;
+              source?: string;
+              startedAt?: number;
+              ageMs?: number;
+            }) => ({
+              id: r.runId || `run.${Math.random().toString(36).slice(2)}`,
+              agentId: r.agentId,
+              agent: activeList.find((a) => a.id === r.agentId)?.name?.toLowerCase() || r.agentId,
+              source: r.source || "console",
+              user: "admin",
+              adapter: "spawn",
+              status: "running" as const,
+              startedAt: r.startedAt || Date.now(),
+              durationMs: r.ageMs || 0,
+            }),
+          );
           nextRuns.push(...live);
         }
 
         if (historyData && Array.isArray(historyData.items)) {
-          const history = historyData.items.map((r: any) => ({
-            id: r.run_id,
-            agentId: r.agent_id,
-            agent: (Array.isArray(agentsData) ? agentsData : read()).find((a: any) => a.id === r.agent_id)?.name?.toLowerCase() || r.agent_id,
-            source: r.source || "console",
-            user: r.username || "admin",
-            adapter: "spawn",
-            status: (r.status === "error" || r.status === "failed") ? "error" as const : "ok" as const,
-            startedAt: r.started_at ? new Date(r.started_at).getTime() : Date.now(),
-            durationMs: r.duration_ms || 0
-          }));
+          const activeList = Array.isArray(agentsData) ? agentsData : _cachedAgents;
+          const history = historyData.items.map(
+            (r: {
+              run_id: string;
+              agent_id: string;
+              source?: string;
+              username?: string;
+              status?: string;
+              started_at?: string;
+              duration_ms?: number;
+            }) => ({
+              id: r.run_id,
+              agentId: r.agent_id,
+              agent: activeList.find((a) => a.id === r.agent_id)?.name?.toLowerCase() || r.agent_id,
+              source: r.source || "console",
+              user: r.username || "admin",
+              adapter: "spawn",
+              status:
+                r.status === "error" || r.status === "failed"
+                  ? ("error" as const)
+                  : ("ok" as const),
+              startedAt: r.started_at ? new Date(r.started_at).getTime() : Date.now(),
+              durationMs: r.duration_ms || 0,
+            }),
+          );
           nextRuns.push(...history);
         }
 
-        if (nextRuns.length > 0) {
-          nextRuns.sort((a, b) => b.startedAt - a.startedAt);
-          setRuns(nextRuns);
-          window.localStorage.setItem(RUNS_KEY, JSON.stringify(nextRuns));
-        } else {
-          setRuns(readRuns());
+        if (mounted) {
+          if (nextRuns.length > 0) {
+            nextRuns.sort((a, b) => b.startedAt - a.startedAt);
+            _cachedRuns = nextRuns;
+            setRuns(nextRuns);
+            writeRuns(nextRuns);
+          } else if (_cachedRuns.length === 0) {
+            setRuns(readRuns());
+          }
         }
-
       } catch (err) {
         console.error("Failed to load agents/runs from API", err);
-        setAgents(read());
-        setRuns(readRuns());
+        if (mounted) {
+          setAgents(read());
+          setRuns(readRuns());
+        }
       }
     };
+
     sync();
-    window.addEventListener(EVT, sync);
-    return () => window.removeEventListener(EVT, sync);
+
+    const onEvt = () => {
+      if (mounted) {
+        setAgents(_cachedAgents.length > 0 ? _cachedAgents : read());
+        setRuns(_cachedRuns.length > 0 ? _cachedRuns : readRuns());
+      }
+    };
+
+    window.addEventListener(EVT, onEvt);
+    return () => {
+      mounted = false;
+      window.removeEventListener(EVT, onEvt);
+    };
   }, []);
 
   const create = useCallback(async (draft: Omit<StudioAgent, "id" | "createdAt">) => {
@@ -277,8 +327,10 @@ export function useAgents() {
     try {
       await fetchApi("/api/agents", {
         method: "POST",
-        body: JSON.stringify(newAgent)
+        body: JSON.stringify(newAgent),
       });
+      _cachedAgents = [..._cachedAgents, newAgent];
+      write(_cachedAgents);
       setAgents((prev) => [...prev, newAgent]);
       return id;
     } catch (err) {
@@ -291,8 +343,10 @@ export function useAgents() {
     try {
       await fetchApi(`/api/agents/${id}`, {
         method: "PUT",
-        body: JSON.stringify(patch)
+        body: JSON.stringify(patch),
       });
+      _cachedAgents = _cachedAgents.map((a) => (a.id === id ? { ...a, ...patch } : a));
+      write(_cachedAgents);
       setAgents((prev) => prev.map((a) => (a.id === id ? { ...a, ...patch } : a)));
     } catch (err) {
       console.error("Failed to update agent", err);
@@ -302,6 +356,8 @@ export function useAgents() {
   const remove = useCallback(async (id: string) => {
     try {
       await fetchApi(`/api/agents/${id}`, { method: "DELETE" });
+      _cachedAgents = _cachedAgents.filter((a) => a.id !== id);
+      write(_cachedAgents);
       setAgents((prev) => prev.filter((a) => a.id !== id));
     } catch (err) {
       console.error("Failed to remove agent", err);
@@ -309,7 +365,6 @@ export function useAgents() {
   }, []);
 
   const dispatch = useCallback(async (a: StudioAgent) => {
-    // Optimistic mock to show it instantly in the UI
     const run: AgentRun = {
       id: `run.${Math.random().toString(36).slice(2, 8)}`,
       agentId: a.id,
@@ -321,28 +376,23 @@ export function useAgents() {
       startedAt: Date.now(),
       durationMs: 0,
     };
-    setRuns((prev) => {
-      const next = [run, ...prev].slice(0, 200);
-      writeRuns(next);
-      return next;
-    });
+    const next = [run, ..._cachedRuns].slice(0, 200);
+    _cachedRuns = next;
+    writeRuns(next);
+    setRuns(next);
 
     try {
-      // Actually trigger the real backend API
       await fetchApi(`/api/agents/${a.id}/run`, { method: "POST" });
-      // Refresh to grab the real run details
       window.dispatchEvent(new CustomEvent(EVT));
     } catch (err) {
       console.error("Failed to run agent", err);
-      // Remove optimistic run on failure
-      setRuns((prev) => {
-        const next = prev.filter(r => r.id !== run.id);
-        writeRuns(next);
-        return next;
-      });
+      const reverted = _cachedRuns.filter((r) => r.id !== run.id);
+      _cachedRuns = reverted;
+      writeRuns(reverted);
+      setRuns(reverted);
       throw err;
     }
-    
+
     return run;
   }, []);
 
@@ -384,8 +434,10 @@ function readSquads(): Squad[] {
 
 function writeSquads(list: Squad[]) {
   try {
-    window.localStorage.setItem(SQUADS_KEY, JSON.stringify(list));
-    window.dispatchEvent(new CustomEvent(SQ_EVT));
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(SQUADS_KEY, JSON.stringify(list));
+      window.dispatchEvent(new CustomEvent(SQ_EVT));
+    }
   } catch {
     /* ignore */
   }
@@ -396,27 +448,36 @@ function readActiveSquad(): string {
   return window.localStorage.getItem(ACTIVE_SQUAD_KEY) ?? "all";
 }
 
+let _cachedSquads: Squad[] = [];
+
 /** Squad registry — drives the header tabs and the roster scope. */
 export function useSquads() {
-  const [squads, setSquads] = useState<Squad[]>([]);
-  const [active, setActiveState] = useState<string>("all");
+  const [squads, setSquads] = useState<Squad[]>(() => {
+    if (_cachedSquads.length > 0) return _cachedSquads;
+    const local = readSquads();
+    if (local.length > 0) {
+      _cachedSquads = local;
+      return local;
+    }
+    return [];
+  });
+
+  const [active, setActiveState] = useState<string>(() => readActiveSquad());
 
   useEffect(() => {
     let mounted = true;
+
     const sync = async () => {
-      setSquads(readSquads());
-      setActiveState(readActiveSquad());
-      
       try {
         const payload = await fetchApi("/api/agents/squads");
         const data = payload?.items || payload;
         if (mounted && Array.isArray(data)) {
-          const mapped = data.map((d: any) => ({
+          const mapped = data.map((d: { name: string; color?: string; tone?: string }) => ({
             id: d.name.toLowerCase().replace(/\s+/g, "-"),
             name: d.name,
-            tone: d.color || d.tone || "sapphire"
+            tone: d.color || d.tone || "sapphire",
           }));
-          
+
           const current = readSquads();
           const currentNames = new Set(current.map((sq) => sq.name));
           let changed = false;
@@ -437,21 +498,25 @@ export function useSquads() {
           }
 
           if (changed || mapped.length > 0) {
+            _cachedSquads = merged;
             setSquads(merged);
-            window.localStorage.setItem(SQUADS_KEY, JSON.stringify(merged));
-            window.dispatchEvent(new CustomEvent(SQ_EVT));
+            writeSquads(merged);
           }
         }
       } catch (e) {
         console.error("Failed to load agent squads", e);
       }
     };
+
     sync();
-    
+
     const onEvt = () => {
-      setSquads(readSquads());
-      setActiveState(readActiveSquad());
+      if (mounted) {
+        setSquads(_cachedSquads.length > 0 ? _cachedSquads : readSquads());
+        setActiveState(readActiveSquad());
+      }
     };
+
     window.addEventListener(SQ_EVT, onEvt);
     return () => {
       mounted = false;
@@ -461,8 +526,10 @@ export function useSquads() {
 
   const setActive = useCallback((id: string) => {
     try {
-      window.localStorage.setItem(ACTIVE_SQUAD_KEY, id);
-      window.dispatchEvent(new CustomEvent(SQ_EVT));
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(ACTIVE_SQUAD_KEY, id);
+        window.dispatchEvent(new CustomEvent(SQ_EVT));
+      }
     } catch {
       /* ignore */
     }
@@ -475,42 +542,45 @@ export function useSquads() {
     const id = `${clean.toLowerCase().replace(/\s+/g, "-")}.${Math.random().toString(36).slice(2, 5)}`;
     const tone = squadTones[list.length % squadTones.length]!;
     const next = [...list, { id, name: clean, tone }];
+    _cachedSquads = next;
     writeSquads(next);
     setSquads(next);
     fetchApi("/api/agents/squads", {
       method: "POST",
-      body: JSON.stringify({ name: clean, color: tone })
-    }).catch(e => console.error("Failed to persist agent squad:", e));
+      body: JSON.stringify({ name: clean, color: tone }),
+    }).catch((e) => console.error("Failed to persist agent squad:", e));
     return id;
   }, []);
 
   const renameSquad = useCallback((id: string, name: string) => {
     const list = readSquads();
-    const oldSquad = list.find(s => s.id === id);
+    const oldSquad = list.find((s) => s.id === id);
     const clean = name.trim() || (oldSquad ? oldSquad.name : "");
     if (!oldSquad || !clean) return;
 
     const next = list.map((s) => (s.id === id ? { ...s, name: clean } : s));
+    _cachedSquads = next;
     writeSquads(next);
     setSquads(next);
-    
+
     fetchApi(`/api/agents/squads/${encodeURIComponent(oldSquad.name)}`, {
       method: "PATCH",
-      body: JSON.stringify({ newName: clean })
-    }).catch(e => console.error("Failed to rename agent squad:", e));
+      body: JSON.stringify({ newName: clean }),
+    }).catch((e) => console.error("Failed to rename agent squad:", e));
   }, []);
 
   const removeSquad = useCallback((id: string) => {
     const list = readSquads();
-    const oldSquad = list.find(s => s.id === id);
+    const oldSquad = list.find((s) => s.id === id);
     const next = list.filter((s) => s.id !== id);
+    _cachedSquads = next;
     writeSquads(next);
     setSquads(next);
-    
+
     if (oldSquad) {
       fetchApi(`/api/agents/squads/${encodeURIComponent(oldSquad.name)}`, {
-        method: "DELETE"
-      }).catch(e => console.error("Failed to remove agent squad:", e));
+        method: "DELETE",
+      }).catch((e) => console.error("Failed to delete agent squad:", e));
     }
   }, []);
 

@@ -17,7 +17,7 @@ export async function mountReportingRoutes(app, deps) {
         range_to     text,
         top_n        integer,
         sort_by      text,
-        user_id      text REFERENCES app_users(id) ON DELETE SET NULL,
+        user_id      text,
         format       text,
         delivery     text,
         recipients   text,
@@ -36,7 +36,13 @@ export async function mountReportingRoutes(app, deps) {
         shared_with  jsonb NOT NULL DEFAULT '[]'::jsonb,
         created_at   timestamptz NOT NULL DEFAULT now()
       );
+    `);
+  } catch (err) {
+    console.warn("[Reporting API] Notice creating schedules table:", err.message);
+  }
 
+  try {
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS schedule_deliveries (
         id          text PRIMARY KEY,
         schedule_id text REFERENCES schedules(id) ON DELETE CASCADE,
@@ -48,7 +54,13 @@ export async function mountReportingRoutes(app, deps) {
         outcome     text,
         detail      text
       );
+    `);
+  } catch (err) {
+    console.warn("[Reporting API] Notice creating schedule_deliveries table:", err.message);
+  }
 
+  try {
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS rag_queries (
         id           text PRIMARY KEY,
         at           timestamptz NOT NULL DEFAULT now(),
@@ -62,12 +74,18 @@ export async function mountReportingRoutes(app, deps) {
         chunks       integer NOT NULL DEFAULT 0,
         hit          boolean NOT NULL DEFAULT false
       );
+    `);
+  } catch (err) {
+    console.warn("[Reporting API] Notice creating rag_queries table:", err.message);
+  }
 
+  try {
+    await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_rag_queries_at ON rag_queries(at DESC);
       CREATE INDEX IF NOT EXISTS idx_schedules_owner ON schedules(owner_id);
     `);
   } catch (err) {
-    console.warn("[Reporting API] Notice during schema initialization:", err.message);
+    console.warn("[Reporting API] Notice creating indices:", err.message);
   }
 
   // Helper to parse date window from query parameters
@@ -941,7 +959,7 @@ export async function mountReportingRoutes(app, deps) {
 
       // Fetch knowledge sources
       const sourcesRes = await pool.query(
-        `SELECT id, name, space, owner_id, owner_name, size_mb, chunks, status, added_at, metadata
+        `SELECT id, name, space_id, owner_id, owner_name, size_mb, chunks, status, added_at, metadata
          FROM knowledge_sources
          ORDER BY added_at DESC`
       );
@@ -966,8 +984,8 @@ export async function mountReportingRoutes(app, deps) {
       const docs = sourcesRes.rows.map((s) => ({
         id: s.id,
         name: s.name,
-        space: s.space,
-        spaceName: spacesMap.get(s.space) || "General",
+        space: s.space_id,
+        spaceName: spacesMap.get(s.space_id) || "General",
         ownerId: s.owner_id,
         ownerName: s.owner_name || "admin",
         sizeMb: Number(s.size_mb || 0),
