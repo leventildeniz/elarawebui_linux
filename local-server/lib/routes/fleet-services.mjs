@@ -1,3 +1,6 @@
+// local-server/lib/routes/fleet-services.mjs
+// Background Services Tower — Real-Time Probing & Lifecycle Management
+
 import { exec } from "child_process";
 import { promisify } from "util";
 
@@ -5,6 +8,80 @@ const execAsync = promisify(exec);
 
 export async function mountFleetServicesRoutes(app, deps) {
   const { pool, isAdminCaller, createPrefixedId } = deps;
+
+  // Real-time live status prober for any service definition
+  async function probeService(s) {
+    let isOnline = false;
+    let detail = "OFFLINE · inactive";
+
+    // 1. Postgres Database Service Check
+    if (s.key === "postgres" || s.kind === "Postgres" || s.probe?.startsWith("postgres://")) {
+      try {
+        await pool.query("SELECT 1");
+        isOnline = true;
+        detail = "ONLINE · healthy";
+        return { isOnline, detail };
+      } catch (err) {
+        return { isOnline: false, detail: "OFFLINE · connection refused" };
+      }
+    }
+
+    // 2. Systemd Service Unit Check (Linux)
+    if (s.manager === "systemd" && s.unit) {
+      try {
+        const { stdout } = await execAsync(`systemctl is-active ${s.unit}`, { timeout: 1500 });
+        const state = (stdout || "").trim().toLowerCase();
+        if (state === "active") {
+          isOnline = true;
+          detail = "ONLINE · RUNNING · healthy";
+        } else if (state === "failed") {
+          isOnline = false;
+          detail = "OFFLINE · failed";
+        } else {
+          isOnline = false;
+          detail = `OFFLINE · ${state}`;
+        }
+      } catch (err) {
+        const state = (err?.stdout || err?.stderr || "inactive").trim().toLowerCase();
+        isOnline = state === "active";
+        detail = isOnline ? "ONLINE · RUNNING · healthy" : `OFFLINE · ${state}`;
+      }
+      return { isOnline, detail };
+    }
+
+    // 3. Launchd Service Unit Check (macOS)
+    if (s.manager === "launchd" && s.unit) {
+      try {
+        const { stdout } = await execAsync(`launchctl list ${s.unit}`, { timeout: 1500 });
+        if (stdout && !stdout.includes("Could not find")) {
+          isOnline = true;
+          detail = "ONLINE · RUNNING · healthy";
+        } else {
+          isOnline = false;
+          detail = "OFFLINE · inactive";
+        }
+      } catch {
+        isOnline = false;
+        detail = "OFFLINE · inactive";
+      }
+      return { isOnline, detail };
+    }
+
+    // 4. HTTP / REST Probe
+    if (s.probe?.startsWith("http://") || s.probe?.startsWith("https://")) {
+      try {
+        const r = await fetch(s.probe, { signal: AbortSignal.timeout(1200) });
+        isOnline = r.ok;
+        detail = r.ok ? `ONLINE · HTTP ${r.status}` : `OFFLINE · HTTP ${r.status}`;
+      } catch {
+        isOnline = false;
+        detail = "OFFLINE · unreachable";
+      }
+      return { isOnline, detail };
+    }
+
+    return { isOnline: !!s.online, detail: s.detail || "OFFLINE" };
+  }
 
   // Helper to run actual OS lifecycle commands
   async function runLifecycleCommand(manager, unit, action, sudo) {
@@ -22,41 +99,53 @@ export async function mountFleetServicesRoutes(app, deps) {
     if (!cmd) return;
     if (sudo) cmd = `sudo ${cmd}`;
     
-    try {
-      console.log(`[Fleet] Executing lifecycle: ${cmd}`);
-      await execAsync(cmd);
-      return true;
-    } catch (e) {
-      console.error(`[Fleet] Failed lifecycle command: ${cmd}`, e);
-      throw e;
-    }
+    console.log(`[Fleet] Executing lifecycle: ${cmd}`);
+    await execAsync(cmd, { timeout: 10000 });
+    return true;
   }
 
   app.get("/api/system/services", async (req, res) => {
     if (!await isAdminCaller(req)) return res.status(403).json({ ok: false, error: "admin required" });
     try {
       const { rows } = await pool.query("SELECT * FROM app_services ORDER BY created_at ASC");
-      res.json(rows.map(s => ({
-        id: s.id,
-        key: s.key,
-        name: s.name,
-        kind: s.kind,
-        probe: s.probe,
-        username: s.username || "",
-        credential: s.credential || "",
-        manager: s.manager,
-        unit: s.unit || "",
-        sudo: !!s.sudo,
-        transport: s.transport,
-        host: s.host || "",
-        startCmd: s.start_cmd || "",
-        stopCmd: s.stop_cmd || "",
-        restartCmd: s.restart_cmd || "",
-        statusCmd: s.status_cmd || "",
-        online: !!s.online,
-        detail: s.detail || ""
-      })));
-    } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+      
+      // Probe all services in parallel for real-time live accuracy
+      const liveServices = await Promise.all(
+        rows.map(async (s) => {
+          const { isOnline, detail } = await probeService(s);
+          
+          // Asynchronously update DB cache if changed
+          if (s.online !== isOnline || s.detail !== detail) {
+            pool.query("UPDATE app_services SET online=$1, detail=$2, updated_at=now() WHERE id=$3", [isOnline, detail, s.id]).catch(() => {});
+          }
+
+          return {
+            id: s.id,
+            key: s.key,
+            name: s.name,
+            kind: s.kind,
+            probe: s.probe,
+            username: s.username || "",
+            credential: s.credential || "",
+            manager: s.manager,
+            unit: s.unit || "",
+            sudo: !!s.sudo,
+            transport: s.transport,
+            host: s.host || "",
+            startCmd: s.start_cmd || "",
+            stopCmd: s.stop_cmd || "",
+            restartCmd: s.restart_cmd || "",
+            statusCmd: s.status_cmd || "",
+            online: isOnline,
+            detail: detail
+          };
+        })
+      );
+
+      res.json(liveServices);
+    } catch (e) { 
+      res.status(500).json({ ok: false, error: String(e.message || e) }); 
+    }
   });
 
   app.post("/api/system/services", async (req, res) => {
@@ -72,7 +161,7 @@ export async function mountFleetServicesRoutes(app, deps) {
           id, s.key || id, s.name, s.kind, s.probe, s.username || "", s.credential || "",
           s.manager || "custom", s.unit || "", !!s.sudo, s.transport || "local-agent",
           s.host || "", s.startCmd || "", s.stopCmd || "", s.restartCmd || "", s.statusCmd || "",
-          false, ""
+          false, "PENDING · not probed yet"
         ]
       );
       res.status(201).json({ ok: true, id });
@@ -89,18 +178,19 @@ export async function mountFleetServicesRoutes(app, deps) {
     }
 
     try {
-      const { rows } = await pool.query("SELECT manager, unit, sudo FROM app_services WHERE id=$1", [id]);
+      const { rows } = await pool.query("SELECT * FROM app_services WHERE id=$1", [id]);
       if (!rows.length) return res.status(404).json({ ok: false, error: "service not found" });
 
-      const { manager, unit, sudo } = rows[0];
-      await runLifecycleCommand(manager, unit, action, sudo);
+      const s = rows[0];
+      await runLifecycleCommand(s.manager, s.unit, action, s.sudo);
 
-      let isOnline = action !== "stop";
-      let newDetail = action === "stop" ? "STOPPED · manual" : action === "restart" ? "restarted · healthy" : "RUNNING · healthy";
+      // Probe live result after lifecycle action
+      await new Promise((r) => setTimeout(r, 600));
+      const { isOnline, detail } = await probeService(s);
       
-      await pool.query("UPDATE app_services SET online=$1, detail=$2, updated_at=now() WHERE id=$3", [isOnline, newDetail, id]);
+      await pool.query("UPDATE app_services SET online=$1, detail=$2, updated_at=now() WHERE id=$3", [isOnline, detail, id]);
       
-      res.json({ ok: true, online: isOnline, detail: newDetail });
+      res.json({ ok: true, online: isOnline, detail });
     } catch (e) {
       res.status(500).json({ ok: false, error: String(e.message || e) });
     }
@@ -134,8 +224,6 @@ export async function mountFleetServicesRoutes(app, deps) {
     if (updates.length > 0) {
       updates.push(`updated_at=now()`);
       values.push(id);
-      // We removed the hacked lifecycle checking here because
-      // UI now calls the /control endpoint to run systemctl.
       try {
         await pool.query(`UPDATE app_services SET ${updates.join(", ")} WHERE id=$${i}`, values);
         res.json({ ok: true });

@@ -341,7 +341,7 @@ function ControlTab() {
           </MaintButton>
 
           <Tag tone="emerald" className="ml-auto font-mono text-[11.5px] border-emerald/40 text-emerald shadow-[0_0_16px_-4px_var(--emerald)]">
-            embed: {k.embedModel || "ready"}
+            Embed: {k.embedModel || "ready"}
           </Tag>
         </div>
 

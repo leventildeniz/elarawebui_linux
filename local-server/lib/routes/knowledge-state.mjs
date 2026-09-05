@@ -1,3 +1,8 @@
+// local-server/lib/routes/knowledge-state.mjs
+// Dynamic Knowledge State & RAG Telemetry (ONNX In-Process + Python Worker Fallback)
+
+import { getOnnxStatus } from "../onnx-pipeline.mjs";
+
 export async function mountKnowledgeConfigRoutes(app, deps) {
   const { pool, isAdminCaller } = deps;
 
@@ -83,18 +88,31 @@ export async function mountKnowledgeConfigRoutes(app, deps) {
         stage: s.stage || "",
       }));
 
-      // Dynamic worker probe for live model metadata
+      // Dynamic probe from both In-Process ONNX Runtime and External Python Worker
+      const onnx = getOnnxStatus();
       let workerHealth = null;
       try {
         const workerPort = Number(process.env.EMBED_WORKER_PORT || 8082);
-        const wr = await fetch(`http://127.0.0.1:${workerPort}/health`, { signal: AbortSignal.timeout(1500) });
+        const wr = await fetch(`http://127.0.0.1:${workerPort}/health`, { signal: AbortSignal.timeout(800) });
         if (wr.ok) workerHealth = await wr.json();
       } catch {}
 
-      const embedModel = workerHealth?.model || c.embed_model || process.env.EMBED_MODEL || null;
-      const embedDim = workerHealth?.dim || null;
-      const rerankerModel = workerHealth?.reranker?.model || process.env.RAG_RERANK_MODEL || null;
-      const activeBackend = workerHealth?.backend || (workerHealth?.ok ? "ready" : "offline");
+      const isWorkerOnline = Boolean(workerHealth?.ok);
+      const isOnnxActive = process.env.EMBED_ENGINE !== "python";
+
+      const embedModel = (isOnnxActive ? onnx.embedModel : null) || workerHealth?.model || c.embed_model || process.env.EMBED_MODEL || "Xenova/bge-small-en-v1.5";
+      const embedDim = workerHealth?.dim || 384;
+      const rerankerModel = (isOnnxActive ? onnx.rerankModel : null) || workerHealth?.reranker?.model || process.env.RAG_RERANK_MODEL || "Xenova/bge-reranker-base";
+      
+      let activeBackend = "offline";
+      if (isOnnxActive && isWorkerOnline) {
+        activeBackend = "onnx (in-process) · fallback :8082 online";
+      } else if (isOnnxActive) {
+        activeBackend = "onnx (native in-process)";
+      } else if (isWorkerOnline) {
+        activeBackend = workerHealth?.backend || "python-worker (:8082)";
+      }
+
       const activeParser = "pdftotext (C++) + fallback";
 
       // Calculate live health directly from database chunks

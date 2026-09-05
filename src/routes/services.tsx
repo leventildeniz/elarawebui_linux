@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { toast } from "sonner";
 import { useCallback, useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { Plug, Plus, RefreshCw, RotateCcw, Server, Trash2 } from "lucide-react";
@@ -172,7 +173,7 @@ function ServicesPage() {
 
   const fetchServices = useCallback(async () => {
     try {
-      const data = await fetchApi("/system/services");
+      const data = await fetchApi("/api/system/services");
       if (Array.isArray(data) && data.length > 0) {
         setServices(data.map(normalize));
       } else {
@@ -198,6 +199,8 @@ function ServicesPage() {
   useEffect(() => {
     fetchServices();
     fetchProviders();
+    const timer = setInterval(fetchServices, 10000);
+    return () => clearInterval(timer);
   }, [fetchServices, fetchProviders]);
 
   const add = async () => {
@@ -283,18 +286,25 @@ function ServicesPage() {
   };
 
   const handleAction = async (id: string, action: string) => {
+    const sName = services.find((x) => x.id === id)?.name || "Service";
+    const toastId = toast.loading(`${action.toUpperCase()} signal sending to ${sName}...`);
     try {
-      const res = await fetchApi(`/system/services/${id}/control`, {
+      const res = await fetchApi(`/api/system/services/${id}/control`, {
         method: "PUT",
         body: JSON.stringify({ action }),
       });
-      if (res.ok) {
+      if (res?.ok) {
         setServices((s) =>
           s.map((x) => (x.id === id ? { ...x, online: res.online, detail: res.detail } : x)),
         );
+        toast.success(`${sName} ${action} completed: ${res.detail}`, { id: toastId });
+      } else {
+        toast.error(res?.error || `Failed to ${action} ${sName}`, { id: toastId });
       }
-    } catch (e) {
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
       console.error(`Failed to ${action} service`, e);
+      toast.error(msg || `Failed to ${action} ${sName}`, { id: toastId });
     }
   };
 
@@ -314,7 +324,7 @@ function ServicesPage() {
             <span className="font-mono text-[11px] text-muted-foreground/50">
               auto-refresh 30 s
             </span>
-            <JewelButton size="sm" variant="outline" onClick={() => setServices((r) => [...r])}>
+            <JewelButton size="sm" variant="outline" onClick={() => fetchServices()}>
               <RefreshCw size={12} /> Refresh
             </JewelButton>
             <JewelButton
