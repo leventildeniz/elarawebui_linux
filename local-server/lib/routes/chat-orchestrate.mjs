@@ -627,7 +627,7 @@ export async function mountChatOrchestrateRoutes(app, deps) {
   app.post("/api/chat/orchestrate", async (req, res) => {
     const thread_id = req.body?.thread_id || req.body?.threadId;
     const agent_id = req.body?.agent_id || req.body?.agentId;
-    const { model, messages = [], capabilities, web_search, useRag, routing_mode, effort = "high", context: threadContext } = req.body ?? {};
+    const { model, message, messages = [], capabilities, web_search, useRag, routing_mode, effort = "high", context: threadContext } = req.body ?? {};
 
     // RBAC Security Context resolution
     let actorId = null;
@@ -1536,6 +1536,44 @@ When the user asks you a question or assigns a task, intelligently apply the fol
 
           if (iteration === 1) {
               send({ phase: "streaming" });
+
+              // --- Phase 54: Semantic LLM Cache Pre-Check (Zero-LLM Sub-10ms Fast Lane) ---
+              const userQueryStr = String(message || [...messages].reverse().find(m => m.role === "user")?.content || "").trim();
+              if (!agent_id && userQueryStr.length > 2) {
+                  try {
+                      const { getSemanticCache } = await import("../infra/redis-cache.mjs");
+                      const { embed } = await import("../embed-provider.mjs");
+                      const qVec = await embed(userQueryStr).catch(() => null);
+                      const cacheHit = await getSemanticCache(qVec, userQueryStr, 0.98);
+                      if (cacheHit && cacheHit.hit && cacheHit.response) {
+                          console.log(`[SemanticCache] ⚡ Cache HIT (${cacheHit.source}, score=${cacheHit.score}) for: "${userQueryStr.slice(0, 45)}..."`);
+                          const totalMs = Date.now() - t0;
+                          const tokenCount = Math.max(1, Math.round(cacheHit.response.length / 4));
+                          send({
+                              delta: cacheHit.response,
+                              meta: {
+                                  source: `cache:${cacheHit.source}`,
+                                  providerName: cacheHit.model || "Semantic Cache Tier",
+                                  cached: true,
+                                  score: cacheHit.score,
+                              }
+                          });
+                          send({
+                              latency: {
+                                  ttftMs: totalMs,
+                                  totalMs,
+                                  tokensOut: tokenCount,
+                                  modelOut: cacheHit.model || "Semantic Cache Tier",
+                              }
+                          });
+                          send({ type: "done" });
+                          close();
+                          return;
+                      }
+                  } catch (cErr) {
+                      console.warn(`[SemanticCache] Lookup notice: ${cErr.message}`);
+                  }
+              }
           } else {
               send({ phase: "agent_loop", iteration });
               console.log(`\n[Orchestrate] --- Agent Loop Start: Turn ${iteration} ---`);
@@ -2372,6 +2410,19 @@ When the user asks you a question or assigns a task, intelligently apply the fol
           } else {
               // Final turn: LLM produced final conversational answer
               isDone = true;
+
+              // Asynchronously save to Semantic Cache
+              const finalQuery = String(message || [...messages].reverse().find(m => m.role === "user")?.content || "").trim();
+              if (assembled && assembled.trim().length > 0 && finalQuery.length > 2) {
+                  (async () => {
+                      try {
+                          const { setSemanticCache } = await import("../infra/redis-cache.mjs");
+                          const { embed } = await import("../embed-provider.mjs");
+                          const qVec = await embed(finalQuery).catch(() => null);
+                          await setSemanticCache(qVec, finalQuery, assembled, { model: usedModelStr });
+                      } catch {}
+                  })();
+              }
 
               const totalMs = Date.now() - t0;
               const promptTokens = approxTokens ? approxTokens(formattedMessages.map(m => m.content).join("\n")) : 10;

@@ -95,6 +95,9 @@ import { enrichChunkContent } from './lib/chunk-enrichment.mjs';
 import { linkEntitiesForChunk } from './lib/rag/entity-extractor.mjs';
 import { _coerceBool, maybeAutoReenrich } from './lib/routes/brand-aliases.mjs';
 import { sseBegin, sseWrite } from './lib/sse.mjs';
+import { redactDeep } from './lib/redaction.mjs';
+import { initRedisCache } from './lib/infra/redis-cache.mjs';
+import { initRabbitBroker } from './lib/infra/rabbitmq-broker.mjs';
 
 let _cockpit = null;
 
@@ -265,6 +268,7 @@ async function startServer() {
       pool,
       config,
       isUuid,
+      redactDeep,
       flushModelKvCache: dummyFlushCache,
       pendingModelCache: new Map(),
       requireSession,
@@ -441,6 +445,9 @@ async function startServer() {
       next();
     });
     
+    await initRedisCache(pool).catch(() => {});
+    await initRabbitBroker(pool).catch(() => {});
+
     await mountApiRoutes(app, deps);
 
     app.get('/health', (req, res) => res.json({ status: 'ok' }));

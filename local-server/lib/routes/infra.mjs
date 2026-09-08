@@ -5,6 +5,8 @@ import net from "node:net";
 import fs from "node:fs";
 import path from "node:path";
 import pg from "pg";
+import { getRedisCacheStats, initRedisCache } from "../infra/redis-cache.mjs";
+import { getRabbitBrokerStats, initRabbitBroker } from "../infra/rabbitmq-broker.mjs";
 
 export async function mountInfraRoutes(app, deps) {
   const { pool, isAdminCaller, resolveActor } = deps;
@@ -117,6 +119,9 @@ export async function mountInfraRoutes(app, deps) {
         },
       };
 
+      const redisStats = getRedisCacheStats();
+      const rabbitStats = getRabbitBrokerStats();
+
       res.json({
         ok: true,
         database: {
@@ -133,16 +138,22 @@ export async function mountInfraRoutes(app, deps) {
         },
         redis: {
           enabled: !!redisConfig.enabled,
-          mode: redisConfig.enabled ? "redis-cluster" : "in-memory-fallback",
+          mode: redisStats.mode,
           activeUri: maskUri(redisConfig.uri),
           semanticCache: redisConfig.semanticCache !== false,
           ttlSeconds: redisConfig.ttlSeconds || 86400,
+          hitRate: redisStats.hitRate,
+          hits: redisStats.hits,
+          misses: redisStats.misses,
         },
         rabbitmq: {
           enabled: !!rabbitmqConfig.enabled,
-          mode: rabbitmqConfig.enabled ? "amqp-broker" : "direct-sync-fallback",
+          mode: rabbitStats.mode,
           activeUri: maskUri(rabbitmqConfig.uri),
           prefetch: rabbitmqConfig.prefetch || 10,
+          published: rabbitStats.published,
+          completed: rabbitStats.completed,
+          failed: rabbitStats.failed,
         },
         storage: {
           mode: storageConfig.mode || "local",
@@ -270,6 +281,8 @@ export async function mountInfraRoutes(app, deps) {
         [JSON.stringify(payload)]
       );
 
+      await initRedisCache(pool);
+
       res.json({ ok: true, message: "Redis caching configuration saved." });
     } catch (e) {
       res.status(500).json({ ok: false, error: String(e.message || e) });
@@ -325,6 +338,8 @@ export async function mountInfraRoutes(app, deps) {
          ON CONFLICT (key) DO UPDATE SET value=$1::jsonb, updated_at=now()`,
         [JSON.stringify(payload)]
       );
+
+      await initRabbitBroker(pool);
 
       res.json({ ok: true, message: "RabbitMQ task broker configuration saved." });
     } catch (e) {
