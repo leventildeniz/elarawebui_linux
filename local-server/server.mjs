@@ -445,6 +445,23 @@ async function startServer() {
 
     app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
+    // Production Static UI Serving (Zero-Nginx Unified Single-Port Model)
+    const distPath = path.resolve(__bootDir, '../dist');
+    if (fs.existsSync(distPath)) {
+      app.use(express.static(distPath, { maxAge: '1d', index: false }));
+      app.get('*', (req, res, next) => {
+        if (req.path.startsWith('/api') || req.path.startsWith('/health') || req.path.startsWith('/rag')) {
+          return next();
+        }
+        const indexPath = path.join(distPath, 'index.html');
+        if (fs.existsSync(indexPath)) {
+          res.sendFile(indexPath);
+        } else {
+          next();
+        }
+      });
+    }
+
     app.listen(config.port, '0.0.0.0', () => {
       console.log(`🚀 Middleware running on port ${config.port}`);
     });

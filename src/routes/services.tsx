@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { useCallback, useEffect, useState } from "react";
 import { motion } from "motion/react";
-import { Plug, Plus, RefreshCw, RotateCcw, Server, Trash2 } from "lucide-react";
+import { Activity, CheckCircle2, Database, HardDrive, Layers, Network, Plug, Plus, RefreshCw, RotateCcw, Server, Shield, Trash2, Zap } from "lucide-react";
 import { Surface } from "@/components/sovereign/surface";
 import { ResetButton, SaveButton } from "@/components/sovereign/action-buttons";
 import { JewelButton } from "@/components/sovereign/primitives";
@@ -757,7 +757,648 @@ function ServicesPage() {
           )}
         </div>
       </motion.section>
+
+      {/* ENTERPRISE HA CLUSTER & INFRASTRUCTURE HUB */}
+      <EnterpriseInfrastructureHub />
     </Surface>
+  );
+}
+
+/* ------------------------------------------------------------- infra hub */
+
+type InfraOverview = {
+  database: {
+    status: string;
+    activeUri: string;
+    databaseName: string;
+    version: string;
+    latencyMs: number;
+    pool: { totalCount: number; idleCount: number; waitingCount: number };
+  };
+  redis: {
+    enabled: boolean;
+    mode: string;
+    activeUri: string;
+    semanticCache: boolean;
+    ttlSeconds: number;
+  };
+  rabbitmq: {
+    enabled: boolean;
+    mode: string;
+    activeUri: string;
+    prefetch: number;
+  };
+  storage: {
+    mode: "local" | "s3";
+    localPath: string;
+    s3Endpoint: string;
+    s3Bucket: string;
+  };
+};
+
+function EnterpriseInfrastructureHub() {
+  const [infra, setInfra] = useState<InfraOverview | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Database State
+  const [dbCandidate, setDbCandidate] = useState("");
+  const [dbTesting, setDbTesting] = useState(false);
+  const [dbResult, setDbResult] = useState<{ ok: boolean; msg: string; latency?: number | undefined } | null>(
+    null,
+  );
+
+  // Redis State
+  const [redisEnabled, setRedisEnabled] = useState(false);
+  const [redisUri, setRedisUri] = useState("redis://127.0.0.1:6379");
+  const [semanticCache, setSemanticCache] = useState(true);
+  const [redisTtl, setRedisTtl] = useState(86400);
+  const [redisTesting, setRedisTesting] = useState(false);
+  const [redisResult, setRedisResult] = useState<{ ok: boolean; msg: string } | null>(null);
+
+  // RabbitMQ State
+  const [rmqEnabled, setRmqEnabled] = useState(false);
+  const [rmqUri, setRmqUri] = useState("amqp://guest:guest@127.0.0.1:5672");
+  const [rmqPrefetch, setRmqPrefetch] = useState(10);
+  const [rmqTesting, setRmqTesting] = useState(false);
+  const [rmqResult, setRmqResult] = useState<{ ok: boolean; msg: string } | null>(null);
+
+  // Storage State
+  const [storageMode, setStorageMode] = useState<"local" | "s3">("local");
+  const [localPath, setLocalPath] = useState("./uploads");
+  const [s3Endpoint, setS3Endpoint] = useState("");
+  const [s3Bucket, setS3Bucket] = useState("elara-knowledge");
+  const [s3Region, setS3Region] = useState("us-east-1");
+  const [s3AccessKey, setS3AccessKey] = useState("");
+  const [s3SecretKey, setS3SecretKey] = useState("");
+  const [storageTesting, setStorageTesting] = useState(false);
+  const [storageResult, setStorageResult] = useState<{ ok: boolean; msg: string } | null>(null);
+
+  const fetchInfra = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = (await fetchApi("/api/infra/overview")) as InfraOverview;
+      if (data && data.database) {
+        setInfra(data);
+        setDbCandidate(data.database.activeUri || "");
+        setRedisEnabled(data.redis.enabled);
+        setRedisUri(data.redis.activeUri || "redis://127.0.0.1:6379");
+        setSemanticCache(data.redis.semanticCache);
+        setRedisTtl(data.redis.ttlSeconds || 86400);
+        setRmqEnabled(data.rabbitmq.enabled);
+        setRmqUri(data.rabbitmq.activeUri || "amqp://guest:guest@127.0.0.1:5672");
+        setRmqPrefetch(data.rabbitmq.prefetch || 10);
+        setStorageMode(data.storage.mode || "local");
+        setLocalPath(data.storage.localPath || "./uploads");
+        setS3Endpoint(data.storage.s3Endpoint || "");
+        setS3Bucket(data.storage.s3Bucket || "elara-knowledge");
+      }
+    } catch (e) {
+      console.warn("[InfraHub] Failed to fetch overview", e);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchInfra();
+  }, [fetchInfra]);
+
+  const handleTestDb = async () => {
+    if (!dbCandidate.trim()) return;
+    setDbTesting(true);
+    setDbResult(null);
+    try {
+      const res = (await fetchApi("/api/infra/db/test", {
+        method: "POST",
+        body: JSON.stringify({ connectionString: dbCandidate.trim() }),
+      })) as { ok: boolean; message?: string; latencyMs?: number; error?: string };
+      if (res?.ok) {
+        setDbResult({
+          ok: true,
+          msg: res.message || "Connection verified successfully.",
+          latency: res.latencyMs ?? 0,
+        });
+        toast.success(`PostgreSQL verified (${res.latencyMs ?? 0}ms)`);
+      } else {
+        setDbResult({ ok: false, msg: res?.error || "Connection failed." });
+        toast.error(res?.error || "Connection failed.");
+      }
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e.message : String(e);
+      setDbResult({ ok: false, msg: err });
+      toast.error(err);
+    } finally {
+      setDbTesting(false);
+    }
+  };
+
+  const handleSaveDb = async () => {
+    if (!dbCandidate.trim()) return;
+    const ok = await confirmAction({
+      title: "Save Cluster Database Configuration?",
+      body: "Updates the primary cluster database connection in application settings.",
+      confirmLabel: "Save Configuration",
+      tone: "sapphire",
+    });
+    if (!ok) return;
+
+    try {
+      await fetchApi("/api/infra/db/save", {
+        method: "POST",
+        body: JSON.stringify({ connectionString: dbCandidate.trim() }),
+      });
+      toast.success("Database cluster settings saved.");
+      fetchInfra();
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e.message : String(e);
+      toast.error(`Failed to save DB configuration: ${err}`);
+    }
+  };
+
+  const handleTestRedis = async () => {
+    setRedisTesting(true);
+    setRedisResult(null);
+    try {
+      const res = (await fetchApi("/api/infra/redis/test", {
+        method: "POST",
+        body: JSON.stringify({ uri: redisUri }),
+      })) as { ok: boolean; message?: string; latencyMs?: number; error?: string };
+      if (res?.ok) {
+        setRedisResult({ ok: true, msg: res.message || "Redis reached successfully." });
+        toast.success(`Redis verified (${res.latencyMs}ms)`);
+      } else {
+        setRedisResult({ ok: false, msg: res?.error || "Connection failed." });
+        toast.error(res?.error || "Redis connection failed.");
+      }
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e.message : String(e);
+      setRedisResult({ ok: false, msg: err });
+      toast.error(err);
+    } finally {
+      setRedisTesting(false);
+    }
+  };
+
+  const handleSaveRedis = async () => {
+    try {
+      await fetchApi("/api/infra/redis/save", {
+        method: "POST",
+        body: JSON.stringify({
+          enabled: redisEnabled,
+          uri: redisUri,
+          semanticCache,
+          ttlSeconds: redisTtl,
+        }),
+      });
+      toast.success("Redis caching settings saved.");
+      fetchInfra();
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e.message : String(e);
+      toast.error(`Failed to save Redis config: ${err}`);
+    }
+  };
+
+  const handleTestRabbitmq = async () => {
+    setRmqTesting(true);
+    setRmqResult(null);
+    try {
+      const res = (await fetchApi("/api/infra/rabbitmq/test", {
+        method: "POST",
+        body: JSON.stringify({ uri: rmqUri }),
+      })) as { ok: boolean; message?: string; latencyMs?: number; error?: string };
+      if (res?.ok) {
+        setRmqResult({ ok: true, msg: res.message || "RabbitMQ handshake verified." });
+        toast.success(`RabbitMQ verified (${res.latencyMs}ms)`);
+      } else {
+        setRmqResult({ ok: false, msg: res?.error || "Connection failed." });
+        toast.error(res?.error || "RabbitMQ connection failed.");
+      }
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e.message : String(e);
+      setRmqResult({ ok: false, msg: err });
+      toast.error(err);
+    } finally {
+      setRmqTesting(false);
+    }
+  };
+
+  const handleSaveRabbitmq = async () => {
+    try {
+      await fetchApi("/api/infra/rabbitmq/save", {
+        method: "POST",
+        body: JSON.stringify({
+          enabled: rmqEnabled,
+          uri: rmqUri,
+          prefetch: rmqPrefetch,
+        }),
+      });
+      toast.success("RabbitMQ broker settings saved.");
+      fetchInfra();
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e.message : String(e);
+      toast.error(`Failed to save RabbitMQ config: ${err}`);
+    }
+  };
+
+  const handleTestStorage = async () => {
+    setStorageTesting(true);
+    setStorageResult(null);
+    try {
+      const res = (await fetchApi("/api/infra/storage/test", {
+        method: "POST",
+        body: JSON.stringify({
+          mode: storageMode,
+          localPath,
+          s3: {
+            endpoint: s3Endpoint,
+            bucket: s3Bucket,
+            region: s3Region,
+            accessKey: s3AccessKey,
+            secretKey: s3SecretKey,
+          },
+        }),
+      })) as { ok: boolean; message?: string; latencyMs?: number; error?: string };
+      if (res?.ok) {
+        setStorageResult({ ok: true, msg: res.message || "Storage verified successfully." });
+        toast.success(`Storage verified (${res.latencyMs}ms)`);
+      } else {
+        setStorageResult({ ok: false, msg: res?.error || "Storage probe failed." });
+        toast.error(res?.error || "Storage probe failed.");
+      }
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e.message : String(e);
+      setStorageResult({ ok: false, msg: err });
+      toast.error(err);
+    } finally {
+      setStorageTesting(false);
+    }
+  };
+
+  const handleSaveStorage = async () => {
+    try {
+      await fetchApi("/api/infra/storage/save", {
+        method: "POST",
+        body: JSON.stringify({
+          mode: storageMode,
+          localPath,
+          s3: {
+            endpoint: s3Endpoint,
+            bucket: s3Bucket,
+            region: s3Region,
+            accessKey: s3AccessKey,
+            secretKey: s3SecretKey,
+          },
+        }),
+      });
+      toast.success("Storage configuration saved.");
+      fetchInfra();
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e.message : String(e);
+      toast.error(`Failed to save storage config: ${err}`);
+    }
+  };
+
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.15, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
+      className="mt-6 rounded-xl border border-white/[0.07] bg-white/[0.015] p-6"
+    >
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] pb-4">
+        <div>
+          <h2 className="flex items-center gap-2.5 font-mono text-[13px] uppercase tracking-[0.18em] text-foreground">
+            <Layers size={14} className="text-sapphire" />
+            Enterprise HA Cluster & Infrastructure Hub
+          </h2>
+          <p className="mt-1 font-mono text-[11px] text-muted-foreground/60">
+            DUAL-MODE CLUSTER · DATABASE, CACHING, TASK BROKER & STORAGE MANAGEMENT
+          </p>
+        </div>
+        <JewelButton size="sm" variant="outline" onClick={fetchInfra} disabled={loading}>
+          <RefreshCw size={12} className={cn(loading && "animate-spin")} /> Refresh Hub
+        </JewelButton>
+      </header>
+
+      <div className="mt-6 grid gap-6 lg:grid-cols-2">
+        {/* 1. DATABASE & CLUSTER HUB */}
+        <div className="flex flex-col justify-between rounded-xl border border-white/[0.07] bg-raised/20 p-5">
+          <div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 font-mono text-[12.5px] font-medium text-foreground">
+                <Database size={15} className="text-sapphire" />
+                PostgreSQL Cluster Hub
+              </div>
+              <span
+                className={cn(
+                  "rounded px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider",
+                  infra?.database.status === "healthy"
+                    ? "bg-emerald/15 text-emerald border border-emerald/30"
+                    : "bg-ruby/15 text-ruby border border-ruby/30"
+                )}
+              >
+                {infra?.database.status === "healthy" ? `ONLINE · ${infra.database.latencyMs}ms` : "OFFLINE"}
+              </span>
+            </div>
+
+            <div className="mt-3.5 flex flex-wrap items-center gap-3 font-mono text-[11px] text-muted-foreground/60 border-b border-white/[0.04] pb-3">
+              <span>DB: <strong className="text-foreground">{infra?.database.databaseName || "elara_db"}</strong></span>
+              <span>Version: <strong className="text-foreground">{infra?.database.version || "18.x"}</strong></span>
+              <span>Pool: <strong className="text-foreground">{infra?.database.pool.idleCount || 1} idle / {infra?.database.pool.totalCount || 1} total</strong></span>
+            </div>
+
+            <div className="mt-4">
+              <span className={labelCls}>Cluster Connection String (Primary / PgBouncer)</span>
+              <input
+                className={fieldCls}
+                placeholder="postgres://user:pass@192.168.1.10:5432/elara_db"
+                value={dbCandidate}
+                onChange={(e) => setDbCandidate(e.target.value)}
+              />
+            </div>
+
+            {dbResult && (
+              <div
+                className={cn(
+                  "mt-3 rounded-lg border px-3 py-2 font-mono text-[11px]",
+                  dbResult.ok
+                    ? "border-emerald/30 bg-emerald/10 text-emerald"
+                    : "border-ruby/30 bg-ruby/10 text-ruby"
+                )}
+              >
+                {dbResult.ok ? <CheckCircle2 size={13} className="inline mr-1.5" /> : null}
+                {dbResult.msg}
+              </div>
+            )}
+          </div>
+
+          <div className="mt-5 flex items-center justify-end gap-2 border-t border-white/[0.04] pt-3.5">
+            <JewelButton size="sm" variant="outline" onClick={handleTestDb} disabled={dbTesting}>
+              <Activity size={12} /> {dbTesting ? "Testing..." : "Test Connection"}
+            </JewelButton>
+            <JewelButton size="sm" variant="primary" onClick={handleSaveDb}>
+              Save Config
+            </JewelButton>
+          </div>
+        </div>
+
+        {/* 2. REDIS ACCELERATION TIER */}
+        <div className="flex flex-col justify-between rounded-xl border border-white/[0.07] bg-raised/20 p-5">
+          <div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 font-mono text-[12.5px] font-medium text-foreground">
+                <Zap size={15} className="text-topaz" />
+                Redis Acceleration Tier
+              </div>
+              <span
+                className={cn(
+                  "rounded px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider",
+                  redisEnabled
+                    ? "bg-emerald/15 text-emerald border border-emerald/30"
+                    : "bg-topaz/15 text-topaz border border-topaz/30"
+                )}
+              >
+                {redisEnabled ? "REDIS CLUSTER" : "IN-MEMORY FALLBACK"}
+              </span>
+            </div>
+
+            <div className="mt-3.5 flex items-center justify-between border-b border-white/[0.04] pb-3">
+              <span className="font-mono text-[11.5px] text-muted-foreground/80">Enable Redis Caching</span>
+              <Toggle on={redisEnabled} label="" onClick={() => setRedisEnabled(!redisEnabled)} />
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <div className="sm:col-span-2">
+                <span className={labelCls}>Redis URI</span>
+                <input
+                  className={fieldCls}
+                  placeholder="redis://127.0.0.1:6379"
+                  value={redisUri}
+                  onChange={(e) => setRedisUri(e.target.value)}
+                />
+              </div>
+              <div>
+                <span className={labelCls}>Cache TTL (sec)</span>
+                <input
+                  type="number"
+                  className={fieldCls}
+                  value={redisTtl}
+                  onChange={(e) => setRedisTtl(Number(e.target.value) || 86400)}
+                />
+              </div>
+            </div>
+
+            <div className="mt-3 flex items-center justify-between">
+              <span className="font-mono text-[11.5px] text-muted-foreground/80">Semantic Response Cache</span>
+              <Toggle on={semanticCache} label="" onClick={() => setSemanticCache(!semanticCache)} />
+            </div>
+
+            {redisResult && (
+              <div
+                className={cn(
+                  "mt-3 rounded-lg border px-3 py-2 font-mono text-[11px]",
+                  redisResult.ok
+                    ? "border-emerald/30 bg-emerald/10 text-emerald"
+                    : "border-ruby/30 bg-ruby/10 text-ruby"
+                )}
+              >
+                {redisResult.msg}
+              </div>
+            )}
+          </div>
+
+          <div className="mt-5 flex items-center justify-end gap-2 border-t border-white/[0.04] pt-3.5">
+            <JewelButton size="sm" variant="outline" onClick={handleTestRedis} disabled={redisTesting}>
+              <Activity size={12} /> {redisTesting ? "Testing..." : "Test Connection"}
+            </JewelButton>
+            <JewelButton size="sm" variant="primary" onClick={handleSaveRedis}>
+              Save Redis
+            </JewelButton>
+          </div>
+        </div>
+
+        {/* 3. RABBITMQ TASK & DAG BROKER */}
+        <div className="flex flex-col justify-between rounded-xl border border-white/[0.07] bg-raised/20 p-5">
+          <div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 font-mono text-[12.5px] font-medium text-foreground">
+                <Network size={15} className="text-amethyst" />
+                RabbitMQ Task & DAG Broker
+              </div>
+              <span
+                className={cn(
+                  "rounded px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider",
+                  rmqEnabled
+                    ? "bg-emerald/15 text-emerald border border-emerald/30"
+                    : "bg-topaz/15 text-topaz border border-topaz/30"
+                )}
+              >
+                {rmqEnabled ? "AMQP BROKER ACTIVE" : "DIRECT SYNC FALLBACK"}
+              </span>
+            </div>
+
+            <div className="mt-3.5 flex items-center justify-between border-b border-white/[0.04] pb-3">
+              <span className="font-mono text-[11.5px] text-muted-foreground/80">Enable RabbitMQ Task Broker</span>
+              <Toggle on={rmqEnabled} label="" onClick={() => setRmqEnabled(!rmqEnabled)} />
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <div className="sm:col-span-2">
+                <span className={labelCls}>AMQP Broker URI</span>
+                <input
+                  className={fieldCls}
+                  placeholder="amqp://guest:guest@127.0.0.1:5672"
+                  value={rmqUri}
+                  onChange={(e) => setRmqUri(e.target.value)}
+                />
+              </div>
+              <div>
+                <span className={labelCls}>Worker Prefetch</span>
+                <input
+                  type="number"
+                  className={fieldCls}
+                  value={rmqPrefetch}
+                  onChange={(e) => setRmqPrefetch(Number(e.target.value) || 10)}
+                />
+              </div>
+            </div>
+
+            {rmqResult && (
+              <div
+                className={cn(
+                  "mt-3 rounded-lg border px-3 py-2 font-mono text-[11px]",
+                  rmqResult.ok
+                    ? "border-emerald/30 bg-emerald/10 text-emerald"
+                    : "border-ruby/30 bg-ruby/10 text-ruby"
+                )}
+              >
+                {rmqResult.msg}
+              </div>
+            )}
+          </div>
+
+          <div className="mt-5 flex items-center justify-end gap-2 border-t border-white/[0.04] pt-3.5">
+            <JewelButton size="sm" variant="outline" onClick={handleTestRabbitmq} disabled={rmqTesting}>
+              <Activity size={12} /> {rmqTesting ? "Testing..." : "Test Connection"}
+            </JewelButton>
+            <JewelButton size="sm" variant="primary" onClick={handleSaveRabbitmq}>
+              Save RabbitMQ
+            </JewelButton>
+          </div>
+        </div>
+
+        {/* 4. SHARED STORAGE HUB */}
+        <div className="flex flex-col justify-between rounded-xl border border-white/[0.07] bg-raised/20 p-5">
+          <div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 font-mono text-[12.5px] font-medium text-foreground">
+                <HardDrive size={15} className="text-emerald" />
+                Shared Storage Hub (NFS / S3 / MinIO)
+              </div>
+              <span className="rounded bg-white/5 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                {storageMode === "s3" ? "S3 / MINIO OBJECT STORE" : "LOCAL / NFS MOUNT"}
+              </span>
+            </div>
+
+            <div className="mt-3.5 flex items-center gap-4 border-b border-white/[0.04] pb-3 font-mono text-[11.5px]">
+              <label className="flex items-center gap-2 cursor-pointer text-foreground">
+                <input
+                  type="radio"
+                  name="storageMode"
+                  checked={storageMode === "local"}
+                  onChange={() => setStorageMode("local")}
+                  className="accent-sapphire"
+                />
+                Local / NFS Directory
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer text-foreground">
+                <input
+                  type="radio"
+                  name="storageMode"
+                  checked={storageMode === "s3"}
+                  onChange={() => setStorageMode("s3")}
+                  className="accent-sapphire"
+                />
+                S3 / MinIO Object Storage
+              </label>
+            </div>
+
+            {storageMode === "local" ? (
+              <div className="mt-4">
+                <span className={labelCls}>Local Uploads / Shared NFS Mount Directory</span>
+                <input
+                  className={fieldCls}
+                  placeholder="/mnt/elara_shared/uploads or ./uploads"
+                  value={localPath}
+                  onChange={(e) => setLocalPath(e.target.value)}
+                />
+              </div>
+            ) : (
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <div>
+                  <span className={labelCls}>S3 / MinIO Endpoint URL</span>
+                  <input
+                    className={fieldCls}
+                    placeholder="https://minio.sirket.local:9000"
+                    value={s3Endpoint}
+                    onChange={(e) => setS3Endpoint(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <span className={labelCls}>Bucket Name</span>
+                  <input
+                    className={fieldCls}
+                    placeholder="elara-knowledge"
+                    value={s3Bucket}
+                    onChange={(e) => setS3Bucket(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <span className={labelCls}>Region</span>
+                  <input
+                    className={fieldCls}
+                    placeholder="us-east-1"
+                    value={s3Region}
+                    onChange={(e) => setS3Region(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <span className={labelCls}>Access Key ID</span>
+                  <input
+                    className={fieldCls}
+                    placeholder="minioadmin"
+                    value={s3AccessKey}
+                    onChange={(e) => setS3AccessKey(e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
+
+            {storageResult && (
+              <div
+                className={cn(
+                  "mt-3 rounded-lg border px-3 py-2 font-mono text-[11px]",
+                  storageResult.ok
+                    ? "border-emerald/30 bg-emerald/10 text-emerald"
+                    : "border-ruby/30 bg-ruby/10 text-ruby"
+                )}
+              >
+                {storageResult.msg}
+              </div>
+            )}
+          </div>
+
+          <div className="mt-5 flex items-center justify-end gap-2 border-t border-white/[0.04] pt-3.5">
+            <JewelButton size="sm" variant="outline" onClick={handleTestStorage} disabled={storageTesting}>
+              <Activity size={12} /> {storageTesting ? "Testing..." : "Test Storage Probe"}
+            </JewelButton>
+            <JewelButton size="sm" variant="primary" onClick={handleSaveStorage}>
+              Save Storage
+            </JewelButton>
+          </div>
+        </div>
+      </div>
+    </motion.section>
   );
 }
 

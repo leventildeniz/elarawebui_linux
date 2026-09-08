@@ -62,6 +62,7 @@ import { mountSiemRoutes } from './siem-api.mjs';
 import { mountCapabilityRoutes } from './capabilities.mjs';
 import { mountChatOrchestrateRoutes } from './chat-orchestrate.mjs';
 import { mountReportingRoutes } from './reporting.mjs';
+import { mountInfraRoutes } from './infra.mjs';
 
 async function safeMount(name, mountFn, app, deps) {
   try {
@@ -146,6 +147,7 @@ export async function mountApiRoutes(app, deps) {
   await safeMount('Capabilities', mountCapabilityRoutes, app, deps);
   await safeMount('Chat Orchestrate', mountChatOrchestrateRoutes, app, deps);
   await safeMount('Reporting & Analytics', mountReportingRoutes, app, deps);
+  await safeMount('Infrastructure & Cluster', mountInfraRoutes, app, deps);
 
   console.log('[API Gateway] Route mounting sequence completed.');
 }

@@ -792,41 +792,39 @@ Bu aşamada Raporlama & Analitik (Reporting) modülündeki tüm şema uyuşmazl�
 
 ---
 
-## 52.3. IN PROGRESS - AUTONOMOUS DAG EXECUTION ENGINE & MULTI-STEP WORKFLOW BENCHMARKING
-- Çok adımlı otonom workflow ve orchestration zincirlerinin canlı icra doğrulaması.
-- MetaForge tarafından üretilen DAG (Directed Acyclic Graph) yapılarının otonom icra motoru üzerinde adım adım, kesintisiz çalıştırılması.
-- Uçtan uca sistem yük testleri ve Load Balancer hazırlığı.
+## 53. COMPLETED (Phase 53) - ENTERPRISE HA CLUSTER, DUAL-MODE SCALE-OUT & SERVICES INFRASTRUCTURE HUB
 
----
+Bu aşamada ELARA hem tekil bağımsız sunucularda ("Stand-Alone / Zero-Config") hem de Citrix NetScaler / F5 BIG-IP / HAProxy Load Balancer arkasında çalışan kurumsal çok düğümlü ("Multi-Node Enterprise HA Cluster") mimariye kavuşturulmuştur:
 
-## 53. UP NEXT - ENTERPRISE HA CLUSTER, DUAL-MODE SCALE-OUT & SERVICES UI (PHASE 53)
-
-Bu aşama, ELARA'yı hem tekil bağımsız sunucularda ("Stand-Alone / Zero-Config") hem de Citrix NetScaler / F5 BIG-IP / HAProxy Load Balancer arkasında çalışan kurumsal çok düğümlü ("Multi-Node Enterprise HA Cluster") mimariye kavuşturacaktır.
-
-### 🏛️ 1. Mimari Prensipler & Sıfır-Nginx (Unified Single-Port) Modeli
+### 🏛️ 1. Mimari Prensipler & Sıfır-Nginx (Unified Single-Port `:3005`) Modeli
 - **Tek Port - Tek Süreç (`Port 3005`):**
-  - Node.js API Gateway (`server.mjs`), prodüksiyonda derlenen optimize React statik arayüzünü (`dist/`) ve `/api/*` uçlarını doğrudan tek bir süreç üzerinden sunar.
-  - Sunucularda ekstra Nginx/Apache kurulmasına gerek kalmaz; Citrix / F5 Load Balancer gelen HTTPS trafiğini doğrudan sunucuların `:3005` portuna iletir.
+  - Node.js API Gateway (`server.mjs`), prodüksiyonda derlenen optimize React statik arayüzünü (`dist/`) ve `/api/*` uçlarını doğrudan tek bir süreç üzerinden sunacak şekilde yapılandırıldı.
+  - Sunucularda ekstra Nginx/Apache kurulmasına gerek kalmadan, Citrix / F5 Load Balancer gelen HTTPS trafiğini doğrudan sunucuların `:3005` portuna iletir.
 - **Doğrudan TCP Protokolleri:**
-  - Redis (`6379` / RESP) ve RabbitMQ (`5672` / AMQP) ara web sunucularına ihtiyaç duymadan doğrudan Node.js backend tarafından tüketilir.
+  - Redis (`6379` / RESP) ve RabbitMQ (`5672` / AMQP) ara web sunucularına ihtiyaç duymadan doğrudan Node.js backend tarafından TCP soketleriyle tüketilir.
 - **Anında Genişleme (2 Dakikada Yeni Düğüm / Node Scale-Out):**
   - Kümeye yeni bir ELARA sunucusu eklendiğinde yalnızca DB URL ve Shared Storage (`UPLOAD_DIR`) tanımlanır ve servis başlatılır. F5/Citrix HTTP `/health` probe'u üzerinden düğümü otomatik havuza dahil eder.
 
 ---
 
-### 🎛️ 2. UI Entegrasyonu: `Settings ➔ Services` (`src/routes/services.tsx`)
-Yeni altyapı kontrolleri doğrudan mevcut **Background Services Tower** sayfasının altına enterprise yönetim kartları olarak eklenecektir:
+### 🎛️ 2. UI Entegrasyonu: `Settings ➔ Services` (`src/routes/services.tsx` & `local-server/lib/routes/infra.mjs`)
+Yeni altyapı kontrolleri doğrudan **Background Services Tower** sayfasının altına enterprise yönetim kartları olarak eklendi:
 
 1. **Database & Cluster Hub (`PostgreSQL`):**
-   - Aktif DB bağlantı adresi (`postgres://...`) ve canlı havuz metrikleri.
-   - **"Test Connection"** butonu: Yeni DB'ye ping atar, gecikmeyi ölçer ve şemanın (`v2_master_schema.sql`) bütünlüğünü doğrular.
-   - **"Apply & Hot-Switch"**: Sunucuyu yeniden başlatmadan bağlantı havuzunu anında yeni veritabanı kümesine aktarır.
+   - Aktif DB bağlantı adresi (`postgres://...`), canlı havuz metrikleri (`idle / total count`), PostgreSQL versiyonu ve anlık gecikme süresi.
+   - **"Test Connection"** butonu: Aday veritabanına doğrudan `pg.Client` ile bağlanır, gecikmeyi ölçer ve `v2_master_schema.sql` temel tablolarının (`agents`, `models`, `knowledge_chunks`, `app_users`) varlığını doğrular.
+   - **"Save Config"** butonu: Bağlantıyı `app_settings` içine kalıcı olarak kaydeder.
 2. **Caching & Acceleration Tier (`Redis`):**
-   - Redis bağlantı adresi (`redis://...`), önbellek doluluk oranı ve TTL ayarları.
-   - Semantik LLM cevap önbellekleme ve rate-limit açma/kapama toggle'ı.
+   - Redis bağlantı adresi (`redis://...`), önbellek açma/kapama, semantik LLM yanıt önbellekleme ve TTL ayarları.
+   - **"Test Connection"**: RESP PING paketi göndererek Redis düğümünün yanıt verdiğini doğrular.
 3. **Task & Workflow Broker (`RabbitMQ`):**
-   - AMQP broker bağlantı adresi (`amqp://...`), aktif kuyruk derinlikleri ve Dead-Letter Queue (DLQ) izleme.
-   - Asenkron DAG iş akışları ve büyük doküman ingestion kuyruk durumu.
+   - AMQP broker bağlantı adresi (`amqp://...`), task broker açma/kapama ve worker prefetch ayarı.
+   - **"Test Connection"**: AMQP 0-9-1 protokol el sıkışmasını (handshake) sınar.
 4. **Shared Storage & Object Storage (`Storage Hub`):**
    - Yerel Dizin (`./uploads` / NFS mount) veya **S3 / MinIO Uyumlu Nesne Deposu** seçici.
-   - S3 Endpoint, Bucket, Access Key, Secret Key giriş ve test arayüzü.
+   - S3 Endpoint, Bucket, Region, Access Key ve Secret Key arayüzü.
+   - **"Test Storage Probe"**: Yerel dizinde anlık dosya yazma/okuma/silme yetkisini veya S3 endpoint erişilebilirliğini sınar.
+
+---
+
+## 52.3. UP NEXT - AUTONOMOUS DAG EXECUTION ENGINE & MULTI-STEP WORKFLOW BENCHMARKING
