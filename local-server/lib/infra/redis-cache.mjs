@@ -76,14 +76,15 @@ export async function initRedisCache(pool) {
 }
 
 /**
- * Check semantic cache for identical or high-confidence (>0.98 similarity) cached response
+ * Check semantic cache for identical or high-confidence (>0.98 similarity) cached response for the specific model
  */
-export async function getSemanticCache(queryEmbedding, queryText, threshold = 0.98) {
+export async function getSemanticCache(queryEmbedding, queryText, modelId = "default", threshold = 0.98) {
   if (!_isSemanticCacheEnabled || !queryText) {
     return { hit: false };
   }
 
-  const exactKey = `elara:semcache:exact:${hashText(queryText)}`;
+  const modelKey = String(modelId || "default").trim().toLowerCase().replace(/[^a-z0-9_-]/g, "_");
+  const exactKey = `elara:semcache:${modelKey}:exact:${hashText(queryText)}`;
 
   // 1. Try Redis Exact & Semantic Match
   if (_isEnabled && _redisClient && _redisClient.status === "ready") {
@@ -105,7 +106,7 @@ export async function getSemanticCache(queryEmbedding, queryText, threshold = 0.
 
       // 1b. Vector Semantic Scan (if embedding is provided)
       if (Array.isArray(queryEmbedding) && queryEmbedding.length > 0) {
-        const keys = await _redisClient.keys("elara:semcache:vec:*");
+        const keys = await _redisClient.keys(`elara:semcache:${modelKey}:vec:*`);
         if (keys.length > 0) {
           const values = await _redisClient.mget(keys.slice(0, 100)); // scan up to 100 recent entries
           let bestMatch = null;
@@ -142,7 +143,7 @@ export async function getSemanticCache(queryEmbedding, queryText, threshold = 0.
     }
   }
 
-  // 2. In-Memory Fallback Cache
+  // 2. In-Memory Fallback Cache (Model Scoped)
   const memExact = IN_MEMORY_CACHE.get(exactKey);
   if (memExact && Date.now() < memExact.expiresAt) {
     _hitsCount++;
@@ -159,8 +160,10 @@ export async function getSemanticCache(queryEmbedding, queryText, threshold = 0.
     let memBest = null;
     let memScore = -1;
     const now = Date.now();
+    const vecPrefix = `elara:semcache:${modelKey}:vec:`;
 
     for (const [k, item] of IN_MEMORY_CACHE.entries()) {
+      if (!k.startsWith(vecPrefix)) continue;
       if (item.expiresAt && now > item.expiresAt) {
         IN_MEMORY_CACHE.delete(k);
         continue;
@@ -191,15 +194,16 @@ export async function getSemanticCache(queryEmbedding, queryText, threshold = 0.
 }
 
 /**
- * Store LLM response and query embedding in semantic cache
+ * Store LLM response and query embedding in semantic cache scoped per model
  */
 export async function setSemanticCache(queryEmbedding, queryText, responseText, meta = {}, ttlSeconds = null) {
   if (!_isSemanticCacheEnabled || !queryText || !responseText) return;
 
+  const modelKey = String(meta.model || "default").trim().toLowerCase().replace(/[^a-z0-9_-]/g, "_");
   const ttl = ttlSeconds || _defaultTtlSeconds;
   const hash = hashText(queryText);
-  const exactKey = `elara:semcache:exact:${hash}`;
-  const vecKey = `elara:semcache:vec:${hash}`;
+  const exactKey = `elara:semcache:${modelKey}:exact:${hash}`;
+  const vecKey = `elara:semcache:${modelKey}:vec:${hash}`;
 
   const payload = {
     query: queryText,
@@ -235,6 +239,13 @@ export async function setSemanticCache(queryEmbedding, queryText, responseText, 
     ...payload,
     expiresAt: Date.now() + ttl * 1000,
   });
+
+  if (payload.embedding) {
+    IN_MEMORY_CACHE.set(vecKey, {
+      ...payload,
+      expiresAt: Date.now() + ttl * 1000,
+    });
+  }
 }
 
 /**

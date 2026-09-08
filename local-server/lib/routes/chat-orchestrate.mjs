@@ -1544,7 +1544,7 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                       const { getSemanticCache } = await import("../infra/redis-cache.mjs");
                       const { embed } = await import("../embed-provider.mjs");
                       const qVec = await embed(userQueryStr).catch(() => null);
-                      const cacheHit = await getSemanticCache(qVec, userQueryStr, 0.98);
+                      const cacheHit = await getSemanticCache(qVec, userQueryStr, usedModel, 0.98);
                       if (cacheHit && cacheHit.hit && cacheHit.response) {
                           console.log(`[SemanticCache] ⚡ Cache HIT (${cacheHit.source}, score=${cacheHit.score}) for: "${userQueryStr.slice(0, 45)}..."`);
                           const totalMs = Date.now() - t0;
