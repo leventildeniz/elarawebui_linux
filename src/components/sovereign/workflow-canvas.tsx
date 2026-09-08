@@ -317,11 +317,11 @@ export function WorkflowCanvas({
                       {glyph.family}
                     </span>
                     <span className="truncate font-mono text-[9.5px] uppercase tracking-[0.12em] text-muted-foreground/45">
-                      {n.meta}
+                      {typeof n.meta === "string" ? n.meta : typeof n.meta === "object" && n.meta ? JSON.stringify(n.meta) : String(n.meta ?? "")}
                     </span>
                   </div>
                   <div className="mt-0.5 truncate font-mono text-[13px] text-foreground/95">
-                    {n.label}
+                    {typeof n.label === "string" ? n.label : typeof n.label === "object" && n.label ? JSON.stringify(n.label) : String(n.label ?? n.id)}
                   </div>
                 </div>
                 <button

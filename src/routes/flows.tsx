@@ -106,7 +106,7 @@ function WorkflowDesigner() {
     edges.forEach(e => incoming.set(e.to, (incoming.get(e.to) || 0) + 1));
     
     const queue: typeof nodes = [];
-    const triggers = nodes.filter(n => n.kind === "trigger" || n.label.toLowerCase().includes("trigger"));
+    const triggers = nodes.filter(n => n.kind === "trigger" || (typeof n.label === "string" && n.label.toLowerCase().includes("trigger")));
     if (triggers.length > 0) {
       queue.push(...triggers);
     } else {
@@ -120,7 +120,7 @@ function WorkflowDesigner() {
       const node = queue.shift()!;
       if (visited.has(node.id)) continue;
       visited.add(node.id);
-      sorted.push({ id: node.id, label: node.label });
+      sorted.push({ id: node.id, label: typeof node.label === "string" ? node.label : (typeof node.label === "object" ? JSON.stringify(node.label) : String(node.id)) });
       
       const branches = edges.filter(e => e.from === node.id);
       for (const e of branches) {
@@ -131,7 +131,7 @@ function WorkflowDesigner() {
     
     // Fallback for isolated nodes
     for (const node of nodes) {
-      if (!visited.has(node.id)) sorted.push({ id: node.id, label: node.label });
+      if (!visited.has(node.id)) sorted.push({ id: node.id, label: typeof node.label === "string" ? node.label : (typeof node.label === "object" ? JSON.stringify(node.label) : String(node.id)) });
     }
     
     return sorted;

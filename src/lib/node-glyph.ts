@@ -113,7 +113,9 @@ const integrations: { test: RegExp; icon: LucideIcon }[] = [
 ];
 
 /** Sigil convention: @agent · !skill · /tool · #mcp */
-export function familyOf(kind: WorkflowNodeKind, label = "", meta = ""): NodeFamily {
+export function familyOf(kind: WorkflowNodeKind, rawLabel: any = "", rawMeta: any = ""): NodeFamily {
+  const label = typeof rawLabel === "string" ? rawLabel : (typeof rawLabel === "object" && rawLabel ? JSON.stringify(rawLabel) : String(rawLabel || ""));
+  const meta = typeof rawMeta === "string" ? rawMeta : (typeof rawMeta === "object" && rawMeta ? JSON.stringify(rawMeta) : String(rawMeta || ""));
   const s = label.trim();
   if (s.startsWith("@")) return "agent";
   if (s.startsWith("!")) return "skill";
@@ -130,7 +132,9 @@ export function familyOf(kind: WorkflowNodeKind, label = "", meta = ""): NodeFam
   return "tool";
 }
 
-export function nodeGlyph(kind: WorkflowNodeKind, label = "", meta = "") {
+export function nodeGlyph(kind: WorkflowNodeKind, rawLabel: any = "", rawMeta: any = "") {
+  const label = typeof rawLabel === "string" ? rawLabel : (typeof rawLabel === "object" && rawLabel ? JSON.stringify(rawLabel) : String(rawLabel || ""));
+  const meta = typeof rawMeta === "string" ? rawMeta : (typeof rawMeta === "object" && rawMeta ? JSON.stringify(rawMeta) : String(rawMeta || ""));
   const family = familyOf(kind, label, meta);
   const clean = label.replace(/^[@!/#]/, "");
   let icon: LucideIcon | null = null;
