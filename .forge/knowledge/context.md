@@ -845,26 +845,40 @@ Bu aşamada MetaForge ve Visual Flow Designer tarafından üretilen çok adıml�
 
 ---
 
-## 54. COMPLETED (Phase 54) - PERSISTENT REDIS SEMANTIC CACHE & RABBITMQ DISTRIBUTED DAG TASK BROKER
+## 54. COMPLETED (Phase 54) - PERSISTENT REDIS SEMANTIC CACHE, RABBITMQ TASK BROKER & TYPO-TOLERANT MULTI-BRAND RAG
 
-Bu aşamada ELARA'nın sohbet akışlarına semantik yanıt önbellekleme (Semantic Response Caching) ve asenkron DAG görev kuyruklama (RabbitMQ AMQP Task Broker) katmanları tam entegre edilmiştir:
+Bu aşamada ELARA'nın sohbet akışlarına semantik yanıt önbellekleme (Semantic Response Caching), asenkron DAG görev kuyruklama (RabbitMQ AMQP Task Broker) ve yazım hatası toleranslı çoklu marka RAG motoru tam entegre edilmiştir:
 
 ### ⚡ 1. Yüksek Başarımlı Semantik Önbellek Motoru (`redis-cache.mjs` & `chat-orchestrate.mjs`)
 - **İki Katmanlı Önbellek & Vektör Benzerliği:**
-  - Yerel In-Memory LRU (500 nesne sınırlı) ve küme seviyesinde Redis (`RESP`) protokolü üzerinden çift katmanlı önbellek mimarisi kuruldu.
+  - Yerel In-Memory LRU (500 nesne sınırlı) ve küme seviyesinde Redis (`RESP` protokolü / `ioredis`) üzerinden çift katmanlı önbellek mimarisi kuruldu.
   - Soruların yerel ONNX embedding vektörleri üzerinden Cosine Similarity ($\ge 0.98$) ve SHA-256 tam eşleşme kontrolleri eklendi.
+  - Önbellek anahtarları modele özel olarak izole edildi (`elara:semcache:<model_id>:exact:...`). Bir modelin cevabı başka bir modelin başlığı altında dönmez.
 - **Sıfır-Maliyetli Süper Hızlı Yanıt:**
-  - Önbellekte eşleşen sorular LLM'e hiç gitmeden **116 ms** sürede (`cache:memory-exact` / `cache:redis-semantic`) doğrudan istemciye basılarak LLM token harcaması ve bekleme süresi sıfırlandı.
+  - Önbellekte eşleşen saf sohbet soruları LLM'e hiç gitmeden **116 ms** sürede (`cache:memory-exact` / `cache:redis-semantic`) doğrudan istemciye basılarak LLM token harcaması ve bekleme süresi sıfırlandı.
+  - Araç çağırma (GitHub MCP, dosya okuma, komut icrası) içeren dinamik eylemler önbelleğe dondurulmayıp daima canlı çalıştırılır.
 
 ### 🐰 2. Dağıtık RabbitMQ Görev Havuzu & DLQ Mimarisi (`rabbitmq-broker.mjs`)
 - **Dirençli AMQP Topolojisi:**
-  - `elara.dag.exchange`, `elara.dag.tasks` ve `elara.dag.tasks.dlq` (Dead-Letter Queue) topolojisi otomatik kuruldu.
+  - `elara.dag.exchange`, `elara.dag.tasks` ve `elara.dag.tasks.dlq` (Dead-Letter Queue) topolojisi bağlandı (`amqplib`).
   - Başarısız olan veya hata alan DAG adımları kuyruktan düşürülmeyip DLQ'ya aktarılarak izlenebilirlik sağlandı.
 - **Şeffaf Geri Düşüş (Graceful Fallback):**
-  - Redis veya RabbitMQ kapalı olduğunda sistem sıfır kesintiyle yerel bellek içi (In-Memory) ve doğrudan senkron moda düşer.
+  - Redis veya RabbitMQ sunucu üzerinde henüz kurulu olmadığında sistem sıfır kesintiyle yerel bellek içi (In-Memory) ve doğrudan senkron moda düşer.
+  - İstenildiği anda `sudo apt install -y redis-server rabbitmq-server` kurularak `Settings ➔ Services` ekranından tek tıkla canlı kümeye geçilebilir.
+
+### 🔍 3. Çoklu Marka Yazım Hatası Toleransı & RAG Güçlendirmesi (`brand-cache.mjs`, `retrieval.mjs`)
+- **Kök Neden & Problem:**
+  - Kullanıcı `"cjekpointte vlan nasıl olusturulur?"` gibi harf hatalı (`j` ile) bir sorgu yazdığında, tam metin eşleşmesi başarısız olup serbest aramaya düşüyor ve parça sayısı daha fazla olan Fortinet dokümanları çekiliyordu.
+- **Yapılan İyileştirmeler:**
+  - Marka tespit algoritmasına Levenshtein / Edit-Distance (harf mesafesi ve Türkçe ek ayıklama) yeteneği eklendi.
+  - `"cjekpointte"`, `"chkp"`, `"fortigate'de"` gibi hatalı ve ekli kullanımlarda bile anında `Brand Lock: checkpoint` uygulanarak doğru dokümanlar (`CP_R82_CLI_ReferenceGuide.pdf`) çekildi ve model Check Point Gaia CLI komutlarını üretti.
+
+### 🎨 4. Workflow Tuval Güvenliği & JSON Nesne Normalizasyonu (`workflow-canvas.tsx`, `workflow-store.ts`)
+- MetaForge tarafından üretilen iş akışlarındaki nesne formatlı `meta` / `label` alanlarının React `<span>` render çökmesine (`Objects are not valid as a React child`) yol açması engellendi; tuval ve store seviyesinde tüm düğümler güvenli string formatına normalize edildi.
 
 ---
 
-## 55. UP NEXT - END-TO-END LOAD TESTING, MULTI-NODE BENCHMARKING & PRODUCTION SEAL (PHASE 55)
-- Çoklu kullanıcı eşzamanlı stres testleri ve gecikme profillemesi.
-- Load Balancer / Citrix NetScaler arkasında 3 düğümlü canlı küme doğrulaması.
+## 55. UP NEXT - HOST INFRASTRUCTURE PACKAGE DEPLOYMENT, MULTI-NODE BENCHMARKING & CITRIX/F5 LOAD BALANCER SEAL (PHASE 55)
+- Host üzerinde `redis-server` ve `rabbitmq-server` paketlerinin aktif hale getirilmesi.
+- Citrix NetScaler / F5 BIG-IP arkasında çok düğümlü (multi-node) eşzamanlı yük ve stres testleri.
+- Uçtan uca prodüksiyon mührü ve canlı küme doğrulaması.
