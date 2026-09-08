@@ -108,7 +108,7 @@ export function parseOrchestrateFrame(raw: string): OrchestrateEvent | null {
   if (type === "think") {
     return { kind: "think", text: String(data["delta"] ?? data["text"] ?? "") };
   }
-  if (type === "out") {
+  if (type === "out" || (!type && typeof data["delta"] === "string" && !data["phase"])) {
     return { kind: "out", text: String(data["text"] ?? data["delta"] ?? "") };
   }
   if (data["latency"]) {

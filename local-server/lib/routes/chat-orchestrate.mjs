@@ -1550,7 +1550,9 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                           const totalMs = Date.now() - t0;
                           const tokenCount = Math.max(1, Math.round(cacheHit.response.length / 4));
                           send({
+                              type: "out",
                               delta: cacheHit.response,
+                              text: cacheHit.response,
                               meta: {
                                   source: `cache:${cacheHit.source}`,
                                   providerName: cacheHit.model || "Semantic Cache Tier",
