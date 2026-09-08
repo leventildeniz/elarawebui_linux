@@ -2,12 +2,12 @@ import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { useCallback, useEffect, useState } from "react";
 import { motion } from "motion/react";
-import { Activity, CheckCircle2, Database, HardDrive, Layers, Network, Plug, Plus, RefreshCw, RotateCcw, Server, Shield, Trash2, Zap } from "lucide-react";
+import { Activity, CheckCircle2, Database, HardDrive, KeyRound, Layers, Network, Plug, Plus, RefreshCw, RotateCcw, Server, Shield, Trash2, Zap } from "lucide-react";
 import { Surface } from "@/components/sovereign/surface";
 import { ResetButton, SaveButton } from "@/components/sovereign/action-buttons";
 import { JewelButton } from "@/components/sovereign/primitives";
 import { confirmAction } from "@/components/sovereign/confirm-dialog";
-import { VaultKeyField } from "@/components/sovereign/vault-key-field";
+import { VaultKeyField, ModeTab } from "@/components/sovereign/vault-key-field";
 import { cn } from "@/lib/utils";
 import { fetchApi } from "@/lib/api";
 
@@ -486,6 +486,9 @@ function ServicesPage() {
         </div>
       </motion.section>
 
+      {/* ENTERPRISE HA CLUSTER & INFRASTRUCTURE HUB */}
+      <EnterpriseInfrastructureHub />
+
       {/* WEB SEARCH PROVIDERS TOWER */}
       <motion.section
         initial={{ opacity: 0, y: 10 }}
@@ -757,9 +760,6 @@ function ServicesPage() {
           )}
         </div>
       </motion.section>
-
-      {/* ENTERPRISE HA CLUSTER & INFRASTRUCTURE HUB */}
-      <EnterpriseInfrastructureHub />
     </Surface>
   );
 }
@@ -769,6 +769,9 @@ function ServicesPage() {
 type InfraOverview = {
   database: {
     status: string;
+    authMode?: "vault" | "direct";
+    vaultRef?: string;
+    targetHost?: string;
     activeUri: string;
     databaseName: string;
     version: string;
@@ -777,6 +780,9 @@ type InfraOverview = {
   };
   redis: {
     enabled: boolean;
+    authMode?: "vault" | "direct";
+    vaultRef?: string;
+    targetHost?: string;
     mode: string;
     activeUri: string;
     semanticCache: boolean;
@@ -784,15 +790,23 @@ type InfraOverview = {
   };
   rabbitmq: {
     enabled: boolean;
+    authMode?: "vault" | "direct";
+    vaultRef?: string;
+    targetHost?: string;
     mode: string;
     activeUri: string;
     prefetch: number;
   };
   storage: {
     mode: "local" | "s3";
+    authMode?: "vault" | "direct";
+    vaultRef?: string;
     localPath: string;
     s3Endpoint: string;
     s3Bucket: string;
+    s3Region?: string;
+    s3AccessKey?: string;
+    s3SecretKey?: string;
   };
 };
 
@@ -801,6 +815,9 @@ function EnterpriseInfrastructureHub() {
   const [loading, setLoading] = useState(true);
 
   // Database State
+  const [dbAuthMode, setDbAuthMode] = useState<"vault" | "direct">("vault");
+  const [dbVaultRef, setDbVaultRef] = useState("");
+  const [dbTargetHost, setDbTargetHost] = useState("localhost:5432/elara_db");
   const [dbCandidate, setDbCandidate] = useState("");
   const [dbTesting, setDbTesting] = useState(false);
   const [dbResult, setDbResult] = useState<{ ok: boolean; msg: string; latency?: number | undefined } | null>(
@@ -809,6 +826,9 @@ function EnterpriseInfrastructureHub() {
 
   // Redis State
   const [redisEnabled, setRedisEnabled] = useState(false);
+  const [redisAuthMode, setRedisAuthMode] = useState<"vault" | "direct">("direct");
+  const [redisVaultRef, setRedisVaultRef] = useState("");
+  const [redisTargetHost, setRedisTargetHost] = useState("127.0.0.1:6379");
   const [redisUri, setRedisUri] = useState("redis://127.0.0.1:6379");
   const [semanticCache, setSemanticCache] = useState(true);
   const [redisTtl, setRedisTtl] = useState(86400);
@@ -817,6 +837,9 @@ function EnterpriseInfrastructureHub() {
 
   // RabbitMQ State
   const [rmqEnabled, setRmqEnabled] = useState(false);
+  const [rmqAuthMode, setRmqAuthMode] = useState<"vault" | "direct">("direct");
+  const [rmqVaultRef, setRmqVaultRef] = useState("");
+  const [rmqTargetHost, setRmqTargetHost] = useState("127.0.0.1:5672");
   const [rmqUri, setRmqUri] = useState("amqp://guest:guest@127.0.0.1:5672");
   const [rmqPrefetch, setRmqPrefetch] = useState(10);
   const [rmqTesting, setRmqTesting] = useState(false);
@@ -824,6 +847,8 @@ function EnterpriseInfrastructureHub() {
 
   // Storage State
   const [storageMode, setStorageMode] = useState<"local" | "s3">("local");
+  const [storageAuthMode, setStorageAuthMode] = useState<"vault" | "direct">("direct");
+  const [storageVaultRef, setStorageVaultRef] = useState("");
   const [localPath, setLocalPath] = useState("./uploads");
   const [s3Endpoint, setS3Endpoint] = useState("");
   const [s3Bucket, setS3Bucket] = useState("elara-knowledge");
@@ -839,18 +864,35 @@ function EnterpriseInfrastructureHub() {
       const data = (await fetchApi("/api/infra/overview")) as InfraOverview;
       if (data && data.database) {
         setInfra(data);
+        setDbAuthMode(data.database.authMode || (data.database.vaultRef ? "vault" : "direct"));
+        setDbVaultRef(data.database.vaultRef || "");
+        setDbTargetHost(data.database.targetHost || "localhost:5432/elara_db");
         setDbCandidate(data.database.activeUri || "");
+
         setRedisEnabled(data.redis.enabled);
+        setRedisAuthMode(data.redis.authMode || (data.redis.vaultRef ? "vault" : "direct"));
+        setRedisVaultRef(data.redis.vaultRef || "");
+        setRedisTargetHost(data.redis.targetHost || "127.0.0.1:6379");
         setRedisUri(data.redis.activeUri || "redis://127.0.0.1:6379");
         setSemanticCache(data.redis.semanticCache);
         setRedisTtl(data.redis.ttlSeconds || 86400);
+
         setRmqEnabled(data.rabbitmq.enabled);
+        setRmqAuthMode(data.rabbitmq.authMode || (data.rabbitmq.vaultRef ? "vault" : "direct"));
+        setRmqVaultRef(data.rabbitmq.vaultRef || "");
+        setRmqTargetHost(data.rabbitmq.targetHost || "127.0.0.1:5672");
         setRmqUri(data.rabbitmq.activeUri || "amqp://guest:guest@127.0.0.1:5672");
         setRmqPrefetch(data.rabbitmq.prefetch || 10);
+
         setStorageMode(data.storage.mode || "local");
+        setStorageAuthMode(data.storage.authMode || (data.storage.vaultRef ? "vault" : "direct"));
+        setStorageVaultRef(data.storage.vaultRef || "");
         setLocalPath(data.storage.localPath || "./uploads");
         setS3Endpoint(data.storage.s3Endpoint || "");
         setS3Bucket(data.storage.s3Bucket || "elara-knowledge");
+        setS3Region(data.storage.s3Region || "us-east-1");
+        setS3AccessKey(data.storage.s3AccessKey || "");
+        setS3SecretKey(data.storage.s3SecretKey || "");
       }
     } catch (e) {
       console.warn("[InfraHub] Failed to fetch overview", e);
@@ -864,13 +906,17 @@ function EnterpriseInfrastructureHub() {
   }, [fetchInfra]);
 
   const handleTestDb = async () => {
-    if (!dbCandidate.trim()) return;
     setDbTesting(true);
     setDbResult(null);
     try {
       const res = (await fetchApi("/api/infra/db/test", {
         method: "POST",
-        body: JSON.stringify({ connectionString: dbCandidate.trim() }),
+        body: JSON.stringify({
+          authMode: dbAuthMode,
+          vaultRef: dbVaultRef,
+          targetHost: dbTargetHost,
+          connectionString: dbCandidate.trim(),
+        }),
       })) as { ok: boolean; message?: string; latencyMs?: number; error?: string };
       if (res?.ok) {
         setDbResult({
@@ -893,7 +939,6 @@ function EnterpriseInfrastructureHub() {
   };
 
   const handleSaveDb = async () => {
-    if (!dbCandidate.trim()) return;
     const ok = await confirmAction({
       title: "Save Cluster Database Configuration?",
       body: "Updates the primary cluster database connection in application settings.",
@@ -905,7 +950,12 @@ function EnterpriseInfrastructureHub() {
     try {
       await fetchApi("/api/infra/db/save", {
         method: "POST",
-        body: JSON.stringify({ connectionString: dbCandidate.trim() }),
+        body: JSON.stringify({
+          authMode: dbAuthMode,
+          vaultRef: dbVaultRef,
+          targetHost: dbTargetHost,
+          connectionString: dbCandidate.trim(),
+        }),
       });
       toast.success("Database cluster settings saved.");
       fetchInfra();
@@ -921,7 +971,12 @@ function EnterpriseInfrastructureHub() {
     try {
       const res = (await fetchApi("/api/infra/redis/test", {
         method: "POST",
-        body: JSON.stringify({ uri: redisUri }),
+        body: JSON.stringify({
+          authMode: redisAuthMode,
+          vaultRef: redisVaultRef,
+          targetHost: redisTargetHost,
+          uri: redisUri.trim(),
+        }),
       })) as { ok: boolean; message?: string; latencyMs?: number; error?: string };
       if (res?.ok) {
         setRedisResult({ ok: true, msg: res.message || "Redis reached successfully." });
@@ -945,7 +1000,10 @@ function EnterpriseInfrastructureHub() {
         method: "POST",
         body: JSON.stringify({
           enabled: redisEnabled,
-          uri: redisUri,
+          authMode: redisAuthMode,
+          vaultRef: redisVaultRef,
+          targetHost: redisTargetHost,
+          uri: redisUri.trim(),
           semanticCache,
           ttlSeconds: redisTtl,
         }),
@@ -964,7 +1022,12 @@ function EnterpriseInfrastructureHub() {
     try {
       const res = (await fetchApi("/api/infra/rabbitmq/test", {
         method: "POST",
-        body: JSON.stringify({ uri: rmqUri }),
+        body: JSON.stringify({
+          authMode: rmqAuthMode,
+          vaultRef: rmqVaultRef,
+          targetHost: rmqTargetHost,
+          uri: rmqUri.trim(),
+        }),
       })) as { ok: boolean; message?: string; latencyMs?: number; error?: string };
       if (res?.ok) {
         setRmqResult({ ok: true, msg: res.message || "RabbitMQ handshake verified." });
@@ -988,7 +1051,10 @@ function EnterpriseInfrastructureHub() {
         method: "POST",
         body: JSON.stringify({
           enabled: rmqEnabled,
-          uri: rmqUri,
+          authMode: rmqAuthMode,
+          vaultRef: rmqVaultRef,
+          targetHost: rmqTargetHost,
+          uri: rmqUri.trim(),
           prefetch: rmqPrefetch,
         }),
       });
@@ -1009,6 +1075,8 @@ function EnterpriseInfrastructureHub() {
         body: JSON.stringify({
           mode: storageMode,
           localPath,
+          authMode: storageAuthMode,
+          vaultRef: storageVaultRef,
           s3: {
             endpoint: s3Endpoint,
             bucket: s3Bucket,
@@ -1041,6 +1109,8 @@ function EnterpriseInfrastructureHub() {
         body: JSON.stringify({
           mode: storageMode,
           localPath,
+          authMode: storageAuthMode,
+          vaultRef: storageVaultRef,
           s3: {
             endpoint: s3Endpoint,
             bucket: s3Bucket,
@@ -1107,15 +1177,58 @@ function EnterpriseInfrastructureHub() {
               <span>Pool: <strong className="text-foreground">{infra?.database.pool.idleCount || 1} idle / {infra?.database.pool.totalCount || 1} total</strong></span>
             </div>
 
-            <div className="mt-4">
-              <span className={labelCls}>Cluster Connection String (Primary / PgBouncer)</span>
-              <input
-                className={fieldCls}
-                placeholder="postgres://user:pass@192.168.1.10:5432/elara_db"
-                value={dbCandidate}
-                onChange={(e) => setDbCandidate(e.target.value)}
+            {/* Mode Selector */}
+            <div className="mt-3.5 flex items-center gap-1 rounded-lg border border-white/[0.07] bg-black/20 p-1">
+              <ModeTab
+                active={dbAuthMode === "vault"}
+                icon={<KeyRound className="h-3 w-3" strokeWidth={1.8} />}
+                label="Secret Vault"
+                onClick={() => setDbAuthMode("vault")}
+              />
+              <ModeTab
+                active={dbAuthMode === "direct"}
+                icon={<Plug className="h-3 w-3" strokeWidth={1.8} />}
+                label="Direct URI"
+                onClick={() => setDbAuthMode("direct")}
               />
             </div>
+
+            {dbAuthMode === "vault" ? (
+              <div className="mt-3 space-y-2.5">
+                <div>
+                  <span className={labelCls}>Database Secret Vault Credential</span>
+                  <VaultKeyField
+                    value={dbVaultRef}
+                    onChange={setDbVaultRef}
+                    placeholder="— select database secret —"
+                  />
+                </div>
+                <div>
+                  <span className={labelCls}>Target Host & Database</span>
+                  <input
+                    className={fieldCls}
+                    placeholder="localhost:5432/elara_db"
+                    value={dbTargetHost}
+                    onChange={(e) => setDbTargetHost(e.target.value)}
+                  />
+                </div>
+                <div className="flex items-center gap-1.5 font-mono text-[10.5px] text-muted-foreground/60">
+                  <Shield size={11} className="text-emerald" />
+                  <span>AES-256-GCM Encrypted at rest · Zero clear-text passwords</span>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-3">
+                <span className={labelCls}>Cluster Connection String (Primary / PgBouncer)</span>
+                <input
+                  type="password"
+                  className={fieldCls}
+                  placeholder="postgres://user:pass@192.168.1.10:5432/elara_db"
+                  value={dbCandidate}
+                  onChange={(e) => setDbCandidate(e.target.value)}
+                />
+              </div>
+            )}
 
             {dbResult && (
               <div
@@ -1167,26 +1280,75 @@ function EnterpriseInfrastructureHub() {
               <Toggle on={redisEnabled} label="" onClick={() => setRedisEnabled(!redisEnabled)} />
             </div>
 
-            <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              <div className="sm:col-span-2">
-                <span className={labelCls}>Redis URI</span>
-                <input
-                  className={fieldCls}
-                  placeholder="redis://127.0.0.1:6379"
-                  value={redisUri}
-                  onChange={(e) => setRedisUri(e.target.value)}
-                />
-              </div>
-              <div>
-                <span className={labelCls}>Cache TTL (sec)</span>
-                <input
-                  type="number"
-                  className={fieldCls}
-                  value={redisTtl}
-                  onChange={(e) => setRedisTtl(Number(e.target.value) || 86400)}
-                />
-              </div>
+            {/* Mode Selector */}
+            <div className="mt-3 flex items-center gap-1 rounded-lg border border-white/[0.07] bg-black/20 p-1">
+              <ModeTab
+                active={redisAuthMode === "vault"}
+                icon={<KeyRound className="h-3 w-3" strokeWidth={1.8} />}
+                label="Secret Vault"
+                onClick={() => setRedisAuthMode("vault")}
+              />
+              <ModeTab
+                active={redisAuthMode === "direct"}
+                icon={<Plug className="h-3 w-3" strokeWidth={1.8} />}
+                label="Direct URI"
+                onClick={() => setRedisAuthMode("direct")}
+              />
             </div>
+
+            {redisAuthMode === "vault" ? (
+              <div className="mt-3 space-y-2.5">
+                <div>
+                  <span className={labelCls}>Redis Secret Vault Credential</span>
+                  <VaultKeyField
+                    value={redisVaultRef}
+                    onChange={setRedisVaultRef}
+                    placeholder="— select redis secret —"
+                  />
+                </div>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="sm:col-span-2">
+                    <span className={labelCls}>Redis Host & Port</span>
+                    <input
+                      className={fieldCls}
+                      placeholder="127.0.0.1:6379"
+                      value={redisTargetHost}
+                      onChange={(e) => setRedisTargetHost(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <span className={labelCls}>Cache TTL (sec)</span>
+                    <input
+                      type="number"
+                      className={fieldCls}
+                      value={redisTtl}
+                      onChange={(e) => setRedisTtl(Number(e.target.value) || 86400)}
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                <div className="sm:col-span-2">
+                  <span className={labelCls}>Redis URI</span>
+                  <input
+                    className={fieldCls}
+                    placeholder="redis://127.0.0.1:6379"
+                    value={redisUri}
+                    onChange={(e) => setRedisUri(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <span className={labelCls}>Cache TTL (sec)</span>
+                  <input
+                    type="number"
+                    className={fieldCls}
+                    value={redisTtl}
+                    onChange={(e) => setRedisTtl(Number(e.target.value) || 86400)}
+                  />
+                </div>
+              </div>
+            )}
 
             <div className="mt-3 flex items-center justify-between">
               <span className="font-mono text-[11.5px] text-muted-foreground/80">Semantic Response Cache</span>
@@ -1242,26 +1404,76 @@ function EnterpriseInfrastructureHub() {
               <Toggle on={rmqEnabled} label="" onClick={() => setRmqEnabled(!rmqEnabled)} />
             </div>
 
-            <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              <div className="sm:col-span-2">
-                <span className={labelCls}>AMQP Broker URI</span>
-                <input
-                  className={fieldCls}
-                  placeholder="amqp://guest:guest@127.0.0.1:5672"
-                  value={rmqUri}
-                  onChange={(e) => setRmqUri(e.target.value)}
-                />
-              </div>
-              <div>
-                <span className={labelCls}>Worker Prefetch</span>
-                <input
-                  type="number"
-                  className={fieldCls}
-                  value={rmqPrefetch}
-                  onChange={(e) => setRmqPrefetch(Number(e.target.value) || 10)}
-                />
-              </div>
+            {/* Mode Selector */}
+            <div className="mt-3 flex items-center gap-1 rounded-lg border border-white/[0.07] bg-black/20 p-1">
+              <ModeTab
+                active={rmqAuthMode === "vault"}
+                icon={<KeyRound className="h-3 w-3" strokeWidth={1.8} />}
+                label="Secret Vault"
+                onClick={() => setRmqAuthMode("vault")}
+              />
+              <ModeTab
+                active={rmqAuthMode === "direct"}
+                icon={<Plug className="h-3 w-3" strokeWidth={1.8} />}
+                label="Direct URI"
+                onClick={() => setRmqAuthMode("direct")}
+              />
             </div>
+
+            {rmqAuthMode === "vault" ? (
+              <div className="mt-3 space-y-2.5">
+                <div>
+                  <span className={labelCls}>RabbitMQ Secret Vault Credential</span>
+                  <VaultKeyField
+                    value={rmqVaultRef}
+                    onChange={setRmqVaultRef}
+                    placeholder="— select rabbitmq secret —"
+                  />
+                </div>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="sm:col-span-2">
+                    <span className={labelCls}>Broker Host & Port</span>
+                    <input
+                      className={fieldCls}
+                      placeholder="127.0.0.1:5672"
+                      value={rmqTargetHost}
+                      onChange={(e) => setRmqTargetHost(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <span className={labelCls}>Worker Prefetch</span>
+                    <input
+                      type="number"
+                      className={fieldCls}
+                      value={rmqPrefetch}
+                      onChange={(e) => setRmqPrefetch(Number(e.target.value) || 10)}
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                <div className="sm:col-span-2">
+                  <span className={labelCls}>AMQP Broker URI</span>
+                  <input
+                    type="password"
+                    className={fieldCls}
+                    placeholder="amqp://guest:guest@127.0.0.1:5672"
+                    value={rmqUri}
+                    onChange={(e) => setRmqUri(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <span className={labelCls}>Worker Prefetch</span>
+                  <input
+                    type="number"
+                    className={fieldCls}
+                    value={rmqPrefetch}
+                    onChange={(e) => setRmqPrefetch(Number(e.target.value) || 10)}
+                  />
+                </div>
+              </div>
+            )}
 
             {rmqResult && (
               <div
@@ -1362,15 +1574,54 @@ function EnterpriseInfrastructureHub() {
                     onChange={(e) => setS3Region(e.target.value)}
                   />
                 </div>
-                <div>
-                  <span className={labelCls}>Access Key ID</span>
-                  <input
-                    className={fieldCls}
-                    placeholder="minioadmin"
-                    value={s3AccessKey}
-                    onChange={(e) => setS3AccessKey(e.target.value)}
-                  />
+                <div className="sm:col-span-2">
+                  <div className="flex items-center gap-1 rounded-lg border border-white/[0.07] bg-black/20 p-1">
+                    <ModeTab
+                      active={storageAuthMode === "vault"}
+                      icon={<KeyRound className="h-3 w-3" strokeWidth={1.8} />}
+                      label="Secret Vault"
+                      onClick={() => setStorageAuthMode("vault")}
+                    />
+                    <ModeTab
+                      active={storageAuthMode === "direct"}
+                      icon={<Plug className="h-3 w-3" strokeWidth={1.8} />}
+                      label="Manual Keys"
+                      onClick={() => setStorageAuthMode("direct")}
+                    />
+                  </div>
                 </div>
+                {storageAuthMode === "vault" ? (
+                  <div className="sm:col-span-2">
+                    <span className={labelCls}>S3 / AWS Secret Vault Credential</span>
+                    <VaultKeyField
+                      value={storageVaultRef}
+                      onChange={setStorageVaultRef}
+                      placeholder="— select AWS / S3 secret —"
+                    />
+                  </div>
+                ) : (
+                  <>
+                    <div>
+                      <span className={labelCls}>Access Key ID</span>
+                      <input
+                        className={fieldCls}
+                        placeholder="minioadmin"
+                        value={s3AccessKey}
+                        onChange={(e) => setS3AccessKey(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <span className={labelCls}>Secret Access Key</span>
+                      <input
+                        type="password"
+                        className={fieldCls}
+                        placeholder="minioadmin"
+                        value={s3SecretKey}
+                        onChange={(e) => setS3SecretKey(e.target.value)}
+                      />
+                    </div>
+                  </>
+                )}
               </div>
             )}
 

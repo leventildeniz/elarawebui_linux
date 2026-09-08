@@ -2,6 +2,7 @@
 // Resilient AMQP Task Broker for Distributed DAG Steps & Background Workflows with DLQ Routing
 
 import amqp from "amqplib";
+import { getSecretAllFields } from "../vault.mjs";
 
 let _connection = null;
 let _channel = null;
@@ -30,10 +31,55 @@ export async function initRabbitBroker(pool) {
     const { rows } = await pool.query("SELECT value FROM app_settings WHERE key='infra.rabbitmq'");
     const cfg = rows[0]?.value || {};
     _isEnabled = !!cfg.enabled;
-    _activeUri = cfg.uri || process.env.RABBITMQ_URL || "amqp://guest:guest@127.0.0.1:5672";
     _prefetch = Number(cfg.prefetch) || 10;
 
-    if (_isEnabled && !_connection) {
+    let targetUri = cfg.uri || process.env.RABBITMQ_URL || "amqp://guest:guest@127.0.0.1:5672";
+    if (cfg.authMode === "vault" && cfg.vaultRef) {
+      try {
+        let clean = cfg.vaultRef.replace(/^vault:\/\//, "").trim();
+        let scope = "global";
+        let name = clean;
+        if (clean.includes(":")) {
+          const parts = clean.split(":");
+          scope = parts[0];
+          name = parts.slice(1).join(":");
+        } else if (clean.includes(".")) {
+          const parts = clean.split(".");
+          scope = parts[0];
+          name = parts.slice(1).join(".");
+        }
+        const sec = await getSecretAllFields(pool, scope, name);
+        if (sec && sec.fields) {
+          if (sec.fields.uri || sec.fields.connection_string) {
+            targetUri = sec.fields.uri || sec.fields.connection_string;
+          } else {
+            const u = encodeURIComponent(sec.fields.username || "guest");
+            const p = encodeURIComponent(sec.fields.password || "guest");
+            const host = (cfg.targetHost || "127.0.0.1:5672").replace(/^amqp:\/\//, "");
+            targetUri = `amqp://${u}:${p}@${host}`;
+          }
+        }
+      } catch (err) {
+        console.warn(`[RabbitMQ] Vault resolution error: ${err.message}`);
+      }
+    }
+    _activeUri = targetUri;
+
+    if (_channel) {
+      try {
+        await _channel.close();
+      } catch {}
+      _channel = null;
+    }
+
+    if (_connection) {
+      try {
+        await _connection.close();
+      } catch {}
+      _connection = null;
+    }
+
+    if (_isEnabled) {
       _connection = await amqp.connect(_activeUri);
       _channel = await _connection.createChannel();
       await _channel.prefetch(_prefetch);

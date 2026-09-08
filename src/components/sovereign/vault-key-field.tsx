@@ -109,7 +109,7 @@ export function VaultKeyField({
   );
 }
 
-function ModeTab({
+export function ModeTab({
   active,
   icon,
   label,

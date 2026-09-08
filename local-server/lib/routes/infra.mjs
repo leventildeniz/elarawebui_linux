@@ -1,26 +1,138 @@
 // local-server/lib/routes/infra.mjs
-// Enterprise HA Cluster & Infrastructure Hub — Database, Redis, RabbitMQ & Storage Management
+// Enterprise HA Cluster & Infrastructure Hub — Database, Redis, RabbitMQ & Storage Management with Vault Integration
 
 import net from "node:net";
 import fs from "node:fs";
 import path from "node:path";
 import pg from "pg";
+import Redis from "ioredis";
+import amqp from "amqplib";
 import { getRedisCacheStats, initRedisCache } from "../infra/redis-cache.mjs";
 import { getRabbitBrokerStats, initRabbitBroker } from "../infra/rabbitmq-broker.mjs";
+import { getSecretAllFields } from "../vault.mjs";
 
 export async function mountInfraRoutes(app, deps) {
   const { pool, isAdminCaller, resolveActor } = deps;
+
+  // Resolves a secret from PostgreSQL vault_secrets (AES-256-GCM decrypted)
+  async function resolveVaultSecret(ref) {
+    if (!ref || typeof ref !== "string") return null;
+    let clean = ref.trim();
+    if (clean.startsWith("vault://")) clean = clean.slice("vault://".length);
+    if (clean.startsWith("raw://")) return { kind: "raw", fields: { raw: clean.slice("raw://".length) } };
+
+    let scope = "global";
+    let name = clean;
+    if (clean.includes(":")) {
+      const parts = clean.split(":");
+      scope = parts[0];
+      name = parts.slice(1).join(":");
+    } else if (clean.includes(".")) {
+      const parts = clean.split(".");
+      scope = parts[0];
+      name = parts.slice(1).join(".");
+    }
+
+    try {
+      const sec = await getSecretAllFields(pool, scope, name);
+      if (sec && sec.fields) {
+        return {
+          scope,
+          name,
+          kind: sec.kind,
+          fields: sec.fields,
+          meta: sec.meta || {},
+        };
+      }
+    } catch (err) {
+      console.warn(`[resolveVaultSecret] Failed resolving ${scope}:${name}:`, err.message);
+    }
+    return null;
+  }
 
   // Mask sensitive database or broker credentials in connection URIs for UI safe display
   function maskUri(raw) {
     if (!raw || typeof raw !== "string") return "";
     try {
       const u = new URL(raw);
-      if (u.password) u.password = "******";
+      if (u.password) u.password = "••••••••";
       return u.toString();
     } catch {
-      return raw.replace(/:\/\/([^:]+):([^@]+)@/, "://$1:******@");
+      return raw.replace(/:\/\/([^:]+):([^@]+)@/, "://$1:••••••••@");
     }
+  }
+
+  // Helper to safely unmask candidate URIs using stored URI passwords if candidate has '******' or '••••••••'
+  function resolveCandidateUri(candidate, stored) {
+    if (!candidate || typeof candidate !== "string") return candidate || "";
+    if (!candidate.includes("******") && !candidate.includes("••••••••")) return candidate;
+    try {
+      const candUrl = new URL(candidate);
+      if (stored) {
+        try {
+          const storedUrl = new URL(stored);
+          if (candUrl.password === "******" || candUrl.password === "••••••••") {
+            candUrl.password = storedUrl.password || "";
+          }
+        } catch {}
+      }
+      return candUrl.toString();
+    } catch {
+      return candidate;
+    }
+  }
+
+  // Resolve Database URI from configuration or Vault
+  async function resolveDatabaseUri(config = {}) {
+    const { authMode = "vault", vaultRef, targetHost, connectionString } = config;
+    if (authMode === "vault" && vaultRef) {
+      const sec = await resolveVaultSecret(vaultRef);
+      if (sec && sec.fields) {
+        if (sec.fields.connection_string) {
+          return sec.fields.connection_string;
+        }
+        const u = encodeURIComponent(sec.fields.username || "sovereign");
+        const p = encodeURIComponent(sec.fields.password || "");
+        const host = (targetHost || "localhost:5432/elara_db").replace(/^postgres:\/\//, "");
+        return `postgres://${u}:${p}@${host}`;
+      }
+    }
+    return connectionString || process.env.DATABASE_URL || "postgres://sovereign:sovereign@127.0.0.1:5432/elara_db";
+  }
+
+  // Resolve Redis URI from configuration or Vault
+  async function resolveRedisUri(config = {}) {
+    const { authMode = "direct", vaultRef, targetHost, uri } = config;
+    if (authMode === "vault" && vaultRef) {
+      const sec = await resolveVaultSecret(vaultRef);
+      if (sec && sec.fields) {
+        if (sec.fields.uri || sec.fields.connection_string) {
+          return sec.fields.uri || sec.fields.connection_string;
+        }
+        const p = encodeURIComponent(sec.fields.password || sec.fields.api_key || sec.fields.token || "");
+        const host = (targetHost || "127.0.0.1:6379").replace(/^redis:\/\//, "");
+        return p ? `redis://:${p}@${host}` : `redis://${host}`;
+      }
+    }
+    return uri || process.env.REDIS_URL || "redis://127.0.0.1:6379";
+  }
+
+  // Resolve RabbitMQ URI from configuration or Vault
+  async function resolveRabbitmqUri(config = {}) {
+    const { authMode = "direct", vaultRef, targetHost, uri } = config;
+    if (authMode === "vault" && vaultRef) {
+      const sec = await resolveVaultSecret(vaultRef);
+      if (sec && sec.fields) {
+        if (sec.fields.uri || sec.fields.connection_string) {
+          return sec.fields.uri || sec.fields.connection_string;
+        }
+        const u = encodeURIComponent(sec.fields.username || "guest");
+        const p = encodeURIComponent(sec.fields.password || "guest");
+        const host = (targetHost || "127.0.0.1:5672").replace(/^amqp:\/\//, "");
+        return `amqp://${u}:${p}@${host}`;
+      }
+    }
+    return uri || process.env.RABBITMQ_URL || "amqp://guest:guest@127.0.0.1:5672";
   }
 
   // TCP Socket ping helper with sub-millisecond timer
@@ -82,9 +194,7 @@ export async function mountInfraRoutes(app, deps) {
         dbLatency = -1;
       }
 
-      const activeDbUrl = process.env.DATABASE_URL || "postgres://sovereign:sovereign@127.0.0.1:5432/elara_db";
-
-      // 2. Fetch saved app_settings for redis, rabbitmq and storage
+      // 2. Fetch saved app_settings for redis, rabbitmq, storage and db
       const settingsRows = await pool.query(
         "SELECT key, value FROM app_settings WHERE key IN ('infra.redis', 'infra.rabbitmq', 'infra.storage', 'infra.db')"
       ).catch(() => ({ rows: [] }));
@@ -94,30 +204,14 @@ export async function mountInfraRoutes(app, deps) {
         settingsMap[r.key] = r.value;
       }
 
-      const redisConfig = settingsMap["infra.redis"] || {
-        enabled: false,
-        uri: process.env.REDIS_URL || "redis://127.0.0.1:6379",
-        semanticCache: true,
-        ttlSeconds: 86400,
-      };
+      const dbConfig = settingsMap["infra.db"] || {};
+      const redisConfig = settingsMap["infra.redis"] || {};
+      const rabbitmqConfig = settingsMap["infra.rabbitmq"] || {};
+      const storageConfig = settingsMap["infra.storage"] || {};
 
-      const rabbitmqConfig = settingsMap["infra.rabbitmq"] || {
-        enabled: false,
-        uri: process.env.RABBITMQ_URL || "amqp://guest:guest@127.0.0.1:5672",
-        prefetch: 10,
-      };
-
-      const storageConfig = settingsMap["infra.storage"] || {
-        mode: process.env.STORAGE_MODE || "local",
-        localPath: process.env.UPLOAD_DIR || "./uploads",
-        s3: {
-          endpoint: "",
-          bucket: "elara-knowledge",
-          region: "us-east-1",
-          accessKey: "",
-          secretKey: "",
-        },
-      };
+      const resolvedDbUri = await resolveDatabaseUri(dbConfig);
+      const resolvedRedisUri = await resolveRedisUri(redisConfig);
+      const resolvedRabbitUri = await resolveRabbitmqUri(rabbitmqConfig);
 
       const redisStats = getRedisCacheStats();
       const rabbitStats = getRabbitBrokerStats();
@@ -126,7 +220,10 @@ export async function mountInfraRoutes(app, deps) {
         ok: true,
         database: {
           status: dbLatency >= 0 ? "healthy" : "offline",
-          activeUri: maskUri(activeDbUrl),
+          authMode: dbConfig.authMode || (dbConfig.vaultRef ? "vault" : "direct"),
+          vaultRef: dbConfig.vaultRef || "",
+          targetHost: dbConfig.targetHost || "localhost:5432/elara_db",
+          activeUri: maskUri(resolvedDbUri),
           databaseName: dbName,
           version: dbVersion,
           latencyMs: dbLatency,
@@ -138,8 +235,11 @@ export async function mountInfraRoutes(app, deps) {
         },
         redis: {
           enabled: !!redisConfig.enabled,
+          authMode: redisConfig.authMode || (redisConfig.vaultRef ? "vault" : "direct"),
+          vaultRef: redisConfig.vaultRef || "",
+          targetHost: redisConfig.targetHost || "127.0.0.1:6379",
           mode: redisStats.mode,
-          activeUri: maskUri(redisConfig.uri),
+          activeUri: maskUri(resolvedRedisUri),
           semanticCache: redisConfig.semanticCache !== false,
           ttlSeconds: redisConfig.ttlSeconds || 86400,
           hitRate: redisStats.hitRate,
@@ -148,8 +248,11 @@ export async function mountInfraRoutes(app, deps) {
         },
         rabbitmq: {
           enabled: !!rabbitmqConfig.enabled,
+          authMode: rabbitmqConfig.authMode || (rabbitmqConfig.vaultRef ? "vault" : "direct"),
+          vaultRef: rabbitmqConfig.vaultRef || "",
+          targetHost: rabbitmqConfig.targetHost || "127.0.0.1:5672",
           mode: rabbitStats.mode,
-          activeUri: maskUri(rabbitmqConfig.uri),
+          activeUri: maskUri(resolvedRabbitUri),
           prefetch: rabbitmqConfig.prefetch || 10,
           published: rabbitStats.published,
           completed: rabbitStats.completed,
@@ -157,9 +260,13 @@ export async function mountInfraRoutes(app, deps) {
         },
         storage: {
           mode: storageConfig.mode || "local",
+          authMode: storageConfig.authMode || (storageConfig.vaultRef ? "vault" : "direct"),
+          vaultRef: storageConfig.vaultRef || "",
           localPath: storageConfig.localPath || "./uploads",
           s3Endpoint: storageConfig.s3?.endpoint || "",
           s3Bucket: storageConfig.s3?.bucket || "elara-knowledge",
+          s3Region: storageConfig.s3?.region || "us-east-1",
+          s3AccessKey: storageConfig.authMode === "vault" ? "" : (storageConfig.s3?.accessKey || ""),
         },
       });
     } catch (e) {
@@ -169,18 +276,26 @@ export async function mountInfraRoutes(app, deps) {
 
   // POST /api/infra/db/test — Real probe for candidate PostgreSQL connection
   app.post("/api/infra/db/test", async (req, res) => {
-    const { connectionString } = req.body || {};
-    if (!connectionString) {
-      return res.status(400).json({ ok: false, error: "connectionString is required" });
-    }
-
-    const t0 = performance.now();
-    const testClient = new pg.Client({
-      connectionString,
-      connectionTimeoutMillis: 3000,
-    });
+    const { authMode, vaultRef, targetHost, connectionString } = req.body || {};
 
     try {
+      const storedRow = await pool.query("SELECT value FROM app_settings WHERE key='infra.db'").catch(() => ({ rows: [] }));
+      const storedConfig = storedRow.rows[0]?.value || {};
+
+      let resolvedUri;
+      if (authMode === "vault" && vaultRef) {
+        resolvedUri = await resolveDatabaseUri({ authMode: "vault", vaultRef, targetHost });
+      } else {
+        const candidate = connectionString || storedConfig.connectionString || process.env.DATABASE_URL;
+        resolvedUri = resolveCandidateUri(candidate, storedConfig.connectionString || process.env.DATABASE_URL);
+      }
+
+      const t0 = performance.now();
+      const testClient = new pg.Client({
+        connectionString: resolvedUri,
+        connectionTimeoutMillis: 3000,
+      });
+
       await testClient.connect();
       const q = await testClient.query(`
         SELECT 
@@ -202,11 +317,9 @@ export async function mountInfraRoutes(app, deps) {
         message: `Connection verified. Latency: ${latencyMs}ms, Database: ${row.db_name}`,
       });
     } catch (err) {
-      await testClient.end().catch(() => {});
-      const latencyMs = Math.round(performance.now() - t0);
       res.status(400).json({
         ok: false,
-        latencyMs,
+        latencyMs: 0,
         error: `Connection failed: ${err.message}`,
       });
     }
@@ -215,14 +328,26 @@ export async function mountInfraRoutes(app, deps) {
   // POST /api/infra/db/save — Save database configuration
   app.post("/api/infra/db/save", async (req, res) => {
     if (!await isAdminCaller(req)) return res.status(403).json({ ok: false, error: "admin required" });
-    const { connectionString } = req.body || {};
-    if (!connectionString) return res.status(400).json({ ok: false, error: "connectionString is required" });
+    const { authMode, vaultRef, targetHost, connectionString } = req.body || {};
 
     try {
+      const storedRow = await pool.query("SELECT value FROM app_settings WHERE key='infra.db'").catch(() => ({ rows: [] }));
+      const storedConfig = storedRow.rows[0]?.value || {};
+
+      const payload = {
+        authMode: authMode || "vault",
+        vaultRef: vaultRef || "",
+        targetHost: targetHost || "localhost:5432/elara_db",
+      };
+
+      if (authMode === "direct") {
+        payload.connectionString = resolveCandidateUri(connectionString, storedConfig.connectionString || process.env.DATABASE_URL);
+      }
+
       await pool.query(
         `INSERT INTO app_settings(key, value, updated_at) VALUES ('infra.db', $1::jsonb, now())
          ON CONFLICT (key) DO UPDATE SET value=$1::jsonb, updated_at=now()`,
-        [JSON.stringify({ connectionString })]
+        [JSON.stringify(payload)]
       );
       res.json({ ok: true, message: "Database cluster configuration saved." });
     } catch (e) {
@@ -232,45 +357,68 @@ export async function mountInfraRoutes(app, deps) {
 
   // POST /api/infra/redis/test — Test Redis connectivity & RESP ping
   app.post("/api/infra/redis/test", async (req, res) => {
-    const { uri } = req.body || {};
-    if (!uri) return res.status(400).json({ ok: false, error: "uri is required" });
+    const { authMode, vaultRef, targetHost, uri } = req.body || {};
 
     try {
-      const u = new URL(uri);
+      let resolvedUri;
+      if (authMode === "vault" && vaultRef) {
+        resolvedUri = await resolveRedisUri({ authMode: "vault", vaultRef, targetHost });
+      } else {
+        const storedRow = await pool.query("SELECT value FROM app_settings WHERE key='infra.redis'").catch(() => ({ rows: [] }));
+        const storedUri = storedRow.rows[0]?.value?.uri || process.env.REDIS_URL || "redis://127.0.0.1:6379";
+        resolvedUri = resolveCandidateUri(uri, storedUri);
+      }
+
+      const u = new URL(resolvedUri);
       const host = u.hostname || "127.0.0.1";
       const port = Number(u.port) || 6379;
 
-      // Send RESP formatted *1\r\n$4\r\nPING\r\n
-      const pingPayload = Buffer.from("*1\r\n$4\r\nPING\r\n");
-      const result = await probeTcpSocket(host, port, 3000, pingPayload);
+      const t0 = performance.now();
+      const testClient = new Redis(resolvedUri, {
+        lazyConnect: true,
+        connectTimeout: 3000,
+        maxRetriesPerRequest: 0,
+        enableOfflineQueue: false,
+      });
 
-      if (result.ok) {
+      await testClient.connect();
+      const pong = await testClient.ping();
+      const latencyMs = Math.round(performance.now() - t0);
+      await testClient.quit().catch(() => {});
+
+      if (pong === "PONG") {
         res.json({
           ok: true,
-          latencyMs: result.latencyMs,
-          message: `Redis node (${host}:${port}) reachable. Latency: ${result.latencyMs}ms`,
+          latencyMs,
+          message: `Redis node (${host}:${port}) reachable. Latency: ${latencyMs}ms (PONG)`,
         });
       } else {
-        res.status(400).json({
-          ok: false,
-          latencyMs: result.latencyMs,
-          error: result.message,
+        res.json({
+          ok: true,
+          latencyMs,
+          message: `Redis node (${host}:${port}) responded: ${pong}`,
         });
       }
     } catch (err) {
-      res.status(400).json({ ok: false, error: `Invalid Redis URI format: ${err.message}` });
+      res.status(400).json({ ok: false, error: `Redis connection failed: ${err.message}` });
     }
   });
 
   // POST /api/infra/redis/save — Save Redis configuration
   app.post("/api/infra/redis/save", async (req, res) => {
     if (!await isAdminCaller(req)) return res.status(403).json({ ok: false, error: "admin required" });
-    const { enabled, uri, semanticCache, ttlSeconds } = req.body || {};
+    const { enabled, authMode, vaultRef, targetHost, uri, semanticCache, ttlSeconds } = req.body || {};
 
     try {
+      const storedRow = await pool.query("SELECT value FROM app_settings WHERE key='infra.redis'").catch(() => ({ rows: [] }));
+      const storedConfig = storedRow.rows[0]?.value || {};
+
       const payload = {
         enabled: !!enabled,
-        uri: uri || "redis://127.0.0.1:6379",
+        authMode: authMode || "direct",
+        vaultRef: vaultRef || "",
+        targetHost: targetHost || "127.0.0.1:6379",
+        uri: authMode === "vault" ? "" : resolveCandidateUri(uri, storedConfig.uri || process.env.REDIS_URL || "redis://127.0.0.1:6379"),
         semanticCache: semanticCache !== false,
         ttlSeconds: Number(ttlSeconds) || 86400,
       };
@@ -291,45 +439,54 @@ export async function mountInfraRoutes(app, deps) {
 
   // POST /api/infra/rabbitmq/test — Test RabbitMQ AMQP handshake
   app.post("/api/infra/rabbitmq/test", async (req, res) => {
-    const { uri } = req.body || {};
-    if (!uri) return res.status(400).json({ ok: false, error: "uri is required" });
+    const { authMode, vaultRef, targetHost, uri } = req.body || {};
 
     try {
-      const u = new URL(uri);
+      let resolvedUri;
+      if (authMode === "vault" && vaultRef) {
+        resolvedUri = await resolveRabbitmqUri({ authMode: "vault", vaultRef, targetHost });
+      } else {
+        const storedRow = await pool.query("SELECT value FROM app_settings WHERE key='infra.rabbitmq'").catch(() => ({ rows: [] }));
+        const storedUri = storedRow.rows[0]?.value?.uri || process.env.RABBITMQ_URL || "amqp://guest:guest@127.0.0.1:5672";
+        resolvedUri = resolveCandidateUri(uri, storedUri);
+      }
+
+      const u = new URL(resolvedUri);
       const host = u.hostname || "127.0.0.1";
       const port = Number(u.port) || 5672;
 
-      // AMQP 0-9-1 protocol header: 'AMQP\x00\x00\x09\x01'
-      const amqpHeader = Buffer.from([0x41, 0x4D, 0x51, 0x50, 0x00, 0x00, 0x09, 0x01]);
-      const result = await probeTcpSocket(host, port, 3000, amqpHeader);
+      const t0 = performance.now();
+      const conn = await amqp.connect(resolvedUri, { timeout: 3000 });
+      const ch = await conn.createChannel();
+      await ch.close();
+      await conn.close();
+      const latencyMs = Math.round(performance.now() - t0);
 
-      if (result.ok) {
-        res.json({
-          ok: true,
-          latencyMs: result.latencyMs,
-          message: `RabbitMQ broker (${host}:${port}) AMQP handshake successful. Latency: ${result.latencyMs}ms`,
-        });
-      } else {
-        res.status(400).json({
-          ok: false,
-          latencyMs: result.latencyMs,
-          error: result.message,
-        });
-      }
+      res.json({
+        ok: true,
+        latencyMs,
+        message: `RabbitMQ broker (${host}:${port}) AMQP handshake successful. Latency: ${latencyMs}ms`,
+      });
     } catch (err) {
-      res.status(400).json({ ok: false, error: `Invalid RabbitMQ URI format: ${err.message}` });
+      res.status(400).json({ ok: false, error: `RabbitMQ connection failed: ${err.message}` });
     }
   });
 
   // POST /api/infra/rabbitmq/save — Save RabbitMQ configuration
   app.post("/api/infra/rabbitmq/save", async (req, res) => {
     if (!await isAdminCaller(req)) return res.status(403).json({ ok: false, error: "admin required" });
-    const { enabled, uri, prefetch } = req.body || {};
+    const { enabled, authMode, vaultRef, targetHost, uri, prefetch } = req.body || {};
 
     try {
+      const storedRow = await pool.query("SELECT value FROM app_settings WHERE key='infra.rabbitmq'").catch(() => ({ rows: [] }));
+      const storedConfig = storedRow.rows[0]?.value || {};
+
       const payload = {
         enabled: !!enabled,
-        uri: uri || "amqp://guest:guest@127.0.0.1:5672",
+        authMode: authMode || "direct",
+        vaultRef: vaultRef || "",
+        targetHost: targetHost || "127.0.0.1:5672",
+        uri: authMode === "vault" ? "" : resolveCandidateUri(uri, storedConfig.uri || process.env.RABBITMQ_URL || "amqp://guest:guest@127.0.0.1:5672"),
         prefetch: Number(prefetch) || 10,
       };
 
@@ -349,7 +506,7 @@ export async function mountInfraRoutes(app, deps) {
 
   // POST /api/infra/storage/test — Test local directory writability or S3 endpoint reachability
   app.post("/api/infra/storage/test", async (req, res) => {
-    const { mode, localPath, s3 } = req.body || {};
+    const { mode, localPath, authMode, vaultRef, s3 } = req.body || {};
     const t0 = performance.now();
 
     if (mode === "s3") {
@@ -400,12 +557,14 @@ export async function mountInfraRoutes(app, deps) {
   // POST /api/infra/storage/save — Save Storage configuration
   app.post("/api/infra/storage/save", async (req, res) => {
     if (!await isAdminCaller(req)) return res.status(403).json({ ok: false, error: "admin required" });
-    const { mode, localPath, s3 } = req.body || {};
+    const { mode, localPath, authMode, vaultRef, s3 } = req.body || {};
 
     try {
       const payload = {
         mode: mode || "local",
         localPath: localPath || "./uploads",
+        authMode: authMode || "direct",
+        vaultRef: vaultRef || "",
         s3: s3 || {},
       };
 

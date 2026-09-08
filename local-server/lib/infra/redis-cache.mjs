@@ -3,6 +3,7 @@
 
 import Redis from "ioredis";
 import crypto from "node:crypto";
+import { getSecretAllFields } from "../vault.mjs";
 
 let _redisClient = null;
 let _pool = null;
@@ -49,9 +50,46 @@ export async function initRedisCache(pool) {
     _isEnabled = !!cfg.enabled;
     _isSemanticCacheEnabled = cfg.semanticCache !== false;
     _defaultTtlSeconds = Number(cfg.ttlSeconds) || 86400;
-    _activeUri = cfg.uri || process.env.REDIS_URL || "redis://127.0.0.1:6379";
 
-    if (_isEnabled && !_redisClient) {
+    let targetUri = cfg.uri || process.env.REDIS_URL || "redis://127.0.0.1:6379";
+    if (cfg.authMode === "vault" && cfg.vaultRef) {
+      try {
+        let clean = cfg.vaultRef.replace(/^vault:\/\//, "").trim();
+        let scope = "global";
+        let name = clean;
+        if (clean.includes(":")) {
+          const parts = clean.split(":");
+          scope = parts[0];
+          name = parts.slice(1).join(":");
+        } else if (clean.includes(".")) {
+          const parts = clean.split(".");
+          scope = parts[0];
+          name = parts.slice(1).join(".");
+        }
+        const sec = await getSecretAllFields(pool, scope, name);
+        if (sec && sec.fields) {
+          if (sec.fields.uri || sec.fields.connection_string) {
+            targetUri = sec.fields.uri || sec.fields.connection_string;
+          } else {
+            const p = encodeURIComponent(sec.fields.password || sec.fields.api_key || sec.fields.token || "");
+            const host = (cfg.targetHost || "127.0.0.1:6379").replace(/^redis:\/\//, "");
+            targetUri = p ? `redis://:${p}@${host}` : `redis://${host}`;
+          }
+        }
+      } catch (err) {
+        console.warn(`[Redis] Vault resolution error: ${err.message}`);
+      }
+    }
+    _activeUri = targetUri;
+
+    if (_redisClient) {
+      try {
+        _redisClient.disconnect();
+      } catch {}
+      _redisClient = null;
+    }
+
+    if (_isEnabled) {
       _redisClient = new Redis(_activeUri, {
         maxRetriesPerRequest: 2,
         connectTimeout: 3000,
