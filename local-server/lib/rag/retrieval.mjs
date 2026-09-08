@@ -149,13 +149,45 @@ function _normalizeBrandSearchText(value) {
     .replace(/[^\p{L}\p{N}]+/gu, "");
 }
 
+function _levenshtein(a, b) {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  const d = Array.from({ length: a.length + 1 }, () => new Array(b.length + 1).fill(0));
+  for (let i = 0; i <= a.length; i++) d[i][0] = i;
+  for (let j = 0; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cost);
+    }
+  }
+  return d[a.length][b.length];
+}
+
 function _findScopedBrandMention(query, brands) {
   const hay = _normalizeBrandSearchText(query);
   if (!hay || !Array.isArray(brands) || !brands.length) return null;
+  // 1. Direct match
   for (const raw of brands) {
     const token = _brandToken(raw);
     const norm = _normalizeBrandSearchText(token);
     if ((norm.length >= 3 || /\d/.test(norm)) && hay.includes(norm)) return token;
+  }
+  // 2. Typo-tolerant match
+  const words = String(query || "").toLowerCase().split(/\s+/).map(w => _normalizeBrandSearchText(w)).filter(w => w.length >= 4);
+  for (const raw of brands) {
+    const token = _brandToken(raw);
+    const norm = _normalizeBrandSearchText(token);
+    if (!norm || norm.length < 4) continue;
+    for (const w of words) {
+      const stem = w.replace(/(nin|nun|nın|de|da|te|ta|ye|ya|in|un|ın|e|a)$/i, "");
+      const targetW = stem.length >= 4 ? stem : w;
+      const maxDistance = norm.length >= 8 ? 2 : 1;
+      if (_levenshtein(targetW, norm) <= maxDistance) {
+        return token;
+      }
+    }
   }
   return null;
 }

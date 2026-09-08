@@ -140,14 +140,29 @@ export function _normalizeBrandSearchText(value) {
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^\p{L}\p{N}]+/gu, "");
 }
+function _levenshtein(a, b) {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  const d = Array.from({ length: a.length + 1 }, () => new Array(b.length + 1).fill(0));
+  for (let i = 0; i <= a.length; i++) d[i][0] = i;
+  for (let j = 0; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cost);
+    }
+  }
+  return d[a.length][b.length];
+}
+
 export function detectLibraryMatch(query, libBrands) {
   const q = String(query || "").toLowerCase();
   const qNorm = _normalizeBrandSearchText(query);
   if (!q || !Array.isArray(libBrands) || !libBrands.length) {
     return { matched: null, matchedDisplay: null, libBrands: libBrands || [] };
   }
-  // Dynamic brand detection: compare both raw and punctuation/space-normalized
-  // text so "checkpoint", "check point", "a10'da" and "fortigate-de" all match.
+  // 1. Direct & normalized substring match
   for (const b of libBrands) {
     const token = _brandToken(b);
     const tokenNorm = _normalizeBrandSearchText(token);
@@ -156,5 +171,24 @@ export function detectLibraryMatch(query, libBrands) {
       return { matched: b, matchedDisplay: _brandDisplay(b), libBrands };
     }
   }
+
+  // 2. Typo-tolerant word & stem matching (e.g. 'cjekpointte' -> 'checkpoint')
+  const words = q.split(/\s+/).map(w => _normalizeBrandSearchText(w)).filter(w => w.length >= 4);
+  for (const b of libBrands) {
+    const token = _brandToken(b);
+    const tokenNorm = _normalizeBrandSearchText(token);
+    if (!tokenNorm || tokenNorm.length < 4) continue;
+
+    for (const w of words) {
+      const stem = w.replace(/(nin|nun|nın|de|da|te|ta|ye|ya|in|un|ın|e|a)$/i, "");
+      const targetW = stem.length >= 4 ? stem : w;
+      const maxDistance = tokenNorm.length >= 8 ? 2 : 1;
+      const dist = _levenshtein(targetW, tokenNorm);
+      if (dist <= maxDistance) {
+        return { matched: b, matchedDisplay: _brandDisplay(b), libBrands };
+      }
+    }
+  }
+
   return { matched: null, matchedDisplay: null, libBrands };
 }
