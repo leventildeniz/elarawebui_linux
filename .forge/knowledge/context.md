@@ -792,7 +792,41 @@ Bu aşamada Raporlama & Analitik (Reporting) modülündeki tüm şema uyuşmazl�
 
 ---
 
-## 52.3. UP NEXT - AUTONOMOUS DAG EXECUTION ENGINE & MULTI-STEP WORKFLOW BENCHMARKING
+## 52.3. IN PROGRESS - AUTONOMOUS DAG EXECUTION ENGINE & MULTI-STEP WORKFLOW BENCHMARKING
 - Çok adımlı otonom workflow ve orchestration zincirlerinin canlı icra doğrulaması.
 - MetaForge tarafından üretilen DAG (Directed Acyclic Graph) yapılarının otonom icra motoru üzerinde adım adım, kesintisiz çalıştırılması.
 - Uçtan uca sistem yük testleri ve Load Balancer hazırlığı.
+
+---
+
+## 53. UP NEXT - ENTERPRISE HA CLUSTER, DUAL-MODE SCALE-OUT & SERVICES UI (PHASE 53)
+
+Bu aşama, ELARA'yı hem tekil bağımsız sunucularda ("Stand-Alone / Zero-Config") hem de Citrix NetScaler / F5 BIG-IP / HAProxy Load Balancer arkasında çalışan kurumsal çok düğümlü ("Multi-Node Enterprise HA Cluster") mimariye kavuşturacaktır.
+
+### 🏛️ 1. Mimari Prensipler & Sıfır-Nginx (Unified Single-Port) Modeli
+- **Tek Port - Tek Süreç (`Port 3005`):**
+  - Node.js API Gateway (`server.mjs`), prodüksiyonda derlenen optimize React statik arayüzünü (`dist/`) ve `/api/*` uçlarını doğrudan tek bir süreç üzerinden sunar.
+  - Sunucularda ekstra Nginx/Apache kurulmasına gerek kalmaz; Citrix / F5 Load Balancer gelen HTTPS trafiğini doğrudan sunucuların `:3005` portuna iletir.
+- **Doğrudan TCP Protokolleri:**
+  - Redis (`6379` / RESP) ve RabbitMQ (`5672` / AMQP) ara web sunucularına ihtiyaç duymadan doğrudan Node.js backend tarafından tüketilir.
+- **Anında Genişleme (2 Dakikada Yeni Düğüm / Node Scale-Out):**
+  - Kümeye yeni bir ELARA sunucusu eklendiğinde yalnızca DB URL ve Shared Storage (`UPLOAD_DIR`) tanımlanır ve servis başlatılır. F5/Citrix HTTP `/health` probe'u üzerinden düğümü otomatik havuza dahil eder.
+
+---
+
+### 🎛️ 2. UI Entegrasyonu: `Settings ➔ Services` (`src/routes/services.tsx`)
+Yeni altyapı kontrolleri doğrudan mevcut **Background Services Tower** sayfasının altına enterprise yönetim kartları olarak eklenecektir:
+
+1. **Database & Cluster Hub (`PostgreSQL`):**
+   - Aktif DB bağlantı adresi (`postgres://...`) ve canlı havuz metrikleri.
+   - **"Test Connection"** butonu: Yeni DB'ye ping atar, gecikmeyi ölçer ve şemanın (`v2_master_schema.sql`) bütünlüğünü doğrular.
+   - **"Apply & Hot-Switch"**: Sunucuyu yeniden başlatmadan bağlantı havuzunu anında yeni veritabanı kümesine aktarır.
+2. **Caching & Acceleration Tier (`Redis`):**
+   - Redis bağlantı adresi (`redis://...`), önbellek doluluk oranı ve TTL ayarları.
+   - Semantik LLM cevap önbellekleme ve rate-limit açma/kapama toggle'ı.
+3. **Task & Workflow Broker (`RabbitMQ`):**
+   - AMQP broker bağlantı adresi (`amqp://...`), aktif kuyruk derinlikleri ve Dead-Letter Queue (DLQ) izleme.
+   - Asenkron DAG iş akışları ve büyük doküman ingestion kuyruk durumu.
+4. **Shared Storage & Object Storage (`Storage Hub`):**
+   - Yerel Dizin (`./uploads` / NFS mount) veya **S3 / MinIO Uyumlu Nesne Deposu** seçici.
+   - S3 Endpoint, Bucket, Access Key, Secret Key giriş ve test arayüzü.
