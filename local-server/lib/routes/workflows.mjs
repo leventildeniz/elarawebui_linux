@@ -3,6 +3,7 @@
 // All external deps passed via DI — no module-level side effects.
 
 import { syncTriggerSchedules } from '../trigger-sync.mjs';
+import { invokeTool, ApprovalRequired } from '../tool-adapters.mjs';
 
 const CHAIN_ID_RE = /^[A-Za-z0-9._-]{1,128}$/;
 
@@ -21,18 +22,63 @@ function scheduleRunCleanup(map, runId) {
   setTimeout(() => map.delete(runId), RUN_TTL_MS).unref?.();
 }
 
-// Tiny safe expression evaluator: identifiers `ctx`, member access, string/number
-// literals, and operators === !== == != > >= < <= && || ! ( ).
-function evalChainCondition(expr, ctx) {
+// Robust and safe expression evaluator for DAG conditionals and branching logic
+function evalChainCondition(expr, ctx = {}) {
+  if (typeof expr === "boolean") return expr;
   if (typeof expr !== "string" || !expr.trim()) return false;
-  if (!/^[\sa-zA-Z0-9_$.'"!=<>&|()\-+,]+$/.test(expr)) return false;
+  const clean = expr.trim();
   try {
-    // eslint-disable-next-line no-new-func
-    const fn = new Function("ctx", `"use strict"; return (${expr});`);
+    const fn = new Function("ctx", `"use strict"; with (ctx) { return Boolean(${clean}); }`);
     return Boolean(fn(ctx));
   } catch {
-    return false;
+    try {
+      const prefixed = clean.replace(/\b([a-zA-Z_][a-zA-Z0-9_]*)\b/g, (m) => (m in ctx ? `ctx.${m}` : m));
+      const fn2 = new Function("ctx", `"use strict"; return Boolean(${prefixed});`);
+      return Boolean(fn2(ctx));
+    } catch {
+      return false;
+    }
   }
+}
+
+// Helper to resolve node parameters from direct configs, bindings, and contextual state
+function resolveNodeParams(node, ctx = {}) {
+  const cfgParams = (node?.config && typeof node.config === "object" ? node.config.params : {}) || {};
+  const dataParams = (node?.data && typeof node.data === "object" ? node.data.params : {}) || {};
+  const directParams = (node?.params && typeof node.params === "object" ? node.params : {}) || {};
+  const bindings = node?.bindings || cfgParams.bindings || {};
+
+  const merged = { ...directParams, ...dataParams, ...cfgParams, ...bindings };
+  delete merged.kind;
+  delete merged.agentId;
+  delete merged.agentName;
+  delete merged.skillSlug;
+
+  const resolved = {};
+  for (const [k, v] of Object.entries(merged)) {
+    if (typeof v === "string" && v.startsWith("$ctx.")) {
+      resolved[k] = ctx[v.slice(5)];
+    } else if (typeof v === "string" && v.startsWith("{{") && v.endsWith("}}")) {
+      const key = v.slice(2, -2).trim().replace(/^ctx\./, "");
+      resolved[k] = ctx[key];
+    } else {
+      resolved[k] = v;
+    }
+  }
+
+  // Auto-fill context fallback properties for common tools
+  if (resolved.domain == null && ctx.domain) resolved.domain = ctx.domain;
+  if (resolved.target == null && (ctx.target || ctx.domain || ctx.ip || ctx.host)) {
+    resolved.target = ctx.target || ctx.domain || ctx.ip || ctx.host;
+  }
+  if (resolved.probe_results == null && (ctx.domain || ctx.expiry_date || ctx.days_remaining)) {
+    resolved.probe_results = { ...ctx };
+  }
+  if (resolved.query == null && (ctx.query || ctx.text || ctx.input)) {
+    resolved.query = ctx.query || ctx.text || ctx.input;
+  }
+
+  return resolved;
 }
 
 
@@ -276,16 +322,38 @@ export function mountWorkflowRoutes(app, deps) {
           visited.add(node.id);
           entry.currentNode = node.id;
           const action = node.actionId ? actionMap.get(node.actionId) : null;
-          const cfgParams = node?.config?.params || {};
-          const isSkillNode = cfgParams.kind === "skill" && typeof cfgParams.skillSlug === "string";
-          const isAgentNode = cfgParams.kind === "agent" && typeof cfgParams.agentId === "string";
+          const cfgParams = (node?.config && typeof node.config === "object" ? node.config.params : {}) || {};
+          const metaStr = String(node.meta || "");
+          const isToolNode = node.kind === "tool" || node.type === "tool" || node.kind === "action" || metaStr.startsWith("tool.") || Boolean(node.actionId);
+          const isSkillNode = node.kind === "skill" || node.type === "skill" || metaStr.startsWith("sk.") || metaStr.startsWith("skill.") || cfgParams.kind === "skill";
+          const isAgentNode = node.kind === "agent" || node.type === "agent" || metaStr.startsWith("agt.") || cfgParams.kind === "agent" || Boolean(cfgParams.agentId);
+          const isLogicNode = node.kind === "logic" || node.type === "logic" || node.kind === "condition" || metaStr.startsWith("logic.");
+          const isTriggerNode = node.kind === "trigger" || node.type === "trigger";
+          const isOutputNode = node.kind === "output" || node.type === "output" || metaStr.startsWith("output.");
+
           let out = {};
-          if (action) {
-            out = await execNodeWithAction(node, action, ctx);
-            ctx = { ...ctx, ...out };
-            logStep({ node: node.id, kind: "action", actionId: node.actionId, output: out });
+          if (isToolNode) {
+            let toolId = node.actionId || node.toolId || (metaStr.startsWith("tool.") ? metaStr : (metaStr ? `tool.${metaStr}` : "")) || node.id;
+            const nodeParams = resolveNodeParams(node, ctx);
+            try {
+              const res = await invokeTool({
+                toolId,
+                params: nodeParams,
+                username: req.session?.username || "system",
+                runId,
+              });
+              out = (res?.output && typeof res.output === "object") ? res.output : { output: res?.output };
+              ctx = { ...ctx, ...out, [node.id]: out };
+              if (out.markdown_report) ctx.markdown_report = out.markdown_report;
+              logStep({ node: node.id, kind: "tool", toolId, output: out });
+            } catch (toolErr) {
+              const errMsg = toolErr instanceof ApprovalRequired ? "approval required" : String(toolErr?.message || toolErr);
+              logStep({ node: node.id, kind: "tool", toolId, error: errMsg });
+              out = { error: errMsg };
+              ctx = { ...ctx, error: errMsg };
+            }
           } else if (isAgentNode) {
-            const agentId = cfgParams.agentId;
+            const agentId = cfgParams.agentId || node.agentId || (metaStr.startsWith("agt.") ? metaStr : `agt.${metaStr}`);
             const agentText = String(
               ctx?.query ?? ctx?.input ?? ctx?.text ?? ctx?.summary ?? cfgParams.text ?? cfgParams.prompt ?? ""
             ).trim() || `Workflow step for agent ${cfgParams.agentName || agentId}`;
@@ -301,23 +369,21 @@ export function mountWorkflowRoutes(app, deps) {
                 logStep({ node: node.id, kind: "agent", agentId, error: body?.error || `HTTP ${r.status}` });
               } else {
                 out = (body?.output && typeof body.output === "object") ? body.output : { agent_output: body };
-                ctx = { ...ctx, ...out, last_agent: agentId };
+                ctx = { ...ctx, ...out, last_agent: agentId, [node.id]: out };
                 logStep({ node: node.id, kind: "agent", agentId, agentName: cfgParams.agentName, output: out });
               }
             } catch (err) {
               logStep({ node: node.id, kind: "agent", agentId, error: String(err?.message || err) });
             }
           } else if (isSkillNode) {
-            const sk = (await pool.query("SELECT * FROM skills WHERE slug=$1 OR id=$1 LIMIT 1", [cfgParams.skillSlug])).rows[0];
+            const skillSlug = cfgParams.skillSlug || node.skillSlug || metaStr.replace(/^(sk\.|skill\.)/, "");
+            const sk = (await pool.query("SELECT * FROM skills WHERE slug=$1 OR id=$1 LIMIT 1", [skillSlug])).rows[0];
             if (!sk) {
-              logStep({ node: node.id, kind: "skill", skillSlug: cfgParams.skillSlug, error: "skill not found" });
+              logStep({ node: node.id, kind: "skill", skillSlug, error: "skill not found" });
             } else {
-              const params = { ...(cfgParams.bindings || {}) };
-              for (const [k, v] of Object.entries(node.data?.params || {})) {
-                if (params[k] == null) params[k] = v;
-              }
+              const nodeParams = resolveNodeParams(node, ctx);
               const _freeText = ctx?.query ?? ctx?.input ?? ctx?.text ?? null;
-              const _coerced = coerceParams(sk.param_schema, params, _freeText);
+              const _coerced = coerceParams(sk.param_schema, nodeParams, _freeText);
               const v = validateAgainstSchema(sk.param_schema, _coerced);
               if (!v.ok) {
                 logStep({ node: node.id, kind: "skill", skillSlug: sk.slug, error: `validation failed: ${JSON.stringify(v.errors)}` });
@@ -336,7 +402,7 @@ export function mountWorkflowRoutes(app, deps) {
                   await pool.query("UPDATE skill_runs SET status='ok', output=$2, ended_at=now() WHERE id=$1",
                     [skillRunId, JSON.stringify(res2.value)]);
                   out = (res2.value && typeof res2.value === "object") ? res2.value : { value: res2.value };
-                  ctx = { ...ctx, ...out };
+                  ctx = { ...ctx, ...out, [node.id]: out };
                   logStep({ node: node.id, kind: "skill", skillSlug: sk.slug, skillRunId, output: out });
                 } catch (err) {
                   const msg = String(err.message || err);
@@ -346,6 +412,25 @@ export function mountWorkflowRoutes(app, deps) {
                 }
               }
             }
+          } else if (isLogicNode) {
+            let expr = node.expression || node.config?.expression || "";
+            if (!expr && metaStr.startsWith("logic.if(")) {
+              expr = metaStr.slice(9, -1).trim();
+            } else if (!expr && metaStr.startsWith("logic.")) {
+              expr = metaStr.slice(6).trim();
+            }
+            if (!expr) expr = "true";
+
+            const result = evalChainCondition(expr, ctx);
+            out = { result: Boolean(result), expression: expr };
+            ctx = { ...ctx, last_condition: result };
+            logStep({ node: node.id, kind: "logic", expression: expr, result: out.result });
+          } else if (isTriggerNode) {
+            out = { trigger: node.meta || node.label || node.id, ...ctx };
+            logStep({ node: node.id, kind: "trigger", output: out });
+          } else if (isOutputNode) {
+            out = { markdown_report: ctx.markdown_report || ctx.summary || `Workflow executed: ${node.label || node.id}`, ...ctx };
+            logStep({ node: node.id, kind: "output", output: out });
           } else {
             logStep({ node: node.id, kind: node?.type || "passthrough" });
           }
@@ -353,7 +438,7 @@ export function mountWorkflowRoutes(app, deps) {
 
           const branches = edges.filter((e) => e.source === node.id);
           for (const e of branches) {
-            if (action?.kind === "logic" && e.branch && e.branch !== "default") {
+            if ((isLogicNode || action?.kind === "logic") && e.branch && e.branch !== "default") {
               const want = e.branch === "true";
               if (Boolean(out.result) !== want) continue;
             }
@@ -642,6 +727,64 @@ export function mountWorkflowRoutes(app, deps) {
                     logStep(step);
                   }
                 }
+              }
+              const next = edges.find((e) => e.source === current.id);
+              current = next ? nodes.find((n) => n.id === next.target) : null;
+            } else if (current.kind === "tool" || current.kind === "action" || current.actionId || current.meta?.startsWith("tool.")) {
+              const toolId = current.actionId || current.toolId || (current.meta?.startsWith("tool.") ? current.meta : (current.meta ? `tool.${current.meta}` : "")) || current.id;
+              const nodeParams = resolveNodeParams(current, ctx);
+              try {
+                const res = await invokeTool({
+                  toolId,
+                  params: nodeParams,
+                  username: req.session?.username || "system",
+                  runId,
+                });
+                const out = (res?.output && typeof res.output === "object") ? res.output : { output: res?.output };
+                ctx = { ...ctx, ...out, [current.id]: out };
+                if (out.markdown_report) ctx.markdown_report = out.markdown_report;
+                step.toolId = toolId;
+                step.output = out;
+                logStep(step);
+              } catch (toolErr) {
+                const errMsg = toolErr instanceof ApprovalRequired ? "approval required" : String(toolErr?.message || toolErr);
+                step.toolId = toolId;
+                step.error = errMsg;
+                chainError = errMsg;
+                logStep(step);
+              }
+              const next = edges.find((e) => e.source === current.id);
+              current = next ? nodes.find((n) => n.id === next.target) : null;
+            } else if (current.kind === "agent" || current.agentId || current.meta?.startsWith("agt.")) {
+              const agentId = current.agentId || (current.meta?.startsWith("agt.") ? current.meta : `agt.${current.meta}`) || current.id;
+              const agentText = String(
+                ctx?.query ?? ctx?.input ?? ctx?.text ?? ctx?.summary ?? current.prompt ?? current.label ?? ""
+              ).trim() || `Execute autonomous step for agent ${agentId}`;
+              const port = Number(process.env.PORT ?? 3005);
+              try {
+                const r = await fetch(`http://127.0.0.1:${port}/api/agents/${encodeURIComponent(agentId)}/run`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ text: agentText, stream: false, context: ctx }),
+                });
+                const body = await r.json().catch(() => ({}));
+                if (!r.ok || body?.ok === false) {
+                  step.agentId = agentId;
+                  step.error = body?.error || `HTTP ${r.status}`;
+                  chainError = step.error;
+                  logStep(step);
+                } else {
+                  const out = (body?.output && typeof body.output === "object") ? body.output : { agent_output: body };
+                  ctx = { ...ctx, ...out, last_agent: agentId, [current.id]: out };
+                  step.agentId = agentId;
+                  step.output = out;
+                  logStep(step);
+                }
+              } catch (err) {
+                step.agentId = agentId;
+                step.error = String(err?.message || err);
+                chainError = step.error;
+                logStep(step);
               }
               const next = edges.find((e) => e.source === current.id);
               current = next ? nodes.find((n) => n.id === next.target) : null;

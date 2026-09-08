@@ -166,12 +166,22 @@ async function isAgentAllowed(agentId, toolId) {
 }
 
 async function recordInvocation(row) {
+  let validRunId = null;
+  if (row.runId) {
+    try {
+      const chk = await _pool.query("SELECT 1 FROM runs WHERE id=$1", [row.runId]);
+      if (chk.rowCount > 0) validRunId = row.runId;
+    } catch {
+      validRunId = null;
+    }
+  }
+
   await _pool.query(
     `INSERT INTO tool_invocations
        (id,tool_id,adapter,agent_id,username,session_id,run_id,status,params,risk_level)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
     [row.id, row.toolId, row.adapter, row.agentId || null, row.username || null,
-     row.sessionId || null, row.runId || null, row.status, row.params || {}, row.riskLevel]
+     row.sessionId || null, validRunId, row.status, row.params || {}, row.riskLevel]
   );
 }
 async function updateInvocation(id, patch) {
