@@ -1254,6 +1254,7 @@ When the user asks you a question or assigns a task, intelligently apply the fol
       const requestedTools = capabilities?.tools || [];
       const requestedSkills = capabilities?.skills || [];
       const requestedMcp = capabilities?.mcp || [];
+      const hasExplicitCapabilities = (requestedTools.length > 0) || (requestedSkills.length > 0) || (requestedMcp.length > 0) || Boolean(agent_id);
 
       if (requestedTools.length > 0 || requestedSkills.length > 0 || requestedMcp.length > 0) {
         const attachedList = [];
@@ -1394,29 +1395,32 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                      });
                  }
              }
-             // 3. #MCP (MCP client servers tools)
-             if (requestedMcp && requestedMcp.length > 0) {
-                 const mcpServerRes = await pool.query(`SELECT slug, name, tools_cache FROM mcp_client_servers WHERE enabled = true`);
-                 
-                 for (const server of mcpServerRes.rows) {
-                     const serverMcpId = `mcp.${server.slug}`;
-                     const isServerRequested = requestedMcp.includes(serverMcpId) || requestedMcp.some(x => x.startsWith(`mcp.${server.slug}.`));
+             // 3. #MCP (MCP client servers tools - auto-injected for ready servers or explicitly requested)
+             const mcpServerRes = await pool.query(
+                 `SELECT slug, name, tools_cache, auto_inject FROM mcp_client_servers WHERE enabled = true AND last_status = 'ready'`
+             );
+             
+             for (const server of mcpServerRes.rows) {
+                 const serverMcpId = `mcp.${server.slug}`;
+                 const isExplicitlyRequested = requestedMcp && requestedMcp.length > 0 && (
+                     requestedMcp.includes(serverMcpId) || requestedMcp.some(x => x.startsWith(`mcp.${server.slug}.`))
+                 );
+                 const shouldInject = server.auto_inject || isExplicitlyRequested || (!requestedMcp || requestedMcp.length === 0);
 
-                     const tools = Array.isArray(server.tools_cache) ? server.tools_cache : [];
-                     for (const t of tools) {
-                         const mcpId = `mcp.${server.slug}.${t.name}`;
-                         if (isServerRequested || requestedMcp.includes(mcpId)) {
-                             const safeName = `tool_${mcpId.replace(/[^a-zA-Z0-9_]/g, '_')}`;
-                             toolMap[safeName] = mcpId;
-                             openAiTools.push({
-                                 type: "function",
-                                 function: {
-                                     name: safeName,
-                                     description: `[MCP: ${server.name}] ${t.description || t.name}`,
-                                     parameters: t.inputSchema || { type: "object", properties: {} }
-                                 }
-                             });
-                         }
+                 const tools = Array.isArray(server.tools_cache) ? server.tools_cache : [];
+                 for (const t of tools) {
+                     const mcpId = `mcp.${server.slug}.${t.name}`;
+                     if (shouldInject || (requestedMcp && requestedMcp.includes(mcpId))) {
+                         const safeName = `tool_${mcpId.replace(/[^a-zA-Z0-9_]/g, '_')}`;
+                         toolMap[safeName] = mcpId;
+                         openAiTools.push({
+                             type: "function",
+                             function: {
+                                 name: safeName,
+                                 description: `[MCP: ${server.name}] ${t.description || t.name}`,
+                                 parameters: t.inputSchema || { type: "object", properties: {} }
+                             }
+                         });
                      }
                  }
              }
@@ -1536,17 +1540,30 @@ When the user asks you a question or assigns a task, intelligently apply the fol
 
           if (iteration === 1) {
               send({ phase: "streaming" });
+          } else {
+              send({ phase: "agent_loop", iteration });
+              console.log(`\n[Orchestrate] --- Agent Loop Start: Turn ${iteration} ---`);
+          }
 
-              // --- Phase 54: Semantic LLM Cache Pre-Check (Zero-LLM Sub-10ms Fast Lane) ---
-              const userQueryStr = String(message || [...messages].reverse().find(m => m.role === "user")?.content || "").trim();
-              if (!agent_id && userQueryStr.length > 2) {
+          let it = null;
+          let hopIndex = 0;
+          let hopError = null;
+          const userQueryStr = String(message || [...messages].reverse().find(m => m.role === "user")?.content || "").trim();
+
+          // Failover Retry Loop (Automatic Model Hopping)
+          while (hopIndex < providerChain.length) {
+              const currentProv = providerChain[hopIndex];
+              const targetModelKey = currentProv.model_id || currentProv.model || "default";
+
+              // Semantic LLM Cache: check if this candidate model already has a valid cached answer
+              if (iteration === 1 && !hasExplicitCapabilities && userQueryStr.length > 2) {
                   try {
                       const { getSemanticCache } = await import("../infra/redis-cache.mjs");
                       const { embed } = await import("../embed-provider.mjs");
                       const qVec = await embed(userQueryStr).catch(() => null);
-                      const cacheHit = await getSemanticCache(qVec, userQueryStr, usedModel, 0.98);
+                      const cacheHit = await getSemanticCache(qVec, userQueryStr, targetModelKey, 0.98);
                       if (cacheHit && cacheHit.hit && cacheHit.response) {
-                          console.log(`[SemanticCache] ⚡ Cache HIT (${cacheHit.source}, score=${cacheHit.score}) for: "${userQueryStr.slice(0, 45)}..."`);
+                          console.log(`[SemanticCache] ⚡ Cache HIT for model ${targetModelKey} (${cacheHit.source}, score=${cacheHit.score})`);
                           const totalMs = Date.now() - t0;
                           const tokenCount = Math.max(1, Math.round(cacheHit.response.length / 4));
                           send({
@@ -1555,7 +1572,7 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                               text: cacheHit.response,
                               meta: {
                                   source: `cache:${cacheHit.source}`,
-                                  providerName: cacheHit.model || "Semantic Cache Tier",
+                                  providerName: currentProv.model_name || targetModelKey,
                                   cached: true,
                                   score: cacheHit.score,
                               }
@@ -1565,7 +1582,7 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                                   ttftMs: totalMs,
                                   totalMs,
                                   tokensOut: tokenCount,
-                                  modelOut: cacheHit.model || "Semantic Cache Tier",
+                                  modelOut: targetModelKey,
                               }
                           });
                           send({ type: "done" });
@@ -1573,21 +1590,9 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                           return;
                       }
                   } catch (cErr) {
-                      console.warn(`[SemanticCache] Lookup notice: ${cErr.message}`);
+                      // non-blocking fallback to live inference
                   }
               }
-          } else {
-              send({ phase: "agent_loop", iteration });
-              console.log(`\n[Orchestrate] --- Agent Loop Start: Turn ${iteration} ---`);
-          }
-
-          let it = null;
-          let hopIndex = 0;
-          let hopError = null;
-
-          // Failover Retry Loop (Automatic Model Hopping)
-          while (hopIndex < providerChain.length) {
-              const currentProv = providerChain[hopIndex];
               try {
                   if (hopIndex > 0) {
                       console.log(`[Orchestrate] ⚠️ Fallback Hop triggered! Switching to Provider: ${currentProv.model_name}`);
@@ -2413,9 +2418,9 @@ When the user asks you a question or assigns a task, intelligently apply the fol
               // Final turn: LLM produced final conversational answer
               isDone = true;
 
-              // Asynchronously save to Semantic Cache
+              // Asynchronously save to Semantic Cache only for single-turn direct conversational answers
               const finalQuery = String(message || [...messages].reverse().find(m => m.role === "user")?.content || "").trim();
-              if (assembled && assembled.trim().length > 0 && finalQuery.length > 2) {
+              if (iteration === 1 && assembled && assembled.trim().length > 0 && finalQuery.length > 2 && !hasExplicitCapabilities) {
                   (async () => {
                       try {
                           const { setSemanticCache } = await import("../infra/redis-cache.mjs");
