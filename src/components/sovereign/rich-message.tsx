@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Check, Copy, Download } from "lucide-react";
 import { HighlightedCode } from "./code-highlight";
+import { MermaidBlock } from "./mermaid-block";
 import { cn } from "@/lib/utils";
 
 /* ---------- tiny markdown-lite parser (code fences, tables, text) ---------- */
@@ -133,6 +134,10 @@ function IconAction({
 /* ---------------------------- blocks ---------------------------- */
 
 function CodeBlock({ lang, code }: { lang: string; code: string }) {
+  if (lang.trim().toLowerCase() === "mermaid") {
+    return <MermaidBlock code={code} />;
+  }
+
   const { copy, done } = useCopy();
   return (
     <div className="my-4 overflow-hidden rounded-[12px] border border-white/[0.07] bg-[var(--canvas-deep)]">
