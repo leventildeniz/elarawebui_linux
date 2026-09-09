@@ -921,6 +921,8 @@ Bu aşamada ELARA Sovereign Studio'ya otonom araç sağlığı izleme, MetaForge
   - Operatör `/approvals` sayfasında "Approve & Promote v2" butonuna bastığında, orijinal araç dosyası anında `.forge-trash/tool-<slug>-<timestamp>.py` konumuna arşivlenir.
   - Yeni v2 kodu `lintPython` süzgecinden geçirilir ve `tools/<slug>.py` dosyasına yazılır.
   - `capabilities` tablosunda aracın durumu `live = true`, `review_status = 'approved'`, `confidence = 0.98` olarak güncellenir ve audit log zincirine kaydedilir.
+- **Post-Heal Zaman Damgası İzolasyonu (`scanToolHealth` & `self-healing.mjs`):**
+  - Onaylanan araçların eski (v1) hatalı kayıtlar yüzünden sonsuz onay döngüsüne girmesini engelleyen `(la.last_healed_at IS NULL OR ti.started_at > la.last_healed_at)` SQL CTE filtresi devreye alındı. Sadece onay anından sonra gerçekleşen yeni çağrılar izlemeye alınır.
 
 ### 🎛️ 3. Arayüz ve Bildirim Hijyeni (`approvals.tsx`, `approval-store.ts`, `attention-bell.tsx`)
 - **Sıfır Toast Kirliliği:**
@@ -930,6 +932,15 @@ Bu aşamada ELARA Sovereign Studio'ya otonom araç sağlığı izleme, MetaForge
   - Kök Neden ve İyileştirme Maddeleri kartı.
   - "Refactored v2" ve "Original Code" arasında anlık geçiş yapılabilen sözdizimi vurgulu kod inceleme sekmesi.
   - Kuyruk başlığında manuel "Watchdog Scan" ve "Sim Anomaly" tetikleme butonları.
+- **Composer İmleç Konumlu Emoji Ekleme (`composer.tsx`):**
+  - Emojilerin her zaman metnin en sonuna eklenmesi hatası giderildi; `selectionStart` / `selectionEnd` ve `cursorPosRef` üzerinden imlecin bulunduğu tam konuma araya ekleme (inline slicing) sağlandı.
+
+### ⛓️ 4. Workflow & Chain Adaptör Köprüsü ve Bağımlılık İkamesi (`tool-adapters.mjs`, `tools/`)
+- **Dinamik İş Akışı & Orkestrasyon Yürütücüsü (`tool-adapters.mjs`):**
+  - Elara veya bir ajanın sohbet/araç çağrısı üzerinden doğrudan `wf_...` veya `orc_...` iş akışlarını tetikleyebilmesi için `RUNNERS.workflow` ve `RUNNERS.chain` adaptörleri yürütme motoruna bağlandı.
+- **Ortam Bağımlılıkları & Parametre Esnekliği:**
+  - `dnspython` ve `python-whois` paketleri hem host Python'a hem `local-server/venv` ortamına kuruldu.
+  - `tools/dns_lookup.py` parametre çözümleyicisi (`name`, `target`, `domain`, `host`) esnetilerek sıfır hata ile DNS çözümlemesi sağlandı.
 
 ---
 

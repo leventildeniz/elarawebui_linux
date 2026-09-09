@@ -270,6 +270,7 @@ export function Composer({
   activeModelId?: string | undefined;
 }) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const cursorPosRef = useRef<{ start: number; end: number }>({ start: 0, end: 0 });
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -380,9 +381,42 @@ export function Composer({
     };
   }, []);
 
-  const insertEmoji = (e: string) => {
-    onChange(value + e);
-    inputRef.current?.focus();
+  const updateCursorPos = () => {
+    if (inputRef.current) {
+      cursorPosRef.current = {
+        start: inputRef.current.selectionStart ?? 0,
+        end: inputRef.current.selectionEnd ?? 0,
+      };
+    }
+  };
+
+  const insertEmoji = (em: string) => {
+    const textarea = inputRef.current;
+    let start = cursorPosRef.current.start;
+    let end = cursorPosRef.current.end;
+
+    if (textarea && textarea.selectionStart !== undefined) {
+      start = textarea.selectionStart;
+      end = textarea.selectionEnd;
+    }
+
+    if (start === undefined || start < 0 || start > value.length) {
+      start = value.length;
+      end = value.length;
+    }
+
+    const next = value.slice(0, start) + em + value.slice(end);
+    onChange(next);
+
+    const nextPos = start + em.length;
+    cursorPosRef.current = { start: nextPos, end: nextPos };
+
+    requestAnimationFrame(() => {
+      if (textarea) {
+        textarea.focus();
+        textarea.setSelectionRange(nextPos, nextPos);
+      }
+    });
   };
 
   const addMention = (m: Mention) => {
@@ -887,6 +921,8 @@ export function Composer({
                 {EMOJI_PICKER_LIST.map((e: string) => (
                   <button
                     key={e}
+                    type="button"
+                    onMouseDown={(ev) => ev.preventDefault()}
                     onClick={() => insertEmoji(e)}
                     className="flex h-9 items-center justify-center rounded-md text-[18px] leading-none transition-colors duration-100 hover:bg-raised/70"
                     aria-label={`Insert emoji ${e}`}
@@ -955,10 +991,14 @@ export function Composer({
           ref={inputRef}
           rows={3}
           value={value}
+          onSelect={updateCursorPos}
+          onClick={updateCursorPos}
+          onKeyUp={updateCursorPos}
           onMouseDown={closeAllMenus}
           onChange={(e) => {
             onChange(e.target.value);
             syncTrigger(e.target.value);
+            updateCursorPos();
           }}
 
           onPaste={(e) => {
