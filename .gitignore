@@ -24,7 +24,6 @@ audit_results.json
 local-server/uploads/backups/
 .cache
 local-server/.cache
-.forge-trash/
 
 # Wrangler / Cloudflare
 .wrangler/
