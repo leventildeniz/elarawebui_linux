@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { motion } from "motion/react";
-import { AlertTriangle, CheckCircle2, Clock, Inbox, ShieldCheck, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock, Inbox, ShieldCheck, XCircle, Zap, Activity, Code, Cpu, RefreshCw, Check } from "lucide-react";
 import { Surface } from "@/components/sovereign/surface";
 import { JewelButton, Sheen, StatusDot, Tag } from "@/components/sovereign/primitives";
 import { confirmAction } from "@/components/sovereign/confirm-dialog";
+import { fetchApi } from "@/lib/api";
 import {
   originLabel,
   riskTone,
@@ -13,6 +14,7 @@ import {
   ttlLabel,
   useApprovals,
   useQueueSwitch,
+  emitSwitch,
   type ApprovalRequest,
   type ApprovalStatus,
 } from "@/lib/approval-store";
@@ -156,7 +158,7 @@ function ApprovalsPage() {
         {description}
       </p>
 
-      <QueueMasterSwitch queue={queue} />
+      <QueueMasterSwitch queue={queue} onTriggerScan={emitSwitch} />
 
       <ApproverBanner auth={auth} gate="queue" notify="approval" />
 
@@ -276,8 +278,33 @@ function ApprovalsPage() {
   );
 }
 
-function QueueMasterSwitch({ queue }: { queue: ReturnType<typeof useQueueSwitch> }) {
+function QueueMasterSwitch({ queue, onTriggerScan }: { queue: ReturnType<typeof useQueueSwitch>; onTriggerScan?: () => void }) {
   const { enabled, selfApproval, ready, setEnabled, setSelfApproval } = queue;
+  const [scanning, setScanning] = useState(false);
+
+  const handleScan = async () => {
+    setScanning(true);
+    try {
+      await fetchApi("/api/self-healing/scan", { method: "POST" });
+      onTriggerScan?.();
+    } catch (e) {
+      console.error("Health scan error:", e);
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const handleSimulate = async () => {
+    setScanning(true);
+    try {
+      await fetchApi("/api/self-healing/simulate", { method: "POST", body: JSON.stringify({ toolId: "tool.whois_geo", errorCount: 4, totalRuns: 5, avgDurationMs: 5200 }) });
+      onTriggerScan?.();
+    } catch (e) {
+      console.error("Simulation error:", e);
+    } finally {
+      setScanning(false);
+    }
+  };
 
   const toggle = async () => {
     if (!enabled) {
@@ -320,7 +347,25 @@ function QueueMasterSwitch({ queue }: { queue: ReturnType<typeof useQueueSwitch>
             : "Master switch is off — gated actions run straight through and are only logged. Turn it on when a reviewer is on duty."}
         </p>
       </div>
-      <div className="ml-auto flex items-center gap-3">
+      <div className="ml-auto flex items-center gap-2.5">
+        <button
+          type="button"
+          disabled={scanning}
+          onClick={handleSimulate}
+          className="rounded-lg border border-topaz/30 bg-topaz/[0.06] px-2.5 py-1.5 font-mono text-[10.5px] uppercase tracking-[0.14em] text-topaz transition-colors hover:bg-topaz/12"
+          title="Simulate a tool latency & error spike to test the Self-Healing engine"
+        >
+          <Activity size={12} className="inline mr-1 -mt-0.5" /> Sim Anomaly
+        </button>
+        <button
+          type="button"
+          disabled={scanning}
+          onClick={handleScan}
+          className="rounded-lg border border-sapphire/35 bg-sapphire/[0.08] px-2.5 py-1.5 font-mono text-[10.5px] uppercase tracking-[0.14em] text-sapphire transition-colors hover:bg-sapphire/15"
+          title="Trigger on-demand tool health watchdog scan"
+        >
+          <Zap size={12} className={cn("inline mr-1 -mt-0.5", scanning && "animate-spin")} /> {scanning ? "Scanning…" : "Watchdog Scan"}
+        </button>
         <button
           type="button"
           disabled={!ready}
@@ -367,6 +412,17 @@ function DetailPanel({
   onApprove: () => void;
   onReject: () => void;
 }) {
+  const [codeTab, setCodeTab] = useState<"v2" | "original">("v2");
+
+  const healData = useMemo(() => {
+    if (request.origin !== "self_healing") return null;
+    try {
+      return JSON.parse(request.args);
+    } catch {
+      return null;
+    }
+  }, [request.origin, request.args]);
+
   return (
     <motion.aside
       key={request.id}
@@ -376,9 +432,13 @@ function DetailPanel({
       className="h-fit overflow-hidden rounded-xl border border-sapphire/25 bg-raised/25 backdrop-blur-xl"
     >
       <header className="flex items-center gap-2 px-5 pt-5">
-        <ShieldCheck size={14} className="text-sapphire" strokeWidth={1.7} />
+        {request.origin === "self_healing" ? (
+          <Zap size={14} className="text-emerald" strokeWidth={2} />
+        ) : (
+          <ShieldCheck size={14} className="text-sapphire" strokeWidth={1.7} />
+        )}
         <span className="font-mono text-[10.5px] uppercase tracking-[0.24em] text-muted-foreground/65">
-          gate · {request.id}
+          {request.origin === "self_healing" ? "self-healing loop" : "gate"} · {request.id}
         </span>
         <span className="ml-auto">
           <Tag tone={statusTone[request.status]}>{request.status}</Tag>
@@ -387,6 +447,23 @@ function DetailPanel({
 
       <div className="px-5 pb-5 pt-3.5">
         <h2 className="text-[17px] font-medium leading-snug text-foreground">{request.title}</h2>
+
+        {healData && (
+          <div className="mt-3.5 grid grid-cols-3 gap-2.5">
+            <div className="rounded-lg border border-ruby/30 bg-ruby/[0.06] p-2.5 text-center">
+              <span className="block font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground/60">Fail Rate</span>
+              <span className="font-mono text-[15px] font-semibold text-ruby">{Math.round((healData.metrics?.failRate || 0) * 100)}%</span>
+            </div>
+            <div className="rounded-lg border border-topaz/30 bg-topaz/[0.06] p-2.5 text-center">
+              <span className="block font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground/60">Avg Latency</span>
+              <span className="font-mono text-[15px] font-semibold text-topaz">{healData.metrics?.avgDurationMs || 0}ms</span>
+            </div>
+            <div className="rounded-lg border border-sapphire/30 bg-sapphire/[0.06] p-2.5 text-center">
+              <span className="block font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground/60">Invocations</span>
+              <span className="font-mono text-[15px] font-semibold text-sapphire">{healData.metrics?.totalRuns || 0}</span>
+            </div>
+          </div>
+        )}
 
         <div className="mt-4 grid gap-x-6 gap-y-2 font-mono text-[11.5px] sm:grid-cols-2">
           {[
@@ -414,17 +491,76 @@ function DetailPanel({
           ))}
         </div>
 
-        <div className="mt-5 flex items-start gap-2.5 rounded-lg border border-topaz/25 bg-topaz/[0.06] px-3.5 py-3">
-          <AlertTriangle size={13} className="mt-0.5 shrink-0 text-topaz" strokeWidth={1.7} />
-          <p className="text-[13px] leading-relaxed text-muted-foreground">{request.policy}</p>
-        </div>
+        {healData ? (
+          <div className="mt-4 space-y-3">
+            {/* Root Cause & Optimizations */}
+            <div className="rounded-lg border border-emerald/30 bg-emerald/[0.05] p-3.5">
+              <div className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.14em] text-emerald">
+                <ShieldCheck size={13} />
+                <span>Root Cause & Self-Healing Synthesis</span>
+              </div>
+              <p className="mt-1.5 text-[12.5px] leading-relaxed text-foreground/90">
+                {healData.rootCause}
+              </p>
+              {Array.isArray(healData.optimizations) && healData.optimizations.length > 0 && (
+                <ul className="mt-2.5 space-y-1">
+                  {healData.optimizations.map((opt: string, idx: number) => (
+                    <li key={idx} className="flex items-start gap-2 font-mono text-[11px] text-muted-foreground/80">
+                      <Check size={12} className="mt-0.5 shrink-0 text-emerald" />
+                      <span>{opt}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
 
-        <div className="mt-5">
-          <span className="mono-label">arguments</span>
-          <pre className="mt-2 max-h-[220px] overflow-auto rounded-lg border border-border/70 bg-canvas/60 p-3.5 font-mono text-[12px] leading-relaxed text-foreground/85">
-            {request.args}
-          </pre>
-        </div>
+            {/* Code Inspection Tabs */}
+            <div className="mt-3">
+              <div className="flex items-center justify-between pb-1.5">
+                <span className="mono-label">code inspection</span>
+                <div className="flex items-center gap-1 rounded-md border border-border/60 p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setCodeTab("v2")}
+                    className={cn(
+                      "rounded px-2 py-0.5 font-mono text-[10.5px] uppercase tracking-[0.12em] transition-colors",
+                      codeTab === "v2" ? "bg-emerald/15 text-emerald" : "text-muted-foreground/60 hover:text-foreground"
+                    )}
+                  >
+                    Refactored v2
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCodeTab("original")}
+                    className={cn(
+                      "rounded px-2 py-0.5 font-mono text-[10.5px] uppercase tracking-[0.12em] transition-colors",
+                      codeTab === "original" ? "bg-sapphire/15 text-sapphire" : "text-muted-foreground/60 hover:text-foreground"
+                    )}
+                  >
+                    Original Code
+                  </button>
+                </div>
+              </div>
+              <pre className="max-h-[260px] overflow-auto rounded-lg border border-border/70 bg-canvas/70 p-3.5 font-mono text-[11.5px] leading-relaxed text-foreground/90">
+                {codeTab === "v2" ? healData.refactoredCode : (healData.originalCode || "# No previous code on disk")}
+              </pre>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="mt-5 flex items-start gap-2.5 rounded-lg border border-topaz/25 bg-topaz/[0.06] px-3.5 py-3">
+              <AlertTriangle size={13} className="mt-0.5 shrink-0 text-topaz" strokeWidth={1.7} />
+              <p className="text-[13px] leading-relaxed text-muted-foreground">{request.policy}</p>
+            </div>
+
+            <div className="mt-5">
+              <span className="mono-label">arguments</span>
+              <pre className="mt-2 max-h-[220px] overflow-auto rounded-lg border border-border/70 bg-canvas/60 p-3.5 font-mono text-[12px] leading-relaxed text-foreground/85">
+                {request.args}
+              </pre>
+            </div>
+          </>
+        )}
 
         {request.status === "pending" ? (
           <>
@@ -455,7 +591,7 @@ function DetailPanel({
                 title={canApprove ? undefined : "Requires the approve verb"}
                 className="border-emerald/40 bg-emerald/12 text-emerald hover:bg-emerald/20 hover:shadow-[0_0_28px_-8px_var(--emerald)]"
               >
-                <CheckCircle2 size={13} strokeWidth={1.8} /> Approve
+                <CheckCircle2 size={13} strokeWidth={1.8} /> {request.origin === "self_healing" ? "Approve & Promote v2" : "Approve"}
               </JewelButton>
             </div>
           </>

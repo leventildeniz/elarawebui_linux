@@ -30,7 +30,7 @@ def _read():
 
 def main() -> None:
     p = _read()
-    name = str(p.get("name") or "").strip().rstrip(".")
+    name = str(p.get("name") or p.get("target") or p.get("domain") or p.get("host") or "").strip().rstrip(".")
     if not name:
         print(json.dumps({"ok": False, "reason": "missing_name"})); return
     if len(name) > 253:

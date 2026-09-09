@@ -1,4 +1,5 @@
 import { requireSession } from "../session-gate.mjs";
+import { applySelfHealingRefactor } from "../self-healing.mjs";
 
 export async function mountApprovalRoutes(app, deps) {
   const { pool, broadcastAudit, enqueueWrite } = deps;
@@ -85,6 +86,19 @@ export async function mountApprovalRoutes(app, deps) {
          RETURNING *`,
         [dbStatus, note || "", by, ids]
       );
+
+      // Apply Self-Healing refactor on approved tickets
+      if (dbStatus === "approved") {
+        for (const row of rows) {
+          if (row.origin === "self_healing") {
+            try {
+              await applySelfHealingRefactor(pool, row, by || "admin", { broadcastAudit, enqueueWrite });
+            } catch (err) {
+              console.error(`[approvals] failed to apply self-healing refactor for ${row.id}:`, err);
+            }
+          }
+        }
+      }
 
       const updated = rows.map(r => ({
         ...r,

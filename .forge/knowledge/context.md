@@ -902,6 +902,38 @@ Bu aşamada ELARA'nın kurumsal dağıtım ve yüksek erişilebilirlik (HA Clust
 
 ---
 
-## 56. UP NEXT - MULTI-NODE BENCHMARKING, LIVE AGENT STRESS TESTS & LOAD BALANCER HEALTH PROBE VALIDATION (PHASE 56)
+## 56. COMPLETED (Phase 56) - CLOSED-LOOP SELF-HEALING TOOL OPTIMIZATION ENGINE & APPROVALS QUEUE INTEGRATION
+
+Bu aşamada ELARA Sovereign Studio'ya otonom araç sağlığı izleme, MetaForge tabanlı v2 kod sentezi ve Human-in-the-Loop onay kuyruğu entegrasyonu başarıyla tamamlanmıştır:
+
+### ⚡ 1. Kendi Kendini İyileştiren Araç Motoru (`local-server/lib/self-healing.mjs`)
+- **Otonom Sağlık Tarama & Anomali Tespiti (`scanToolHealth`):**
+  - `tool_invocations` tablosundaki son 7 günlük çalıştırma kayıtları taranarak, en az 3 kez çağrılmış ve hata oranı $\ge \%25$ veya ortalama gecikme süresi $> 4000\text{ ms}$ olan performans anomalisi gösteren araçlar tespit edilir.
+  - Anomaliye neden olan hata örnekleri (ETIMEDOUT, JSONDecodeError, 429 Rate Limit, Connection Refused) toplanır.
+- **Kök Neden Analizi & v2 Kod Sentezi (`analyzeAndRefactorToolSource`):**
+  - Anomali türüne göre kök neden tespit edilir; 4.0s sınırlı soket zaman aşımı korumaları (`ELARA_TOOL_TIMEOUT_S`), üstel geri çekilme (exponential backoff retry) döngüleri, dayanıklı JSON çözümleme (`_safe_json_loads`) ve deterministik yapısal hata zarfları içeren optimize edilmiş Python v2 kaynak kodu üretilir.
+- **Human-in-the-Loop Onay Bileti Üretimi (`triggerSelfHealingRefactor`):**
+  - Tespit edilen anomali için `approval_requests` tablosuna `origin: 'self_healing'` ile yeni bir bilet (`appr_heal_<slug>_<timestamp>`) açılır.
+  - Argümanlar içerisine orijinal kaynak kod, refactor edilmiş v2 kodu, kök neden analizi, uygulanan optimizasyon maddeleri ve telemetri metrikleri paketlenir.
+
+### 🛡️ 2. Onay Anında Otomatik Canlıya Alma (`applySelfHealingRefactor` & `approvals.mjs`)
+- **Dirençli Yedekleme & Güvenlik:**
+  - Operatör `/approvals` sayfasında "Approve & Promote v2" butonuna bastığında, orijinal araç dosyası anında `.forge-trash/tool-<slug>-<timestamp>.py` konumuna arşivlenir.
+  - Yeni v2 kodu `lintPython` süzgecinden geçirilir ve `tools/<slug>.py` dosyasına yazılır.
+  - `capabilities` tablosunda aracın durumu `live = true`, `review_status = 'approved'`, `confidence = 0.98` olarak güncellenir ve audit log zincirine kaydedilir.
+
+### 🎛️ 3. Arayüz ve Bildirim Hijyeni (`approvals.tsx`, `approval-store.ts`, `attention-bell.tsx`)
+- **Sıfır Toast Kirliliği:**
+  - Kendi kendine iyileştirme biletleri ekranı kirleten pop-up/toast bildirimleri yerine doğrudan sağ üstteki evrensel **`AttentionBell` ("Action Required")** rozetine sessizce düşer.
+- **Self-Healing İnceleme Paneli (`DetailPanel`):**
+  - Hata Oranı, Ortalama Gecikme ve Çağrı Sayısı göstergeleri.
+  - Kök Neden ve İyileştirme Maddeleri kartı.
+  - "Refactored v2" ve "Original Code" arasında anlık geçiş yapılabilen sözdizimi vurgulu kod inceleme sekmesi.
+  - Kuyruk başlığında manuel "Watchdog Scan" ve "Sim Anomaly" tetikleme butonları.
+
+---
+
+## 57. UP NEXT - MULTI-NODE BENCHMARKING, LIVE AGENT STRESS TESTS & LOAD BALANCER HEALTH PROBE VALIDATION (PHASE 57)
 - Load Balancer `/health` probe'ları altında eşzamanlı multi-agent stres testleri.
 - Vektör boyutu ve yüksek yük altında semantik önbellek isabet oranı (Hit Rate) analitiği.
+- Lovable artıklarının temizlenmesi, ölü kodların ayıklanması ve kod içi yorum satırlarının uluslararası standartlara (İngilizce) getirilmesi.

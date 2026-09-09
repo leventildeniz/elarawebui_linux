@@ -148,6 +148,28 @@ async function loadTool(toolId) {
     return null;
   }
 
+  // 4. Workflows & Orchestrations (with or without 'wf_' / 'workflow.' / 'orc_' prefix)
+  if (toolId.startsWith("wf_") || toolId.startsWith("wf.") || toolId.startsWith("workflow.") || toolId.startsWith("orc_")) {
+    const cleanWfId = toolId.replace(/^(workflow\.|wf\.)/i, '');
+    try {
+      const { rows: wfRows } = await _pool.query(
+        `SELECT id, name, nodes, edges, trigger FROM workflows WHERE id=$1 OR id=$2 OR name=$1 OR name=$2`,
+        [toolId, cleanWfId]
+      );
+      if (wfRows[0]) {
+        return {
+          id: wfRows[0].id,
+          name: wfRows[0].name,
+          adapter: "workflow",
+          risk_level: "low",
+          requires_approval: false,
+          runtime: { workflow_id: wfRows[0].id, nodes: wfRows[0].nodes, edges: wfRows[0].edges },
+          system_prompt: ""
+        };
+      }
+    } catch {}
+  }
+
   let runtime = row.runtime;
   if (typeof runtime === "string") {
     try { runtime = JSON.parse(runtime); } catch { runtime = {}; }
@@ -361,6 +383,32 @@ const RUNNERS = {
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(`forge ${r.status}: ${j?.error || ""}`);
     return j;
+  },
+  async workflow({ tool, params, signal }) {
+    const wfId = tool.runtime?.workflow_id || tool.id;
+    const port = Number(process.env.PORT || 3005);
+    const r = await fetch(`http://127.0.0.1:${port}/api/workflows/${encodeURIComponent(wfId)}/trigger`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-internal": "tool-adapter" },
+      body: JSON.stringify({ context: params }),
+      signal: withTimeout(signal, Number(tool.runtime?.timeout_ms || 120_000)),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(`workflow trigger failed ${r.status}: ${j?.error || ""}`);
+    return { ok: true, runId: j.runId, workflowId: wfId, message: "Workflow triggered successfully", details: j };
+  },
+  async chain({ tool, params, signal }) {
+    const chainId = tool.runtime?.chain_id || tool.id;
+    const port = Number(process.env.PORT || 3005);
+    const r = await fetch(`http://127.0.0.1:${port}/api/chains/${encodeURIComponent(chainId)}/run`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-internal": "tool-adapter" },
+      body: JSON.stringify({ context: params }),
+      signal: withTimeout(signal, Number(tool.runtime?.timeout_ms || 180_000)),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(`chain trigger failed ${r.status}: ${j?.error || ""}`);
+    return { ok: true, runId: j.runId, chainId, message: "Chain orchestration triggered successfully", details: j };
   },
   async builtin({ tool, params }) {
     return { ok: false, error: `Builtin handler '${tool.runtime?.handler || "noop"}' is not executable as a tool.` };

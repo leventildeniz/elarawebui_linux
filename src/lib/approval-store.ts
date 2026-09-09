@@ -15,7 +15,8 @@ export type ApprovalOrigin =
   | "data"
   | "credential"
   | "budget"
-  | "isolation";
+  | "isolation"
+  | "self_healing";
 
 export const originLabel: Record<ApprovalOrigin, string> = {
   seed: "demo",
@@ -27,6 +28,7 @@ export const originLabel: Record<ApprovalOrigin, string> = {
   credential: "credential action",
   budget: "budget override",
   isolation: "isolation escape",
+  self_healing: "self-healing loop",
 };
 
 export type ApprovalRequest = {
@@ -52,7 +54,7 @@ export type ApprovalRequest = {
 
 const EVT = "sovereign:approvals";
 
-function emitSwitch() {
+export function emitSwitch() {
   window.dispatchEvent(new CustomEvent(EVT));
 }
 
