@@ -39,3 +39,5 @@ local-server/.cache
 *.njsproj
 *.sln
 *.sw?
+*:Zone.Identifier
+docs/debug.txt
