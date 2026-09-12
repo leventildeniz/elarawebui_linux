@@ -3,11 +3,45 @@
 // Mount via `mountThreadRoutes(app, { pool, isUuid, flushModelKvCache })`.
 // Extracted from server.mjs (Block T-2a, 2026-05-30).
 
+import multer from "multer";
+import { saveAttachmentFile, purgeThreadAttachments, deleteAttachmentFile } from "../storage-engine.mjs";
+
 export function mountThreadRoutes(app, deps) {
   const { pool, isUuid, flushModelKvCache, resolveActorContext } = deps;
   if (!pool || typeof isUuid !== "function" || typeof flushModelKvCache !== "function") {
     throw new Error("mountThreadRoutes: missing required deps (pool, isUuid, flushModelKvCache)");
   }
+
+  const attachmentUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB per attachment
+  });
+
+  // POST /api/chat/attachments — Upload attachment (image, PDF, doc, code) to shared storage
+  app.post("/api/chat/attachments", attachmentUpload.single("file"), async (req, res) => {
+    if (!req.file) return res.status(400).json({ ok: false, error: "file required" });
+    try {
+      const ctx = typeof resolveActorContext === "function"
+        ? await resolveActorContext(req)
+        : { isSuperAdmin: true, tenantId: "default", actor: "admin" };
+      const tenantId = ctx.tenantId || "default";
+      const threadId = req.body?.thread_id || req.body?.threadId || null;
+
+      const saved = await saveAttachmentFile({
+        pool,
+        buffer: req.file.buffer,
+        originalname: req.file.originalname,
+        mimetype: req.file.mimetype,
+        threadId,
+        tenantId,
+      });
+
+      res.status(201).json({ ok: true, file: saved, ...saved });
+    } catch (err) {
+      console.error("[AttachmentUpload] Error:", err);
+      res.status(500).json({ ok: false, error: String(err.message || err) });
+    }
+  });
 
   app.get("/api/threads", async (req, res) => {
     try {
@@ -121,17 +155,22 @@ export function mountThreadRoutes(app, deps) {
 
   app.delete("/api/threads/:id", async (req, res) => {
     if (!req.params.id) return res.status(400).json({ error: "missing thread id" });
+    const threadId = req.params.id;
     try {
       const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default", actor: "admin" };
+      
+      // Purge physical files from shared storage and clean DB records
+      await purgeThreadAttachments(threadId, { pool });
+
       if (!ctx.isSuperAdmin) {
         const userMatches = [ctx.userId, ctx.username, ctx.actor].filter(Boolean);
         await pool.query(
           `DELETE FROM chat_threads 
            WHERE id = $1 AND (tenant_id = $2 OR tenant_id IS NULL) AND (owner_id = ANY(ARRAY[$3]::text[]) OR lower(owner_id) = ANY(ARRAY[$3]::text[]) OR owner_id IS NULL)`,
-          [req.params.id, ctx.tenantId || "default", userMatches]
+          [threadId, ctx.tenantId || "default", userMatches]
         );
       } else {
-        await pool.query("DELETE FROM chat_threads WHERE id = $1", [req.params.id]);
+        await pool.query("DELETE FROM chat_threads WHERE id = $1", [threadId]);
       }
       res.status(204).end();
     } catch (e) {
@@ -223,23 +262,42 @@ export function mountThreadRoutes(app, deps) {
   app.put("/api/threads/:id/files", async (req, res) => {
     const threadId = req.params.id;
     const files = req.body?.files || [];
+    const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default", actor: "admin" };
+    const tenantId = ctx.tenantId || "default";
     
     try {
       await pool.query('BEGIN');
       
       // Auto-create thread if missing (upsert)
       await pool.query(
-         `INSERT INTO chat_threads (id, title) VALUES ($1, 'New chat') 
+         `INSERT INTO chat_threads (id, title, tenant_id) VALUES ($1, 'New chat', $2) 
           ON CONFLICT (id) DO NOTHING`,
-         [threadId]
+         [threadId, tenantId]
       );
       
+      // Physical cleanup: remove unreferenced files on disk
+      const keepIds = new Set(files.map(f => f.id));
+      const { rows: existingFiles } = await pool.query("SELECT id FROM chat_files WHERE thread_id = $1 AND message_id IS NULL", [threadId]);
+      for (const ef of existingFiles) {
+        if (!keepIds.has(ef.id)) {
+          await deleteAttachmentFile(ef.id, { pool });
+        }
+      }
+
       await pool.query("DELETE FROM chat_files WHERE thread_id = $1 AND message_id IS NULL", [threadId]);
       
       for (const f of files) {
         await pool.query(
-          "INSERT INTO chat_files (id, thread_id, name, size_bytes, kind, mime, url) VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (id) DO UPDATE SET url = EXCLUDED.url",
-          [f.id, threadId, f.name, f.size, f.kind, f.mime, f.url]
+          `INSERT INTO chat_files (id, thread_id, name, size_bytes, kind, mime, url, tenant_id) 
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
+           ON CONFLICT (id) DO UPDATE SET 
+             name = EXCLUDED.name,
+             size_bytes = EXCLUDED.size_bytes,
+             kind = EXCLUDED.kind,
+             mime = EXCLUDED.mime,
+             url = EXCLUDED.url,
+             tenant_id = EXCLUDED.tenant_id`,
+          [f.id, threadId, f.name, f.size, f.kind, f.mime, f.url, tenantId]
         );
       }
       await pool.query('COMMIT');

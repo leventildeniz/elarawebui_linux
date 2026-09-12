@@ -722,7 +722,7 @@ function SovereignChat() {
     if (!t && !atts.length) return;
     const label = t;
 
-    const encoded = atts.length ? await encodeAttachments(atts) : [];
+    const encoded = atts.length ? await encodeAttachments(atts, active?.id) : [];
 
     const base: Msg[] = [
       ...((active?.messages ?? []) as Msg[]),

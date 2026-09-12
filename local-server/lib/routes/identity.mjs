@@ -57,8 +57,12 @@ export async function mountIdentityRoutes(app, deps) {
 
     try {
       const { rows } = await pool.query(
-        `INSERT INTO app_tenants (slug, name, domain, tier, allowed_models, allowed_spaces, allowed_agents, admin_email, auth_provider, auth_providers, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        `INSERT INTO app_tenants (
+           slug, name, domain, tier, allowed_models, allowed_spaces, allowed_agents, 
+           admin_email, auth_provider, auth_providers, status,
+           retention_enabled, retention_days, retain_pinned
+         )
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
          ON CONFLICT (slug) DO UPDATE SET
            name = EXCLUDED.name,
            domain = EXCLUDED.domain,
@@ -70,6 +74,9 @@ export async function mountIdentityRoutes(app, deps) {
            auth_provider = EXCLUDED.auth_provider,
            auth_providers = EXCLUDED.auth_providers,
            status = EXCLUDED.status,
+           retention_enabled = EXCLUDED.retention_enabled,
+           retention_days = EXCLUDED.retention_days,
+           retain_pinned = EXCLUDED.retain_pinned,
            updated_at = now()
          RETURNING *`,
         [
@@ -84,6 +91,9 @@ export async function mountIdentityRoutes(app, deps) {
           authProvidersArr[0] || "local",
           authProvidersArr,
           b.status || "active",
+          b.retention_enabled === true,
+          Number(b.retention_days) || 90,
+          b.retain_pinned !== false,
         ]
       );
       res.status(201).json({ ok: true, tenant: rows[0] });
@@ -112,13 +122,23 @@ export async function mountIdentityRoutes(app, deps) {
         : (b.auth_provider ? [b.auth_provider] : (cur.auth_providers || ["local"]));
       const newAuthProv = newAuthProviders[0] || cur.auth_provider || "local";
       const newStatus = b.status !== undefined ? b.status : cur.status;
+      const newRetentionEnabled = b.retention_enabled !== undefined ? !!b.retention_enabled : !!cur.retention_enabled;
+      const newRetentionDays = b.retention_days !== undefined ? (Number(b.retention_days) || 90) : (cur.retention_days ?? 90);
+      const newRetainPinned = b.retain_pinned !== undefined ? !!b.retain_pinned : (cur.retain_pinned !== false);
 
       const { rows: updated } = await pool.query(
         `UPDATE app_tenants
-         SET name = $1, domain = $2, tier = $3, allowed_models = $4, allowed_spaces = $5, allowed_agents = $6, admin_email = $7, auth_provider = $8, auth_providers = $9, status = $10, updated_at = now()
-         WHERE id = $11
+         SET name = $1, domain = $2, tier = $3, allowed_models = $4, allowed_spaces = $5, 
+             allowed_agents = $6, admin_email = $7, auth_provider = $8, auth_providers = $9, 
+             status = $10, retention_enabled = $11, retention_days = $12, retain_pinned = $13, 
+             updated_at = now()
+         WHERE id = $14
          RETURNING *`,
-        [newName, newDomain, newTier, newModels, newSpaces, newAgents, newAdmin, newAuthProv, newAuthProviders, newStatus, cur.id]
+        [
+          newName, newDomain, newTier, newModels, newSpaces, newAgents, 
+          newAdmin, newAuthProv, newAuthProviders, newStatus, 
+          newRetentionEnabled, newRetentionDays, newRetainPinned, cur.id
+        ]
       );
       res.json({ ok: true, tenant: updated[0] });
     } catch (e) {

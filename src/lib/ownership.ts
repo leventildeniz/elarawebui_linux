@@ -50,6 +50,9 @@ export type Owned = {
   visibility?: Visibility;
   /** Group ids this record is shared into when visibility is `group`. */
   sharedWith?: string[];
+  tenantId?: string;
+  tenant_id?: string;
+  isGlobal?: boolean;
 };
 
 export type OwnerCtx = {

@@ -18,6 +18,7 @@ import path from "node:path";
 import fs from "node:fs/promises";
 import fsSync from "node:fs";
 import { spawn } from "node:child_process";
+import { getAttachmentFile, saveAttachmentFile } from "../storage-engine.mjs";
 
 async function probeUrl(url, timeoutMs = 1500) {
   const t0 = Date.now();
@@ -450,31 +451,56 @@ export function mountSystemMiscRoutes(app, deps) {
     res.json({ ok: true, traceId, events });
   });
 
-  // ---- Uploads ----
+  // ---- Uploads (Hybrid Storage Engine) ----
   app.post("/api/uploads", upload.single("file"), async (req, res) => {
     if (!req.file) return res.status(400).json({ error: "file required" });
-    const meta = {
-      id: createLocalId(),
-      thread_id: req.body?.thread_id ?? null,
-      filename: req.file.originalname,
-      stored:   req.file.filename,
-      mime:     req.file.mimetype,
-      size:     req.file.size,
-      ext:      path.extname(req.file.originalname).toLowerCase(),
-      path:     path.join(UPLOAD_DIR, req.file.filename),
-    };
-    enqueueWrite(
-      `INSERT INTO chat_attachments(id, thread_id, filename, stored, mime, size_bytes, ext, path)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-      [meta.id, meta.thread_id, meta.filename, meta.stored, meta.mime, meta.size, meta.ext, meta.path]
-    );
-    res.status(201).json(meta);
+    try {
+      const ctx = typeof resolveActorContext === "function"
+        ? await resolveActorContext(req)
+        : { isSuperAdmin: true, tenantId: "default", actor: "admin" };
+      const tenantId = ctx.tenantId || "default";
+
+      const fileBuf = req.file.buffer || fsSync.readFileSync(req.file.path);
+      const saved = await saveAttachmentFile({
+        pool,
+        buffer: fileBuf,
+        originalname: req.file.originalname,
+        mimetype: req.file.mimetype,
+        threadId: req.body?.thread_id || null,
+        tenantId,
+      });
+
+      res.status(201).json(saved);
+    } catch (err) {
+      console.error("[Uploads] Error saving file:", err);
+      res.status(500).json({ error: String(err.message || err) });
+    }
   });
 
   app.get("/api/uploads/:id", async (req, res) => {
-    const { rows } = await pool.query("SELECT * FROM chat_attachments WHERE id=$1", [req.params.id]);
-    if (!rows[0]) return res.status(404).end();
-    res.sendFile(rows[0].path);
+    try {
+      const ctx = typeof resolveActorContext === "function"
+        ? await resolveActorContext(req)
+        : { isSuperAdmin: true, tenantId: "default", actor: "admin" };
+
+      const fileRes = await getAttachmentFile(req.params.id, {
+        pool,
+        tenantId: ctx?.tenantId || "default",
+        isSuperAdmin: !!ctx?.isSuperAdmin,
+      });
+
+      if (!fileRes.exists || !fileRes.absPath) {
+        return res.status(404).json({ error: fileRes.error || "File not found" });
+      }
+
+      const mime = fileRes.row?.mime || "application/octet-stream";
+      res.setHeader("Content-Type", mime);
+      res.setHeader("Cache-Control", "public, max-age=86400, immutable");
+      res.sendFile(fileRes.absPath);
+    } catch (err) {
+      console.error("[Uploads] GET error:", err);
+      res.status(500).json({ error: String(err.message || err) });
+    }
   });
 
   // ---- STT ----

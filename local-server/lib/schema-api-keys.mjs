@@ -66,6 +66,9 @@ export function initApiKeysSchema({ pool }) {
     await pool.query(`
       ALTER TABLE app_tenants ADD COLUMN IF NOT EXISTS auth_provider TEXT DEFAULT 'local';
       ALTER TABLE app_tenants ADD COLUMN IF NOT EXISTS auth_providers TEXT[] DEFAULT ARRAY['local']::TEXT[];
+      ALTER TABLE app_tenants ADD COLUMN IF NOT EXISTS retention_enabled BOOLEAN DEFAULT false;
+      ALTER TABLE app_tenants ADD COLUMN IF NOT EXISTS retention_days INT DEFAULT 90;
+      ALTER TABLE app_tenants ADD COLUMN IF NOT EXISTS retain_pinned BOOLEAN DEFAULT true;
     `).catch(() => {});
 
     const { rows: tenantCount } = await pool.query("SELECT COUNT(*)::int AS n FROM app_tenants").catch(() => ({ rows: [{ n: 1 }] }));

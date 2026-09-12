@@ -18,6 +18,7 @@ import {
   RefreshCw,
   Save,
   Sliders,
+  Timer,
   Trash2,
   Unlock,
   Upload,
@@ -698,6 +699,9 @@ type TenantItem = {
   auth_provider?: string;
   auth_providers?: string[];
   status: "active" | "suspended";
+  retention_enabled?: boolean;
+  retention_days?: number;
+  retain_pinned?: boolean;
   user_count?: number;
   key_count?: number;
   created_at: string;
@@ -716,17 +720,24 @@ function slugifyTenant(text: string): string {
 function extractDomainsFromIdpSource(p?: { key?: string; id?: string; label?: string; fields?: Record<string, string> }): string[] {
   if (!p || !p.fields) return [];
   const candidates: string[] = [];
-  const f = p.fields;
-  if (f.domain) candidates.push(f.domain);
-  if (f.tenant_domain) candidates.push(f.tenant_domain);
-  if (f.tenantDomain) candidates.push(f.tenantDomain);
-  if (f.tenantId && f.tenantId.includes(".")) candidates.push(f.tenantId);
-  if (f.baseDn) {
-    const dcs = (f.baseDn.match(/dc=([a-zA-Z0-9_-]+)/gi) || []).map((m: string) => m.replace(/dc=/i, ""));
+  const f: Record<string, string | undefined> = p.fields;
+  const domain = f["domain"];
+  const tenant_domain = f["tenant_domain"];
+  const tenantDomain = f["tenantDomain"];
+  const tenantId = f["tenantId"];
+  const baseDn = f["baseDn"];
+  const host = f["host"];
+
+  if (domain) candidates.push(domain);
+  if (tenant_domain) candidates.push(tenant_domain);
+  if (tenantDomain) candidates.push(tenantDomain);
+  if (tenantId && tenantId.includes(".")) candidates.push(tenantId);
+  if (baseDn) {
+    const dcs = (baseDn.match(/dc=([a-zA-Z0-9_-]+)/gi) || []).map((m: string) => m.replace(/dc=/i, ""));
     if (dcs.length > 0) candidates.push(dcs.join("."));
   }
-  if (f.host && !f.host.startsWith("127.") && !f.host.startsWith("192.") && !f.host.includes("localhost")) {
-    const cleanHost = f.host.replace(/^https?:\/\//, "").split(":")[0];
+  if (host && !host.startsWith("127.") && !host.startsWith("192.") && !host.includes("localhost")) {
+    const cleanHost = host.replace(/^https?:\/\//, "").split(":")[0];
     if (cleanHost && cleanHost.includes(".")) candidates.push(cleanHost);
   }
   return candidates.map((d) => d.toLowerCase().replace(/^@/, "").trim()).filter(Boolean);
@@ -751,6 +762,9 @@ function TenantsTab() {
   const [idpSelectVal, setIdpSelectVal] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
   const [status, setStatus] = useState<"active" | "suspended">("active");
+  const [retentionEnabled, setRetentionEnabled] = useState(false);
+  const [retentionDays, setRetentionDays] = useState(90);
+  const [retainPinned, setRetainPinned] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const loadData = useCallback(async () => {
@@ -792,6 +806,9 @@ function TenantsTab() {
       setSelectedIdps(existingIdps);
       setAdminEmail(tenant.admin_email || "");
       setStatus(tenant.status);
+      setRetentionEnabled(tenant.retention_enabled === true);
+      setRetentionDays(tenant.retention_days ?? 90);
+      setRetainPinned(tenant.retain_pinned !== false);
     } else {
       setEditingId(null);
       setName("");
@@ -803,6 +820,9 @@ function TenantsTab() {
       setSelectedIdps(["local"]);
       setAdminEmail("");
       setStatus("active");
+      setRetentionEnabled(false);
+      setRetentionDays(90);
+      setRetainPinned(true);
     }
     setIdpSelectVal("");
     setModalOpen(true);
@@ -871,6 +891,9 @@ function TenantsTab() {
             auth_providers: selectedIdps.length > 0 ? selectedIdps : ["local"],
             admin_email: adminEmail.trim(),
             status,
+            retention_enabled: retentionEnabled,
+            retention_days: retentionDays,
+            retain_pinned: retainPinned,
           }),
         });
         if (res?.ok) {
@@ -890,6 +913,9 @@ function TenantsTab() {
             auth_providers: selectedIdps.length > 0 ? selectedIdps : ["local"],
             admin_email: adminEmail.trim(),
             status,
+            retention_enabled: retentionEnabled,
+            retention_days: retentionDays,
+            retain_pinned: retainPinned,
           }),
         });
         if (res?.ok) {
@@ -1057,6 +1083,20 @@ function TenantsTab() {
                   <div className="flex items-center justify-between text-muted-foreground">
                     <span>Admin Contact:</span>
                     <span className="truncate text-foreground/80">{t.admin_email || "Not specified"}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-muted-foreground pt-0.5">
+                    <span className="flex items-center gap-1">
+                      <Timer className="h-3 w-3 text-amber-400" /> Retention SLA:
+                    </span>
+                    {t.retention_enabled ? (
+                      <span className="rounded border border-amber-500/30 bg-amber-500/15 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-amber-300">
+                        {t.retention_days ?? 90}d Auto-Purge {t.retain_pinned !== false ? "· Safe" : ""}
+                      </span>
+                    ) : (
+                      <span className="font-mono text-[10.5px] text-muted-foreground/60">
+                        Indefinite (Disabled)
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1298,6 +1338,88 @@ function TenantsTab() {
                       })
                     )}
                   </div>
+                </div>
+
+                {/* Data Retention & Auto-Purge SLA Policy Card */}
+                <div className="rounded-xl border border-white/8 bg-raised/30 p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Timer className="h-4 w-4 text-amber-400" />
+                      <div>
+                        <span className="font-mono text-[11px] font-medium uppercase tracking-wider text-foreground">
+                          Chat & Attachment Retention SLA
+                        </span>
+                        <span className="ml-2 rounded px-1.5 py-0.2 font-mono text-[9.5px] uppercase tracking-wider text-muted-foreground/60">
+                          {retentionEnabled ? `${retentionDays}d Active` : "Disabled (90d Default)"}
+                        </span>
+                      </div>
+                    </div>
+                    <label className="relative inline-flex cursor-pointer items-center">
+                      <input
+                        type="checkbox"
+                        checked={retentionEnabled}
+                        onChange={(e) => setRetentionEnabled(e.target.checked)}
+                        className="peer sr-only"
+                      />
+                      <div className="peer h-5 w-9 rounded-full bg-white/10 after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-all after:content-[''] peer-checked:bg-amber-500 peer-checked:after:translate-x-full peer-focus:outline-none" />
+                    </label>
+                  </div>
+
+                  {retentionEnabled ? (
+                    <div className="mt-3.5 space-y-3 border-t border-white/6 pt-3">
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="font-mono text-[10.5px] uppercase tracking-wider text-muted-foreground/70">
+                            Auto-Purge Window (Days)
+                          </label>
+                          <div className="flex items-center gap-1 font-mono text-[10px]">
+                            {[30, 60, 90, 180, 365].map((d) => (
+                              <button
+                                key={d}
+                                type="button"
+                                onClick={() => setRetentionDays(d)}
+                                className={cn(
+                                  "rounded px-1.5 py-0.5 transition-colors",
+                                  retentionDays === d
+                                    ? "bg-amber-500/20 text-amber-300 font-semibold border border-amber-500/40"
+                                    : "bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground"
+                                )}
+                              >
+                                {d}d
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <input
+                          type="number"
+                          min={1}
+                          max={3650}
+                          value={retentionDays}
+                          onChange={(e) => setRetentionDays(Math.max(1, parseInt(e.target.value) || 90))}
+                          className="w-full rounded-lg border border-white/8 bg-raised/50 px-3 py-2 font-mono text-sm text-foreground outline-none transition-colors focus:border-amber-400"
+                        />
+                        <span className="mt-1 block font-mono text-[10px] text-muted-foreground/50">
+                          Conversations and stored attachments older than {retentionDays} days will be automatically purged.
+                        </span>
+                      </div>
+
+                      <label className="flex items-center gap-2 cursor-pointer pt-1 border-t border-white/4">
+                        <input
+                          type="checkbox"
+                          checked={retainPinned}
+                          onChange={(e) => setRetainPinned(e.target.checked)}
+                          className="rounded border-white/20 bg-raised accent-amber-400"
+                        />
+                        <span className="font-mono text-[11px] text-foreground/90">
+                          Preserve Pinned & Starred Conversations (Recommended)
+                        </span>
+                      </label>
+                    </div>
+                  ) : (
+                    <p className="mt-2 font-mono text-[10.5px] text-muted-foreground/50">
+                      Auto-purge is disabled. All conversations and attachments will be preserved indefinitely. Toggle on to activate 90-day retention baseline.
+                    </p>
+                  )}
                 </div>
 
                 {editingId && (

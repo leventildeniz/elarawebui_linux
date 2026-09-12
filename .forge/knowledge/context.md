@@ -1091,13 +1091,46 @@ Bu aşamada ELARA Sovereign Studio'nun Kimlik (Identity), Çoklu Kiracı (Multi-
 
 ---
 
-## 61. UP NEXT — CHAT HYBRID ATTACHMENT STORAGE OPTIMIZATION, MULTI-NODE BENCHMARKING & ENTERPRISE PERFORMANCE SEAL (PHASE 61)
+## 61. COMPLETED (Phase 61) — CHAT HYBRID ATTACHMENT STORAGE ENGINE, ON-THE-FLY DOCUMENT INGESTION & PERFORMANCE SEAL
 
-1. **Hibrit Chat Dosya & Ek Depolama Optimizasyonu (DB Bloat Prevention):**
-   - Küçük ekran görüntüleri (`< 500 KB`): Doğrudan Base64 Data URI olarak anında rendering için DB'de tutulur.
-   - Ağır PDF'ler, dökümanlar ve büyük dosyalar (`> 500 KB`): `local-server/uploads/` (veya S3) altında saklanır; `chat_files.url` kolonuna sadece `"/api/uploads/id"` linki yazılarak veritabanı satır boyutu 20 MB'tan 200 bayta indirilir. `GET /api/threads` sorguları ultra hafif ve hızlı kalır.
-2. **Çoklu Düğüm Yük Testleri & Load Balancer Doğrulaması:**
+Bu aşamada ELARA Sovereign Studio'nun Chat ekleri, görseller, PDF ve belge işleme mimarisi baştan sona modernize edilmiş; Shared Storage Hub (Local/NFS & S3/MinIO) ile entegre uçtan uca hibrit depolama motoru devreye alınmıştır:
+
+### 🏛️ 1. Hayata Geçirilen Mimari Bileşenler & Yapılan Düzeltmeler
+
+#### A. Hibrit Depolama Motoru (`local-server/lib/storage-engine.mjs`):
+1. **Veritabanı & LocalStorage Şişmesinin (Bloat) Önlenmesi:**
+   - Chat'e yüklenen ekran görüntüleri, resimler ve dosyalar artık doğrudan `POST /api/chat/attachments` üzerinden paylaşılan depolama katmanına (`./uploads` veya yapılandırılmış Shared Storage Hub) yazılır.
+   - `chat_files.url` kolonuna 400.000 karakterlik Base64 yerine sadece 30 karakterlik `/api/uploads/:id` linki yazılır. Satır boyutu megabaytlardan 200 bayta inmiş, `GET /api/threads` sorguları ultra hafifletilmiştir.
+   - İstemci tarafında `localStorage` kota dolması (`QuotaExceededError`) riski kalıcı olarak sıfırlanmıştır.
+2. **Güvenli Servis Uç Noktaları (`/api/chat/attachments` & `GET /api/uploads/:id`):**
+   - Yüklenen dosyalar `tenant_id`, `size_bytes`, `kind` ve `mime` bilgileriyle damgalanır.
+   - `GET /api/uploads/:id` uç noktası `Cache-Control: public, max-age=86400, immutable` ve doğru `Content-Type` başlıklarıyla dosyaları yüksek başarımla sunar.
+
+#### B. Akıllı PDF ve Belge Çıkarım Katmanı (`chat-orchestrate.mjs`):
+1. **Anlık Görsel Çözümleme (Vision LLMs):**
+   - `/api/uploads/:id` formatında saklanan görseller, OpenAI, Anthropic veya yerel Vision modellerine iletilirken diskten asenkron okunarak Base64 `image_url` bloğuna dönüştürülür.
+2. **Yerleşik PDF & Doküman Metin Ayrıştırma (`extractFileContent`):**
+   - Chat'e sürüklenen PDF, DOCX, XLSX, CSV, TXT, LOG veya kaynak kod dosyaları, `extractFileContent` motoru tarafından arka planda anında ayrıştırılır ve modele yapısal belge bağlamı (`📄 [Attached Document: ...]`) olarak aktarılır.
+   - Böylece kullanıcı chate PDF attığında LLM belgenin tüm içeriğini hatasız şekilde okuyup analiz edebilir.
+
+#### C. Tenant Bazlı Veri Saklama & Otomatik Temizlik (Data Retention SLA — `users.tsx`, `retention.mjs`):
+1. **Kurumsal Retention & Auto-Purge Mimarisi:**
+   - `app_tenants` şemasına `retention_enabled BOOLEAN DEFAULT false`, `retention_days INT DEFAULT 90` ve `retain_pinned BOOLEAN DEFAULT true` kolonları eklendi.
+   - `users.tsx` TenantsTab modalına obsidian temalı `Chat & Attachment Retention SLA` kartı, açma/kapama switch'i, hızlı gün butonları (`[30d] [60d] [90d] [180d] [365d]`) ve `[✓] Preserve Pinned & Starred Conversations` seçeneği eklendi.
+   - Şirket kartlarına `🕒 90d Auto-Purge · Safe` / `🕒 Indefinite` durum rozeti yerleştirildi.
+2. **Arka Plan Temizlik Motoru (`retention.mjs` & `storage-engine.mjs`):**
+   - `runTenantChatRetention(pool)` motoru geliştirildi; aktif şirketlerde `updated_at` süresi dolan (ve korunmayan) sohbetlerin hem veritabanı kayıtları hem de diskteki fiziksel resim/PDF dosyaları (`purgeThreadAttachments`) otomatik olarak temizlenir.
+
+#### D. Geriye Dönük Tam Uyumluluk (Zero-Breakage):
+- Sistem hem eski Base64 formatındaki (`data:image/...`) sohbet geçmişini hem de yeni `/api/uploads/...` formatını şeffafça destekler; mevcut verilerde hiçbir bozulma yaşanmaz.
+- `npx tsc --noEmit` tam derleme kontrolü 0 hata ile doğrulanmıştır.
+
+---
+
+## 62. UP NEXT — MULTI-NODE BENCHMARKING, LIVE AGENT STRESS TESTS & DEAD CODE CLEANUP (PHASE 62)
+
+1. **Çoklu Düğüm Yük Testleri & Load Balancer Doğrulaması:**
    - Load Balancer `/health` probe'ları altında eşzamanlı multi-agent stres testleri.
    - Yüksek yük altında Redis semantik önbellek isabet oranı (Hit Rate) analitiği.
-3. **Lovable Artıklarının Temizlenmesi & Ölü Kod Ayıklama:**
+2. **Lovable Artıklarının Temizlenmesi & Ölü Kod Ayıklama:**
    - Lovable legacy artıklarının taranıp temizlenmesi, ölü kodların ayıklanması ve kod içi yorum satırlarının uluslararası standartlara (İngilizce) getirilmesi.

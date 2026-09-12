@@ -4,6 +4,7 @@ import http from "http";
 import https from "https";
 import { URL } from "url";
 import { ragProbeAndFetch } from "../rag/retrieval.mjs";
+import { resolveAttachmentForLlm } from "../storage-engine.mjs";
 
 function mapJsonSchemaType(t) {
   const x = String(t || "string").toLowerCase();
@@ -968,22 +969,59 @@ export async function mountChatOrchestrateRoutes(app, deps) {
         console.warn("[Orchestrate] GenGuard evaluation notice:", guardErr.message);
       }
       
-      // 3. Format messages and multimodal support
-      const formattedMessages = messages.map(m => {
+      // 3. Format messages and multimodal / document support (Hybrid Storage Resolution)
+      const formattedMessages = [];
+      for (const m of messages) {
         let safeRole = m.role || "user";
         if (safeRole === "agent") safeRole = "assistant";
 
         let safeContent = m.content || m.text || "";
 
         if (Array.isArray(m.content)) {
-            safeContent = m.content;
+          const resolvedBlocks = [];
+          for (const block of m.content) {
+            if (
+              block.type === "image_url" &&
+              block.image_url?.url &&
+              (block.image_url.url.startsWith("/api/uploads/") || !block.image_url.url.startsWith("data:"))
+            ) {
+              const res = await resolveAttachmentForLlm(
+                { url: block.image_url.url, kind: "image" },
+                { pool, extractFileContent: deps.extractFileContent }
+              );
+              if (res) resolvedBlocks.push(res);
+              else resolvedBlocks.push(block);
+            } else if (block.type === "file" || block.file) {
+              const fileData = block.file?.file_data || block.file?.url || block.url;
+              const fileName = block.file?.filename || block.filename || "document";
+              const res = await resolveAttachmentForLlm(
+                { url: fileData, name: fileName, kind: "file" },
+                { pool, extractFileContent: deps.extractFileContent }
+              );
+              if (res) resolvedBlocks.push(res);
+              else resolvedBlocks.push({ type: "text", text: `[Attached Document: ${fileName}]` });
+            } else {
+              resolvedBlocks.push(block);
+            }
+          }
+          safeContent = resolvedBlocks;
+        } else if (Array.isArray(m.files) && m.files.length > 0) {
+          const resolvedBlocks = [];
+          for (const f of m.files) {
+            const res = await resolveAttachmentForLlm(f, { pool, extractFileContent: deps.extractFileContent });
+            if (res) resolvedBlocks.push(res);
+          }
+          if (typeof safeContent === "string" && safeContent.trim()) {
+            resolvedBlocks.push({ type: "text", text: safeContent });
+          }
+          safeContent = resolvedBlocks.length > 0 ? resolvedBlocks : safeContent;
         }
 
-        return {
+        formattedMessages.push({
           role: safeRole,
           content: safeContent
-        };
-      });
+        });
+      }
 
       // 3.1. Master System Directives (Sovereignty, Tri-Tier Autonomy, MetaForge, Search & Honesty)
       const masterDirectives = [

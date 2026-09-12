@@ -5,6 +5,8 @@
 // audit'lerde 90 gün, geçici/sistem trafiği için kısa pencere.
 // Hepsi env override edilebilir: RETENTION_<TABLE>_DAYS
 
+import { purgeThreadAttachments } from "./storage-engine.mjs";
+
 const DEFAULTS = {
   agent_logs:        90,
   runs:              90,
@@ -39,6 +41,58 @@ function daysFor(table) {
   return DEFAULTS[table];
 }
 
+/**
+ * Runs per-tenant chat & attachment retention purge.
+ * Deletes conversations and physical files older than retention_days for tenants with retention_enabled = true.
+ */
+export async function runTenantChatRetention(pool, { dryRun = false } = {}) {
+  const results = [];
+  try {
+    const { rows: tenants } = await pool.query(
+      `SELECT slug, name, retention_enabled, retention_days, retain_pinned 
+       FROM app_tenants 
+       WHERE retention_enabled = true AND retention_days > 0`
+    ).catch(() => ({ rows: [] }));
+
+    for (const t of tenants) {
+      const days = Number(t.retention_days) || 90;
+      const retainPinned = t.retain_pinned !== false;
+      const pinnedClause = retainPinned ? "AND (pinned = false OR pinned IS NULL)" : "";
+
+      const query = `
+        SELECT id FROM chat_threads 
+        WHERE (tenant_id = $1 OR (tenant_id IS NULL AND $1 = 'default'))
+          AND updated_at < now() - interval '${days} days'
+          ${pinnedClause}
+      `;
+
+      const { rows: expiredThreads } = await pool.query(query, [t.slug]).catch(() => ({ rows: [] }));
+      
+      if (dryRun) {
+        results.push({ tenant: t.slug, days, would_delete_threads: expiredThreads.length });
+        continue;
+      }
+
+      let deletedCount = 0;
+      for (const th of expiredThreads) {
+        try {
+          await purgeThreadAttachments(th.id, { pool });
+          await pool.query("DELETE FROM chat_messages WHERE thread_id = $1", [th.id]);
+          await pool.query("DELETE FROM chat_threads WHERE id = $1", [th.id]);
+          deletedCount++;
+        } catch (err) {
+          console.warn(`[Retention] Error purging thread ${th.id}:`, err.message);
+        }
+      }
+
+      results.push({ tenant: t.slug, days, deleted_threads: deletedCount });
+    }
+  } catch (err) {
+    console.warn("[Retention] runTenantChatRetention notice:", err.message);
+  }
+  return results;
+}
+
 export async function runRetention(pool, { dryRun = false } = {}) {
   const results = [];
   for (const table of Object.keys(DEFAULTS)) {
@@ -61,6 +115,18 @@ export async function runRetention(pool, { dryRun = false } = {}) {
       results.push({ table, days, error: String(e?.message || e) });
     }
   }
+
+  // Run tenant chat retention SLA purge
+  const tenantResults = await runTenantChatRetention(pool, { dryRun });
+  for (const tr of tenantResults) {
+    results.push({
+      table: `chat_threads (tenant: ${tr.tenant})`,
+      days: tr.days,
+      deleted: tr.deleted_threads,
+      would_delete: tr.would_delete_threads,
+    });
+  }
+
   return { ok: results.every((r) => !r.error), ts: new Date().toISOString(), dryRun, results };
 }
 
