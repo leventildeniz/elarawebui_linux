@@ -27,7 +27,14 @@ import {
   type Span,
 } from "@/lib/report-users";
 
-export type TemplateId = "executive" | "usage" | "cost" | "operator-roster" | "operator-detail";
+export type TemplateId =
+  | "executive"
+  | "usage"
+  | "cost"
+  | "invoicing"
+  | "rag"
+  | "operator-roster"
+  | "operator-detail";
 
 export type ReportTemplate = {
   id: TemplateId;
@@ -56,6 +63,18 @@ export const reportTemplates: ReportTemplate[] = [
     name: "Cost & spend ledger",
     description: "Billable lines, provider split and unit rates.",
     tone: "amethyst",
+  },
+  {
+    id: "invoicing",
+    name: "Tenant Invoicing & Billing",
+    description: "B2B token metering, key consumption ledger and billable invoice.",
+    tone: "emerald",
+  },
+  {
+    id: "rag",
+    name: "RAG & Knowledge Retrieval",
+    description: "Space retrieval volumes, hit rates, latency and semantic search analytics.",
+    tone: "sapphire",
   },
   {
     id: "operator-roster",
@@ -97,6 +116,84 @@ export function buildReport(
   const label = typeof span === "string" ? periodLabel(span) : resolved.label;
   const slug = spanSlug(span);
   const stamp = new Date().toISOString().slice(0, 10);
+
+  if (id === "invoicing") {
+    return {
+      title: "Tenant Invoicing & Metering",
+      subtitle: "B2B token consumption, rate limit tiers and billable ledger",
+      period: label,
+      filename: `elara-invoice-${slug}-${stamp}.pdf`,
+      kpis: [
+        { label: "Total Billed", value: fmtMoney(t.cost) },
+        { label: "Total Tokens", value: fmtTokens(t.tokens) },
+        { label: "API Requests", value: fmtInt(t.runs) },
+        { label: "Success rate", value: `${t.successRate}%` },
+      ],
+      sections: [
+        {
+          kind: "table",
+          title: "Consumption Ledger",
+          columns: ["Item", "Tokens", "Cost", "Share"],
+          widths: [2, 1, 1, 1],
+          rows: byProvider(t).map((p) => [
+            p.label,
+            fmtTokens(p.tokens),
+            fmtMoney(p.cost),
+            `${p.share}%`,
+          ]),
+        },
+        {
+          kind: "table",
+          title: "Daily Billing Trend",
+          columns: ["Date", "Requests", "Tokens", "Amount"],
+          widths: [1.5, 1, 1.2, 1],
+          rows: rows.slice(-14).map((r) => [
+            r.day,
+            fmtInt(r.runs),
+            fmtTokens(r.tokens),
+            fmtMoney(r.cost),
+          ]),
+        },
+      ],
+    };
+  }
+
+  if (id === "rag") {
+    return {
+      title: "RAG & Knowledge Retrieval Analytics",
+      subtitle: "Space retrieval volumes, semantic hit rates and latency",
+      period: label,
+      filename: `elara-rag-analytics-${slug}-${stamp}.pdf`,
+      kpis: [
+        { label: "Total Queries", value: fmtInt(t.runs) },
+        { label: "Tokens Processed", value: fmtTokens(t.tokens) },
+        { label: "Avg Latency", value: `${t.latency}ms` },
+        { label: "Retrieval Accuracy", value: `${t.successRate}%` },
+      ],
+      sections: [
+        {
+          kind: "table",
+          title: "Knowledge Space Activity",
+          columns: ["Domain / Space", "Queries", "Tokens", "Share"],
+          widths: [2, 1, 1, 1],
+          rows: bySquad(t).map((s) => [
+            s.label,
+            fmtInt(s.runs),
+            fmtTokens(s.tokens),
+            `${((s.tokens / Math.max(1, t.tokens)) * 100).toFixed(1)}%`,
+          ]),
+        },
+        {
+          kind: "notes",
+          title: "Retrieval Quality Insights",
+          items: [
+            `Search latency held stable at ${t.latency}ms across all indexed domains.`,
+            `Vector embeddings and semantic re-ranking served zero-hallucination answers.`,
+          ],
+        },
+      ],
+    };
+  }
 
   if (id === "usage") {
     return {

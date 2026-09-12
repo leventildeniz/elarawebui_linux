@@ -83,8 +83,17 @@ function download(name: string, mime: string, body: string) {
 function ExportsPage() {
   const { list: items, log, refresh, loading } = useSchedules();
   const [editing, setEditing] = useState<Schedule | null>(null);
+  const [tenantsList, setTenantsList] = useState<Array<{ id: string; slug: string; name: string }>>([]);
   const operators = useMemo(() => userReports("30d"), []);
   const firing = useRef(false);
+
+  useEffect(() => {
+    fetchApi("/api/identity/tenants")
+      .then((data) => {
+        if (Array.isArray(data)) setTenantsList(data);
+      })
+      .catch(() => {});
+  }, []);
 
   const runSchedule = async (s: Schedule, manual: boolean) => {
     const span = s.rangeFrom && s.rangeTo ? { from: s.rangeFrom, to: s.rangeTo } : s.period;
@@ -294,6 +303,7 @@ function ExportsPage() {
             columns={[
               "Report",
               "Template",
+              "Tenant",
               "Cadence",
               "Format",
               "Channel",
@@ -316,6 +326,9 @@ function ExportsPage() {
                 {x.userId
                   ? ` · ${operators.find((o) => o.id === x.userId)?.username ?? x.userId}`
                   : ""}
+              </span>,
+              <span key="tn" className="font-mono text-[11px] font-semibold text-sapphire/85">
+                {(x.tenant_id || "default") === "default" ? "Global" : `@${x.tenant_id}`}
               </span>,
               <span key="c" className="font-mono text-[12px] text-muted-foreground/75">
                 {cadenceLabel(x)}
@@ -421,7 +434,7 @@ function ExportsPage() {
               <div>
                 <Label>Name</Label>
                 <input
-                  className={fieldCls}
+                  className="w-full rounded-lg border border-white/10 bg-[#121216] px-3 py-2 font-mono text-[12.5px] text-foreground outline-none transition-colors focus:border-sapphire"
                   value={editing.name}
                   onChange={(e) => setEditing({ ...editing, name: e.target.value })}
                 />
@@ -429,14 +442,14 @@ function ExportsPage() {
               <div>
                 <Label>Report template</Label>
                 <select
-                  className={fieldCls}
+                  className="w-full rounded-lg border border-white/10 bg-[#121216] px-3 py-2 font-mono text-[12.5px] text-foreground outline-none transition-colors focus:border-sapphire"
                   value={editing.templateId}
                   onChange={(e) =>
                     setEditing({ ...editing, templateId: e.target.value as TemplateId })
                   }
                 >
                   {reportTemplates.map((t) => (
-                    <option key={t.id} value={t.id} className="bg-[#111113]">
+                    <option key={t.id} value={t.id} className="bg-[#18181e] text-foreground py-1.5">
                       {t.name}
                     </option>
                   ))}
@@ -446,9 +459,31 @@ function ExportsPage() {
                 </p>
               </div>
               <div>
+                <Label>Organization (Tenant Scope)</Label>
+                <select
+                  className="w-full rounded-lg border border-white/10 bg-[#121216] px-3 py-2 font-mono text-[12.5px] text-foreground outline-none transition-colors focus:border-sapphire"
+                  value={editing.tenant_id || "default"}
+                  onChange={(e) =>
+                    setEditing({ ...editing, tenant_id: e.target.value })
+                  }
+                >
+                  <option value="default" className="bg-[#18181e] text-foreground py-1.5">
+                    All Tenants (Global Sovereign Rollup)
+                  </option>
+                  {tenantsList.map((t) => (
+                    <option key={t.slug} value={t.slug} className="bg-[#18181e] text-foreground py-1.5">
+                      {t.name} ({t.slug})
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1.5 font-mono text-[11px] text-muted-foreground/50">
+                  Target organization boundary for automated delivery.
+                </p>
+              </div>
+              <div>
                 <Label>Window</Label>
                 <select
-                  className={fieldCls}
+                  className="w-full rounded-lg border border-white/10 bg-[#121216] px-3 py-2 font-mono text-[12.5px] text-foreground outline-none transition-colors focus:border-sapphire"
                   value={editing.rangeFrom && editing.rangeTo ? "custom" : editing.period}
                   onChange={(e) => {
                     if (e.target.value === "custom") {
@@ -464,11 +499,11 @@ function ExportsPage() {
                   }}
                 >
                   {periods.map((p) => (
-                    <option key={p.id} value={p.id} className="bg-[#111113]">
+                    <option key={p.id} value={p.id} className="bg-[#18181e] text-foreground py-1.5">
                       {p.label}
                     </option>
                   ))}
-                  <option value="custom" className="bg-[#111113]">
+                  <option value="custom" className="bg-[#18181e] text-foreground py-1.5">
                     Custom range
                   </option>
                 </select>
@@ -480,14 +515,14 @@ function ExportsPage() {
                   <div className="flex items-center gap-2">
                     <input
                       type="date"
-                      className={fieldCls}
+                      className="w-full rounded-lg border border-white/10 bg-[#121216] px-2.5 py-1.5 font-mono text-[12px] text-foreground outline-none transition-colors focus:border-sapphire"
                       value={editing.rangeFrom}
                       max={editing.rangeTo}
                       onChange={(e) => setEditing({ ...editing, rangeFrom: e.target.value })}
                     />
                     <input
                       type="date"
-                      className={fieldCls}
+                      className="w-full rounded-lg border border-white/10 bg-[#121216] px-2.5 py-1.5 font-mono text-[12px] text-foreground outline-none transition-colors focus:border-sapphire"
                       value={editing.rangeTo}
                       min={editing.rangeFrom}
                       onChange={(e) => setEditing({ ...editing, rangeTo: e.target.value })}
@@ -501,12 +536,12 @@ function ExportsPage() {
                   <div>
                     <Label>Top N operators</Label>
                     <select
-                      className={fieldCls}
+                      className="w-full rounded-lg border border-white/10 bg-[#121216] px-3 py-2 font-mono text-[12.5px] text-foreground outline-none transition-colors focus:border-sapphire"
                       value={String(editing.topN ?? 0)}
                       onChange={(e) => setEditing({ ...editing, topN: Number(e.target.value) })}
                     >
                       {[0, 3, 5, 10, 25].map((n) => (
-                        <option key={n} value={n} className="bg-[#111113]">
+                        <option key={n} value={n} className="bg-[#18181e] text-foreground py-1.5">
                           {n === 0 ? "Everyone" : `Top ${n}`}
                         </option>
                       ))}
@@ -515,7 +550,7 @@ function ExportsPage() {
                   <div>
                     <Label>Rank by</Label>
                     <select
-                      className={fieldCls}
+                      className="w-full rounded-lg border border-white/10 bg-[#121216] px-3 py-2 font-mono text-[12.5px] text-foreground outline-none transition-colors focus:border-sapphire"
                       value={editing.sortBy ?? "tokens"}
                       onChange={(e) =>
                         setEditing({
@@ -525,7 +560,7 @@ function ExportsPage() {
                       }
                     >
                       {["tokens", "cost", "runs", "name"].map((k) => (
-                        <option key={k} value={k} className="bg-[#111113]">
+                        <option key={k} value={k} className="bg-[#18181e] text-foreground py-1.5">
                           {k}
                         </option>
                       ))}
@@ -538,48 +573,42 @@ function ExportsPage() {
                 <div>
                   <Label>Operator</Label>
                   <select
-                    className={fieldCls}
+                    className="w-full rounded-lg border border-white/10 bg-[#121216] px-3 py-2 font-mono text-[12.5px] text-foreground outline-none transition-colors focus:border-sapphire"
                     value={editing.userId ?? operators[0]?.id ?? ""}
                     onChange={(e) => setEditing({ ...editing, userId: e.target.value })}
                   >
                     {operators.map((o) => (
-                      <option key={o.id} value={o.id} className="bg-[#111113]">
+                      <option key={o.id} value={o.id} className="bg-[#18181e] text-foreground py-1.5">
                         {o.name} (@{o.username})
                       </option>
                     ))}
                   </select>
                 </div>
               )}
+            </div>
 
+            <div className="mt-5 grid gap-4 border-t border-white/[0.06] pt-4 lg:grid-cols-3">
               <div>
                 <Label>Cadence</Label>
                 <select
-                  className={fieldCls}
+                  className="w-full rounded-lg border border-white/10 bg-[#121216] px-3 py-2 font-mono text-[12.5px] text-foreground outline-none transition-colors focus:border-sapphire"
                   value={editing.cadence}
                   onChange={(e) => setEditing({ ...editing, cadence: e.target.value as Cadence })}
                 >
-                  {(["hourly", "daily", "weekly", "monthly", "once"] as Cadence[]).map((c) => (
-                    <option key={c} value={c} className="bg-[#111113]">
-                      {c}
-                    </option>
-                  ))}
+                  <option value="hourly" className="bg-[#18181e] text-foreground py-1.5">Hourly</option>
+                  <option value="daily" className="bg-[#18181e] text-foreground py-1.5">Daily</option>
+                  <option value="weekly" className="bg-[#18181e] text-foreground py-1.5">Weekly</option>
+                  <option value="monthly" className="bg-[#18181e] text-foreground py-1.5">Monthly</option>
+                  <option value="once" className="bg-[#18181e] text-foreground py-1.5">Once (immediate next-run)</option>
                 </select>
               </div>
-              <div>
-                <Label>Run at (local time)</Label>
-                <input
-                  type="time"
-                  className={fieldCls}
-                  value={editing.time}
-                  onChange={(e) => setEditing({ ...editing, time: e.target.value })}
-                />
-              </div>
+
               {editing.cadence === "weekly" && (
                 <div>
-                  <Label>Weekday</Label>
+                  <Label>Day of week</Label>
                   <select
-                    className={fieldCls}
-                    value={editing.weekday}
+                    className="w-full rounded-lg border border-white/10 bg-[#121216] px-3 py-2 font-mono text-[12.5px] text-foreground outline-none transition-colors focus:border-sapphire"
+                    value={editing.weekday ?? 1}
                     onChange={(e) => setEditing({ ...editing, weekday: Number(e.target.value) })}
                   >
                     {[
@@ -591,13 +620,14 @@ function ExportsPage() {
                       "Friday",
                       "Saturday",
                     ].map((d, i) => (
-                      <option key={d} value={i} className="bg-[#111113]">
+                      <option key={d} value={i} className="bg-[#18181e] text-foreground py-1.5">
                         {d}
                       </option>
                     ))}
                   </select>
                 </div>
               )}
+
               {editing.cadence === "monthly" && (
                 <div>
                   <Label>Day of month</Label>
@@ -605,7 +635,7 @@ function ExportsPage() {
                     type="number"
                     min={1}
                     max={28}
-                    className={fieldCls}
+                    className="w-full rounded-lg border border-white/10 bg-[#121216] px-3 py-2 font-mono text-[12.5px] text-foreground outline-none transition-colors focus:border-sapphire"
                     value={editing.dayOfMonth}
                     onChange={(e) => setEditing({ ...editing, dayOfMonth: Number(e.target.value) })}
                   />
@@ -613,40 +643,34 @@ function ExportsPage() {
               )}
 
               <div>
-                <Label>Delivery</Label>
+                <Label>Format</Label>
                 <select
-                  className={fieldCls}
+                  className="w-full rounded-lg border border-white/10 bg-[#121216] px-3 py-2 font-mono text-[12.5px] text-foreground outline-none transition-colors focus:border-sapphire"
+                  value={editing.format}
+                  onChange={(e) => setEditing({ ...editing, format: e.target.value as Format })}
+                >
+                  <option value="PDF" className="bg-[#18181e] text-foreground py-1.5">PDF Document</option>
+                  <option value="CSV" className="bg-[#18181e] text-foreground py-1.5">CSV Spreadsheet</option>
+                  <option value="JSON" className="bg-[#18181e] text-foreground py-1.5">JSON Payload</option>
+                </select>
+              </div>
+
+              <div>
+                <Label>Delivery Channel</Label>
+                <select
+                  className="w-full rounded-lg border border-white/10 bg-[#121216] px-3 py-2 font-mono text-[12.5px] text-foreground outline-none transition-colors focus:border-sapphire"
                   value={editing.delivery}
                   onChange={(e) =>
                     setEditing({ ...editing, delivery: e.target.value as DeliveryChannel })
                   }
                 >
-                  <option value="email" className="bg-[#111113]">
-                    Email the report
-                  </option>
-                  <option value="download" className="bg-[#111113]">
-                    Download locally
-                  </option>
-                  <option value="storage" className="bg-[#111113]">
-                    Storage / warehouse
-                  </option>
+                  <option value="email" className="bg-[#18181e] text-foreground py-1.5">Email the report</option>
+                  <option value="download" className="bg-[#18181e] text-foreground py-1.5">On-demand browser download</option>
+                  <option value="storage" className="bg-[#18181e] text-foreground py-1.5">Warehouse storage target</option>
                 </select>
               </div>
-              <div>
-                <Label>Format</Label>
-                <select
-                  className={fieldCls}
-                  value={editing.format}
-                  onChange={(e) => setEditing({ ...editing, format: e.target.value as Format })}
-                >
-                  {(["PDF", "CSV", "JSON"] as Format[]).map((f) => (
-                    <option key={f} value={f} className="bg-[#111113]">
-                      {f}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="lg:col-span-2">
+
+              <div className="lg:col-span-3">
                 <Label>
                   {editing.delivery === "email"
                     ? "Recipients (comma separated)"
@@ -654,14 +678,14 @@ function ExportsPage() {
                 </Label>
                 {editing.delivery === "email" ? (
                   <input
-                    className={fieldCls}
+                    className="w-full rounded-lg border border-white/10 bg-[#121216] px-3 py-2 font-mono text-[12.5px] text-foreground outline-none transition-colors focus:border-sapphire"
                     placeholder="ops@sovereign.studio, finance@sovereign.studio"
                     value={editing.recipients}
                     onChange={(e) => setEditing({ ...editing, recipients: e.target.value })}
                   />
                 ) : (
                   <input
-                    className={fieldCls}
+                    className="w-full rounded-lg border border-white/10 bg-[#121216] px-3 py-2 font-mono text-[12.5px] text-foreground outline-none transition-colors focus:border-sapphire"
                     placeholder="s3://sovereign-finops/reports"
                     value={editing.destination}
                     onChange={(e) => setEditing({ ...editing, destination: e.target.value })}

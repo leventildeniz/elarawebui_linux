@@ -102,6 +102,9 @@ export function initApiKeysSchema({ pool }) {
         allowed_models TEXT[] DEFAULT ARRAY[]::TEXT[],
         allowed_spaces TEXT[] DEFAULT ARRAY[]::TEXT[],
         status TEXT NOT NULL DEFAULT 'active',
+        alert_on_limit BOOLEAN DEFAULT true,
+        alert_email TEXT,
+        last_alert_at TIMESTAMPTZ,
         expires_at TIMESTAMPTZ,
         last_used_at TIMESTAMPTZ,
         created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -110,6 +113,12 @@ export function initApiKeysSchema({ pool }) {
     `).catch((err) => {
       console.warn("[Schema] tenant_api_keys notice:", err.message);
     });
+
+    await pool.query(`
+      ALTER TABLE tenant_api_keys ADD COLUMN IF NOT EXISTS alert_on_limit BOOLEAN DEFAULT true;
+      ALTER TABLE tenant_api_keys ADD COLUMN IF NOT EXISTS alert_email TEXT;
+      ALTER TABLE tenant_api_keys ADD COLUMN IF NOT EXISTS last_alert_at TIMESTAMPTZ;
+    `).catch(() => {});
 
     // 3. Alter provider_usage table to track API key & tenant attribution
     await pool.query(`

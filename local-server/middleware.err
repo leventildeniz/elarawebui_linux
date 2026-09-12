@@ -56605,3 +56605,49 @@ Node.js v22.22.1
 [Reporting API] Notice creating indices: column "owner_id" does not exist
 [Reporting API] Notice creating indices: column "owner_id" does not exist
 [Reporting API] Notice creating indices: column "owner_id" does not exist
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[Reporting API] Error in /api/reporting/overview: error: column reference "status" is ambiguous
+    at /home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:164:24 {
+  length: 112,
+  severity: 'ERROR',
+  code: '42702',
+  detail: undefined,
+  hint: undefined,
+  position: '249',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '878',
+  routine: 'scanRTEForColumn'
+}
+[Reporting API] Error in /api/reporting/overview: error: column reference "status" is ambiguous
+    at /home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/reporting.mjs:164:24 {
+  length: 112,
+  severity: 'ERROR',
+  code: '42702',
+  detail: undefined,
+  hint: undefined,
+  position: '249',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '878',
+  routine: 'scanRTEForColumn'
+}
+[Reporting API] Notice creating indices: column "owner_id" does not exist

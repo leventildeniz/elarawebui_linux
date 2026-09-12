@@ -67,6 +67,8 @@ export function mountApiKeysRoutes(app, deps) {
           allowed_models: row.allowed_models || [],
           allowed_spaces: row.allowed_spaces || [],
           status: row.status,
+          alert_on_limit: row.alert_on_limit !== false,
+          alert_email: row.alert_email || "",
           expires_at: row.expires_at,
           last_used_at: row.last_used_at,
           created_at: row.created_at,
@@ -92,6 +94,8 @@ export function mountApiKeysRoutes(app, deps) {
         tier = "tier1",
         allowed_models = [],
         allowed_spaces = [],
+        alert_on_limit = true,
+        alert_email = null,
         expires_at = null,
       } = req.body || {};
 
@@ -113,8 +117,8 @@ export function mountApiKeysRoutes(app, deps) {
       const insertRes = await pool.query(
         `INSERT INTO tenant_api_keys (
            key_prefix, key_hash, ciphertext, iv, tag, name,
-           tenant_id, user_id, role, tier, allowed_models, allowed_spaces, expires_at
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+           tenant_id, user_id, role, tier, allowed_models, allowed_spaces, alert_on_limit, alert_email, expires_at
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
          RETURNING *`,
         [
           keyPrefix,
@@ -129,6 +133,8 @@ export function mountApiKeysRoutes(app, deps) {
           tier,
           allowed_models,
           allowed_spaces,
+          !!alert_on_limit,
+          alert_email ? String(alert_email).trim().toLowerCase() : null,
           expires_at || null,
         ]
       );
@@ -164,7 +170,7 @@ export function mountApiKeysRoutes(app, deps) {
     try {
       const { id } = req.params;
       const { tenantId, role } = resolveTenantAndUser(req);
-      const { name, tier, allowed_models, allowed_spaces, status, expires_at } = req.body || {};
+      const { name, tier, allowed_models, allowed_spaces, alert_on_limit, alert_email, status, expires_at } = req.body || {};
 
       let checkQuery = "SELECT * FROM tenant_api_keys WHERE id = $1";
       const checkParams = [id];
@@ -185,13 +191,15 @@ export function mountApiKeysRoutes(app, deps) {
       const newSpaces = Array.isArray(allowed_spaces) ? allowed_spaces : current.allowed_spaces;
       const newStatus = status !== undefined ? status : current.status;
       const newExpires = expires_at !== undefined ? expires_at : current.expires_at;
+      const newAlertOnLimit = alert_on_limit !== undefined ? !!alert_on_limit : current.alert_on_limit !== false;
+      const newAlertEmail = alert_email !== undefined ? (alert_email ? String(alert_email).trim().toLowerCase() : null) : current.alert_email;
 
       const updateRes = await pool.query(
         `UPDATE tenant_api_keys
-         SET name = $1, tier = $2, allowed_models = $3, allowed_spaces = $4, status = $5, expires_at = $6, updated_at = now()
-         WHERE id = $7
+         SET name = $1, tier = $2, allowed_models = $3, allowed_spaces = $4, alert_on_limit = $5, alert_email = $6, status = $7, expires_at = $8, updated_at = now()
+         WHERE id = $9
          RETURNING *`,
-        [newName, newTier, newModels, newSpaces, newStatus, newExpires, id]
+        [newName, newTier, newModels, newSpaces, newAlertOnLimit, newAlertEmail, newStatus, newExpires, id]
       );
 
       return res.json({ ok: true, key: updateRes.rows[0] });

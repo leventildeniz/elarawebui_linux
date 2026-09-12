@@ -22,6 +22,7 @@ import {
   Bot,
   Brain,
   Library,
+  Bell,
   X,
 } from "lucide-react";
 import { Surface } from "@/components/sovereign/surface";
@@ -64,6 +65,8 @@ type ApiKeyItem = {
   allowed_models: string[];
   allowed_spaces: string[];
   status: string;
+  alert_on_limit?: boolean;
+  alert_email?: string;
   expires_at: string | null;
   last_used_at: string | null;
   created_at: string;
@@ -124,6 +127,8 @@ function ApiTokensPage() {
   const [editingKeyId, setEditingKeyId] = useState<string | null>(null);
   const [newKeyName, setNewKeyName] = useState("");
   const [isCustomScope, setIsCustomScope] = useState(false);
+  const [alertOnLimit, setAlertOnLimit] = useState(true);
+  const [alertEmail, setAlertEmail] = useState("");
   const [selectedModels, setSelectedModels] = useState<string[]>([]);
   const [selectedSpaces, setSelectedSpaces] = useState<string[]>([]);
   const [selectedAgents, setSelectedAgents] = useState<string[]>([]);
@@ -260,6 +265,8 @@ function ApiTokensPage() {
     if (keyItem) {
       setEditingKeyId(keyItem.id);
       setNewKeyName(keyItem.name);
+      setAlertOnLimit(keyItem.alert_on_limit !== false);
+      setAlertEmail(keyItem.alert_email || "");
       const perms = Array.isArray(keyItem.allowed_models) ? keyItem.allowed_models : [];
       if (perms.length > 0) {
         setIsCustomScope(true);
@@ -279,6 +286,8 @@ function ApiTokensPage() {
     } else {
       setEditingKeyId(null);
       setNewKeyName("");
+      setAlertOnLimit(true);
+      setAlertEmail("");
       setIsCustomScope(false);
       setSelectedModels([]);
       setSelectedSpaces([]);
@@ -315,6 +324,8 @@ function ApiTokensPage() {
           body: JSON.stringify({
             name: newKeyName.trim(),
             allowed_models: combinedPermissions,
+            alert_on_limit: alertOnLimit,
+            alert_email: alertEmail.trim() || null,
           }),
         });
 
@@ -330,6 +341,8 @@ function ApiTokensPage() {
           body: JSON.stringify({
             name: newKeyName.trim(),
             allowed_models: combinedPermissions,
+            alert_on_limit: alertOnLimit,
+            alert_email: alertEmail.trim() || null,
           }),
         });
 
@@ -674,6 +687,14 @@ function ApiTokensPage() {
                         <span className="rounded-md border border-white/6 bg-black/30 px-2 py-0.5 font-mono text-[10px] text-muted-foreground/70">
                           {key.rpm_limit} RPM · {(key.tpm_limit / 1000).toFixed(0)}K TPM
                         </span>
+                        {key.alert_on_limit && (
+                          <span
+                            className="inline-flex items-center gap-1 rounded border border-emerald/30 bg-emerald/10 px-1.5 py-0.5 font-mono text-[10px] text-emerald"
+                            title={`Quota alerts active${key.alert_email ? ` (${key.alert_email})` : ''}`}
+                          >
+                            <Bell className="h-2.5 w-2.5" /> Quota Alert
+                          </span>
+                        )}
                       </div>
 
                       {/* Secret Key Input Bar */}
@@ -1175,6 +1196,40 @@ for chunk in response:
                     </div>
                   </div>
                 )}
+
+                {/* Quota & Rate Limit Email Alert Card */}
+                <div className="rounded-xl border border-white/8 bg-raised/30 p-3.5 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Bell className="h-4 w-4 text-emerald" />
+                      <span className="font-mono text-xs font-semibold text-foreground">
+                        Quota & Rate Limit Email Alerts
+                      </span>
+                    </div>
+                    <label className="relative inline-flex cursor-pointer items-center">
+                      <input
+                        type="checkbox"
+                        checked={alertOnLimit}
+                        onChange={(e) => setAlertOnLimit(e.target.checked)}
+                        className="h-4 w-4 rounded border-white/20 bg-black/40 text-emerald focus:ring-0"
+                      />
+                    </label>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground/60 leading-relaxed font-mono">
+                    Send automated notification to Tenant Admin when monthly token quota exceeds 80% / 100% or rate limit thresholds (429) are triggered.
+                  </p>
+                  {alertOnLimit && (
+                    <div className="pt-1">
+                      <input
+                        type="email"
+                        placeholder="Recipient email (leave blank to use Tenant Admin default)"
+                        value={alertEmail}
+                        onChange={(e) => setAlertEmail(e.target.value)}
+                        className="w-full rounded-lg border border-white/10 bg-[#121216] px-3 py-1.5 font-mono text-xs text-foreground outline-none transition-colors focus:border-sapphire placeholder:text-muted-foreground/40"
+                      />
+                    </div>
+                  )}
+                </div>
 
                 <div className="flex items-center justify-end gap-2 border-t border-white/8 pt-4">
                   <JewelButton
