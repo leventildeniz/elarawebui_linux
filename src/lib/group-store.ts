@@ -15,6 +15,8 @@ export type Account = {
   provider: string;
   status: AccountStatus;
   lastSeen: string;
+  tenantId?: string;
+  tenant_id?: string;
   /** Default template id applied to this principal ("" = inherit from group). */
   template?: string;
   /** Avatar picked from the studio avatar library. */
@@ -40,6 +42,8 @@ export type Group = {
   description: string;
   members: string[];
   tone: JewelTone;
+  tenant_id?: string;
+  tenantId?: string;
   /**
    * Accounts that clear approval requests raised by this group's members.
    * Empty → requests fall back to the shared pool (any principal holding the
@@ -194,6 +198,8 @@ export function useIdentity() {
           role: u.role,
           provider: u.provider,
           status: u.status,
+          tenantId: u.tenantId || u.tenant_id || "default",
+          tenant_id: u.tenant_id || u.tenantId || "default",
           lastSeen: "—",
           template: u.templateId || "",
           avatarStyle: u.avatarStyle || "sigil",
@@ -219,6 +225,8 @@ export function useIdentity() {
           defaultRole: g.defaultRole,
           defaultTemplate: g.defaultTemplate || "",
           description: g.description || "",
+          tenant_id: g.tenant_id || g.tenantId || "default",
+          tenantId: g.tenant_id || g.tenantId || "default",
           members: g.members || [],
           tone: g.tone || "sapphire",
           approvers: g.approvers || [],
@@ -359,6 +367,8 @@ export function useIdentity() {
       // Map UI names back to backend names if necessary
       const payload: any = { ...patch };
       if (patch.template !== undefined) payload.templateId = patch.template;
+      if (patch.tenantId !== undefined) payload.tenant_id = patch.tenantId;
+      if (patch.tenant_id !== undefined) payload.tenant_id = patch.tenant_id;
       
       await fetchApi(`/api/identity/users/${id}`, {
         method: "PUT",

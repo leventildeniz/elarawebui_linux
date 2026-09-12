@@ -703,6 +703,35 @@ type TenantItem = {
   created_at: string;
 };
 
+function slugifyTenant(text: string): string {
+  return String(text || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 48);
+}
+
+function extractDomainsFromIdpSource(p?: { key?: string; id?: string; label?: string; fields?: Record<string, string> }): string[] {
+  if (!p || !p.fields) return [];
+  const candidates: string[] = [];
+  const f = p.fields;
+  if (f.domain) candidates.push(f.domain);
+  if (f.tenant_domain) candidates.push(f.tenant_domain);
+  if (f.tenantDomain) candidates.push(f.tenantDomain);
+  if (f.tenantId && f.tenantId.includes(".")) candidates.push(f.tenantId);
+  if (f.baseDn) {
+    const dcs = (f.baseDn.match(/dc=([a-zA-Z0-9_-]+)/gi) || []).map((m: string) => m.replace(/dc=/i, ""));
+    if (dcs.length > 0) candidates.push(dcs.join("."));
+  }
+  if (f.host && !f.host.startsWith("127.") && !f.host.startsWith("192.") && !f.host.includes("localhost")) {
+    const cleanHost = f.host.replace(/^https?:\/\//, "").split(":")[0];
+    if (cleanHost && cleanHost.includes(".")) candidates.push(cleanHost);
+  }
+  return candidates.map((d) => d.toLowerCase().replace(/^@/, "").trim()).filter(Boolean);
+}
+
 function TenantsTab() {
   const [tenants, setTenants] = useState<TenantItem[]>([]);
   const [tiers, setTiers] = useState<Array<{ tier: string; name: string; rpm_limit: number; monthly_token_quota: string }>>([]);
@@ -714,7 +743,9 @@ function TenantsTab() {
   // Form State
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
-  const [domain, setDomain] = useState("");
+  const [slugLocked, setSlugLocked] = useState(true);
+  const [domains, setDomains] = useState<string[]>([]);
+  const [domainInput, setDomainInput] = useState("");
   const [tier, setTier] = useState("tier1");
   const [selectedIdps, setSelectedIdps] = useState<string[]>(["local"]);
   const [idpSelectVal, setIdpSelectVal] = useState("");
@@ -748,7 +779,12 @@ function TenantsTab() {
       setEditingId(tenant.id);
       setName(tenant.name);
       setSlug(tenant.slug);
-      setDomain(tenant.domain || "");
+      setSlugLocked(true);
+      const dList = tenant.domain
+        ? tenant.domain.split(/[,\s]+/).map((d) => d.replace(/^@/, "").trim()).filter(Boolean)
+        : [];
+      setDomains(dList);
+      setDomainInput("");
       setTier(tenant.tier);
       const existingIdps = Array.isArray(tenant.auth_providers) && tenant.auth_providers.length > 0
         ? tenant.auth_providers
@@ -760,7 +796,9 @@ function TenantsTab() {
       setEditingId(null);
       setName("");
       setSlug("");
-      setDomain("");
+      setSlugLocked(true);
+      setDomains([]);
+      setDomainInput("");
       setTier("tier1");
       setSelectedIdps(["local"]);
       setAdminEmail("");
@@ -770,9 +808,41 @@ function TenantsTab() {
     setModalOpen(true);
   };
 
+  const handleNameChange = (val: string) => {
+    setName(val);
+    if (!editingId && slugLocked) {
+      setSlug(slugifyTenant(val));
+    }
+  };
+
+  const handleAddDomain = () => {
+    const clean = domainInput.toLowerCase().replace(/^@/, "").trim();
+    if (!clean) return;
+    if (!domains.includes(clean)) {
+      setDomains((prev) => [...prev, clean]);
+    }
+    setDomainInput("");
+  };
+
+  const handleRemoveDomain = (d: string) => {
+    setDomains((prev) => prev.filter((item) => item !== d));
+  };
+
   const handleAddIdp = () => {
     if (!idpSelectVal || selectedIdps.includes(idpSelectVal)) return;
     setSelectedIdps((prev) => [...prev, idpSelectVal]);
+
+    // Smart IdP Auto-Discovery: Check if this IdP has associated domain metadata
+    const found = authProvidersList.find((p) => (p.key || p.id) === idpSelectVal);
+    const extracted = extractDomainsFromIdpSource(found);
+    if (extracted.length > 0) {
+      const newToAdd = extracted.filter((d) => !domains.includes(d));
+      if (newToAdd.length > 0) {
+        setDomains((prev) => [...prev, ...newToAdd]);
+        toast.info(`Auto-mapped domain ${newToAdd.map((d) => `@${d}`).join(", ")} from ${found?.label || idpSelectVal}`);
+      }
+    }
+
     setIdpSelectVal("");
   };
 
@@ -788,13 +858,15 @@ function TenantsTab() {
     }
     setSaving(true);
     try {
+      const domainValue = domains.length > 0 ? domains.join(", ") : null;
+
       if (editingId) {
         const res = await fetchApi(`/api/identity/tenants/${editingId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             name: name.trim(),
-            domain: domain ? domain.trim().toLowerCase() : null,
+            domain: domainValue,
             tier,
             auth_providers: selectedIdps.length > 0 ? selectedIdps : ["local"],
             admin_email: adminEmail.trim(),
@@ -813,7 +885,7 @@ function TenantsTab() {
           body: JSON.stringify({
             name: name.trim(),
             slug: slug.trim().toLowerCase(),
-            domain: domain ? domain.trim().toLowerCase() : null,
+            domain: domainValue,
             tier,
             auth_providers: selectedIdps.length > 0 ? selectedIdps : ["local"],
             admin_email: adminEmail.trim(),
@@ -935,11 +1007,22 @@ function TenantsTab() {
                 <h4 className="mt-2 text-base font-semibold text-foreground">{t.name}</h4>
 
                 <div className="mt-4 space-y-2.5 border-t border-white/6 pt-3 font-mono text-xs">
-                  <div className="flex items-center justify-between text-muted-foreground">
-                    <span>SSO Domain:</span>
-                    <span className="font-semibold text-foreground">
-                      {t.domain ? `@${t.domain}` : "— Global Baseline —"}
-                    </span>
+                  <div className="space-y-1">
+                    <span className="text-muted-foreground text-[11px]">SSO Domains:</span>
+                    <div className="flex flex-wrap gap-1">
+                      {t.domain ? (
+                        t.domain.split(/[,\s]+/).map((d) => (
+                          <span
+                            key={d}
+                            className="rounded border border-emerald/30 bg-emerald/15 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-emerald"
+                          >
+                            @{d.replace(/^@/, "")}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="font-mono text-[11px] text-muted-foreground/60">— Global Baseline —</span>
+                      )}
+                    </div>
                   </div>
 
                   <div className="space-y-1">
@@ -1021,44 +1104,46 @@ function TenantsTab() {
                       required
                       placeholder="e.g. Acme Corporation"
                       value={name}
-                      onChange={(e) => setName(e.target.value)}
+                      onChange={(e) => handleNameChange(e.target.value)}
                       className="w-full rounded-lg border border-white/8 bg-raised/50 px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-sapphire"
                     />
                   </div>
 
                   <div>
-                    <label className="mb-1.5 block font-mono text-[11px] uppercase tracking-wider text-muted-foreground/70">
-                      Tenant Slug (Identifier)
-                    </label>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block font-mono text-[11px] uppercase tracking-wider text-muted-foreground/70">
+                        Tenant Slug (Identifier)
+                      </label>
+                      {!editingId && (
+                        <button
+                          type="button"
+                          onClick={() => setSlugLocked(!slugLocked)}
+                          className="inline-flex items-center gap-1 text-[10px] font-mono text-muted-foreground hover:text-foreground transition-colors"
+                          title={slugLocked ? "Slug is auto-generated from name. Click to customize." : "Slug is in manual mode. Click to re-lock to name."}
+                        >
+                          {slugLocked ? <Lock className="h-3 w-3 text-sapphire" /> : <Unlock className="h-3 w-3 text-amber-400" />}
+                          <span className={slugLocked ? "text-sapphire" : "text-amber-400"}>
+                            {slugLocked ? "Auto" : "Custom"}
+                          </span>
+                        </button>
+                      )}
+                    </div>
                     <input
                       type="text"
                       required
-                      disabled={!!editingId}
+                      disabled={!!editingId || slugLocked}
                       placeholder="e.g. acme_corp"
                       value={slug}
                       onChange={(e) => setSlug(e.target.value)}
-                      className="w-full rounded-lg border border-white/8 bg-raised/50 px-3 py-2 font-mono text-sm text-foreground outline-none transition-colors focus:border-sapphire disabled:opacity-50"
+                      className="w-full rounded-lg border border-white/8 bg-raised/50 px-3 py-2 font-mono text-sm text-foreground outline-none transition-colors focus:border-sapphire disabled:opacity-60 disabled:cursor-not-allowed"
                     />
+                    <span className="mt-1 block font-mono text-[10px] text-muted-foreground/50">
+                      {editingId ? "Immutable primary tenant key" : (slugLocked ? "Auto-synced from organization name" : "Custom slug identifier")}
+                    </span>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div>
-                    <label className="mb-1.5 block font-mono text-[11px] uppercase tracking-wider text-muted-foreground/70">
-                      SSO Domain Mapping
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. acme.com"
-                      value={domain}
-                      onChange={(e) => setDomain(e.target.value)}
-                      className="w-full rounded-lg border border-white/8 bg-raised/50 px-3 py-2 font-mono text-sm text-foreground outline-none transition-colors focus:border-sapphire"
-                    />
-                    <span className="mt-1 block font-mono text-[10px] text-muted-foreground/50">
-                      Entra ID / OIDC users with this domain map to this organization.
-                    </span>
-                  </div>
-
                   <div>
                     <label className="mb-1.5 block font-mono text-[11px] uppercase tracking-wider text-muted-foreground/70">
                       Assigned Rate Limit Package
@@ -1075,6 +1160,81 @@ function TenantsTab() {
                       ))}
                     </select>
                   </div>
+
+                  <div>
+                    <label className="mb-1.5 block font-mono text-[11px] uppercase tracking-wider text-muted-foreground/70">
+                      Tenant Admin Contact Email
+                    </label>
+                    <input
+                      type="email"
+                      placeholder="e.g. admin@acme.com"
+                      value={adminEmail}
+                      onChange={(e) => setAdminEmail(e.target.value)}
+                      className="w-full rounded-lg border border-white/8 bg-raised/50 px-3 py-2 font-mono text-sm text-foreground outline-none transition-colors focus:border-sapphire"
+                    />
+                  </div>
+                </div>
+
+                {/* SSO Domain Mapping Multi-Tag Card */}
+                <div className="rounded-xl border border-white/8 bg-raised/30 p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-mono text-[10.5px] uppercase tracking-[0.14em] text-muted-foreground/70">
+                      SSO Domain Mapping · {domains.length} Domain{domains.length === 1 ? "" : "s"}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      placeholder="e.g. acme.com or acme.co.uk"
+                      value={domainInput}
+                      onChange={(e) => setDomainInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleAddDomain();
+                        }
+                      }}
+                      className="flex-1 rounded-lg border border-white/8 bg-raised/50 px-3 py-2 font-mono text-xs text-foreground outline-none transition-colors focus:border-sapphire placeholder:text-muted-foreground/40"
+                    />
+                    <JewelButton
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={!domainInput.trim()}
+                      onClick={handleAddDomain}
+                    >
+                      <Plus className="h-3 w-3 mr-1" /> Add Domain
+                    </JewelButton>
+                  </div>
+
+                  <div className="mt-2.5 flex flex-wrap gap-1.5">
+                    {domains.length === 0 ? (
+                      <span className="font-mono text-[11px] text-muted-foreground/45">
+                        No SSO domains configured · Users will authenticate via bound IdP sources or explicit invites.
+                      </span>
+                    ) : (
+                      domains.map((d) => (
+                        <span
+                          key={d}
+                          className="inline-flex items-center gap-1.5 rounded-md border border-emerald/30 bg-emerald/15 px-2 py-1 font-mono text-[11px] text-emerald"
+                        >
+                          @{d}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveDomain(d)}
+                            className="text-emerald/60 hover:text-emerald"
+                            title="Remove domain"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </span>
+                      ))
+                    )}
+                  </div>
+                  <span className="mt-2 block font-mono text-[10px] text-muted-foreground/50">
+                    Users logging in with these email domains automatically map to this organization. Binding an IdP source below auto-discovers its domain.
+                  </span>
                 </div>
 
                 {/* Multi-IdP Authentication Binding Card */}
@@ -1129,6 +1289,7 @@ function TenantsTab() {
                               type="button"
                               onClick={() => handleRemoveIdp(idpKey)}
                               className="text-sapphire/60 hover:text-sapphire"
+                              title="Unbind source"
                             >
                               <X className="h-3 w-3" />
                             </button>
@@ -1139,30 +1300,38 @@ function TenantsTab() {
                   </div>
                 </div>
 
-                <div>
-                  <label className="mb-1.5 block font-mono text-[11px] uppercase tracking-wider text-muted-foreground/70">
-                    Tenant Admin Contact Email
-                  </label>
-                  <input
-                    type="email"
-                    placeholder="e.g. admin@acme.com"
-                    value={adminEmail}
-                    onChange={(e) => setAdminEmail(e.target.value)}
-                    className="w-full rounded-lg border border-white/8 bg-raised/50 px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-sapphire"
-                  />
-                </div>
+                {editingId && (
+                  <div>
+                    <label className="mb-1.5 block font-mono text-[11px] uppercase tracking-wider text-muted-foreground/70">
+                      Organization Status
+                    </label>
+                    <select
+                      value={status}
+                      onChange={(e) => setStatus(e.target.value as "active" | "suspended")}
+                      className="w-full rounded-lg border border-white/10 bg-[#121216] px-3 py-2 font-mono text-sm text-foreground outline-none transition-colors focus:border-sapphire"
+                    >
+                      <option value="active" className="bg-[#18181e] text-emerald">Active (Full Access & API Gateway enabled)</option>
+                      <option value="suspended" className="bg-[#18181e] text-red-400">Suspended (API Gateway & Logins blocked)</option>
+                    </select>
+                  </div>
+                )}
 
-                <div className="flex items-center justify-end gap-2 border-t border-white/8 pt-4">
+                <div className="flex items-center justify-end gap-3 border-t border-white/8 pt-4">
                   <JewelButton
                     type="button"
-                    variant="ghost"
+                    variant="outline"
                     size="sm"
                     onClick={() => setModalOpen(false)}
                   >
                     Cancel
                   </JewelButton>
-                  <JewelButton type="submit" variant="primary" size="sm" disabled={saving}>
-                    {saving ? "Saving..." : editingId ? "Update Organization" : "Create Organization"}
+                  <JewelButton
+                    type="submit"
+                    variant="primary"
+                    size="sm"
+                    disabled={saving}
+                  >
+                    {saving ? "Saving..." : (editingId ? "Save Changes" : "Create Organization")}
                   </JewelButton>
                 </div>
               </form>
@@ -1189,6 +1358,15 @@ function UsersTab() {
   const { templates } = useUserTemplates();
   const providerOptions = useProviderOptions();
   const [activeId, setActiveId] = useState<string>(accounts[0]?.id ?? "");
+  const [tenantsList, setTenantsList] = useState<Array<{ id: string; slug: string; name: string }>>([]);
+
+  useEffect(() => {
+    fetchApi("/api/identity/tenants")
+      .then((data) => {
+        if (Array.isArray(data)) setTenantsList(data);
+      })
+      .catch(() => {});
+  }, []);
 
   const active = accounts.find((a) => a.id === activeId) ?? accounts[0];
   const memberOf = active ? groupsOf(active.id) : [];
@@ -1260,7 +1438,7 @@ function UsersTab() {
                   {drift && <Tag tone="ruby">DRIFT</Tag>}
                 </div>
                 <div className="mt-1 font-mono text-[11px] text-muted-foreground/55">
-                  @{u.username} · {u.role} · {u.provider}
+                  @{u.username} · {u.role} · {u.provider} · <span className="text-sapphire/80">{u.tenantId || u.tenant_id || "default"}</span>
                 </div>
               </button>
             );
@@ -1387,6 +1565,23 @@ function UsersTab() {
                     ? "Expired — sign-in refused."
                     : `Expires ${active.validUntil}`
                   : "No expiry — permanent account."}
+              </p>
+            </div>
+            <div>
+              <span className={labelCls}>Organization (Tenant)</span>
+              <Pick
+                value={active.tenantId || active.tenant_id || "default"}
+                options={
+                  tenantsList.length > 0
+                    ? tenantsList.map((t) => ({ value: t.slug, label: `${t.name} (${t.slug})` }))
+                    : [{ value: "default", label: "Default Sovereign Organization (default)" }]
+                }
+                onChange={(v) => updateAccount(active.id, { tenantId: v, tenant_id: v })}
+              />
+              <p className="mt-1.5 font-mono text-[11px] text-muted-foreground/50">
+                {(active.tenantId || active.tenant_id || "default") === "default"
+                  ? "Global Sovereign Organization (Super-Admin baseline domain)."
+                  : `Assigned to ${active.tenantId || active.tenant_id} organization boundary.`}
               </p>
             </div>
 
@@ -1646,6 +1841,15 @@ function GroupsTab() {
   const providerOptions = useProviderOptions();
   const notify = useNotifyPrefs();
   const [activeId, setActiveId] = useState<string>(groups[0]?.id ?? "");
+  const [tenantsList, setTenantsList] = useState<Array<{ id: string; slug: string; name: string }>>([]);
+
+  useEffect(() => {
+    fetchApi("/api/identity/tenants")
+      .then((data) => {
+        if (Array.isArray(data)) setTenantsList(data);
+      })
+      .catch(() => {});
+  }, []);
 
   const active = groups.find((g) => g.id === activeId) ?? groups[0];
 
@@ -1752,6 +1956,24 @@ function GroupsTab() {
                 ]}
                 onChange={(v) => updateGroup(active.id, { defaultTemplate: v })}
               />
+            </div>
+            <div>
+              <span className={labelCls}>Organization (Tenant)</span>
+              <Pick
+                tone={active.tone}
+                value={active.tenant_id || active.tenantId || "default"}
+                options={
+                  tenantsList.length > 0
+                    ? tenantsList.map((t) => ({ value: t.slug, label: `${t.name} (${t.slug})` }))
+                    : [{ value: "default", label: "Default Sovereign Organization (default)" }]
+                }
+                onChange={(v) => updateGroup(active.id, { tenant_id: v, tenantId: v })}
+              />
+              <p className="mt-1.5 font-mono text-[11px] text-muted-foreground/50">
+                {(active.tenant_id || active.tenantId || "default") === "default"
+                  ? "Global baseline group across all workspaces."
+                  : `Department group strictly scoped to ${active.tenant_id || active.tenantId}.`}
+              </p>
             </div>
             <div className="md:col-span-2">
               <span className={labelCls}>Description</span>

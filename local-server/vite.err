@@ -93846,3 +93846,419 @@ The plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths r
 error: script "dev" exited with code 143
 $ vite dev
 The plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths resolution natively via the resolve.tsconfigPaths option. You can remove the plugin and set resolve.tsconfigPaths: true in your Vite config instead.
+Error: Error transforming route file /home/levent/ELARA_PROJECT/Elara_WebUi/src/routes/users.tsx: SyntaxError: Expected corresponding JSX closing tag for <motion.div>. (1365:14)
+    at file:///home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/@tanstack/router-generator/dist/esm/generator.js:143:13
+    at async generate (file:///home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/@tanstack/router-plugin/dist/esm/core/router-generator-plugin.js:39:4)
+    at async PluginContext.watchChange (file:///home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/@tanstack/router-plugin/dist/esm/core/router-generator-plugin.js:49:4)
+    at async Promise.all (index 2)
+    at async EnvironmentPluginContainer.hookParallel (file:///home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/vite/dist/node/chunks/node.js:30651:3)
+    at async EnvironmentPluginContainer.watchChange (file:///home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/vite/dist/node/chunks/node.js:30822:3)
+    at async Promise.all (index 0)
+    at async onFileChange (file:///home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/vite/dist/node/chunks/node.js:26485:3)
+10:20:28 PM [vite] Internal server error: Expected corresponding JSX closing tag for <motion.div>. (1365:14)
+  Plugin: tanstack-router:code-splitter:compile-virtual-file
+  File: /home/levent/ELARA_PROJECT/Elara_WebUi/src/routes/users.tsx?tsr-split=component:1365:14
+  1363 |                    </JewelButton>
+  1364 |                  </div>
+  1365 |                </form>
+       |                ^
+  1366 |              </motion.div>
+  1367 |            </div>
+      at constructor (/home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/@babel/parser/lib/index.js:365:19)
+      at TypeScriptParserMixin.raise (/home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/@babel/parser/lib/index.js:6616:19)
+      at TypeScriptParserMixin.jsxParseElementAt (/home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/@babel/parser/lib/index.js:4739:16)
+      at TypeScriptParserMixin.jsxParseElementAt (/home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/@babel/parser/lib/index.js:4710:32)
+      at TypeScriptParserMixin.jsxParseElement (/home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/@babel/parser/lib/index.js:4761:17)
+      at TypeScriptParserMixin.parseExprAtom (/home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/@babel/parser/lib/index.js:4771:19)
+      at TypeScriptParserMixin.parseExprSubscripts (/home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/@babel/parser/lib/index.js:11098:23)
+      at TypeScriptParserMixin.parseUpdate (/home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/@babel/parser/lib/index.js:11083:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/@babel/parser/lib/index.js:11063:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/@babel/parser/lib/index.js:9854:18)
+10:20:28 PM [vite] Internal server error: Expected corresponding JSX closing tag for <motion.div>. (1365:14)
+  Plugin: tanstack-router:code-splitter:compile-reference-file
+  File: /home/levent/ELARA_PROJECT/Elara_WebUi/src/routes/users.tsx:1365:14
+  1363 |                    </JewelButton>
+  1364 |                  </div>
+  1365 |                </form>
+       |                ^
+  1366 |              </motion.div>
+  1367 |            </div>
+      at constructor (/home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/@babel/parser/lib/index.js:365:19)
+      at TypeScriptParserMixin.raise (/home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/@babel/parser/lib/index.js:6616:19)
+      at TypeScriptParserMixin.jsxParseElementAt (/home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/@babel/parser/lib/index.js:4739:16)
+      at TypeScriptParserMixin.jsxParseElementAt (/home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/@babel/parser/lib/index.js:4710:32)
+      at TypeScriptParserMixin.jsxParseElement (/home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/@babel/parser/lib/index.js:4761:17)
+      at TypeScriptParserMixin.parseExprAtom (/home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/@babel/parser/lib/index.js:4771:19)
+      at TypeScriptParserMixin.parseExprSubscripts (/home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/@babel/parser/lib/index.js:11098:23)
+      at TypeScriptParserMixin.parseUpdate (/home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/@babel/parser/lib/index.js:11083:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/@babel/parser/lib/index.js:11063:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/@babel/parser/lib/index.js:9854:18)
+SyntaxError: Expected corresponding JSX closing tag for <motion.div>. (1365:14)
+    at constructor (/home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/@babel/parser/lib/index.js:365:19)
+    ... 8 lines matching cause stack trace ...
+    at TypeScriptParserMixin.parseMaybeUnary (/home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/@babel/parser/lib/index.js:9854:18) {
+  cause: Error [SyntaxError]: Expected corresponding JSX closing tag for <motion.div>. (1365:14)
+      at constructor (/home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/@babel/parser/lib/index.js:365:19)
+      at TypeScriptParserMixin.raise (/home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/@babel/parser/lib/index.js:6616:19)
+      at TypeScriptParserMixin.jsxParseElementAt (/home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/@babel/parser/lib/index.js:4739:16)
+      at TypeScriptParserMixin.jsxParseElementAt (/home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/@babel/parser/lib/index.js:4710:32)
+      at TypeScriptParserMixin.jsxParseElement (/home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/@babel/parser/lib/index.js:4761:17)
+      at TypeScriptParserMixin.parseExprAtom (/home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/@babel/parser/lib/index.js:4771:19)
+      at TypeScriptParserMixin.parseExprSubscripts (/home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/@babel/parser/lib/index.js:11098:23)
+      at TypeScriptParserMixin.parseUpdate (/home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/@babel/parser/lib/index.js:11083:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/@babel/parser/lib/index.js:11063:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/@babel/parser/lib/index.js:9854:18) {
+    code: 'BABEL_PARSER_SYNTAX_ERROR',
+    reasonCode: 'MissingClosingTagElement',
+    loc: Position { line: 1365, column: 14, index: 53035 },
+    pos: 53035,
+    syntaxPlugin: 'jsx',
+    plugin: 'tanstack-router:code-splitter:compile-reference-file',
+    id: '/home/levent/ELARA_PROJECT/Elara_WebUi/src/routes/users.tsx',
+    pluginCode: 'import { createFileRoute } from "@tanstack/react-router";\n' +
+      'import { updateAccountPassword } from "@/lib/credential-store";\n' +
+      '\n' +
+      'import { motion } from "motion/react";\n' +
+      'import { useEffect, useRef, useState, useCallback } from "react";\n' +
+      'import { AnimatePresence } from "motion/react";\n' +
+      'import {\n' +
+      '  Building2,\n' +
+      '  Check,\n' +
+      '  ChevronDown,\n' +
+      '  Copy,\n' +
+      '  Download,\n' +
+      '  Lock,\n' +
+      '  Mail,\n' +
+      '  MailX,\n' +
+      '  Pencil,\n' +
+      '  Plus,\n' +
+      '  RefreshCw,\n' +
+      '  Save,\n' +
+      '  Sliders,\n' +
+      '  Trash2,\n' +
+      '  Unlock,\n' +
+      '  Upload,\n' +
+      '  X,\n' +
+      '} from "lucide-react";\n' +
+      'import { toast } from "sonner";\n' +
+      'import { confirmAction } from "@/components/sovereign/confirm-dialog";\n' +
+      'import { fetchApi } from "@/lib/api";\n' +
+      'import { cn } from "@/lib/utils";\n' +
+      '\n' +
+      'import { AvatarPicker, EntityAvatar } from "@/components/sovereign/identity";\n' +
+      'import { Surface, Row } from "@/components/sovereign/surface";\n' +
+      'import { Tag, JewelButton } from "@/components/sovereign/primitives";\n' +
+      'import { SCOPE_LABELS, TAB_SCOPES, roleActions, useRoles } from "@/lib/rbac-store";\n' +
+      'import { useIdentity, type Account } from "@/lib/group-store";\n' +
+      'import type { JewelTone } from "@/lib/rbac-store";\n' +
+      'import {\n' +
+      '  DIRECTORY_KINDS,\n' +
+      '  directoryGroupByDn,\n' +
+      '  fetchDirectoryGroups,\n' +
+      '  fetchDirectoryUsers,\n' +
+      '  type DirectoryGroup,\n' +
+      '  type DirectoryUser,\n' +
+      '} from "@/mocks/directory";\n' +
+      '\n' +
+      'import { useAuthProviders, PROVIDER_SPECS } from "@/lib/auth-provider-store";\n' +
+      'import { useModels } from "@/lib/model-store";\n' +
+      'import { useProviders } from "@/lib/provider-store";\n' +
+      'import { useAgents } from "@/lib/agent-store";\n' +
+      'import { useSkills } from "@/lib/skill-store";\n' +
+      'import { useMcp } from "@/lib/mcp-store";\n' +
+      'import { useCapabilities } from "@/lib/capability-store";\n' +
+      'import { useWorkflows } from "@/lib/workflow-store";\n' +
+      'import { useNotifyPrefs } from "@/lib/notify-store";\n' +
+      'import { useChains } from "@/lib/orchestration-store";\n' +
+      'import { useAdapters } from "@/lib/adapter-store";\n' +
+      'import { useTargets } from "@/lib/target-store";\n' +
+      'import { useVisionModels } from "@/lib/vision-store";\n' +
+      'import { useKnowledge } from "@/lib/knowledge-store";\n' +
+      'import { useSpaces } from "@/lib/knowledge-space-store";\n' +
+      'import { useRagFolders } from "@/lib/rag-folder-store";\n' +
+      'import {\n' +
+      '  isolationSeed,\n' +
+      '  mcpIsolationSeed,\n' +
+      '  skillIsolationSeed,\n' +
+      '  useCollection,\n' +
+      '  type IsolationProfile,\n' +
+      '} from "@/lib/security-store";\n' +
+      'import { secretSeed } from "@/lib/security-store";\n' +
+      'import { promptSchema } from "@/lib/prompt-store";\n' +
+      'import { usePlanners } from "@/lib/planner-store";\n' +
+      'import { useRuntimes } from "@/lib/runtime-store";\n' +
+      'import { useForgePlans } from "@/lib/metaforge-store";\n' +
+      'import { useForge } from "@/lib/forge-store";\n' +
+      'import { useTelemetryBoards } from "@/lib/telemetry-board-store";\n' +
+      'import { reportTemplates } from "@/lib/report-templates";\n' +
+      'import { fmtDateTime } from "@/lib/utils";\n' +
+      'import {\n' +
+      '  useUserTemplates,\n' +
+      '  grantMeta,\n' +
+      '  selfServiceMeta,\n' +
+      '  type GrantKey,\n' +
+      '  type SelfServiceKey,\n' +
+      '  type TemplateParamKey,\n' +
+      '  type UserTemplate,\n' +
+      '} from "@/lib/user-template-store";\n' +
+      '\n' +
+      'const description =\n' +
+      '  "Identity management for the studio: operators, groups, provisioning templates and RBAC compliance posture.";\n' +
+      '\n' +
+      'export type UsersView = "users" | "groups" | "templates" | "compliance" | "tenants";\n' +
+      '\n' +
+      'export const Route = createFileRoute("/users")({\n' +
+      '  head: () => ({\n' +
+      '    meta: [\n' +
+      '      { title: "Users & Groups — Elara Sovereign Studio" },\n' +
+      '      { name: "description", content: description },\n' +
+      '      { property: "og:title", content: "Users & Groups — Elara Sovereign Studio" },\n' +
+      '      { property: "og:description", content: description },\n' +
+      '      { property: "og:type", content: "website" },\n' +
+      '      { name: "twitter:card", content: "summary_large_image" },\n' +
+      '    ],\n' +
+      '  }),\n' +
+      '  validateSearch: (search: Record<string, unknown>): { view: UsersView } => {\n' +
+      '    const v = search["view"];\n' +
+      '    return {\n' +
+      '      view: v === "groups" || v === "templates" || v === "compliance" || v === "tenants" ? (v as UsersView) : "users",\n' +
+      '    };\n' +
+      '  },\n' +
+      '  component: UsersRoute,\n' +
+      '});\n' +
+      '\n' +
+      '/** Explicit save affordance — state is persisted continuously, but this handles manual triggers (like saving passwords). */\n' +
+      'function SaveButton({ label, entity, onSave }: { label: string; entity: string; onSave?: () => Promise<void> }) {\n' +
+      '  const [saved, setSaved] = useState(false);\n' +
+      '  const [saving, setSaving] = useState(false);\n' +
+      '  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);\n' +
+      '  useEffect(\n' +
+      '    () => () => {\n' +
+      '      if (timer.current) clearTimeout(timer.current);\n' +
+      '    },\n' +
+      '    [],\n' +
+      '  );\n' +
+      '  void label;\n' +
+      '  void entity;\n' +
+      '  \n' +
+      '  const handleClick = async () => {\n' +
+      '    if (saving) return;\n' +
+      '    setSaving(true);\n' +
+      '    \n' +
+      '    if (onSave) {\n' +
+      '      await onSave();\n' +
+      '    }\n' +
+      '    \n' +
+      '    setSaved(true);\n' +
+      '    setSaving(false);\n' +
+      '    toast.success(`${label} saved`, { description: entity });\n' +
+      '    if (timer.current) clearTimeout(timer.current);\n' +
+      '    timer.current = setTimeout(() => setSaved(false), 2000);\n' +
+      '  };\n' +
+      '\n' +
+      '  return (\n' +
+      '    <JewelButton\n' +
+      '      size="sm"\n' +
+      '      variant="primary"\n' +
+      '      disabled={saving}\n' +
+      '      onClick={handleClick}\n' +
+      '    >\n' +
+      '      {saved ? <Check className="h-3.5 w-3.5" /> : <Save className="h-3.5 w-3.5" />}\n' +
+      '      {saving ? "Saving…" : saved ? "Saved" : "Save"}\n' +
+      '    </JewelButton>\n' +
+      '  );\n' +
+      '}\n' +
+      '\n' +
+      '/** Standard ruby delete affordance with confirmation. */\n' +
+      'function DeleteButton({\n' +
+      '  title,\n' +
+      '  body,\n' +
+      '  onConfirm,\n' +
+      '  children,\n' +
+      '}: {\n' +
+      '  title: string;\n' +
+      '  body: string;\n' +
+      '  onConfirm: () => void;\n' +
+      '  children?: React.ReactNode;\n' +
+      '}) {\n' +
+      '  return (\n' +
+      '    <JewelButton\n' +
+      '      size="sm"\n' +
+      '      variant="danger"\n' +
+      '      onClick={async () => {\n' +
+      '        const ok = await confirmAction({\n' +
+      '          title,\n' +
+      '          body,\n' +
+      '          confirmLabel: "Delete",\n' +
+      '          cancelLabel: "Cancel",\n' +
+      '          tone: "ruby",\n' +
+      '        });\n' +
+      '        if (ok) onConfirm();\n' +
+      '      }}\n' +
+      '    >\n' +
+      '      <Trash2 className="h-3.5 w-3.5" />\n' +
+      '      {children}\n' +
+      '    </JewelButton>\n' +
+      '  );\n' +
+      '}\n' +
+      '\n' +
+      'const COMPLIANCE: { id: string; label: string; detail: string; state: "pass" | "warn" | "fail" }[] =\n' +
+      '  [\n' +
+      '    {\n' +
+      '      id: "chk.privileged-accounts",\n' +
+      '      label: "Privileged accounts under review",\n' +
+      '      detail: "2 admins, both with MFA and hardware keys enrolled.",\n' +
+      '      state: "pass",\n' +
+      '    },\n' +
+      '    {\n' +
+      '      id: "chk.orphan-grants",\n' +
+      '      label: "Orphan scope grants",\n' +
+      '      detail: "1 suspended account still mapped to the Research group.",\n' +
+      '      state: "warn",\n' +
+      '    },\n' +
+      '    {\n' +
+      '      id: "chk.least-privilege",\n' +
+      '      label: "Least privilege drift",\n' +
+      '      detail: "Operator role holds 11/38 scopes — inside the approved envelope.",\n' +
+      '      state: "pass",\n' +
+      '    },\n' +
+      '    {\n' +
+      '      id: "chk.idp-coverage",\n' +
+      '      label: "Identity provider coverage",\n' +
+      '      detail: "OAuth2 guests bypass device trust; consider tightening.",\n' +
+      '      state: "warn",\n' +
+      '    },\n' +
+      '    {\n' +
+      '      id: "chk.session-policy",\n' +
+      '      label: "Session ceiling policy",\n' +
+      '      detail: "All templates expire within the 12 h governance ceiling.",\n' +
+      '      state: "pass",\n' +
+      '    },\n' +
+      '  ];\n' +
+      '\n' +
+      'const stateTone: Record<"pass" | "warn" | "fail", JewelTone> = {\n' +
+      '  pass: "emerald",\n' +
+      '  warn: "topaz",\n' +
+      '  fail: "ruby",\n' +
+      '};\n' +
+      '\n' +
+      'const statusTone: Record<"active" | "suspended" | "invited", JewelTone> = {\n' +
+      '  active: "emerald",\n' +
+      '  invited: "sapphire",\n' +
+      '  suspended: "ruby",\n' +
+      '};\n' +
+      '\n' +
+      'const META: Record<UsersView, string> = {\n' +
+      '  users: "18 operators · 6 shown · 5 identity providers",\n' +
+      '  groups: "5 groups · charter + role mapping",\n' +
+      '  templates: "4 provisioning templates · session ceilings",\n' +
+      '  compliance: "5 controls · 2 advisories",\n' +
+      '  tenants: "B2B client organizations · IdP authentication binding · tier quotas",\n' +
+      '};\n' +
+      '\n' +
+      'function UsersRoute() {\n' +
+      '  const { view } = Route.useSearch();\n' +
+      '\n' +
+      '  return (\n' +
+      '    <Surface wide crumb="Users & Groups" title="Users & Groups" meta={META[view].toUpperCase()}>\n' +
+      '      <motion.div\n' +
+      '        key={view}\n' +
+      '        initial={{ opacity: 0, y: 8 }}\n' +
+      '        animate={{ opacity: 1, y: 0 }}\n' +
+      '        transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}\n' +
+      '      >\n' +
+      '        {view === "users" && <UsersTab />}\n' +
+      '        {view === "groups" && <GroupsTab />}\n' +
+      '        {view === "templates" && <TemplatesTab />}\n' +
+      '        {view === "compliance" && <ComplianceTab />}\n' +
+      '        {view === "tenants" && <TenantsTab />}\n' +
+      '      </motion.div>\n' +
+      '    </Surface>\n' +
+      '  );\n' +
+      '}\n' +
+      '\n' +
+      'function Panel({ children }: { children: React.ReactNode }) {\n' +
+      '  return (\n' +
+      '    <div className="rounded-xl border border-white/[0.07] bg-white/[0.015] px-5">{children}</div>\n' +
+      '  );\n' +
+      '}\n' +
+      '\n' +
+      'const fieldCls =\n' +
+      '  "w-full rounded-lg border border-white/[0.07] bg-raised/40 px-3 py-2 font-mono text-[12.5px] text-foreground outline-none transition-colors focus:border-sapphire/50";\n' +
+      'const labelCls =\n' +
+      '  "mb-1.5 block font-mono text-[10.5px] uppercase tracking-[0.16em] text-muted-foreground/55";\n' +
+      '\n' +
+      'type Opt = { value: string; label: string; disabled?: boolean; hint?: string };\n' +
+      '\n' +
+      'function Pick({\n' +
+      '  value,\n' +
+      '  options,\n' +
+      '  onChange,\n' +
+      '  tone = "sapphire",\n' +
+      '}: {\n' +
+      '  value: string;\n' +
+      '  options: Opt[];\n' +
+      '  onChange: (v: string) => void;\n' +
+      '  tone?: JewelTone;\n' +
+      '}) {\n' +
+      '  const [open, setOpen] = useState(false);\n' +
+      '  const ref = useRef<HTMLDivElement>(null);\n' +
+      '\n' +
+      '  useEffect(() => {\n' +
+      '    if (!open) return;\n' +
+      '    const onDown = (e: MouseEvent) => {\n' +
+      '      if (!ref.current?.contains(e.target as Node)) setOpen(false);\n' +
+      '    };\n' +
+      '    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);\n' +
+      '    window.addEventListener("mousedown", onDown);\n' +
+      '    window.addEventListener("keydown", onKey);\n' +
+      '    return () => {\n' +
+      '      window.removeEventListener("mousedown", onDown);\n' +
+      '      window.removeEventListener("keydown", onKey);\n' +
+      '    };\n' +
+      '  }, [open]);\n' +
+      '\n' +
+      '  const current = options.find((o) => o.value === value);\n' +
+      '\n' +
+      '  return (\n' +
+      '    <div ref={ref} className="relative">\n' +
+      '      <button\n' +
+      '        type="button"\n' +
+      '        onClick={() => setOpen((o) => !o)}\n' +
+      '        className={`${fieldCls} flex items-center justify-between text-left`}\n' +
+      '      >\n' +
+      '        <span className="truncate">{current?.label ?? "— None —"}</span>\n' +
+      '        <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-50" />\n' +
+      '      </button>\n' +
+      '      {open && (\n' +
+      '        <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-30 max-h-[280px] overflow-auto rounded-lg border border-white/[0.09] bg-[#111113]/95 p-1 shadow-[0_20px_60px_-20px_rgba(0,0,0,0.9)] backdrop-blur-xl">\n' +
+      '          {options.map((o) => (\n' +
+      '            <button\n' +
+      '              key={o.value}\n' +
+      '              type="button"\n' +
+      '   '... 120092 more characters,
+    frame: '1363 |                    </JewelButton>\n' +
+      '1364 |                  </div>\n' +
+      '1365 |                </form>\n' +
+      '     |                ^\n' +
+      '1366 |              </motion.div>\n' +
+      '1367 |            </div>',
+    runnerError: Error: RunnerError
+        at reviveInvokeError (file:///home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/vite/dist/node/module-runner.js:554:64)
+        at Object.invoke (file:///home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/vite/dist/node/module-runner.js:627:11)
+        at async ModuleRunner.getModuleInformation (file:///home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/vite/dist/node/module-runner.js:1203:7)
+        at async request (file:///home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/vite/dist/node/module-runner.js:1220:83)
+        at async eval (/home/levent/ELARA_PROJECT/Elara_WebUi/src/routeTree.gen.ts:51:1)
+        at async ESModulesEvaluator.runInlinedModule (file:///home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/vite/dist/node/module-runner.js:1010:3)
+        at async ModuleRunner.directRequest (file:///home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/vite/dist/node/module-runner.js:1263:59)
+        at async ModuleRunner.cachedRequest (file:///home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/vite/dist/node/module-runner.js:1170:73)
+        at async eval (/home/levent/ELARA_PROJECT/Elara_WebUi/src/router.tsx:3:1)
+        at async ESModulesEvaluator.runInlinedModule (file:///home/levent/ELARA_PROJECT/Elara_WebUi/node_modules/vite/dist/node/module-runner.js:1010:3)
+  },
+  status: 500,
+  statusText: undefined,
+  headers: undefined,
+  data: undefined,
+  body: undefined,
+  unhandled: true
+}

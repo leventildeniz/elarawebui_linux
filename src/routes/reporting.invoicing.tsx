@@ -1,7 +1,7 @@
-import { useMemo, useState, useEffect, useCallback } from "react";
+import { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { Building2, KeyRound, Layers, Download } from "lucide-react";
+import { Building2, KeyRound, Layers, Download, Check, ChevronDown } from "lucide-react";
 import { Surface } from "@/components/sovereign/surface";
 import { JewelButton } from "@/components/sovereign/primitives";
 import {
@@ -70,6 +70,81 @@ type InvoicingData = {
     cost: number;
   }>;
 };
+
+type Opt = { value: string; label: string; disabled?: boolean; hint?: string };
+
+function ObsidianPick({
+  value,
+  options,
+  onChange,
+  icon,
+}: {
+  value: string;
+  options: Opt[];
+  onChange: (v: string) => void;
+  icon?: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    window.addEventListener("mousedown", onDown);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("mousedown", onDown);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const current = options.find((o) => o.value === value);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-2 rounded-lg border border-white/10 bg-[#121216] px-3 py-1.5 font-mono text-xs text-foreground outline-none transition-colors hover:border-white/20 focus:border-sapphire/50"
+      >
+        {icon}
+        <span className="truncate">{current?.label ?? "Select..."}</span>
+        <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-50 ml-1" />
+      </button>
+      {open && (
+        <div className="absolute left-0 top-[calc(100%+4px)] z-50 min-w-[220px] max-h-[280px] overflow-auto rounded-lg border border-white/[0.09] bg-[#111113]/95 p-1 shadow-[0_20px_60px_-20px_rgba(0,0,0,0.9)] backdrop-blur-xl">
+          {options.map((o) => (
+            <button
+              key={o.value}
+              type="button"
+              disabled={o.disabled}
+              onClick={() => {
+                onChange(o.value);
+                setOpen(false);
+              }}
+              className={`flex w-full items-center justify-between gap-3 rounded-md px-2.5 py-1.5 text-left font-mono text-[12px] transition-colors ${
+                o.disabled
+                  ? "cursor-not-allowed text-muted-foreground/35"
+                  : "text-foreground/85 hover:bg-white/[0.05]"
+              }`}
+            >
+              <span className="truncate">
+                {o.label}
+                {o.hint && <span className="ml-1.5 opacity-50">· {o.hint}</span>}
+              </span>
+              {o.value === value && (
+                <Check className="h-3.5 w-3.5 text-sapphire" />
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function InvoicingPage() {
   const { span, control, label: spanText, slug: spanId } = useReportSpan();
@@ -206,28 +281,20 @@ function InvoicingPage() {
           <div className="flex flex-wrap items-center gap-3">
             {control}
 
-            {/* Tenant Filter */}
-            <div className="flex items-center gap-2 rounded-lg border border-white/8 bg-raised/40 px-3 py-1.5 font-mono text-xs text-foreground">
-              <Building2 className="h-3.5 w-3.5 text-sapphire" />
-              <select
-                value={selectedTenant}
-                onChange={(e) => setSelectedTenant(e.target.value)}
-                className="cursor-pointer bg-transparent font-mono text-xs text-foreground outline-none"
-              >
-                <option value="all" className="bg-surface-overlay text-foreground">
-                  All Tenants ({totals.total_tenants})
-                </option>
-                {data?.tenants.map((t) => (
-                  <option
-                    key={t.tenant_id}
-                    value={t.tenant_id}
-                    className="bg-surface-overlay text-foreground"
-                  >
-                    {t.tenant_id}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {/* Tenant Filter using ObsidianPick */}
+            <ObsidianPick
+              value={selectedTenant}
+              options={[
+                { value: "all", label: `All Tenants (${totals.total_tenants})` },
+                ...(data?.tenants.map((t) => ({
+                  value: t.tenant_id,
+                  label: t.tenant_id,
+                  hint: `${fmtTokens(t.tokens)} tokens`,
+                })) || []),
+              ]}
+              onChange={(v) => setSelectedTenant(v)}
+              icon={<Building2 className="h-3.5 w-3.5 text-sapphire" />}
+            />
           </div>
 
           <JewelButton
