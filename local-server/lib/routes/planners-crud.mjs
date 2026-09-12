@@ -20,10 +20,12 @@ export function mountPlannersRoutes(app, deps) {
       const { id, name, description, mode, enabled, kind, tools, skills, mcp_servers, keywords, aliases, grounded, owner_id, owner_name, visibility, shared_with, meta } = req.body;
       const ctx = await deps.resolveActorContext(req);
       const owner = owner_id || ctx.userId || req.actor || null;
+      const tenantId = req.body?.tenant_id || req.body?.tenantId || (ctx.isSuperAdmin ? (req.body?.tenant_id || "default") : ctx.tenantId);
+      const isGlobal = ctx.isSuperAdmin ? (req.body?.is_global || false) : false;
 
       const out = await pool.query(
-        `INSERT INTO planners (id, name, description, mode, enabled, kind, tools, skills, mcp_servers, keywords, aliases, grounded, owner_id, owner_name, visibility, shared_with, meta)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+        `INSERT INTO planners (id, name, description, mode, enabled, kind, tools, skills, mcp_servers, keywords, aliases, grounded, owner_id, owner_name, visibility, shared_with, meta, tenant_id, is_global)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
          RETURNING *`,
         [
           id, name, description || '', mode || 'shadow', !!enabled, kind || 'tool',
@@ -31,7 +33,7 @@ export function mountPlannersRoutes(app, deps) {
           JSON.stringify(keywords || []), JSON.stringify(aliases || []),
           grounded !== false, owner, owner_name || null,
           visibility || 'private', JSON.stringify(shared_with || []),
-          JSON.stringify(meta || {})
+          JSON.stringify(meta || {}), tenantId, isGlobal
         ]
       );
       res.json({ ok: true, planner: out.rows[0] });

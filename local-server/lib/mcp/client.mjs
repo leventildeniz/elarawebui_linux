@@ -244,7 +244,7 @@ async function uniqueSlug(pool, base) {
   }
 }
 
-export async function createServer(pool, { name, url, transport = "http", auth_type = "none", auth_config = {}, auto_inject = false, owner_id = null, owner_name = null, visibility = 'private', shared_with = [] }) {
+export async function createServer(pool, { name, url, transport = "http", auth_type = "none", auth_config = {}, auto_inject = false, owner_id = null, owner_name = null, visibility = 'private', shared_with = [], tenant_id = 'default', is_global = false }) {
   if (!name) throw new Error("name required");
   if (transport !== "stdio" && (!url || !/^https?:\/\//i.test(url))) throw new Error("valid http(s) url required");
   if (transport === "stdio" && !url) throw new Error("command required for stdio transport");
@@ -252,9 +252,9 @@ export async function createServer(pool, { name, url, transport = "http", auth_t
   if (!["none", "bearer", "oauth"].includes(auth_type)) throw new Error(`invalid auth_type: ${auth_type}`);
   const slug = await uniqueSlug(pool, slugify(name));
   const { rows } = await pool.query(
-    `INSERT INTO mcp_client_servers (name, slug, url, transport, auth_type, auth_config, auto_inject, owner_id, owner_name, visibility, shared_with)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb) RETURNING *`,
-    [name, slug, url, transport, auth_type, auth_config, !!auto_inject, owner_id, owner_name, visibility, JSON.stringify(shared_with)],
+    `INSERT INTO mcp_client_servers (name, slug, url, transport, auth_type, auth_config, auto_inject, owner_id, owner_name, visibility, shared_with, tenant_id, is_global)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13) RETURNING *`,
+    [name, slug, url, transport, auth_type, auth_config, !!auto_inject, owner_id, owner_name, visibility, JSON.stringify(shared_with), tenant_id, is_global],
   );
   return rows[0];
 }

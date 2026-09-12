@@ -136,7 +136,21 @@ export function initApiKeysSchema({ pool }) {
     const tablesToTenantize = [
       'app_users', 'app_sessions', 'app_groups', 'agents', 'skills', 'tools',
       'workflows', 'orchestrations', 'knowledge_spaces', 'rag_folders',
-      'knowledge_sources', 'chat_threads'
+      'knowledge_sources', 'chat_threads',
+      // Ring 2 — Expanded Subsystems:
+      'mcp_client_servers', 'mcp_clients', 'mcp_exposures', 'mcp_tokens',
+      'capability_packs', 'capabilities', 'capability_proposals',
+      'action_library', 'forge_plans', 'forge_outputs', 'forge_artifacts',
+      'planners', 'planner_runs', 'planner_events',
+      'memory_facts', 'memory_episodic', 'memory_working',
+      'prompt_snippets', 'prompt_layers',
+      'runtimes', 'adapters', 'adapter_dictionaries', 'webhooks',
+      'targets', 'target_endpoints', 'target_groups',
+      'schedules', 'schedule_deliveries', 'report_exports',
+      'approval_requests', 'tool_approvals', 'skill_approvals',
+      'telemetry_boards', 'vault_secrets',
+      'guard_rules', 'isolation_profiles', 'signed_artifacts', 'policy_rules',
+      'cve_watchlists'
     ];
 
     for (const tbl of tablesToTenantize) {
@@ -147,15 +161,31 @@ export function initApiKeysSchema({ pool }) {
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_${tbl}_tenant_id ON ${tbl}(tenant_id);`).catch(() => {});
     }
 
-    // Seal system / platform global assets
+    // Seal system / platform global assets across Ring 1 and Ring 2
     await pool.query(`
       UPDATE agents SET is_global = true WHERE id = 'agt.forge_master' OR id LIKE 'sys.%' OR (owner_id IS NULL AND tenant_id = 'default');
       UPDATE skills SET is_global = true WHERE system = true OR (owner_id IS NULL AND tenant_id = 'default');
       UPDATE tools SET is_global = true WHERE source = 'native' OR (owner_id IS NULL AND tenant_id = 'default');
       UPDATE knowledge_spaces SET is_global = true WHERE id = 'spc.default' OR slug = 'default';
+      UPDATE mcp_client_servers SET is_global = true WHERE owner_id IS NULL AND tenant_id = 'default';
+      UPDATE capability_packs SET is_global = true WHERE system = true OR (owner_id IS NULL AND tenant_id = 'default');
+      UPDATE planners SET is_global = true WHERE owner_id IS NULL AND tenant_id = 'default';
+      UPDATE memory_facts SET is_global = true WHERE scope = 'system' OR (tenant_id = 'default' AND scope = 'workspace');
+      UPDATE prompt_snippets SET is_global = true WHERE owner_id IS NULL AND tenant_id = 'default';
+      UPDATE runtimes SET is_global = true WHERE owner_id IS NULL AND tenant_id = 'default';
+      UPDATE adapters SET is_global = true WHERE owner_id IS NULL AND tenant_id = 'default';
+      UPDATE webhooks SET is_global = true WHERE owner_id IS NULL AND tenant_id = 'default';
+      UPDATE targets SET is_global = true WHERE owner_id IS NULL AND tenant_id = 'default';
+      UPDATE schedules SET is_global = true WHERE owner_id IS NULL AND tenant_id = 'default';
+      UPDATE telemetry_boards SET is_global = true WHERE owner_id IS NULL AND tenant_id = 'default';
+      UPDATE vault_secrets SET is_global = true WHERE scope = 'global' OR scope = 'system' OR tenant_id = 'default';
+      UPDATE guard_rules SET is_global = true WHERE tenant_id = 'default';
+      UPDATE isolation_profiles SET is_global = true WHERE fallback = true OR tenant_id = 'default';
+      UPDATE signed_artifacts SET is_global = true WHERE tenant_id = 'default';
+      UPDATE policy_rules SET is_global = true WHERE tenant_id = 'default';
     `).catch(() => {});
 
-    console.log("[Schema] ✅ Enterprise API Keys & Multi-Tenant Zero-Trust Isolation schema ready.");
+    console.log("[Schema] ✅ Enterprise API Keys & Multi-Tenant Zero-Trust Isolation (360° Ring 1 & Ring 2) schema ready.");
   }
 
   return { ensureApiKeysSchema };

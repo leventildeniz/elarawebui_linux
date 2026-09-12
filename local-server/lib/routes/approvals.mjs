@@ -34,16 +34,28 @@ export async function mountApprovalRoutes(app, deps) {
   // --- GET APPROVAL STATE ---
   app.get("/api/approvals", admin, async (req, res) => {
     try {
-      const [reqRes, configRes] = await Promise.all([
-        pool.query(`
-          SELECT 
+      const ctx = typeof deps.resolveActorContext === "function" ? await deps.resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
+      const tenantId = req.session?.tenant_id || ctx.tenantId || "default";
+
+      const reqQuery = ctx.isSuperAdmin
+        ? `SELECT 
             id, title, requester, requester_group, agent_id as agent, 
             tool, target, policy, risk, args, origin, status, note, 
-            assigned_to, ttl_ms, expires_at, decided_at, decided_by, created_at 
+            assigned_to, ttl_ms, expires_at, decided_at, decided_by, created_at, tenant_id 
           FROM approval_requests 
           ORDER BY created_at DESC 
-          LIMIT 200
-        `),
+          LIMIT 200`
+        : `SELECT 
+            id, title, requester, requester_group, agent_id as agent, 
+            tool, target, policy, risk, args, origin, status, note, 
+            assigned_to, ttl_ms, expires_at, decided_at, decided_by, created_at, tenant_id 
+          FROM approval_requests 
+          WHERE (tenant_id = $1 OR is_global = true OR tenant_id = 'default')
+          ORDER BY created_at DESC 
+          LIMIT 200`;
+
+      const [reqRes, configRes] = await Promise.all([
+        pool.query(reqQuery, ctx.isSuperAdmin ? [] : [tenantId]),
         pool.query("SELECT * FROM approval_config WHERE id='singleton'")
       ]);
 
@@ -114,16 +126,20 @@ export async function mountApprovalRoutes(app, deps) {
   app.post("/api/approvals/request", admin, async (req, res) => {
     try {
       const draft = req.body;
+      const ctx = typeof deps.resolveActorContext === "function" ? await deps.resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
+      const tenantId = draft.tenant_id || req.session?.tenant_id || ctx.tenantId || "default";
+
       const { rows } = await pool.query(
         `INSERT INTO approval_requests 
-          (id, title, requester, requester_group, agent_id, tool, target, policy, risk, args, origin, status, ttl_ms, expires_at, assigned_to)
+          (id, title, requester, requester_group, agent_id, tool, target, policy, risk, args, origin, status, ttl_ms, expires_at, assigned_to, tenant_id)
          VALUES 
-          ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'pending', $12, now() + interval '1 millisecond' * $12, $13)
+          ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'pending', $12, now() + interval '1 millisecond' * $12, $13, $14)
          RETURNING *`,
         [
           draft.id, draft.title, draft.requester, draft.requesterGroup, draft.agent, 
           draft.tool, draft.target, draft.policy, draft.risk, draft.args || '{}', 
-          draft.origin || 'seed', draft.ttl_ms || 7200000, JSON.stringify(draft.assignedTo || [])
+          draft.origin || 'seed', draft.ttl_ms || 7200000, JSON.stringify(draft.assignedTo || []),
+          tenantId
         ]
       );
       

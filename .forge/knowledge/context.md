@@ -1014,35 +1014,50 @@ Bu aşamada ELARA Sovereign Studio, üçüncü taraf kurumlara ve geliştiricile
 
 ---
 
-## 60. COMPLETED (Phase 60) — END-TO-END ZERO-TRUST IDENTITY, MULTI-TENANT ISOLATION, VISIBILITY BOUNDARIES & GOVERNANCE SEAL
+## 60. COMPLETED (Phase 60) — 360° ZERO-TRUST IDENTITY & MULTI-TENANT GOVERNANCE SEAL (RING 1 & RING 2 COMPLETE)
 
-Bu aşamada ELARA Sovereign Studio'nun Kimlik (Identity), Çoklu Kiracı (Multi-Tenancy) ve Görünürlük (Visibility) katmanları sıfırdan denetlenmiş; tek-kiracılı dönemden kalma veri sızıntısı riskleri tamamen kapatılmış ve uçtan uca Zero-Trust sınırları ile mühürlenmiştir:
+Bu aşamada ELARA Sovereign Studio'nun Kimlik (Identity), Çoklu Kiracı (Multi-Tenancy) ve Görünürlük (Visibility) katmanları baştan uca 360 derece denetlenmiş; ana çekirdek (Ring 1) ve tüm yan alt sistemler (Ring 2) Zero-Trust sınırları ile eksiksiz mühürlenmiştir:
 
 ### 🏛️ 1. Hayata Geçirilen Mimari Bileşenler & Yapılan Düzeltmeler
 
+#### A. 1. Halka (Ring 1 — Çekirdek Varlıklar):
 1. **Evrensel Veritabanı Çoklu Kiracı Şeması (`schema-api-keys.mjs`):**
-   - Platformdaki tüm mülkiyet taşınabilir tablolara (`app_users`, `app_sessions`, `app_groups`, `agents`, `skills`, `tools`, `workflows`, `orchestrations`, `knowledge_spaces`, `rag_folders`, `knowledge_sources`, `chat_threads`) otomatik ve non-destructive olarak `tenant_id TEXT DEFAULT 'default'` ve `is_global BOOLEAN DEFAULT false` sütunları ile `idx_*_tenant_id` indeksleri eklendi.
-   - Sistem çekirdek ajanları (`agt.forge_master`, `sys.*`), varsayılan araçlar ve bilgi alanları `is_global = true` olarak damgalandı.
+   - Platformdaki tüm mülkiyet taşınabilir tablolara (`app_users`, `app_sessions`, `app_groups`, `agents`, `skills`, `tools`, `workflows`, `orchestrations`, `knowledge_spaces`, `rag_folders`, `knowledge_sources`, `chat_threads`) `tenant_id TEXT DEFAULT 'default'`, `is_global BOOLEAN DEFAULT false` ve `idx_*_tenant_id` indeksleri eklendi.
 2. **Kusursuz Görünürlük ve Kiracı İzolasyon Motoru (`local-server/lib/actor.mjs`):**
-   - `resolveActor(req)`: Oturum (`req.session.username`), `x-user` veya `x-tenant-id` başlıklarından kimliği doğru çözer; sahte veya anonim isteklerde Super-Admin mimar yetkisine düşme açığı kapatıldı.
-   - `resolveActorContext(req)`: `isSuperAdmin`, `isTenantAdmin`, `tenantId`, `userId`, `role` ve departman `groupIds` bilgilerini eksiksiz üretir.
-   - `buildVisibility(ctx, paramIndexStart, ownerCol, tenantCol, globalCol)`:
-     - **Super-Admin:** Tüm platform geneline tam erişim (`1=1`).
-     - **TenantAdmin:** Kendi şirketine (`tenant_id = $tenantId`) ait tüm çalışma masalarını ve `is_global = true` sistem varlıklarını yönetir.
-     - **Kullanıcı (`MINE`, `GROUP`, `WORKSPACE`):** Kendi şirket sınırları (`tenant_id = $tenantId OR is_global = true`) içinde sadece kendi ürettiği (`MINE`), departmanına paylaşılan (`GROUP`) veya tüm şirketine açık (`WORKSPACE`) varlıkları görür. Asla diğer kiracıların verilerine erişemez.
-3. **Sohbet Geçmişi & Mesaj İzolasyonu (`local-server/lib/routes/threads.mjs`):**
-   - `GET /api/threads` uç noktası artık sadece kullanıcının kendi sohbetlerini (`owner_id = $userId`) ve kendi şirketinin oturumlarını (`tenant_id = $tenantId`) listeler; şirketler arası chat sızıntısı tamamen engellendi.
-   - `POST /api/threads`: Yeni sohbetler `owner_id` ve `tenant_id` ile veritabanına bağlanarak oluşturulur.
+   - `resolveActor(req)` ve `resolveActorContext(req)`: `isSuperAdmin`, `isTenantAdmin`, `tenantId`, `userId`, `role` ve departman `groupIds` bilgilerini eksiksiz üretir.
+   - `buildVisibility`: Super-Admin (`1=1`), TenantAdmin (`tenant_id = $tenantId + global`), Kullanıcı (`MINE`, `GROUP`, `WORKSPACE` sınırları strictly kendi şirketi içinde).
+3. **Sohbet Geçmişi & Mesaj İzolasyonu (`threads.mjs`):**
+   - `chat_threads` ve `chat_messages` sadece ait olduğu kullanıcı ve şirket tarafından listelenebilir.
 4. **Kullanıcı & Grup Yönetimi İzolasyonu (`identity.mjs`, `identity-groups.mjs`, `auth-utils.mjs`):**
-   - `rowToUser` dönüşümüne `tenantId` ve `tenant_id` dahil edildi.
-   - `GET /api/identity/users` ve `GET /api/identity/groups` rotaları `tenant_id` bazında filtrelendi; TenantAdmin sadece kendi şirketinin personelini ve departmanlarını görebilir/yönetebilir.
-   - `POST /api/auth/login`: Açılan oturum `app_sessions` tablosuna `tenant_id` ile mühürlenir.
-   - `session-gate.mjs`: `attachSessionContext` middleware'i oturumdan kullanıcının gerçek `tenant_id` bilgisini çözer.
+   - `rowToUser` dönüşümüne `tenantId` eklendi. Kullanıcı/grup listeleme ve ekleme rotaları kiracı sınırına alındı.
 5. **Bilgi Alanları & RAG Döküman İzolasyonu (`knowledge-spaces.mjs`, `rag-folders.mjs`):**
-   - Knowledge Spaces (`/api/knowledge/spaces`) ve Klasörler (`/api/rag-folders`) şirket bazında izole edildi; müşteriler sadece kendilerine ait veya `is_global = true` alanları tarayabilir.
+   - Knowledge Spaces ve RAG Klasörleri kiracı bazında izole edildi.
 6. **Altyapı (Services) & Model Yönlendirme (Routing) Güvenlik Sınırları (`infra.mjs`, `models.mjs`):**
-   - `Settings ➔ Services` (`/api/infra/*`): Yalnızca Super-Admin (Sovereign) erişebilir; fiziksel sunucu, systemd/launchd, Redis ve RabbitMQ düğüm kontrolleri müşteri TenantAdmin'lerine tamamen kapatıldı (403 Forbidden).
-   - `Settings ➔ Models`: Model kataloğu ve küresel yönlendirme değişiklikleri Super-Admin yetkisine bağlandı (`requireSuperAdmin`).
+   - `Settings ➔ Services` yalnızca Super-Admin erişimine kilitlendi (`403 Forbidden`).
+
+#### B. 2. Halka (Ring 2 — 360° Yan Modüller & Alt Sistemler):
+1. **Model Context Protocol (MCP Client Servers & Exposures — `mcp.mjs`, `client.mjs`):**
+   - `mcp_client_servers`, `mcp_clients`, `mcp_exposures`, `mcp_tokens` tablolarına `tenant_id` ve `is_global` bağlandı; şirketlerin uzak MCP sunucu bağlantıları tamamen izole edildi.
+2. **Capability Packs (`capabilities.mjs`):**
+   - Sektörel yetenek paketleri `tenant_id` ve `is_global` ile damgalandı; özel yetenek paketleri şirket sınırına alındı.
+3. **Planners & Planlayıcılar (`planners-crud.mjs`):**
+   - Otonom planlayıcılar ve shadow planlar `tenant_id` ile filtrelendi.
+4. **Episodik & Olgusal Bellek (`memory.mjs`):**
+   - `memory_working`, `memory_episodic` ve `memory_facts` hafıza tabloları kiracı bazında sınırlandırıldı; bir şirketin hafıza izleri diğer şirkete karışamaz.
+5. **Python Runtimes (`python-crud.mjs`):**
+   - Özel sanal ortamlar (`runtimes`) şirket bazlı izole edildi; sistem ortamları `is_global = true` olarak paylaşıldı.
+6. **Adapters & Webhooks (`adapters.mjs`, `webhooks-crud.mjs`):**
+   - REST/SSH/API Adaptörleri ve Inbound Webhook dinleyicileri `tenant_id` ile korundu.
+7. **Targets & Endpoints (`targets-crud.mjs`):**
+   - Ağ hedefleri, sunucular ve uç noktalar `tenant_id` bazında gruplandı.
+8. **Onay Kuyruğu (Human-in-the-Loop Approvals — `approvals.mjs`):**
+   - Onay bekleyen biletler (`approval_requests`) ilgili kiracı yöneticisine (`tenant_id`) yönlendirildi.
+9. **Meta-Forge Otonom Sentez Motoru (`meta-forge/apply.mjs`):**
+   - Meta-Forge tarafından sentezlenen yeni araçlar, ajanlar ve iş akışları planı başlatan kullanıcının `tenant_id` bilgisiyle veritabanına kaydedilir.
+10. **Kasa (Secret Vault — `vault.mjs`, `vault_secrets`):**
+    - Vault secret kayıtları `tenant_id` ve `is_global` ile etiketlendi; müşteri BYOK anahtarları kendi şirketine münhasır kılındı.
+11. **Schedules & Raporlamalar (`reporting.mjs`):**
+    - Otomatik zamanlanmış raporlar (`schedules`) kiracı bazında izole edildi.
 
 ---
 

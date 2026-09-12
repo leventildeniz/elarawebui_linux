@@ -1,9 +1,18 @@
 export async function mountIdentityTemplatesRoutes(app, deps) {
-  const { pool, isAdminCaller, createPrefixedId } = deps;
+  const { pool, isAdminCaller, createPrefixedId, resolveActorContext } = deps;
 
   app.get("/api/identity/templates", async (req, res) => {
     try {
-      const { rows } = await pool.query("SELECT * FROM app_templates ORDER BY created_at ASC");
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
+      let query = "SELECT * FROM app_templates";
+      const params = [];
+      if (!ctx.isSuperAdmin) {
+        query += " WHERE (tenant_id = $1 OR is_global = true OR tenant_id = 'default')";
+        params.push(ctx.tenantId || "default");
+      }
+      query += " ORDER BY created_at ASC";
+
+      const { rows } = await pool.query(query, params);
       res.json(rows.map(t => ({
         id: t.id,
         name: t.name,
@@ -15,6 +24,7 @@ export async function mountIdentityTemplatesRoutes(app, deps) {
         overrides: t.overrides || {},
         custom: t.custom || [],
         grants: t.grants || {},
+        tenant_id: t.tenant_id || "default",
         assignments: [], // Assignments can be inferred via app_users or groups
         params: t.params || {},
         createdAt: new Date(t.created_at).getTime()
@@ -24,18 +34,23 @@ export async function mountIdentityTemplatesRoutes(app, deps) {
 
   app.post("/api/identity/templates", async (req, res) => {
     if (!await isAdminCaller(req)) return res.status(403).json({ ok: false, error: "admin required" });
+    const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
     const id = req.body.id || createPrefixedId("tpl.");
     const t = req.body;
+    const tenantId = t.tenant_id || (ctx.isSuperAdmin ? (t.tenant_id || "default") : ctx.tenantId);
+    const isGlobal = ctx.isSuperAdmin ? (t.is_global || false) : false;
+
     try {
       await pool.query(
-        `INSERT INTO app_templates (id, name, description, jewel, user_can_modify, session_ceiling, user_editable, overrides, custom, grants, params)
-         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9::jsonb, $10::jsonb, $11::jsonb)`,
+        `INSERT INTO app_templates (id, name, description, jewel, user_can_modify, session_ceiling, user_editable, overrides, custom, grants, params, tenant_id, is_global)
+         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9::jsonb, $10::jsonb, $11::jsonb, $12, $13)`,
         [
           id, t.name || "New Template", t.description || "", t.jewel || "sapphire",
           t.userCanModify !== false, t.sessionCeiling || "12 h",
           JSON.stringify(t.userEditable || {}), JSON.stringify(t.overrides || {}),
           JSON.stringify(t.custom || []), JSON.stringify(t.grants || {}),
-          JSON.stringify(t.params || {})
+          JSON.stringify(t.params || {}),
+          tenantId, isGlobal
         ]
       );
       res.status(201).json({ ok: true, id });

@@ -21,22 +21,25 @@ function sanitizeAdapterBody(body) {
 }
 
 export function mountAdaptersRoutes(app, deps) {
-  const { pool } = deps;
+  const { pool, resolveActorContext } = deps;
 
-  app.get("/api/adapters", async (_req, res) => {
+  app.get("/api/adapters", async (req, res) => {
     try {
-      // Return columns mapping to the `Adapter` typescript type and `mapAdapterRow`
-      const r = await pool.query(
-        `SELECT id, name, description, tags, category, connection as connection_type, 
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
+      let query = `SELECT id, name, description, tags, category, connection as connection_type, 
                 runner as adapter, vault_scope, vault_name, vault_field, 
                 config, risk as risk_level, requires_approval, enabled, 
-                created_at as updated_at
-           FROM adapters
-          ORDER BY enabled DESC, name ASC`,
-      );
+                created_at as updated_at, tenant_id, is_global
+           FROM adapters`;
+      const params = [];
+      if (!ctx.isSuperAdmin) {
+        query += " WHERE (tenant_id = $1 OR is_global = true OR tenant_id = 'default')";
+        params.push(ctx.tenantId || "default");
+      }
+      query += " ORDER BY enabled DESC, name ASC";
+
+      const r = await pool.query(query, params);
       
-      // We manually construct vault_binding_spec for backwards compatibility
-      // with `mapAdapterRow` in `adapter-store.ts`.
       const items = r.rows.map(row => ({
         ...row,
         vault_binding_spec: {
@@ -73,6 +76,9 @@ export function mountAdaptersRoutes(app, deps) {
     try {
       const b = sanitizeAdapterBody(req.body);
       const id = String(req.body?.id || `adp-${Date.now()}`);
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
+      const tenantId = req.body?.tenant_id || req.body?.tenantId || (ctx.isSuperAdmin ? (req.body?.tenant_id || "default") : ctx.tenantId);
+      const isGlobal = ctx.isSuperAdmin ? (req.body?.is_global || false) : false;
       
       let configStr = "{}";
       if (typeof b.config === "string") configStr = b.config;
@@ -81,8 +87,8 @@ export function mountAdaptersRoutes(app, deps) {
       const r = await pool.query(
         `INSERT INTO adapters (id, name, description, tags, category, connection, runner,
                             vault_scope, vault_name, vault_field, config, risk,
-                            requires_approval, enabled)
-         VALUES ($1,$2,$3,$4::jsonb,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+                            requires_approval, enabled, tenant_id, is_global)
+         VALUES ($1,$2,$3,$4::jsonb,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
          RETURNING *`,
         [
           id, b.name, b.description, JSON.stringify(b.tags), b.category, b.connection_type, b.adapter,
@@ -92,7 +98,9 @@ export function mountAdaptersRoutes(app, deps) {
           configStr,
           b.risk_level,
           b.requires_approval,
-          b.enabled
+          b.enabled,
+          tenantId,
+          isGlobal
         ]
       );
       

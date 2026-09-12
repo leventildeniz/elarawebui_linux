@@ -1,15 +1,21 @@
 import { isUuid } from "../utils.mjs";
 
 export function mountTargetsRoutes(app, deps) {
-  const { pool, requireSession } = deps;
+  const { pool, requireSession, resolveActorContext } = deps;
 
   app.post("/api/targets/reset", requireSession({ roles: ["admin", "engineer"] }), async (req, res) => {
+    const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
-      await client.query("DELETE FROM target_endpoints");
-      await client.query("DELETE FROM targets");
-      await client.query("DELETE FROM target_groups");
+      if (ctx.isSuperAdmin) {
+        await client.query("DELETE FROM target_endpoints");
+        await client.query("DELETE FROM targets");
+        await client.query("DELETE FROM target_groups");
+      } else {
+        await client.query("DELETE FROM targets WHERE tenant_id = $1", [ctx.tenantId || "default"]);
+        await client.query("DELETE FROM target_groups WHERE tenant_id = $1", [ctx.tenantId || "default"]);
+      }
       await client.query("COMMIT");
       res.json({ ok: true });
     } catch (e) {
@@ -23,9 +29,14 @@ export function mountTargetsRoutes(app, deps) {
 
   app.get("/api/targets", requireSession(), async (req, res) => {
     try {
-      const { rows: groups } = await pool.query("SELECT * FROM target_groups ORDER BY created_at ASC");
-      const { rows: targets } = await pool.query(`
-        SELECT t.*,
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
+      const tenantId = req.session?.tenant_id || ctx.tenantId || "default";
+
+      const groupQuery = ctx.isSuperAdmin
+        ? "SELECT * FROM target_groups ORDER BY created_at ASC"
+        : "SELECT * FROM target_groups WHERE (tenant_id = $1 OR is_global = true OR tenant_id = 'default') ORDER BY created_at ASC";
+      const targetQuery = ctx.isSuperAdmin
+        ? `SELECT t.*,
                COALESCE(
                  (SELECT json_agg(json_build_object(
                     'id', te.id,
@@ -41,9 +52,35 @@ export function mountTargetsRoutes(app, deps) {
                  ),
                  '[]'::json
                ) AS endpoints_json
-        FROM targets t
-        ORDER BY t.created_at DESC
-      `);
+          FROM targets t
+          ORDER BY t.created_at DESC`
+        : `SELECT t.*,
+               COALESCE(
+                 (SELECT json_agg(json_build_object(
+                    'id', te.id,
+                    'port', COALESCE(te.port::text, ''),
+                    'adapter', COALESCE(te.adapter_id, ''),
+                    'label', COALESCE(te.label, ''),
+                    'vaultScope', COALESCE(te.vault_scope, ''),
+                    'vaultName', COALESCE(te.vault_name, ''),
+                    'primary', COALESCE(te.is_primary, false)
+                  ))
+                  FROM target_endpoints te
+                  WHERE te.target_id = t.id
+                 ),
+                 '[]'::json
+               ) AS endpoints_json
+          FROM targets t
+          WHERE (t.tenant_id = $1 OR t.is_global = true OR t.tenant_id = 'default')
+          ORDER BY t.created_at DESC`;
+
+      const [gRes, tRes] = await Promise.all([
+        pool.query(groupQuery, ctx.isSuperAdmin ? [] : [tenantId]),
+        pool.query(targetQuery, ctx.isSuperAdmin ? [] : [tenantId])
+      ]);
+
+      const groups = gRes.rows;
+      const targets = tRes.rows;
       
       const mappedGroups = groups.map(g => ({
         id: g.id,
@@ -88,13 +125,17 @@ export function mountTargetsRoutes(app, deps) {
 
   app.post("/api/targets/groups", requireSession({ roles: ["admin", "engineer"] }), async (req, res) => {
     try {
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
       const { id, name, kind, description, tags } = req.body;
       const gId = id || `grp-${Math.floor(1000 + Math.random() * 8999)}`;
       const tagsArr = Array.isArray(tags) ? tags : [];
+      const tenantId = req.body?.tenant_id || req.session?.tenant_id || ctx.tenantId || "default";
+      const isGlobal = ctx.isSuperAdmin ? (req.body?.is_global || false) : false;
+
       const out = await pool.query(
-        `INSERT INTO target_groups (id, name, kind, description, tags)
-         VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-        [gId, name, kind || "server", description || "", tagsArr]
+        `INSERT INTO target_groups (id, name, kind, description, tags, tenant_id, is_global)
+         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+        [gId, name, kind || "server", description || "", tagsArr, tenantId, isGlobal]
       );
       res.json({ ok: true, group: out.rows[0] });
     } catch (e) {
@@ -131,17 +172,20 @@ export function mountTargetsRoutes(app, deps) {
   app.post("/api/targets", requireSession({ roles: ["admin", "engineer"] }), async (req, res) => {
     const client = await pool.connect();
     try {
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
       const { id, name, groupId, ip, host, ports, tags, adapter, vaultScope, vaultName, risk, requiresApproval, owner, notes, enabled, endpoints } = req.body;
       const tId = id || `tgt-${Math.floor(1000 + Math.random() * 8999)}`;
       const pt = parseInt(ports, 10);
       const tagsArr = Array.isArray(tags) ? tags : [];
+      const tenantId = req.body?.tenant_id || req.session?.tenant_id || ctx.tenantId || "default";
+      const isGlobal = ctx.isSuperAdmin ? (req.body?.is_global || false) : false;
 
       await client.query("BEGIN");
       
       const out = await client.query(
-        `INSERT INTO targets (id, name, group_id, ip, host, port, tags, default_adapter_id, vault_scope, vault_name, risk_level, requires_approval, owner, notes)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *`,
-        [tId, name, groupId || null, ip || "", host || "", Number.isFinite(pt) ? pt : null, tagsArr, adapter || null, vaultScope || "", vaultName || "", risk || "low", !!requiresApproval, owner || req.session?.username || req.actor || "", notes || ""]
+        `INSERT INTO targets (id, name, group_id, ip, host, port, tags, default_adapter_id, vault_scope, vault_name, risk_level, requires_approval, owner, notes, tenant_id, is_global)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`,
+        [tId, name, groupId || null, ip || "", host || "", Number.isFinite(pt) ? pt : null, tagsArr, adapter || null, vaultScope || "", vaultName || "", risk || "low", !!requiresApproval, owner || req.session?.username || req.actor || "", notes || "", tenantId, isGlobal]
       );
       
       if (Array.isArray(endpoints) && endpoints.length > 0) {

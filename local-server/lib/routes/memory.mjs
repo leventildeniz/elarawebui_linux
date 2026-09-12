@@ -33,10 +33,25 @@ export async function mountMemoryRoutes(app, deps) {
   // --- GET ALL MEMORY STATE ---
   app.get("/api/memory", admin, async (req, res) => {
     try {
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
+      const tenantId = req.session?.tenant_id || ctx.tenantId || "default";
+
       const [workingRes, episodicRes, factsRes, policyRes] = await Promise.all([
-        pool.query("SELECT id, thread_id, label, origin, tokens, pinned, tone, updated_at FROM memory_working ORDER BY updated_at DESC LIMIT 100"),
-        pool.query("SELECT id, at, actor, summary, thread_id as thread, tokens, outcome FROM memory_episodic ORDER BY at DESC LIMIT 100"),
-        pool.query("SELECT id, key, value, scope, confidence, source, locked, updated_at FROM memory_facts ORDER BY updated_at DESC LIMIT 200"),
+        ctx.isSuperAdmin
+          ? pool.query("SELECT id, thread_id, label, origin, tokens, pinned, tone, updated_at FROM memory_working ORDER BY updated_at DESC LIMIT 100")
+          : pool.query(`
+              SELECT w.id, w.thread_id, w.label, w.origin, w.tokens, w.pinned, w.tone, w.updated_at 
+              FROM memory_working w 
+              LEFT JOIN chat_threads t ON t.id = w.thread_id 
+              WHERE (w.tenant_id = $1 OR t.tenant_id = $1 OR w.is_global = true OR w.tenant_id = 'default')
+              ORDER BY w.updated_at DESC LIMIT 100
+            `, [tenantId]),
+        ctx.isSuperAdmin
+          ? pool.query("SELECT id, at, actor, summary, thread_id as thread, tokens, outcome FROM memory_episodic ORDER BY at DESC LIMIT 100")
+          : pool.query("SELECT id, at, actor, summary, thread_id as thread, tokens, outcome FROM memory_episodic WHERE (tenant_id = $1 OR is_global = true OR tenant_id = 'default') ORDER BY at DESC LIMIT 100", [tenantId]),
+        ctx.isSuperAdmin
+          ? pool.query("SELECT id, key, value, scope, confidence, source, locked, updated_at FROM memory_facts ORDER BY updated_at DESC LIMIT 200")
+          : pool.query("SELECT id, key, value, scope, confidence, source, locked, updated_at FROM memory_facts WHERE (tenant_id = $1 OR scope = 'system' OR is_global = true OR tenant_id = 'default') ORDER BY updated_at DESC LIMIT 200", [tenantId]),
         pool.query("SELECT * FROM memory_policy WHERE id='singleton'")
       ]);
 
@@ -94,12 +109,16 @@ export async function mountMemoryRoutes(app, deps) {
   // --- SEMANTIC FACTS ---
   app.post("/api/memory/facts", admin, async (req, res) => {
     try {
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
       const { id, key, value, scope, confidence, source, locked } = req.body;
+      const tenantId = req.body?.tenant_id || req.session?.tenant_id || ctx.tenantId || "default";
+      const isGlobal = ctx.isSuperAdmin ? (scope === 'system' || req.body?.is_global || false) : false;
+
       const { rows } = await pool.query(
-        `INSERT INTO memory_facts (id, key, value, scope, confidence, source, locked)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
+        `INSERT INTO memory_facts (id, key, value, scope, confidence, source, locked, tenant_id, is_global)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          RETURNING id, key, value, scope, confidence, source, locked, updated_at`,
-        [id, key, value, scope, confidence || 0, source, !!locked]
+        [id, key, value, scope, confidence || 0, source, !!locked, tenantId, isGlobal]
       );
       emitMemLog("info", "fact.created", `[${scope}] ${key}: ${value.slice(0, 60)}`, { id, key, scope, confidence });
       res.json({ ok: true, fact: rows[0] });
@@ -263,12 +282,13 @@ ${transcript}`;
       let summaryText = parsedMemory.lede || parsedMemory.objective || "Context compacted";
       try {
           const actorCtx = resolveActorContext ? await resolveActorContext(req) : null;
-          const actorName = actorCtx?.user?.name || actorCtx?.user?.email || "system";
+          const actorName = actorCtx?.user?.name || actorCtx?.user?.email || req.session?.username || "system";
+          const tenantId = req.session?.tenant_id || actorCtx?.tenantId || "default";
 
           await pool.query(
-            `INSERT INTO memory_episodic (id, at, actor, summary, thread_id, tokens, outcome)
-             VALUES ($1, to_timestamp($2 / 1000.0), $3, $4, $5, $6, $7)`,
-            [`epi.${Math.random().toString(36).slice(2,8)}`, Date.now(), actorName, summaryText.substring(0,250), threadId !== "unknown" ? threadId : null, Math.round(transcript.length / 4), 'resolved']
+            `INSERT INTO memory_episodic (id, at, actor, summary, thread_id, tokens, outcome, tenant_id)
+             VALUES ($1, to_timestamp($2 / 1000.0), $3, $4, $5, $6, $7, $8)`,
+            [`epi.${Math.random().toString(36).slice(2,8)}`, Date.now(), actorName, summaryText.substring(0,250), threadId !== "unknown" ? threadId : null, Math.round(transcript.length / 4), 'resolved', tenantId]
           );
       } catch(dbErr) {
           console.error("Failed to save episodic trace:", dbErr.message);

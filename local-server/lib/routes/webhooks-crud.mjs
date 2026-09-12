@@ -3,7 +3,16 @@ export async function mountWebhooksCrudRoutes(app, deps) {
 
   app.get("/api/webhooks", async (req, res) => {
     try {
-      const { rows } = await pool.query("SELECT * FROM webhooks ORDER BY created_at DESC");
+      const ctx = typeof deps.resolveActorContext === "function" ? await deps.resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
+      let query = "SELECT * FROM webhooks";
+      const params = [];
+      if (!ctx.isSuperAdmin) {
+        query += " WHERE (tenant_id = $1 OR is_global = true OR tenant_id = 'default')";
+        params.push(ctx.tenantId || "default");
+      }
+      query += " ORDER BY created_at DESC";
+
+      const { rows } = await pool.query(query, params);
       res.json(rows.map(r => ({
         id: r.id,
         name: r.name,
@@ -27,6 +36,7 @@ export async function mountWebhooksCrudRoutes(app, deps) {
         ownerName: r.owner_name || "",
         visibility: r.visibility || "workspace",
         sharedWith: r.shared_with || [],
+        tenant_id: r.tenant_id || "default",
         createdAt: new Date(r.created_at).getTime()
       })));
     } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
@@ -39,18 +49,21 @@ export async function mountWebhooksCrudRoutes(app, deps) {
     const ctx = await deps.resolveActorContext(req);
     const owner_id = m.owner_id || m.ownerId || m.owner || ctx.userId || req.actor || null;
     const owner_name = m.owner_name || m.ownerName || null;
+    const tenantId = m.tenant_id || m.tenantId || (ctx.isSuperAdmin ? (m.tenant_id || "default") : ctx.tenantId);
+    const isGlobal = ctx.isSuperAdmin ? (m.is_global || false) : false;
     
     try {
       await pool.query(
-        `INSERT INTO webhooks (id, name, description, tags, category, connection, runner, vault_scope, vault_name, vault_field, config, risk, requires_approval, enabled, slug, url_override, ingest_to_rag, rag_space_id, owner_id, owner_name, visibility, shared_with)
-         VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22::jsonb)`,
+        `INSERT INTO webhooks (id, name, description, tags, category, connection, runner, vault_scope, vault_name, vault_field, config, risk, requires_approval, enabled, slug, url_override, ingest_to_rag, rag_space_id, owner_id, owner_name, visibility, shared_with, tenant_id, is_global)
+         VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22::jsonb, $23, $24)`,
         [
           id, m.name || "New Webhook", m.description || "", JSON.stringify(m.tags || []),
           m.category || "webhook", m.connection || "http", m.runner || "express",
           m.vaultScope || "none", m.vaultName || null, m.vaultField || null,
           m.config || "{}", m.risk || "low", !!m.requiresApproval, m.enabled !== false,
           m.slug || id, m.urlOverride || null, m.ingestToRag !== false, m.ragSpaceId || null,
-          owner_id, owner_name, m.visibility || "workspace", JSON.stringify(m.sharedWith || [])
+          owner_id, owner_name, m.visibility || "workspace", JSON.stringify(m.sharedWith || []),
+          tenantId, isGlobal
         ]
       );
       res.status(201).json({ ok: true, id });

@@ -33,9 +33,16 @@ export async function mountCveRoutes(app, deps) {
   // --- GET ALL CVE DATA ---
   app.get("/api/cve", admin, async (req, res) => {
     try {
+      const tenantId = req.session?.tenant_id || req.headers["x-tenant-id"] || "default";
+      const isSuperAdmin = req.session?.role === "admin" && tenantId === "default";
+
+      const watchlistQuery = isSuperAdmin
+        ? "SELECT * FROM cve_watchlists ORDER BY name"
+        : "SELECT * FROM cve_watchlists WHERE tenant_id = $1 OR is_global = true OR tenant_id = 'default' ORDER BY name";
+
       const [sourcesRes, watchlistsRes, entriesRes] = await Promise.all([
         pool.query("SELECT * FROM cve_sources ORDER BY id"),
-        pool.query("SELECT * FROM cve_watchlists ORDER BY name"),
+        pool.query(watchlistQuery, isSuperAdmin ? [] : [tenantId]),
         pool.query("SELECT * FROM cve_entries ORDER BY published_at DESC LIMIT 500")
       ]);
 

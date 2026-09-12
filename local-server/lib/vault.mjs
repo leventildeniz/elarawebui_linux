@@ -179,7 +179,7 @@ const FIELD_NAME_RE = /^[a-zA-Z_][a-zA-Z0-9_]{0,63}$/;
  * @param {{scope:string, name:string, kind?:string, fields?:Record<string,string>, meta?:object}} input
  * @returns {Promise<{id:string, kind:string, field_names:string[]}>}
  */
-export async function putSecretV2(pool, { scope, name, kind = "api_key", fields = {}, meta = {} } = {}) {
+export async function putSecretV2(pool, { scope, name, kind = "api_key", fields = {}, meta = {}, tenant_id = "default", is_global = false } = {}) {
   if (!pool || !scope || !name) throw new Error("scope/name required");
   const k = String(kind || "api_key");
   const id = `${scope}:${name}`;
@@ -208,13 +208,14 @@ export async function putSecretV2(pool, { scope, name, kind = "api_key", fields 
     const placeholder = fields.api_key ?? fields.token ?? fields.password ?? fields.api_key ?? "";
     const { ciphertext, iv, tag } = encryptSecret(placeholder);
     await client.query(
-      `INSERT INTO vault_secrets(id, scope, name, ciphertext, iv, tag, kind, meta, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb, now())
+      `INSERT INTO vault_secrets(id, scope, name, ciphertext, iv, tag, kind, meta, tenant_id, is_global, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10, now())
        ON CONFLICT (scope,name) DO UPDATE
          SET kind = EXCLUDED.kind,
              meta = EXCLUDED.meta,
+             tenant_id = COALESCE(vault_secrets.tenant_id, EXCLUDED.tenant_id),
              updated_at = now()`,
-      [id, scope, name, ciphertext, iv, tag, k, JSON.stringify(meta || {})],
+      [id, scope, name, ciphertext, iv, tag, k, JSON.stringify(meta || {}), tenant_id, is_global],
     );
     for (const [fname, fval] of Object.entries(fields || {})) {
       const enc = encryptSecret(fval ?? "");

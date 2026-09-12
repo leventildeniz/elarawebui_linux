@@ -318,6 +318,8 @@ export function mountMcpRoutes(app, deps) {
       
       payload.owner_id = payload.owner_id || payload.ownerId || actorCtx?.userId || req.actor || null;
       payload.owner_name = payload.owner_name || payload.ownerName || null;
+      payload.tenant_id = payload.tenant_id || payload.tenantId || (actorCtx?.isSuperAdmin ? (payload.tenant_id || "default") : (actorCtx?.tenantId || "default"));
+      payload.is_global = actorCtx?.isSuperAdmin ? (payload.is_global || false) : false;
 
       const srv = await createClientServer(pool, payload);
       emitMcpLog("info", "server.created", `${srv.name || srv.slug} (${srv.url})`, { id: srv.id, slug: srv.slug });

@@ -164,10 +164,12 @@ export function mountCapabilityRoutes(app, deps) {
 
       const owner = b.ownerId || b.owner_id || ctx.userId || req.actor || null;
       const ownerName = b.ownerName || b.owner_name || null;
+      const tenantId = b.tenant_id || b.tenantId || (ctx.isSuperAdmin ? (b.tenant_id || "default") : ctx.tenantId);
+      const isGlobal = ctx.isSuperAdmin ? (b.is_global || false) : false;
 
       await pool.query(
-        `INSERT INTO capability_packs(id,name,sector,description,icon,jewel,tools,skills,mcp_servers,brand_keywords,system_overlay,system,brain_model_id,interpreter_id,owner_id,owner_name,squad,visibility,shared_with,created_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,false,$12,$13,$14,$15,$16,$17,$18,now())
+        `INSERT INTO capability_packs(id,name,sector,description,icon,jewel,tools,skills,mcp_servers,brand_keywords,system_overlay,system,brain_model_id,interpreter_id,owner_id,owner_name,squad,visibility,shared_with,tenant_id,is_global,created_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,false,$12,$13,$14,$15,$16,$17,$18,$19,$20,now())
          ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name,sector=EXCLUDED.sector,
            description=EXCLUDED.description,icon=EXCLUDED.icon,jewel=EXCLUDED.jewel,
            tools=EXCLUDED.tools,skills=EXCLUDED.skills,mcp_servers=EXCLUDED.mcp_servers,brand_keywords=EXCLUDED.brand_keywords,
@@ -175,8 +177,9 @@ export function mountCapabilityRoutes(app, deps) {
            brain_model_id=EXCLUDED.brain_model_id,interpreter_id=EXCLUDED.interpreter_id,
            owner_id=COALESCE(capability_packs.owner_id, EXCLUDED.owner_id),
            owner_name=COALESCE(capability_packs.owner_name, EXCLUDED.owner_name),
-           squad=EXCLUDED.squad, visibility=EXCLUDED.visibility, shared_with=EXCLUDED.shared_with`,
-        [id, name, sector, description, icon, color, JSON.stringify(action_ids), JSON.stringify(skill_ids), JSON.stringify(mcp_server_ids), JSON.stringify(brand_keywords), system_prompt, default_model, default_interpreter_path, owner, ownerName, b.squad || "Unassigned", visibility, JSON.stringify(shared_with)]
+           squad=EXCLUDED.squad, visibility=EXCLUDED.visibility, shared_with=EXCLUDED.shared_with,
+           tenant_id=COALESCE(capability_packs.tenant_id, EXCLUDED.tenant_id)`,
+        [id, name, sector, description, icon, color, JSON.stringify(action_ids), JSON.stringify(skill_ids), JSON.stringify(mcp_server_ids), JSON.stringify(brand_keywords), system_prompt, default_model, default_interpreter_path, owner, ownerName, b.squad || "Unassigned", visibility, JSON.stringify(shared_with), tenantId, isGlobal]
       );
 
       const sq = String(b.squad || "").trim();

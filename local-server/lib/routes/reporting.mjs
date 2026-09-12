@@ -1149,9 +1149,17 @@ export async function mountReportingRoutes(app, deps) {
   // =========================================================================
   app.get("/api/reporting/schedules", async (req, res) => {
     try {
-      const { rows } = await pool.query(
-        `SELECT * FROM schedules ORDER BY created_at ASC`
-      );
+      const tenantId = req.session?.tenant_id || req.headers["x-tenant-id"] || "default";
+      const isSuperAdmin = req.session?.role === "admin" && tenantId === "default";
+      let query = "SELECT * FROM schedules";
+      const params = [];
+      if (!isSuperAdmin) {
+        query += " WHERE (tenant_id = $1 OR is_global = true OR tenant_id = 'default')";
+        params.push(tenantId);
+      }
+      query += " ORDER BY created_at ASC";
+
+      const { rows } = await pool.query(query, params);
 
       res.json(
         rows.map((r) => ({
@@ -1180,6 +1188,7 @@ export async function mountReportingRoutes(app, deps) {
           ownerName: r.owner_name,
           visibility: r.visibility || "private",
           sharedWith: r.shared_with || [],
+          tenant_id: r.tenant_id || "default",
           createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
         }))
       );
@@ -1194,16 +1203,19 @@ export async function mountReportingRoutes(app, deps) {
       const b = req.body || {};
       const id = b.id || `sch.${Date.now().toString(36)}`;
       const actor = req.session?.username || req.actor || "admin";
+      const tenantId = b.tenant_id || b.tenantId || req.session?.tenant_id || req.headers["x-tenant-id"] || "default";
+      const isSuperAdmin = req.session?.role === "admin" && tenantId === "default";
+      const isGlobal = isSuperAdmin ? (b.is_global || false) : false;
 
       await pool.query(
         `INSERT INTO schedules (
            id, name, template_id, period, range_from, range_to, top_n, sort_by, user_id,
            format, delivery, recipients, destination, cadence, run_time, weekday, day_of_month,
-           enabled, next_run, last_run, status, owner_id, owner_name, visibility, shared_with, created_at
+           enabled, next_run, last_run, status, owner_id, owner_name, visibility, shared_with, tenant_id, is_global, created_at
          ) VALUES (
            $1, $2, $3, $4, $5, $6, $7, $8, $9,
            $10, $11, $12, $13, $14, $15, $16, $17,
-           $18, $19, $20, $21, $22, $23, $24, $25::jsonb, now()
+           $18, $19, $20, $21, $22, $23, $24, $25::jsonb, $26, $27, now()
          )
          ON CONFLICT (id) DO UPDATE SET
            name=EXCLUDED.name, template_id=EXCLUDED.template_id, period=EXCLUDED.period,
@@ -1212,7 +1224,8 @@ export async function mountReportingRoutes(app, deps) {
            delivery=EXCLUDED.delivery, recipients=EXCLUDED.recipients, destination=EXCLUDED.destination,
            cadence=EXCLUDED.cadence, run_time=EXCLUDED.run_time, weekday=EXCLUDED.weekday,
            day_of_month=EXCLUDED.day_of_month, enabled=EXCLUDED.enabled, next_run=EXCLUDED.next_run,
-           last_run=EXCLUDED.last_run, status=EXCLUDED.status, visibility=EXCLUDED.visibility`,
+           last_run=EXCLUDED.last_run, status=EXCLUDED.status, visibility=EXCLUDED.visibility,
+           tenant_id=COALESCE(schedules.tenant_id, EXCLUDED.tenant_id)`,
         [
           id,
           b.name || "Untitled Schedule",
@@ -1239,6 +1252,8 @@ export async function mountReportingRoutes(app, deps) {
           b.ownerName || actor,
           b.visibility || "private",
           JSON.stringify(b.sharedWith || []),
+          tenantId,
+          isGlobal,
         ]
       );
 

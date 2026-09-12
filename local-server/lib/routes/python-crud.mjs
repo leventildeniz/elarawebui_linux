@@ -47,7 +47,16 @@ export function mountPythonRoutes(app, deps) {
 
   app.get("/api/python/runtimes", adminOnly, async (req, res) => {
     try {
-      const { rows } = await pool.query("SELECT * FROM runtimes ORDER BY created_at DESC");
+      const ctx = typeof deps.resolveActorContext === "function" ? await deps.resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
+      let query = "SELECT * FROM runtimes";
+      const params = [];
+      if (!ctx.isSuperAdmin) {
+        query += " WHERE (tenant_id = $1 OR is_global = true OR tenant_id = 'default')";
+        params.push(ctx.tenantId || "default");
+      }
+      query += " ORDER BY created_at DESC";
+
+      const { rows } = await pool.query(query, params);
       res.json({ items: rows });
     } catch (e) {
       res.status(500).json({ error: String(e.message || e) });
@@ -63,11 +72,13 @@ export function mountPythonRoutes(app, deps) {
       const ctx = await deps.resolveActorContext(req);
       const owner_id = req.body.owner_id || req.body.ownerId || ctx.userId || req.actor || null;
       const owner_name = req.body.owner_name || req.body.ownerName || ctx.actor || req.session?.username || null;
+      const tenantId = req.body.tenant_id || req.body.tenantId || (ctx.isSuperAdmin ? (req.body.tenant_id || "default") : ctx.tenantId);
+      const isGlobal = ctx.isSuperAdmin ? (req.body.is_global || false) : false;
       
       const out = await pool.query(
-        `INSERT INTO runtimes (id, name, version, python_path, venv_path, memory_mb, memory_auto, packages, egress, status, owner_id, owner_name)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'idle', $10, $11) RETURNING *`,
-        [id, name, version || '', pythonPath || '', venvPath || null, memMb, memAuto, packages || '', !!egress, owner_id, owner_name]
+        `INSERT INTO runtimes (id, name, version, python_path, venv_path, memory_mb, memory_auto, packages, egress, status, owner_id, owner_name, tenant_id, is_global)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'idle', $10, $11, $12, $13) RETURNING *`,
+        [id, name, version || '', pythonPath || '', venvPath || null, memMb, memAuto, packages || '', !!egress, owner_id, owner_name, tenantId, isGlobal]
       );
       res.json({ ok: true, item: out.rows[0] });
     } catch (e) {

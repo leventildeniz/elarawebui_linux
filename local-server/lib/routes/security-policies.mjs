@@ -32,7 +32,17 @@ export function mountSecurityPoliciesRoutes(app, deps) {
   // --- GenGuard Rules ---
   app.get("/api/security/genguard", adminOnly, async (req, res) => {
     try {
-      const { rows } = await pool.query("SELECT * FROM guard_rules ORDER BY seq ASC, created_at ASC");
+      const tenantId = req.session?.tenant_id || req.headers["x-tenant-id"] || "default";
+      const isSuperAdmin = req.session?.role === "admin" && tenantId === "default";
+      let query = "SELECT * FROM guard_rules";
+      const params = [];
+      if (!isSuperAdmin) {
+        query += " WHERE (tenant_id = $1 OR is_global = true OR tenant_id = 'default')";
+        params.push(tenantId);
+      }
+      query += " ORDER BY seq ASC, created_at ASC";
+
+      const { rows } = await pool.query(query, params);
       res.json({ items: rows });
     } catch (e) {
       res.status(500).json({ error: String(e.message || e) });
@@ -92,9 +102,27 @@ export function mountSecurityPoliciesRoutes(app, deps) {
   app.get("/api/security/isolation", adminOnly, async (req, res) => {
     try {
       const kind = req.query.kind;
-      const q = kind ? pool.query("SELECT * FROM isolation_profiles WHERE kind=$1 ORDER BY created_at ASC", [kind]) 
-                     : pool.query("SELECT * FROM isolation_profiles ORDER BY created_at ASC");
-      const { rows } = await q;
+      const tenantId = req.session?.tenant_id || req.headers["x-tenant-id"] || "default";
+      const isSuperAdmin = req.session?.role === "admin" && tenantId === "default";
+
+      let query = "SELECT * FROM isolation_profiles";
+      const params = [];
+      const whereParts = [];
+
+      if (kind) {
+        params.push(kind);
+        whereParts.push(`kind = $${params.length}`);
+      }
+      if (!isSuperAdmin) {
+        params.push(tenantId);
+        whereParts.push(`(tenant_id = $${params.length} OR is_global = true OR fallback = true OR tenant_id = 'default')`);
+      }
+      if (whereParts.length) {
+        query += " WHERE " + whereParts.join(" AND ");
+      }
+      query += " ORDER BY created_at ASC";
+
+      const { rows } = await pool.query(query, params);
       res.json({ items: rows });
     } catch (e) {
       res.status(500).json({ error: String(e.message || e) });

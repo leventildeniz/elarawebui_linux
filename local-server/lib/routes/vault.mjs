@@ -87,7 +87,9 @@ export function mountVaultRoutes(app, deps) {
       return res.status(400).json({ error: "at least one field required" });
     }
     try {
-      const out = await putSecretV2(pool, { scope, name, kind, fields, meta });
+      const tenant_id = req.session?.tenant_id || "default";
+      const is_global = req.session?.role === "admin" && tenant_id === "default" && (scope === "global" || scope === "system");
+      const out = await putSecretV2(pool, { scope, name, kind, fields, meta, tenant_id, is_global });
       vaultAudit({
         action: "write", scope, name, req,
         meta: { kind, fields_changed: Object.keys(fields), meta_keys: Object.keys(meta) },
@@ -129,18 +131,31 @@ export function mountVaultRoutes(app, deps) {
   app.get("/api/vault", requireSession({ roles: ["admin"] }), async (req, res) => {
     try {
       const scope = req.query.scope ? String(req.query.scope) : null;
-      const { rows } = await pool.query(
-        `SELECT s.scope, s.name, s.kind, s.meta, s.created_at, s.updated_at,
+      const tenantId = req.session?.tenant_id || "default";
+      const isSuperAdmin = req.session?.role === "admin" && tenantId === "default";
+      let query = `SELECT s.scope, s.name, s.kind, s.meta, s.created_at, s.updated_at, s.tenant_id, s.is_global,
                 COALESCE(
                   (SELECT array_agg(f.field_name ORDER BY f.field_name)
                      FROM vault_secret_fields f WHERE f.secret_id = s.id),
                   ARRAY['api_key']::text[]
                 ) AS field_names
-           FROM vault_secrets s
-          ${scope ? "WHERE s.scope = $1" : ""}
-          ORDER BY s.scope, s.name`,
-        scope ? [scope] : [],
-      );
+           FROM vault_secrets s`;
+      const params = [];
+      const whereParts = [];
+      if (scope) {
+        params.push(scope);
+        whereParts.push(`s.scope = $${params.length}`);
+      }
+      if (!isSuperAdmin) {
+        params.push(tenantId);
+        whereParts.push(`(s.tenant_id = $${params.length} OR s.is_global = true OR s.scope = 'global' OR s.scope = 'system')`);
+      }
+      if (whereParts.length) {
+        query += " WHERE " + whereParts.join(" AND ");
+      }
+      query += " ORDER BY s.scope, s.name";
+
+      const { rows } = await pool.query(query, params);
       vaultAudit({ action: "list", scope: scope ?? "*", name: "*", req, meta: { count: rows.length } });
       res.json({ items: rows });
     } catch (e) { res.status(500).json({ error: String(e.message || e) }); }

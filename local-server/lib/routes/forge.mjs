@@ -52,7 +52,7 @@ function sanitizeForgeAction(input) {
 export { sanitizeForgeAction };
 
 export function mountForgeRoutes(app, deps) {
-  const { pool, resolveActorContext } = deps;
+  const { pool, resolveActorContext, buildVisibility } = deps;
 
   app.get("/api/forge/actions", async (req, res) => {
     try {
@@ -61,19 +61,23 @@ export function mountForgeRoutes(app, deps) {
       const where = []; const params = [];
       if (kind) { params.push(kind); where.push(`kind = $${params.length}`); }
       if (category) { params.push(category); where.push(`category = $${params.length}`); }
-      // Sovereign visibility: Admin/Mimar see EVERYTHING; users see own + system + legacy NULL.
-      if (scope === "all" || ctx.isAdmin) {
-        // unfiltered — Admin sees the entire arsenal
-      } else if (ctx.actor) {
-        params.push(ctx.actor);
-        where.push(`(lower(owner_user_id) = $${params.length} OR owner_user_id IS NULL OR COALESCE(is_system,false)=true)`);
+      
+      if (ctx.isSuperAdmin) {
+        // Super-Admin sees all
+      } else if (typeof buildVisibility === "function") {
+        const vis = buildVisibility(ctx, params.length + 1, "owner_user_id");
+        if (vis.clause && vis.clause !== "1=1") {
+          where.push(vis.clause);
+          params.push(...vis.params);
+        }
       } else {
-        where.push(`owner_user_id IS NULL OR COALESCE(is_system,false)=true`);
+        params.push(ctx.tenantId || "default");
+        where.push(`(tenant_id = $${params.length} OR is_global = true OR is_system = true OR tenant_id = 'default')`);
       }
       const sql = `SELECT al.id, al.kind, al.name, al.category, al.provider, al.icon, al.color, al.description,
                           al.params, al.outputs, al.runtime, al.execution_policy, al.is_system,
                           al.owner_user_id, al.updated_at, al.risk_level, al.requires_approval,
-                          al.priority, al.system_prompt, al.visibility, al.shared_with,
+                          al.priority, al.system_prompt, al.visibility, al.shared_with, al.tenant_id, al.is_global,
                           (SELECT slug FROM capabilities c WHERE c.ref_id = al.id AND c.kind='tool' LIMIT 1) AS slug
                    FROM action_library al ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
                    ORDER BY al.priority DESC, al.is_system DESC, al.category, al.name`;
@@ -104,10 +108,12 @@ export function mountForgeRoutes(app, deps) {
       // Admin updates on system rows preserve is_system=true; new rows always user-owned.
       const visibility = req.body.visibility || 'workspace';
       const shared_with = Array.isArray(req.body.shared_with) ? req.body.shared_with : [];
+      const tenantId = req.body.tenant_id || req.body.tenantId || (ctx.isSuperAdmin ? (req.body.tenant_id || "default") : ctx.tenantId);
+      const isGlobal = ctx.isSuperAdmin ? (req.body.is_global || false) : false;
 
       await pool.query(
-        `INSERT INTO action_library(id, kind, name, category, provider, icon, color, description, params, outputs, runtime, execution_policy, priority, system_prompt, is_system, owner_user_id, visibility, shared_with, updated_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,COALESCE($12::jsonb, '{"enforce_strict":true,"override_temperature_mode":"force_zero","retry_count":2,"retry_backoff_ms":500,"timeout_ms":30000,"output_format":"raw","custom_params":[]}'::jsonb),$14,$15,false,$13,$16,$17::jsonb, now())
+        `INSERT INTO action_library(id, kind, name, category, provider, icon, color, description, params, outputs, runtime, execution_policy, priority, system_prompt, is_system, owner_user_id, visibility, shared_with, tenant_id, is_global, updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,COALESCE($12::jsonb, '{"enforce_strict":true,"override_temperature_mode":"force_zero","retry_count":2,"retry_backoff_ms":500,"timeout_ms":30000,"output_format":"raw","custom_params":[]}'::jsonb),$14,$15,false,$13,$16,$17::jsonb,$18,$19, now())
          ON CONFLICT (id) DO UPDATE SET
            kind=EXCLUDED.kind, name=EXCLUDED.name, category=EXCLUDED.category, provider=EXCLUDED.provider,
            icon=EXCLUDED.icon, color=EXCLUDED.color, description=EXCLUDED.description,
@@ -119,10 +125,11 @@ export function mountForgeRoutes(app, deps) {
            owner_user_id=COALESCE(action_library.owner_user_id, EXCLUDED.owner_user_id),
            visibility=EXCLUDED.visibility,
            shared_with=EXCLUDED.shared_with,
+           tenant_id=COALESCE(action_library.tenant_id, EXCLUDED.tenant_id),
            updated_at=now()`,
         [a.id, a.kind, a.name, a.category, a.provider, a.icon, a.color, a.description,
          JSON.stringify(a.params), JSON.stringify(a.outputs), JSON.stringify(a.runtime),
-         policy ? JSON.stringify(policy) : null, owner, a.priority, a.system_prompt, visibility, JSON.stringify(shared_with)]
+         policy ? JSON.stringify(policy) : null, owner, a.priority, a.system_prompt, visibility, JSON.stringify(shared_with), tenantId, isGlobal]
       );
       res.json({ ok: true, id: a.id });
     } catch (e) { res.status(400).json({ error: String(e.message || e) }); }
