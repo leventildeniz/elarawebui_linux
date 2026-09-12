@@ -1372,4 +1372,136 @@ export async function mountReportingRoutes(app, deps) {
       res.status(500).json({ error: String(err.message || err) });
     }
   });
+
+  // =========================================================================
+  // 6. GET /api/reporting/invoicing — Multi-Tenant B2B Invoicing & Token Ledger
+  // =========================================================================
+  app.get("/api/reporting/invoicing", async (req, res) => {
+    try {
+      const { days, startDate, endDate, label, slug } = parseDateRange(req.query);
+      const targetTenant = req.query.tenant_id ? String(req.query.tenant_id).trim() : null;
+
+      let tenantFilter = "";
+      const params = [startDate, endDate];
+      if (targetTenant) {
+        params.push(targetTenant);
+        tenantFilter = ` AND u.tenant_id = $${params.length}`;
+      }
+
+      // 1. Overall Invoicing Summary
+      const summaryRes = await pool.query(
+        `SELECT 
+           COALESCE(COUNT(*), 0)::bigint as total_runs,
+           COALESCE(SUM(u.prompt_tokens + u.response_tokens), 0)::bigint as total_tokens,
+           COALESCE(SUM(u.prompt_tokens), 0)::bigint as input_tokens,
+           COALESCE(SUM(u.response_tokens), 0)::bigint as output_tokens,
+           COALESCE(SUM(u.cost_usd), 0)::numeric as total_cost,
+           COALESCE(SUM(CASE WHEN u.cache_hits > 0 THEN 1 ELSE 0 END), 0)::bigint as cache_hits,
+           COALESCE(COUNT(DISTINCT u.tenant_id), 0)::int as total_tenants
+         FROM provider_usage u
+         WHERE u.created_at >= $1 AND u.created_at <= $2 ${tenantFilter}`,
+        params
+      );
+
+      const sRow = summaryRes.rows[0] || {};
+      const totalRuns = Number(sRow.total_runs || 0);
+      const totalTokens = Number(sRow.total_tokens || 0);
+      const totalCost = Number(Number(sRow.total_cost || 0).toFixed(2));
+      const cacheHits = Number(sRow.cache_hits || 0);
+
+      // 2. Tenant Ledger Breakdown
+      const tenantRes = await pool.query(
+        `SELECT 
+           COALESCE(NULLIF(u.tenant_id, ''), 'default') as tenant_id,
+           COUNT(u.id)::bigint as runs,
+           COALESCE(SUM(u.prompt_tokens + u.response_tokens), 0)::bigint as tokens,
+           COALESCE(SUM(u.cost_usd), 0)::numeric as cost,
+           COALESCE(SUM(CASE WHEN u.cache_hits > 0 THEN 1 ELSE 0 END), 0)::bigint as cache_hits,
+           COUNT(DISTINCT u.api_key_id)::int as active_keys
+         FROM provider_usage u
+         WHERE u.created_at >= $1 AND u.created_at <= $2 ${tenantFilter}
+         GROUP BY COALESCE(NULLIF(u.tenant_id, ''), 'default')
+         ORDER BY tokens DESC`,
+        params
+      );
+
+      const tenantLedger = tenantRes.rows.map((r) => ({
+        tenant_id: r.tenant_id,
+        runs: Number(r.runs),
+        tokens: Number(r.tokens),
+        cost: Number(Number(r.cost).toFixed(2)),
+        cache_hits: Number(r.cache_hits),
+        active_keys: Number(r.active_keys),
+        share: totalTokens > 0 ? Number(((Number(r.tokens) / totalTokens) * 100).toFixed(1)) : 100,
+      }));
+
+      // 3. API Key Breakdown
+      const keyRes = await pool.query(
+        `SELECT 
+           u.api_key_id,
+           COALESCE(k.name, 'Direct API / Console') as key_name,
+           COALESCE(k.key_prefix, 'sk-elara-...') as key_prefix,
+           COALESCE(k.tier, 'tier1') as tier,
+           COALESCE(NULLIF(u.tenant_id, ''), 'default') as tenant_id,
+           COUNT(u.id)::bigint as runs,
+           COALESCE(SUM(u.prompt_tokens + u.response_tokens), 0)::bigint as tokens,
+           COALESCE(SUM(u.cost_usd), 0)::numeric as cost
+         FROM provider_usage u
+         LEFT JOIN tenant_api_keys k ON u.api_key_id = k.id::text
+         WHERE u.created_at >= $1 AND u.created_at <= $2 ${tenantFilter}
+         GROUP BY u.api_key_id, k.name, k.key_prefix, k.tier, u.tenant_id
+         ORDER BY tokens DESC`,
+        params
+      );
+
+      const keyLedger = keyRes.rows.map((k) => ({
+        api_key_id: k.api_key_id,
+        key_name: k.key_name,
+        key_prefix: k.key_prefix,
+        tier: k.tier,
+        tenant_id: k.tenant_id,
+        runs: Number(k.runs),
+        tokens: Number(k.tokens),
+        cost: Number(Number(k.cost).toFixed(2)),
+      }));
+
+      // 4. Model Breakdown
+      const modelRes = await pool.query(
+        `SELECT 
+           COALESCE(NULLIF(u.model, ''), 'default') as model,
+           COUNT(u.id)::bigint as runs,
+           COALESCE(SUM(u.prompt_tokens + u.response_tokens), 0)::bigint as tokens,
+           COALESCE(SUM(u.cost_usd), 0)::numeric as cost
+         FROM provider_usage u
+         WHERE u.created_at >= $1 AND u.created_at <= $2 ${tenantFilter}
+         GROUP BY COALESCE(NULLIF(u.model, ''), 'default')
+         ORDER BY tokens DESC`,
+        params
+      );
+
+      const modelLedger = modelRes.rows.map((m) => ({
+        model: m.model,
+        runs: Number(m.runs),
+        tokens: Number(m.tokens),
+        cost: Number(Number(m.cost).toFixed(2)),
+      }));
+
+      return res.json({
+        span: { label, slug, days, startDate, endDate },
+        totals: {
+          total_runs: totalRuns,
+          total_tokens: totalTokens,
+          total_cost: totalCost,
+          cache_hits: cacheHits,
+          total_tenants: Number(sRow.total_tenants || 1),
+        },
+        tenants: tenantLedger,
+        keys: keyLedger,
+        models: modelLedger,
+      });
+    } catch (err) {
+      console.error("[Reporting API] Error in GET /api/reporting/invoicing:", err);
+      res.status(500).json({ error: String(err.message || err) });
+    }
+  });
 }

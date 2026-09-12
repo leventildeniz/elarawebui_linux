@@ -98,6 +98,7 @@ import { sseBegin, sseWrite } from './lib/sse.mjs';
 import { redactDeep } from './lib/redaction.mjs';
 import { initRedisCache } from './lib/infra/redis-cache.mjs';
 import { initRabbitBroker } from './lib/infra/rabbitmq-broker.mjs';
+import { initApiKeysSchema } from './lib/schema-api-keys.mjs';
 
 let _cockpit = null;
 
@@ -193,7 +194,8 @@ async function startServer() {
     
     const ALL_TAB_IDS = [
       "chat", "dashboard", "knowledge", "agents", "workflows", "tools", "skills", "models", 
-      "templates", "python", "forge", "telemetry", "reports", "policies", "security", "middleware", "debug"
+      "templates", "python", "forge", "telemetry", "reports", "policies", "security", "middleware", "debug",
+      "api-tokens", "invoicing"
     ];
     const EMBED_DIM_TARGET = Math.max(64, Math.min(4096, Number(process.env.EMBED_DIM) || 1024));
 
@@ -205,6 +207,8 @@ async function startServer() {
     const { ensureKnowledgeFilesTable, ensureKnowledgeChunksTable } = initKnowledgeSchema({ pool, ftsCharLimit: 900000 });
     initAdaptersSchema({ pool });
     const { ensureAgentSquadsTable } = initAgentsSchema({ pool });
+    const { ensureApiKeysSchema } = initApiKeysSchema({ pool });
+    await ensureApiKeysSchema();
     initPgVersion({ pool, spawnPg });
 
     // Initialize Maintenance API

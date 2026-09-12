@@ -54337,3 +54337,2124 @@ Node.js v22.22.1
 [Reporting API] Notice creating indices: column "owner_id" does not exist
 [Reporting API] Notice creating indices: column "owner_id" does not exist
 [Reporting API] Notice creating indices: column "owner_id" does not exist
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[vault_audit] redactDeep is not a function
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[agent-run] request id=agt.researcher bridgeScript= hasAgentPath=false textLen=25
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[Orchestrate] ❌ Provider Claude 3.7 Sonnet failed: Error: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CerEKPD5obHeigcfZHmNR"}
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1590:24
+[fetchOpenAIStream] ❌ LLM API returned 401 for gpt-4o at https://api.openai.com/v1/chat/completions: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] ❌ Provider GPT-4o failed: Error: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1590:24
+[fetchOpenAIStream] ❌ LLM API returned 404 for gemini-3.1-pro at https://generativelanguage.googleapis.com/v1beta/openai/chat/completions: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+[Orchestrate] ❌ Provider Gemini 3.1 Pro failed: Error: Connection to LLM failed: LLM API returned 404: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1590:24
+[Orchestrate] ❌ Provider Claude 3.7 Sonnet failed: Error: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CerELiDcLEWYUqJZX1q54"}
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1590:24
+[fetchOpenAIStream] ❌ LLM API returned 401 for gpt-4o at https://api.openai.com/v1/chat/completions: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] ❌ Provider GPT-4o failed: Error: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1590:24
+[fetchOpenAIStream] ❌ LLM API returned 404 for gemini-3.1-pro at https://generativelanguage.googleapis.com/v1beta/openai/chat/completions: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+[Orchestrate] ❌ Provider Gemini 3.1 Pro failed: Error: Connection to LLM failed: LLM API returned 404: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1590:24
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[Orchestrate] ❌ Provider Claude 3.7 Sonnet failed: Error: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CerEPsCS6WU9AdJoncTWC"}
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1590:24
+[fetchOpenAIStream] ❌ LLM API returned 401 for gpt-4o at https://api.openai.com/v1/chat/completions: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] ❌ Provider GPT-4o failed: Error: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1590:24
+[fetchOpenAIStream] ❌ LLM API returned 404 for gemini-3.1-pro at https://generativelanguage.googleapis.com/v1beta/openai/chat/completions: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+[Orchestrate] ❌ Provider Gemini 3.1 Pro failed: Error: Connection to LLM failed: LLM API returned 404: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1590:24
+[SemanticCache] Lookup notice: Cannot access 'assembled' before initialization
+[Orchestrate] ❌ Provider Claude 3.7 Sonnet failed: Error: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CerEQk94EnaBHk1x9Q64Q"}
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1590:24
+[fetchOpenAIStream] ❌ LLM API returned 401 for gpt-4o at https://api.openai.com/v1/chat/completions: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] ❌ Provider GPT-4o failed: Error: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1590:24
+[fetchOpenAIStream] ❌ LLM API returned 404 for gemini-3.1-pro at https://generativelanguage.googleapis.com/v1beta/openai/chat/completions: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+[Orchestrate] ❌ Provider Gemini 3.1 Pro failed: Error: Connection to LLM failed: LLM API returned 404: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1590:24
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[Orchestrate] ❌ Provider Claude 3.7 Sonnet failed: Error: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CerEUFL4qmzncfEoY22HL"}
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1601:24
+[fetchOpenAIStream] ❌ LLM API returned 401 for gpt-4o at https://api.openai.com/v1/chat/completions: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] ❌ Provider GPT-4o failed: Error: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1601:24
+[fetchOpenAIStream] ❌ LLM API returned 404 for gemini-3.1-pro at https://generativelanguage.googleapis.com/v1beta/openai/chat/completions: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+[Orchestrate] ❌ Provider Gemini 3.1 Pro failed: Error: Connection to LLM failed: LLM API returned 404: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1601:24
+[Orchestrate] ❌ Provider Claude 3.7 Sonnet failed: Error: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CerEV2TSjMttGteD4h3E7"}
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1601:24
+[fetchOpenAIStream] ❌ LLM API returned 401 for gpt-4o at https://api.openai.com/v1/chat/completions: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] ❌ Provider GPT-4o failed: Error: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1601:24
+[fetchOpenAIStream] ❌ LLM API returned 404 for gemini-3.1-pro at https://generativelanguage.googleapis.com/v1beta/openai/chat/completions: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+[Orchestrate] ❌ Provider Gemini 3.1 Pro failed: Error: Connection to LLM failed: LLM API returned 404: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1601:24
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[Orchestrate] ❌ Provider Claude 3.7 Sonnet failed: Error: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CerEYqTWSv9hBRp9fmxd2"}
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1601:24
+[fetchOpenAIStream] ❌ LLM API returned 401 for gpt-4o at https://api.openai.com/v1/chat/completions: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] ❌ Provider GPT-4o failed: Error: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1601:24
+[fetchOpenAIStream] ❌ LLM API returned 404 for gemini-3.1-pro at https://generativelanguage.googleapis.com/v1beta/openai/chat/completions: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+[Orchestrate] ❌ Provider Gemini 3.1 Pro failed: Error: Connection to LLM failed: LLM API returned 404: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1601:24
+[SemanticCache] Lookup notice: Cannot access 'assembled' before initialization
+[Orchestrate] ❌ Provider Claude 3.7 Sonnet failed: Error: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CerEZfR3V6LpJ9dctkxaY"}
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1601:24
+[fetchOpenAIStream] ❌ LLM API returned 401 for gpt-4o at https://api.openai.com/v1/chat/completions: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] ❌ Provider GPT-4o failed: Error: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1601:24
+[fetchOpenAIStream] ❌ LLM API returned 404 for gemini-3.1-pro at https://generativelanguage.googleapis.com/v1beta/openai/chat/completions: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+[Orchestrate] ❌ Provider Gemini 3.1 Pro failed: Error: Connection to LLM failed: LLM API returned 404: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1601:24
+[SemanticCache] Lookup notice: Cannot access 'assembled' before initialization
+[Orchestrate] ❌ Provider Claude 3.7 Sonnet failed: Error: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CerEcTV2c2MnN25JDdwjW"}
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1601:24
+[fetchOpenAIStream] ❌ LLM API returned 401 for gpt-4o at https://api.openai.com/v1/chat/completions: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] ❌ Provider GPT-4o failed: Error: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1601:24
+[fetchOpenAIStream] ❌ LLM API returned 404 for gemini-3.1-pro at https://generativelanguage.googleapis.com/v1beta/openai/chat/completions: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+[Orchestrate] ❌ Provider Gemini 3.1 Pro failed: Error: Connection to LLM failed: LLM API returned 404: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1601:24
+[SemanticCache] Lookup notice: Cannot access 'assembled' before initialization
+[Orchestrate] ❌ Provider Claude 3.7 Sonnet failed: Error: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CerEjheGoi3aGVB34aC2n"}
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1601:24
+[fetchOpenAIStream] ❌ LLM API returned 401 for gpt-4o at https://api.openai.com/v1/chat/completions: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] ❌ Provider GPT-4o failed: Error: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1601:24
+[fetchOpenAIStream] ❌ LLM API returned 404 for gemini-3.1-pro at https://generativelanguage.googleapis.com/v1beta/openai/chat/completions: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+[Orchestrate] ❌ Provider Gemini 3.1 Pro failed: Error: Connection to LLM failed: LLM API returned 404: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1601:24
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[Orchestrate] ❌ Provider Claude 3.7 Sonnet failed: Error: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CerEtapkPPKXcAd3VzGXR"}
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1601:24
+[fetchOpenAIStream] ❌ LLM API returned 401 for gpt-4o at https://api.openai.com/v1/chat/completions: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] ❌ Provider GPT-4o failed: Error: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1601:24
+[fetchOpenAIStream] ❌ LLM API returned 404 for gemini-3.1-pro at https://generativelanguage.googleapis.com/v1beta/openai/chat/completions: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+[Orchestrate] ❌ Provider Gemini 3.1 Pro failed: Error: Connection to LLM failed: LLM API returned 404: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1601:24
+[SemanticCache] Lookup notice: Cannot access 'assembled' before initialization
+[Orchestrate] ❌ Provider Claude 3.7 Sonnet failed: Error: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CerEuZa8ACCpd9FUgcquN"}
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1601:24
+[fetchOpenAIStream] ❌ LLM API returned 401 for gpt-4o at https://api.openai.com/v1/chat/completions: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] ❌ Provider GPT-4o failed: Error: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1601:24
+[fetchOpenAIStream] ❌ LLM API returned 404 for gemini-3.1-pro at https://generativelanguage.googleapis.com/v1beta/openai/chat/completions: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+[Orchestrate] ❌ Provider Gemini 3.1 Pro failed: Error: Connection to LLM failed: LLM API returned 404: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1601:24
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[Orchestrate] ❌ Provider Claude 3.7 Sonnet failed: Error: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CerEzBfdoq6vZzaMvKdfB"}
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1599:24
+[fetchOpenAIStream] ❌ LLM API returned 401 for gpt-4o at https://api.openai.com/v1/chat/completions: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] ❌ Provider GPT-4o failed: Error: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1599:24
+[fetchOpenAIStream] ❌ LLM API returned 404 for gemini-3.1-pro at https://generativelanguage.googleapis.com/v1beta/openai/chat/completions: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+[Orchestrate] ❌ Provider Gemini 3.1 Pro failed: Error: Connection to LLM failed: LLM API returned 404: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1599:24
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[Orchestrate] ❌ Provider Claude 3.7 Sonnet failed: Error: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CerFd74bt3Gi7zRucKRKS"}
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1601:24
+[fetchOpenAIStream] ❌ LLM API returned 401 for gpt-4o at https://api.openai.com/v1/chat/completions: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] ❌ Provider GPT-4o failed: Error: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1601:24
+[fetchOpenAIStream] ❌ LLM API returned 404 for gemini-3.1-pro at https://generativelanguage.googleapis.com/v1beta/openai/chat/completions: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+[Orchestrate] ❌ Provider Gemini 3.1 Pro failed: Error: Connection to LLM failed: LLM API returned 404: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1601:24
+[TCP-KILLER] Request Error to 192.168.0.18:8001: socket hang up
+[Orchestrate] ❌ Provider Gemma 4 31B Local failed: Error: Connection to LLM failed: socket hang up
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1601:24
+[Orchestrate] ❌ Provider Claude 3.7 Sonnet failed: Error: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CerGDszGVe2Qa4A1MvdWv"}
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1601:24
+[fetchOpenAIStream] ❌ LLM API returned 401 for gpt-4o at https://api.openai.com/v1/chat/completions: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] ❌ Provider GPT-4o failed: Error: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1601:24
+[fetchOpenAIStream] ❌ LLM API returned 404 for gemini-3.1-pro at https://generativelanguage.googleapis.com/v1beta/openai/chat/completions: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+[Orchestrate] ❌ Provider Gemini 3.1 Pro failed: Error: Connection to LLM failed: LLM API returned 404: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1601:24
+[pg async write:side] invalid input syntax for type uuid: "chat_1788884651665"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788884651665"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788884707729"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788884707729"
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[pg async write:side] invalid input syntax for type uuid: "chat_1788885286248"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788885286248"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788885568716"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788885568716"
+[TCP-KILLER] Request Error to 192.168.0.18:8001: Client Aborted
+[pg async write:side] invalid input syntax for type uuid: "chat_1788885568716"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788885568716"
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[Orchestrate] ❌ Provider Claude 3.7 Sonnet failed: Error: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CerJmKDAXttHodw7nbh4K"}
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1608:24
+[fetchOpenAIStream] ❌ LLM API returned 401 for gpt-4o at https://api.openai.com/v1/chat/completions: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] ❌ Provider GPT-4o failed: Error: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1608:24
+[fetchOpenAIStream] ❌ LLM API returned 404 for gemini-3.1-pro at https://generativelanguage.googleapis.com/v1beta/openai/chat/completions: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+[Orchestrate] ❌ Provider Gemini 3.1 Pro failed: Error: Connection to LLM failed: LLM API returned 404: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1608:24
+[Orchestrate] ❌ Provider Claude 3.7 Sonnet failed: Error: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CerJn3dpgL9AWjkPw6KJs"}
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1608:24
+[fetchOpenAIStream] ❌ LLM API returned 401 for gpt-4o at https://api.openai.com/v1/chat/completions: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] ❌ Provider GPT-4o failed: Error: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1608:24
+[fetchOpenAIStream] ❌ LLM API returned 404 for gemini-3.1-pro at https://generativelanguage.googleapis.com/v1beta/openai/chat/completions: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+[Orchestrate] ❌ Provider Gemini 3.1 Pro failed: Error: Connection to LLM failed: LLM API returned 404: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1608:24
+[Orchestrate] ❌ Provider Claude 3.7 Sonnet failed: Error: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CerJnZp2phjPqF1FMrkNA"}
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1608:24
+[fetchOpenAIStream] ❌ LLM API returned 401 for gpt-4o at https://api.openai.com/v1/chat/completions: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] ❌ Provider GPT-4o failed: Error: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1608:24
+[fetchOpenAIStream] ❌ LLM API returned 404 for gemini-3.1-pro at https://generativelanguage.googleapis.com/v1beta/openai/chat/completions: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+[Orchestrate] ❌ Provider Gemini 3.1 Pro failed: Error: Connection to LLM failed: LLM API returned 404: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1608:24
+[Orchestrate] ❌ Provider Claude 3.7 Sonnet failed: Error: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CerJnqxdWmk94kamCVMM8"}
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1608:24
+[fetchOpenAIStream] ❌ LLM API returned 401 for gpt-4o at https://api.openai.com/v1/chat/completions: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] ❌ Provider GPT-4o failed: Error: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1608:24
+[fetchOpenAIStream] ❌ LLM API returned 404 for gemini-3.1-pro at https://generativelanguage.googleapis.com/v1beta/openai/chat/completions: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+[Orchestrate] ❌ Provider Gemini 3.1 Pro failed: Error: Connection to LLM failed: LLM API returned 404: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1608:24
+[Orchestrate] ❌ Provider Claude 3.7 Sonnet failed: Error: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CerJoBGVJh6Nw1QHACVr6"}
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1608:24
+[fetchOpenAIStream] ❌ LLM API returned 401 for gpt-4o at https://api.openai.com/v1/chat/completions: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] ❌ Provider GPT-4o failed: Error: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1608:24
+[fetchOpenAIStream] ❌ LLM API returned 404 for gemini-3.1-pro at https://generativelanguage.googleapis.com/v1beta/openai/chat/completions: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+[Orchestrate] ❌ Provider Gemini 3.1 Pro failed: Error: Connection to LLM failed: LLM API returned 404: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1608:24
+[Orchestrate] ❌ Provider Claude 3.7 Sonnet failed: Error: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CerJoQp59ofn2SwMXMLXh"}
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1608:24
+[fetchOpenAIStream] ❌ LLM API returned 401 for gpt-4o at https://api.openai.com/v1/chat/completions: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] ❌ Provider GPT-4o failed: Error: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1608:24
+[fetchOpenAIStream] ❌ LLM API returned 404 for gemini-3.1-pro at https://generativelanguage.googleapis.com/v1beta/openai/chat/completions: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+[Orchestrate] ❌ Provider Gemini 3.1 Pro failed: Error: Connection to LLM failed: LLM API returned 404: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1608:24
+[Orchestrate] ❌ Provider Claude 3.7 Sonnet failed: Error: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CerJoeJgWeXyPtf4oa2mz"}
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1608:24
+[fetchOpenAIStream] ❌ LLM API returned 401 for gpt-4o at https://api.openai.com/v1/chat/completions: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] ❌ Provider GPT-4o failed: Error: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1608:24
+[fetchOpenAIStream] ❌ LLM API returned 404 for gemini-3.1-pro at https://generativelanguage.googleapis.com/v1beta/openai/chat/completions: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+[Orchestrate] ❌ Provider Gemini 3.1 Pro failed: Error: Connection to LLM failed: LLM API returned 404: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1608:24
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[Orchestrate] ❌ Provider Claude 3.7 Sonnet failed: Error: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CerJy45v39hpwbnbrRPg6"}
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1606:24
+[fetchOpenAIStream] ❌ LLM API returned 401 for gpt-4o at https://api.openai.com/v1/chat/completions: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] ❌ Provider GPT-4o failed: Error: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1606:24
+[fetchOpenAIStream] ❌ LLM API returned 404 for gemini-3.1-pro at https://generativelanguage.googleapis.com/v1beta/openai/chat/completions: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+[Orchestrate] ❌ Provider Gemini 3.1 Pro failed: Error: Connection to LLM failed: LLM API returned 404: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1606:24
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[Orchestrate] ❌ Provider Claude 3.7 Sonnet failed: Error: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CerK2HBJPM9EwENsZWUkE"}
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1606:24
+[fetchOpenAIStream] ❌ LLM API returned 401 for gpt-4o at https://api.openai.com/v1/chat/completions: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] ❌ Provider GPT-4o failed: Error: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1606:24
+[fetchOpenAIStream] ❌ LLM API returned 404 for gemini-3.1-pro at https://generativelanguage.googleapis.com/v1beta/openai/chat/completions: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+[Orchestrate] ❌ Provider Gemini 3.1 Pro failed: Error: Connection to LLM failed: LLM API returned 404: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1606:24
+[Orchestrate] ❌ Provider Claude 3.7 Sonnet failed: Error: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CerK3FcZrAqrq6mQPAZMC"}
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1606:24
+[fetchOpenAIStream] ❌ LLM API returned 401 for gpt-4o at https://api.openai.com/v1/chat/completions: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] ❌ Provider GPT-4o failed: Error: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1606:24
+[fetchOpenAIStream] ❌ LLM API returned 404 for gemini-3.1-pro at https://generativelanguage.googleapis.com/v1beta/openai/chat/completions: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+[Orchestrate] ❌ Provider Gemini 3.1 Pro failed: Error: Connection to LLM failed: LLM API returned 404: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1606:24
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[Orchestrate] ❌ Provider Claude 3.7 Sonnet failed: Error: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CerK6zohBdh1KHt8njA5S"}
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1606:24
+[fetchOpenAIStream] ❌ LLM API returned 401 for gpt-4o at https://api.openai.com/v1/chat/completions: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] ❌ Provider GPT-4o failed: Error: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1606:24
+[fetchOpenAIStream] ❌ LLM API returned 404 for gemini-3.1-pro at https://generativelanguage.googleapis.com/v1beta/openai/chat/completions: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+[Orchestrate] ❌ Provider Gemini 3.1 Pro failed: Error: Connection to LLM failed: LLM API returned 404: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1606:24
+[Orchestrate] ❌ Provider Claude 3.7 Sonnet failed: Error: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CerK7ueuXBTZDKTdkmWyt"}
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1606:24
+[fetchOpenAIStream] ❌ LLM API returned 401 for gpt-4o at https://api.openai.com/v1/chat/completions: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] ❌ Provider GPT-4o failed: Error: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1606:24
+[fetchOpenAIStream] ❌ LLM API returned 404 for gemini-3.1-pro at https://generativelanguage.googleapis.com/v1beta/openai/chat/completions: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+[Orchestrate] ❌ Provider Gemini 3.1 Pro failed: Error: Connection to LLM failed: LLM API returned 404: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1606:24
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886160521"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886160521"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886160521"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886160521"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886160521"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886160521"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886160521"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886160521"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886160521"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886160521"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886160521"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886160521"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886160521"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886160521"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886160521"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886160521"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886160521"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886160521"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886160521"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886160521"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886160521"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886160521"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886160521"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886160521"
+[capabilities] sp_skills skipped: column "slug" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886160521"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886160521"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886160521"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886160521"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886160521"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886160521"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886160521"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886160521"
+[capabilities] sp_skills skipped: column "slug" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886160521"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886160521"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886160521"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886407171"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886407171"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886407171"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886407171"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886407171"
+[capabilities] sp_skills skipped: column "slug" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886407171"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886407171"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886407171"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886482928"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886482928"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886482928"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886482928"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886482928"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886482928"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886482928"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886482928"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886482928"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886482928"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886482928"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886482928"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886482928"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886482928"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886482928"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886482928"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886482928"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886482928"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886482928"
+[capabilities] sp_skills skipped: column "slug" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886482928"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886482928"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886482928"
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886482928"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886482928"
+[TCP-KILLER] Request Error to 192.168.0.18:8001: Client Aborted
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886482928"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886482928"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886482928"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886482928"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886482928"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886482928"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886482928"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886482928"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886482928"
+[capabilities] sp_skills skipped: column "slug" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886482928"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886482928"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886482928"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886482928"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886482928"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886482928"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886482928"
+[capabilities] sp_skills skipped: column "slug" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886482928"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886482928"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886482928"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886482928"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886482928"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886482928"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788886482928"
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[Orchestrate] ❌ Provider Claude 3.7 Sonnet failed: Error: Connection to LLM failed: Anthropic API returned 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CerPURGA26gnXdkPeo9cZ"}
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1606:24
+[fetchOpenAIStream] ❌ LLM API returned 401 for gpt-4o at https://api.openai.com/v1/chat/completions: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+[Orchestrate] ❌ Provider GPT-4o failed: Error: Connection to LLM failed: LLM API returned 401: {
+    "error": {
+        "message": "Incorrect API key provided: vault://*********enai. You can find your API key at https://platform.openai.com/account/api-keys.",
+        "type": "invalid_request_error",
+        "param": null,
+        "code": "invalid_api_key"
+    }
+}
+
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1606:24
+[fetchOpenAIStream] ❌ LLM API returned 404 for gemini-3.1-pro at https://generativelanguage.googleapis.com/v1beta/openai/chat/completions: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+[Orchestrate] ❌ Provider Gemini 3.1 Pro failed: Error: Connection to LLM failed: LLM API returned 404: [{
+  "error": {
+    "code": 404,
+    "message": "models/gemini-3.1-pro is not found for API version v1main, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.",
+    "status": "NOT_FOUND"
+  }
+}
+]
+    at streamFromProvider (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:623:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/chat-orchestrate.mjs:1606:24
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/infra.mjs:465
+}
+^
+
+SyntaxError: Unexpected token '}'
+    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:107:18)
+    at #translate (node:internal/modules/esm/loader:546:20)
+    at afterLoad (node:internal/modules/esm/loader:596:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:601:12)
+    at #createModuleJob (node:internal/modules/esm/loader:624:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:343:34)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:311:41)
+
+Node.js v22.22.1
+file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/infra.mjs:465
+}
+^
+
+SyntaxError: Unexpected token '}'
+    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:107:18)
+    at #translate (node:internal/modules/esm/loader:546:20)
+    at afterLoad (node:internal/modules/esm/loader:596:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:601:12)
+    at #createModuleJob (node:internal/modules/esm/loader:624:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:343:34)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:311:41)
+
+Node.js v22.22.1
+file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/infra.mjs:465
+}
+^
+
+SyntaxError: Unexpected token '}'
+    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:107:18)
+    at #translate (node:internal/modules/esm/loader:546:20)
+    at afterLoad (node:internal/modules/esm/loader:596:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:601:12)
+    at #createModuleJob (node:internal/modules/esm/loader:624:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:343:34)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:311:41)
+
+Node.js v22.22.1
+file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/infra.mjs:465
+}
+^
+
+SyntaxError: Unexpected token '}'
+    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:107:18)
+    at #translate (node:internal/modules/esm/loader:546:20)
+    at afterLoad (node:internal/modules/esm/loader:596:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:601:12)
+    at #createModuleJob (node:internal/modules/esm/loader:624:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:343:34)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:311:41)
+
+Node.js v22.22.1
+file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/infra.mjs:465
+}
+^
+
+SyntaxError: Unexpected token '}'
+    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:107:18)
+    at #translate (node:internal/modules/esm/loader:546:20)
+    at afterLoad (node:internal/modules/esm/loader:596:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:601:12)
+    at #createModuleJob (node:internal/modules/esm/loader:624:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:343:34)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:311:41)
+
+Node.js v22.22.1
+file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/infra.mjs:465
+}
+^
+
+SyntaxError: Unexpected token '}'
+    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:107:18)
+    at #translate (node:internal/modules/esm/loader:546:20)
+    at afterLoad (node:internal/modules/esm/loader:596:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:601:12)
+    at #createModuleJob (node:internal/modules/esm/loader:624:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:343:34)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:311:41)
+
+Node.js v22.22.1
+file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/infra.mjs:465
+}
+^
+
+SyntaxError: Unexpected token '}'
+    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:107:18)
+    at #translate (node:internal/modules/esm/loader:546:20)
+    at afterLoad (node:internal/modules/esm/loader:596:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:601:12)
+    at #createModuleJob (node:internal/modules/esm/loader:624:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:343:34)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:311:41)
+
+Node.js v22.22.1
+file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/infra.mjs:465
+}
+^
+
+SyntaxError: Unexpected token '}'
+    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:107:18)
+    at #translate (node:internal/modules/esm/loader:546:20)
+    at afterLoad (node:internal/modules/esm/loader:596:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:601:12)
+    at #createModuleJob (node:internal/modules/esm/loader:624:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:343:34)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:311:41)
+
+Node.js v22.22.1
+file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/infra.mjs:465
+}
+^
+
+SyntaxError: Unexpected token '}'
+    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:107:18)
+    at #translate (node:internal/modules/esm/loader:546:20)
+    at afterLoad (node:internal/modules/esm/loader:596:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:601:12)
+    at #createModuleJob (node:internal/modules/esm/loader:624:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:343:34)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:311:41)
+
+Node.js v22.22.1
+file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/infra.mjs:465
+}
+^
+
+SyntaxError: Unexpected token '}'
+    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:107:18)
+    at #translate (node:internal/modules/esm/loader:546:20)
+    at afterLoad (node:internal/modules/esm/loader:596:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:601:12)
+    at #createModuleJob (node:internal/modules/esm/loader:624:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:343:34)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:311:41)
+
+Node.js v22.22.1
+file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/infra.mjs:465
+}
+^
+
+SyntaxError: Unexpected token '}'
+    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:107:18)
+    at #translate (node:internal/modules/esm/loader:546:20)
+    at afterLoad (node:internal/modules/esm/loader:596:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:601:12)
+    at #createModuleJob (node:internal/modules/esm/loader:624:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:343:34)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:311:41)
+
+Node.js v22.22.1
+file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/infra.mjs:465
+}
+^
+
+SyntaxError: Unexpected token '}'
+    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:107:18)
+    at #translate (node:internal/modules/esm/loader:546:20)
+    at afterLoad (node:internal/modules/esm/loader:596:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:601:12)
+    at #createModuleJob (node:internal/modules/esm/loader:624:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:343:34)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:311:41)
+
+Node.js v22.22.1
+file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/infra.mjs:465
+}
+^
+
+SyntaxError: Unexpected token '}'
+    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:107:18)
+    at #translate (node:internal/modules/esm/loader:546:20)
+    at afterLoad (node:internal/modules/esm/loader:596:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:601:12)
+    at #createModuleJob (node:internal/modules/esm/loader:624:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:343:34)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:311:41)
+
+Node.js v22.22.1
+file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/infra.mjs:465
+}
+^
+
+SyntaxError: Unexpected token '}'
+    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:107:18)
+    at #translate (node:internal/modules/esm/loader:546:20)
+    at afterLoad (node:internal/modules/esm/loader:596:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:601:12)
+    at #createModuleJob (node:internal/modules/esm/loader:624:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:343:34)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:311:41)
+
+Node.js v22.22.1
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[pg async write:side] invalid input syntax for type uuid: "chat_1788893898970"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788893898970"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788893898970"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788893898970"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788893898970"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788893898970"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788893898970"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788893898970"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788893898970"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788893898970"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788893898970"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788893898970"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788893898970"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788893898970"
+[Redis] ⚠️ Connection warning: connect ECONNREFUSED 127.0.0.1:6379. Using In-Memory fallback.
+[RabbitMQ] Initialization notice: connect ECONNREFUSED 127.0.0.1:5672
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[Redis] ⚠️ Connection warning: connect ECONNREFUSED 127.0.0.1:6379. Using In-Memory fallback.
+[Redis] ⚠️ Connection warning: connect ECONNREFUSED 127.0.0.1:6379. Using In-Memory fallback.
+[Redis] ⚠️ Connection warning: connect ECONNREFUSED 127.0.0.1:6379. Using In-Memory fallback.
+[Redis] ⚠️ Connection warning: connect ECONNREFUSED 127.0.0.1:6379. Using In-Memory fallback.
+[Redis] ⚠️ Connection warning: connect ECONNREFUSED 127.0.0.1:6379. Using In-Memory fallback.
+[Redis] ⚠️ Connection warning: connect ECONNREFUSED 127.0.0.1:6379. Using In-Memory fallback.
+[RabbitMQ] Initialization notice: connect ECONNREFUSED 127.0.0.1:5672
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[Redis] ⚠️ Connection warning: connect ECONNREFUSED 127.0.0.1:6379. Using In-Memory fallback.
+[Redis] ⚠️ Connection warning: connect ECONNREFUSED 127.0.0.1:6379. Using In-Memory fallback.
+[Redis] ⚠️ Connection warning: connect ECONNREFUSED 127.0.0.1:6379. Using In-Memory fallback.
+[Redis] ⚠️ Connection warning: connect ECONNREFUSED 127.0.0.1:6379. Using In-Memory fallback.
+[Redis] ⚠️ Connection warning: connect ECONNREFUSED 127.0.0.1:6379. Using In-Memory fallback.
+[approvals] failed to apply self-healing refactor for appr_heal_whois_geo_1788909940499: Error: Lint failed for refactored tool whois_geo: forbidden pattern: compile(
+    at applySelfHealingRefactor (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/self-healing.mjs:375:11)
+    at file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/approvals.mjs:95:21
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[Redis] ⚠️ Connection warning: connect ECONNREFUSED 127.0.0.1:6379. Using In-Memory fallback.
+[RabbitMQ] Initialization notice: connect ECONNREFUSED 127.0.0.1:5672
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[Redis] ⚠️ Connection warning: connect ECONNREFUSED 127.0.0.1:6379. Using In-Memory fallback.
+[Redis] ⚠️ Connection warning: connect ECONNREFUSED 127.0.0.1:6379. Using In-Memory fallback.
+[Redis] ⚠️ Connection warning: connect ECONNREFUSED 127.0.0.1:6379. Using In-Memory fallback.
+[Redis] ⚠️ Connection warning: connect ECONNREFUSED 127.0.0.1:6379. Using In-Memory fallback.
+[Redis] ⚠️ Connection warning: connect ECONNREFUSED 127.0.0.1:6379. Using In-Memory fallback.
+[approvals] failed to apply self-healing refactor for appr_heal_whois_geo_1788911585556: Error: Lint failed for refactored tool whois_geo: forbidden pattern: compile(
+    at applySelfHealingRefactor (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/self-healing.mjs:384:11)
+    at file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/approvals.mjs:95:21
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[approvals] failed to apply self-healing refactor for appr_heal_whois_geo_1788912118848: Error: Lint failed for refactored tool whois_geo: forbidden pattern: compile(
+    at applySelfHealingRefactor (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/self-healing.mjs:384:11)
+    at file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/approvals.mjs:95:21
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[capabilities] sp_skills skipped: column "slug" does not exist
+[capabilities] sp_skills skipped: column "slug" does not exist
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[Redis] ⚠️ Connection warning: connect ECONNREFUSED 127.0.0.1:6379. Using In-Memory fallback.
+[RabbitMQ] Initialization notice: connect ECONNREFUSED 127.0.0.1:5672
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[Redis] ⚠️ Connection warning: connect ECONNREFUSED 127.0.0.1:6379. Using In-Memory fallback.
+[Redis] ⚠️ Connection warning: connect ECONNREFUSED 127.0.0.1:6379. Using In-Memory fallback.
+[Redis] ⚠️ Connection warning: connect ECONNREFUSED 127.0.0.1:6379. Using In-Memory fallback.
+[Redis] ⚠️ Connection warning: connect ECONNREFUSED 127.0.0.1:6379. Using In-Memory fallback.
+[Redis] ⚠️ Connection warning: connect ECONNREFUSED 127.0.0.1:6379. Using In-Memory fallback.
+[Redis] ⚠️ Connection warning: connect ECONNREFUSED 127.0.0.1:6379. Using In-Memory fallback.
+[RabbitMQ] Initialization notice: connect ECONNREFUSED 127.0.0.1:5672
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[Redis] ⚠️ Connection warning: connect ECONNREFUSED 127.0.0.1:6379. Using In-Memory fallback.
+[Redis] ⚠️ Connection warning: connect ECONNREFUSED 127.0.0.1:6379. Using In-Memory fallback.
+[Redis] ⚠️ Connection warning: connect ECONNREFUSED 127.0.0.1:6379. Using In-Memory fallback.
+[Redis] ⚠️ Connection warning: connect ECONNREFUSED 127.0.0.1:6379. Using In-Memory fallback.
+[Redis] ⚠️ Connection warning: connect ECONNREFUSED 127.0.0.1:6379. Using In-Memory fallback.
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[pg async write:side] invalid input syntax for type uuid: "chat_1788903945177"
+[RabbitMQ] Initialization notice: connect ECONNREFUSED 127.0.0.1:5672
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[RabbitMQ] Initialization notice: connect ECONNREFUSED 127.0.0.1:5672
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[RabbitMQ] Initialization notice: connect ECONNREFUSED 127.0.0.1:5672
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[RabbitMQ] Initialization notice: connect ECONNREFUSED 127.0.0.1:5672
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[RabbitMQ] Initialization notice: connect ECONNREFUSED 127.0.0.1:5672
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[RabbitMQ] Initialization notice: connect ECONNREFUSED 127.0.0.1:5672
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[pg-pool] idle client error: terminating connection due to administrator command
+[pg-pool] idle client error: terminating connection due to administrator command
+[RabbitMQ] Initialization notice: connect ECONNREFUSED 127.0.0.1:5672
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[RabbitMQ] Initialization notice: connect ECONNREFUSED 127.0.0.1:5672
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[RabbitMQ] Initialization notice: connect ECONNREFUSED 127.0.0.1:5672
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[RabbitMQ] Initialization notice: connect ECONNREFUSED 127.0.0.1:5672
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[RabbitMQ] Initialization notice: connect ECONNREFUSED 127.0.0.1:5672
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[RabbitMQ] Initialization notice: connect ECONNREFUSED 127.0.0.1:5672
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[RabbitMQ] Initialization notice: connect ECONNREFUSED 127.0.0.1:5672
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[RabbitMQ] Initialization notice: connect ECONNREFUSED 127.0.0.1:5672
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[RabbitMQ] Initialization notice: connect ECONNREFUSED 127.0.0.1:5672
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[RabbitMQ] Initialization notice: connect ECONNREFUSED 127.0.0.1:5672
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[RabbitMQ] Initialization notice: connect ECONNREFUSED 127.0.0.1:5672
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[RabbitMQ] Initialization notice: connect ECONNREFUSED 127.0.0.1:5672
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[RabbitMQ] Initialization notice: connect ECONNREFUSED 127.0.0.1:5672
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[OpenAI Gateway] Models error: error: column "provider_name" does not exist
+    at /home/levent/ELARA_PROJECT/Elara_WebUi/local-server/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async handleListModels (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/openai-gateway.mjs:77:37) {
+  length: 113,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '12',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3854',
+  routine: 'errorMissingColumn'
+}
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[OpenAI Gateway] Execution error: ReferenceError: Cannot access 'mode' before initialization
+    at streamRoutedLLM (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/llm-router.mjs:248:3)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async Object.stream (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/llm-provider.mjs:27:10)
+    at async handleChatCompletions (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/routes/openai-gateway.mjs:337:30)
+file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/llm-router.mjs:276
+  const mode = policy.mode || "failover";
+        ^
+
+SyntaxError: Identifier 'mode' has already been declared
+    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:107:18)
+    at #translate (node:internal/modules/esm/loader:546:20)
+    at afterLoad (node:internal/modules/esm/loader:596:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:601:12)
+    at #createModuleJob (node:internal/modules/esm/loader:624:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:343:34)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:311:41)
+
+Node.js v22.22.1
+file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/llm-router.mjs:276
+  const mode = policy.mode || "failover";
+        ^
+
+SyntaxError: Identifier 'mode' has already been declared
+    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:107:18)
+    at #translate (node:internal/modules/esm/loader:546:20)
+    at afterLoad (node:internal/modules/esm/loader:596:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:601:12)
+    at #createModuleJob (node:internal/modules/esm/loader:624:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:343:34)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:311:41)
+
+Node.js v22.22.1
+file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/llm-router.mjs:276
+  const mode = policy.mode || "failover";
+        ^
+
+SyntaxError: Identifier 'mode' has already been declared
+    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:107:18)
+    at #translate (node:internal/modules/esm/loader:546:20)
+    at afterLoad (node:internal/modules/esm/loader:596:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:601:12)
+    at #createModuleJob (node:internal/modules/esm/loader:624:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:343:34)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:311:41)
+
+Node.js v22.22.1
+file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/llm-router.mjs:276
+  const mode = policy.mode || "failover";
+        ^
+
+SyntaxError: Identifier 'mode' has already been declared
+    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:107:18)
+    at #translate (node:internal/modules/esm/loader:546:20)
+    at afterLoad (node:internal/modules/esm/loader:596:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:601:12)
+    at #createModuleJob (node:internal/modules/esm/loader:624:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:343:34)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:311:41)
+
+Node.js v22.22.1
+file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/llm-router.mjs:276
+  const mode = policy.mode || "failover";
+        ^
+
+SyntaxError: Identifier 'mode' has already been declared
+    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:107:18)
+    at #translate (node:internal/modules/esm/loader:546:20)
+    at afterLoad (node:internal/modules/esm/loader:596:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:601:12)
+    at #createModuleJob (node:internal/modules/esm/loader:624:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:343:34)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:311:41)
+
+Node.js v22.22.1
+file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/llm-router.mjs:276
+  const mode = policy.mode || "failover";
+        ^
+
+SyntaxError: Identifier 'mode' has already been declared
+    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:107:18)
+    at #translate (node:internal/modules/esm/loader:546:20)
+    at afterLoad (node:internal/modules/esm/loader:596:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:601:12)
+    at #createModuleJob (node:internal/modules/esm/loader:624:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:343:34)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:311:41)
+
+Node.js v22.22.1
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[pg async write:side] invalid input syntax for type uuid: "chat_1789006811307"
+[pg async write:side] invalid input syntax for type uuid: "chat_1789006811307"
+[pg async write:side] invalid input syntax for type uuid: "chat_1789006811307"
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+❌ FATAL ERROR: ReferenceError: tenantCount is not defined
+    at ensureApiKeysSchema (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/schema-api-keys.mjs:68:5)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async startServer (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/server.mjs:211:5)
+❌ FATAL ERROR: ReferenceError: tenantCount is not defined
+    at ensureApiKeysSchema (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/schema-api-keys.mjs:68:5)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async startServer (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/server.mjs:211:5)
+❌ FATAL ERROR: ReferenceError: tenantCount is not defined
+    at ensureApiKeysSchema (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/schema-api-keys.mjs:68:5)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async startServer (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/server.mjs:211:5)
+❌ FATAL ERROR: ReferenceError: tenantCount is not defined
+    at ensureApiKeysSchema (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/schema-api-keys.mjs:68:5)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async startServer (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/server.mjs:211:5)
+❌ FATAL ERROR: ReferenceError: tenantCount is not defined
+    at ensureApiKeysSchema (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/schema-api-keys.mjs:68:5)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async startServer (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/server.mjs:211:5)
+❌ FATAL ERROR: ReferenceError: tenantCount is not defined
+    at ensureApiKeysSchema (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/schema-api-keys.mjs:68:5)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async startServer (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/server.mjs:211:5)
+❌ FATAL ERROR: ReferenceError: tenantCount is not defined
+    at ensureApiKeysSchema (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/schema-api-keys.mjs:68:5)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async startServer (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/server.mjs:211:5)
+❌ FATAL ERROR: ReferenceError: tenantCount is not defined
+    at ensureApiKeysSchema (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/schema-api-keys.mjs:68:5)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async startServer (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/server.mjs:211:5)
+❌ FATAL ERROR: ReferenceError: tenantCount is not defined
+    at ensureApiKeysSchema (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/schema-api-keys.mjs:68:5)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async startServer (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/server.mjs:211:5)
+❌ FATAL ERROR: ReferenceError: tenantCount is not defined
+    at ensureApiKeysSchema (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/schema-api-keys.mjs:68:5)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async startServer (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/server.mjs:211:5)
+❌ FATAL ERROR: ReferenceError: tenantCount is not defined
+    at ensureApiKeysSchema (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/schema-api-keys.mjs:68:5)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async startServer (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/server.mjs:211:5)
+❌ FATAL ERROR: ReferenceError: tenantCount is not defined
+    at ensureApiKeysSchema (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/schema-api-keys.mjs:68:5)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async startServer (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/server.mjs:211:5)
+❌ FATAL ERROR: ReferenceError: tenantCount is not defined
+    at ensureApiKeysSchema (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/schema-api-keys.mjs:68:5)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async startServer (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/server.mjs:211:5)
+❌ FATAL ERROR: ReferenceError: tenantCount is not defined
+    at ensureApiKeysSchema (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/schema-api-keys.mjs:68:5)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async startServer (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/server.mjs:211:5)
+❌ FATAL ERROR: ReferenceError: tenantCount is not defined
+    at ensureApiKeysSchema (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/schema-api-keys.mjs:68:5)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async startServer (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/server.mjs:211:5)
+❌ FATAL ERROR: ReferenceError: tenantCount is not defined
+    at ensureApiKeysSchema (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/lib/schema-api-keys.mjs:68:5)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async startServer (file:///home/levent/ELARA_PROJECT/Elara_WebUi/local-server/server.mjs:211:5)
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[Reporting API] Notice creating indices: column "owner_id" does not exist

@@ -303,3 +303,10 @@ export function getRedisCacheStats() {
     inMemoryEntries: IN_MEMORY_CACHE.size,
   };
 }
+
+/**
+ * Return raw active Redis client if connected
+ */
+export function getRawRedisClient() {
+  return (_isEnabled && _redisClient && _redisClient.status === "ready") ? _redisClient : null;
+}

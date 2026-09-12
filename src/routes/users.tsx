@@ -2,8 +2,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { updateAccountPassword } from "@/lib/credential-store";
 
 import { motion } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
+import { AnimatePresence } from "motion/react";
 import {
+  Building2,
   Check,
   ChevronDown,
   Copy,
@@ -11,8 +13,11 @@ import {
   Lock,
   Mail,
   MailX,
+  Pencil,
   Plus,
+  RefreshCw,
   Save,
+  Sliders,
   Trash2,
   Unlock,
   Upload,
@@ -20,6 +25,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { confirmAction } from "@/components/sovereign/confirm-dialog";
+import { fetchApi } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 import { AvatarPicker, EntityAvatar } from "@/components/sovereign/identity";
 import { Surface, Row } from "@/components/sovereign/surface";
@@ -81,7 +88,7 @@ import {
 const description =
   "Identity management for the studio: operators, groups, provisioning templates and RBAC compliance posture.";
 
-export type UsersView = "users" | "groups" | "templates" | "compliance";
+export type UsersView = "users" | "groups" | "templates" | "compliance" | "tenants";
 
 export const Route = createFileRoute("/users")({
   head: () => ({
@@ -97,7 +104,7 @@ export const Route = createFileRoute("/users")({
   validateSearch: (search: Record<string, unknown>): { view: UsersView } => {
     const v = search["view"];
     return {
-      view: v === "groups" || v === "templates" || v === "compliance" ? (v as UsersView) : "users",
+      view: v === "groups" || v === "templates" || v === "compliance" || v === "tenants" ? (v as UsersView) : "users",
     };
   },
   component: UsersRoute,
@@ -229,6 +236,7 @@ const META: Record<UsersView, string> = {
   groups: "5 groups · charter + role mapping",
   templates: "4 provisioning templates · session ceilings",
   compliance: "5 controls · 2 advisories",
+  tenants: "B2B client organizations · IdP authentication binding · tier quotas",
 };
 
 function UsersRoute() {
@@ -246,6 +254,7 @@ function UsersRoute() {
         {view === "groups" && <GroupsTab />}
         {view === "templates" && <TemplatesTab />}
         {view === "compliance" && <ComplianceTab />}
+        {view === "tenants" && <TenantsTab />}
       </motion.div>
     </Surface>
   );
@@ -674,6 +683,496 @@ function useProviderKind(label: string): string {
 }
 
 
+
+type TenantItem = {
+  id: string;
+  slug: string;
+  name: string;
+  domain: string | null;
+  tier: string;
+  tier_name?: string;
+  rpm_limit?: number;
+  tpm_limit?: number;
+  monthly_token_quota?: string;
+  admin_email: string | null;
+  auth_provider?: string;
+  auth_providers?: string[];
+  status: "active" | "suspended";
+  user_count?: number;
+  key_count?: number;
+  created_at: string;
+};
+
+function TenantsTab() {
+  const [tenants, setTenants] = useState<TenantItem[]>([]);
+  const [tiers, setTiers] = useState<Array<{ tier: string; name: string; rpm_limit: number; monthly_token_quota: string }>>([]);
+  const { providers: authProvidersList } = useAuthProviders();
+  const [loading, setLoading] = useState(true);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  // Form State
+  const [name, setName] = useState("");
+  const [slug, setSlug] = useState("");
+  const [domain, setDomain] = useState("");
+  const [tier, setTier] = useState("tier1");
+  const [selectedIdps, setSelectedIdps] = useState<string[]>(["local"]);
+  const [idpSelectVal, setIdpSelectVal] = useState("");
+  const [adminEmail, setAdminEmail] = useState("");
+  const [status, setStatus] = useState<"active" | "suspended">("active");
+  const [saving, setSaving] = useState(false);
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [tRes, tierRes] = await Promise.all([
+        fetchApi("/api/identity/tenants"),
+        fetchApi("/api/developer/tiers"),
+      ]);
+      if (Array.isArray(tRes)) setTenants(tRes);
+      if (tierRes?.tiers) setTiers(tierRes.tiers);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error("Failed to load tenant organizations: " + msg);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const openModal = (tenant?: TenantItem) => {
+    if (tenant) {
+      setEditingId(tenant.id);
+      setName(tenant.name);
+      setSlug(tenant.slug);
+      setDomain(tenant.domain || "");
+      setTier(tenant.tier);
+      const existingIdps = Array.isArray(tenant.auth_providers) && tenant.auth_providers.length > 0
+        ? tenant.auth_providers
+        : (tenant.auth_provider ? [tenant.auth_provider] : ["local"]);
+      setSelectedIdps(existingIdps);
+      setAdminEmail(tenant.admin_email || "");
+      setStatus(tenant.status);
+    } else {
+      setEditingId(null);
+      setName("");
+      setSlug("");
+      setDomain("");
+      setTier("tier1");
+      setSelectedIdps(["local"]);
+      setAdminEmail("");
+      setStatus("active");
+    }
+    setIdpSelectVal("");
+    setModalOpen(true);
+  };
+
+  const handleAddIdp = () => {
+    if (!idpSelectVal || selectedIdps.includes(idpSelectVal)) return;
+    setSelectedIdps((prev) => [...prev, idpSelectVal]);
+    setIdpSelectVal("");
+  };
+
+  const handleRemoveIdp = (idpKey: string) => {
+    setSelectedIdps((prev) => prev.filter((k) => k !== idpKey));
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim() || (!editingId && !slug.trim())) {
+      toast.error("Organization name and slug identifier are required.");
+      return;
+    }
+    setSaving(true);
+    try {
+      if (editingId) {
+        const res = await fetchApi(`/api/identity/tenants/${editingId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: name.trim(),
+            domain: domain ? domain.trim().toLowerCase() : null,
+            tier,
+            auth_providers: selectedIdps.length > 0 ? selectedIdps : ["local"],
+            admin_email: adminEmail.trim(),
+            status,
+          }),
+        });
+        if (res?.ok) {
+          toast.success("Tenant organization updated successfully!");
+          setModalOpen(false);
+          loadData();
+        }
+      } else {
+        const res = await fetchApi("/api/identity/tenants", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: name.trim(),
+            slug: slug.trim().toLowerCase(),
+            domain: domain ? domain.trim().toLowerCase() : null,
+            tier,
+            auth_providers: selectedIdps.length > 0 ? selectedIdps : ["local"],
+            admin_email: adminEmail.trim(),
+            status,
+          }),
+        });
+        if (res?.ok) {
+          toast.success("New tenant organization enrolled successfully!");
+          setModalOpen(false);
+          loadData();
+        }
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error("Error saving tenant organization: " + msg);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (t: TenantItem) => {
+    if (t.slug === "default") {
+      toast.error("The default baseline organization cannot be deleted.");
+      return;
+    }
+    const ok = await confirmAction({
+      title: "Delete Tenant Organization",
+      body: `Are you sure you want to delete '${t.name}' (${t.slug})? All associated domain mappings and access delegations will be permanently revoked.`,
+      confirmLabel: "Delete Organization",
+      tone: "ruby",
+    });
+    if (!ok) return;
+
+    try {
+      const res = await fetchApi(`/api/identity/tenants/${t.id}`, { method: "DELETE" });
+      if (res?.ok) {
+        toast.success("Tenant organization deleted successfully.");
+        loadData();
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error("Failed to delete tenant organization: " + msg);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Top Toolbar */}
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 pb-4">
+        <div>
+          <h3 className="text-base font-semibold text-foreground">B2B Tenant Organizations</h3>
+          <p className="text-xs text-muted-foreground/70">
+            Manage enterprise clients, multi-IdP authentication bindings, SSO domain rules, and rate limit quotas.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <JewelButton variant="outline" size="sm" onClick={() => { loadData(); }} disabled={loading}>
+            <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", loading && "animate-spin")} />
+            Refresh
+          </JewelButton>
+          <JewelButton variant="primary" size="sm" onClick={() => openModal()}>
+            <Plus className="mr-1.5 h-3.5 w-3.5" />
+            Add Tenant Organization
+          </JewelButton>
+        </div>
+      </div>
+
+      {/* Tenants Grid */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {tenants.map((t) => {
+          const boundIdpKeys = Array.isArray(t.auth_providers) && t.auth_providers.length > 0
+            ? t.auth_providers
+            : (t.auth_provider ? [t.auth_provider] : ["local"]);
+
+          return (
+            <motion.div
+              key={t.slug}
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex flex-col justify-between rounded-xl border border-white/10 bg-raised/30 p-5 transition-all hover:border-white/20"
+            >
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-xs font-semibold uppercase text-sapphire">
+                    {t.slug}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <span
+                      className={cn(
+                        "rounded px-2 py-0.5 font-mono text-[10px] font-semibold uppercase",
+                        t.status === "active"
+                          ? "border border-emerald/30 bg-emerald/15 text-emerald"
+                          : "border border-red-500/30 bg-red-500/15 text-red-400"
+                      )}
+                    >
+                      {t.status}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => openModal(t)}
+                      className="rounded-md p-1.5 text-muted-foreground hover:bg-white/6 hover:text-foreground"
+                      title="Edit Organization Settings"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    {t.slug !== "default" && (
+                      <button
+                        type="button"
+                        onClick={() => { handleDelete(t); }}
+                        className="rounded-md p-1.5 text-red-400 hover:bg-red-500/15"
+                        title="Delete Organization"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <h4 className="mt-2 text-base font-semibold text-foreground">{t.name}</h4>
+
+                <div className="mt-4 space-y-2.5 border-t border-white/6 pt-3 font-mono text-xs">
+                  <div className="flex items-center justify-between text-muted-foreground">
+                    <span>SSO Domain:</span>
+                    <span className="font-semibold text-foreground">
+                      {t.domain ? `@${t.domain}` : "— Global Baseline —"}
+                    </span>
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="text-muted-foreground text-[11px]">Bound IdP Sources:</span>
+                    <div className="flex flex-wrap gap-1">
+                      {boundIdpKeys.map((k) => {
+                        const found = authProvidersList.find((p) => p.key === k || p.id === k);
+                        return (
+                          <span
+                            key={k}
+                            className="rounded border border-sapphire/30 bg-sapphire/15 px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase text-sapphire"
+                          >
+                            {found?.label || k}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between text-muted-foreground pt-1">
+                    <span>Assigned Package:</span>
+                    <span className="font-semibold text-emerald">
+                      {t.tier_name || t.tier.toUpperCase()}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-muted-foreground">
+                    <span>Rate Limit & Quota:</span>
+                    <span className="text-foreground/90">
+                      {t.rpm_limit ?? 15} RPM · {(Number(t.monthly_token_quota ?? 10000000) / 1000000).toFixed(0)}M/mo
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-muted-foreground">
+                    <span>Admin Contact:</span>
+                    <span className="truncate text-foreground/80">{t.admin_email || "Not specified"}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 flex items-center justify-between border-t border-white/6 pt-3 font-mono text-[11px] text-muted-foreground/60">
+                <span>{t.user_count ?? 0} Users Enrolled</span>
+                <span>{t.key_count ?? 0} Active API Keys</span>
+              </div>
+            </motion.div>
+          );
+        })}
+      </div>
+
+      {/* MODAL: Create / Edit Tenant Organization with Multi-IdP Selector */}
+      <AnimatePresence>
+        {modalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-white/10 bg-surface-overlay p-6 shadow-2xl"
+            >
+              <div className="flex items-center justify-between border-b border-white/8 pb-3">
+                <h3 className="flex items-center gap-2 text-base font-semibold text-foreground">
+                  <Building2 className="h-4 w-4 text-sapphire" />
+                  {editingId ? "Edit Tenant Organization" : "Add Tenant Organization"}
+                </h3>
+                <button
+                  onClick={() => setModalOpen(false)}
+                  className="rounded-lg p-1 text-muted-foreground hover:bg-white/6"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={handleSave} className="mt-4 space-y-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1.5 block font-mono text-[11px] uppercase tracking-wider text-muted-foreground/70">
+                      Organization Name
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Acme Corporation"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="w-full rounded-lg border border-white/8 bg-raised/50 px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-sapphire"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1.5 block font-mono text-[11px] uppercase tracking-wider text-muted-foreground/70">
+                      Tenant Slug (Identifier)
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      disabled={!!editingId}
+                      placeholder="e.g. acme_corp"
+                      value={slug}
+                      onChange={(e) => setSlug(e.target.value)}
+                      className="w-full rounded-lg border border-white/8 bg-raised/50 px-3 py-2 font-mono text-sm text-foreground outline-none transition-colors focus:border-sapphire disabled:opacity-50"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1.5 block font-mono text-[11px] uppercase tracking-wider text-muted-foreground/70">
+                      SSO Domain Mapping
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. acme.com"
+                      value={domain}
+                      onChange={(e) => setDomain(e.target.value)}
+                      className="w-full rounded-lg border border-white/8 bg-raised/50 px-3 py-2 font-mono text-sm text-foreground outline-none transition-colors focus:border-sapphire"
+                    />
+                    <span className="mt-1 block font-mono text-[10px] text-muted-foreground/50">
+                      Entra ID / OIDC users with this domain map to this organization.
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="mb-1.5 block font-mono text-[11px] uppercase tracking-wider text-muted-foreground/70">
+                      Assigned Rate Limit Package
+                    </label>
+                    <select
+                      value={tier}
+                      onChange={(e) => setTier(e.target.value)}
+                      className="w-full rounded-lg border border-white/10 bg-[#121216] px-3 py-2 font-mono text-sm text-foreground outline-none transition-colors focus:border-sapphire"
+                    >
+                      {tiers.map((t) => (
+                        <option key={t.tier} value={t.tier} className="bg-[#18181e] text-foreground py-1.5">
+                          {t.name} ({t.rpm_limit} RPM · {(Number(t.monthly_token_quota) / 1000000).toFixed(0)}M/mo)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Multi-IdP Authentication Binding Card */}
+                <div className="rounded-xl border border-white/8 bg-raised/30 p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-mono text-[10.5px] uppercase tracking-[0.14em] text-muted-foreground/70">
+                      Authentication Sources (IdP) · {selectedIdps.length}/{authProvidersList.length}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={idpSelectVal}
+                      onChange={(e) => setIdpSelectVal(e.target.value)}
+                      className="flex-1 rounded-lg border border-white/10 bg-[#121216] px-3 py-2 font-mono text-xs text-foreground outline-none transition-colors focus:border-sapphire"
+                    >
+                      <option value="" className="bg-[#18181e] text-muted-foreground">— Select IdP Source to bind —</option>
+                      {authProvidersList
+                        .filter((p) => !selectedIdps.includes(p.key || p.id))
+                        .map((p) => (
+                          <option key={p.key || p.id} value={p.key || p.id} className="bg-[#18181e] text-foreground py-1.5">
+                            {p.label}
+                          </option>
+                        ))}
+                    </select>
+                    <JewelButton
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={!idpSelectVal}
+                      onClick={handleAddIdp}
+                    >
+                      <Plus className="h-3 w-3 mr-1" /> Add
+                    </JewelButton>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {selectedIdps.length === 0 ? (
+                      <span className="font-mono text-[11px] text-muted-foreground/45">
+                        No specific IdP sources bound · Domain matching enabled.
+                      </span>
+                    ) : (
+                      selectedIdps.map((idpKey) => {
+                        const found = authProvidersList.find((p) => p.key === idpKey || p.id === idpKey);
+                        return (
+                          <span
+                            key={idpKey}
+                            className="inline-flex items-center gap-1.5 rounded-md border border-sapphire/30 bg-sapphire/15 px-2 py-1 font-mono text-[11px] text-sapphire"
+                          >
+                            {found?.label || idpKey}
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveIdp(idpKey)}
+                              className="text-sapphire/60 hover:text-sapphire"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </span>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block font-mono text-[11px] uppercase tracking-wider text-muted-foreground/70">
+                    Tenant Admin Contact Email
+                  </label>
+                  <input
+                    type="email"
+                    placeholder="e.g. admin@acme.com"
+                    value={adminEmail}
+                    onChange={(e) => setAdminEmail(e.target.value)}
+                    className="w-full rounded-lg border border-white/8 bg-raised/50 px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-sapphire"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 border-t border-white/8 pt-4">
+                  <JewelButton
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setModalOpen(false)}
+                  >
+                    Cancel
+                  </JewelButton>
+                  <JewelButton type="submit" variant="primary" size="sm" disabled={saving}>
+                    {saving ? "Saving..." : editingId ? "Update Organization" : "Create Organization"}
+                  </JewelButton>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
 
 function UsersTab() {
   const {

@@ -25,6 +25,120 @@ export async function mountIdentityRoutes(app, deps) {
 
   const { ensureFederatedUser } = initAuthSchema({ pool, hashPassword, createPrefixedId, randomBytes });
 
+  // ---------- Tenants (Organizations) ----------
+  app.get("/api/identity/tenants", async (_req, res) => {
+    try {
+      const { rows } = await pool.query(`
+        SELECT t.*,
+               r.name as tier_name, r.rpm_limit, r.tpm_limit, r.monthly_token_quota, r.max_concurrency,
+               COALESCE(u.user_count, 0)::int as user_count,
+               COALESCE(k.key_count, 0)::int as key_count
+        FROM app_tenants t
+        LEFT JOIN tenant_rate_limits r ON t.tier = r.tier
+        LEFT JOIN (SELECT tenant_id, COUNT(*) as user_count FROM app_users GROUP BY tenant_id) u ON t.slug = u.tenant_id
+        LEFT JOIN (SELECT tenant_id, COUNT(*) as key_count FROM tenant_api_keys GROUP BY tenant_id) k ON t.slug = k.tenant_id
+        ORDER BY t.created_at ASC
+      `);
+      res.json(rows);
+    } catch (e) {
+      res.status(500).json({ error: String(e.message || e) });
+    }
+  });
+
+  app.post("/api/identity/tenants", async (req, res) => {
+    if (!await isAdminCaller(req)) return res.status(403).json({ ok: false, error: "admin required" });
+    const b = req.body ?? {};
+    if (!b.name || !b.slug) return res.status(400).json({ error: "Tenant name and slug are required" });
+    const cleanSlug = String(b.slug).trim().toLowerCase().replace(/[^a-z0-9_-]/g, "_");
+    const authProvidersArr = Array.isArray(b.auth_providers) && b.auth_providers.length > 0
+      ? b.auth_providers
+      : (b.auth_provider ? [b.auth_provider] : ["local"]);
+
+    try {
+      const { rows } = await pool.query(
+        `INSERT INTO app_tenants (slug, name, domain, tier, allowed_models, allowed_spaces, allowed_agents, admin_email, auth_provider, auth_providers, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         ON CONFLICT (slug) DO UPDATE SET
+           name = EXCLUDED.name,
+           domain = EXCLUDED.domain,
+           tier = EXCLUDED.tier,
+           allowed_models = EXCLUDED.allowed_models,
+           allowed_spaces = EXCLUDED.allowed_spaces,
+           allowed_agents = EXCLUDED.allowed_agents,
+           admin_email = EXCLUDED.admin_email,
+           auth_provider = EXCLUDED.auth_provider,
+           auth_providers = EXCLUDED.auth_providers,
+           status = EXCLUDED.status,
+           updated_at = now()
+         RETURNING *`,
+        [
+          cleanSlug,
+          b.name.trim(),
+          b.domain ? String(b.domain).trim().toLowerCase() : null,
+          b.tier || "tier1",
+          Array.isArray(b.allowed_models) ? b.allowed_models : [],
+          Array.isArray(b.allowed_spaces) ? b.allowed_spaces : [],
+          Array.isArray(b.allowed_agents) ? b.allowed_agents : [],
+          b.admin_email || null,
+          authProvidersArr[0] || "local",
+          authProvidersArr,
+          b.status || "active",
+        ]
+      );
+      res.status(201).json({ ok: true, tenant: rows[0] });
+    } catch (e) {
+      res.status(500).json({ error: String(e.message || e) });
+    }
+  });
+
+  app.patch("/api/identity/tenants/:id", async (req, res) => {
+    if (!await isAdminCaller(req)) return res.status(403).json({ ok: false, error: "admin required" });
+    const id = req.params.id;
+    const b = req.body ?? {};
+    try {
+      const { rows: existing } = await pool.query("SELECT * FROM app_tenants WHERE id::text = $1 OR slug = $1", [id]);
+      if (!existing.length) return res.status(404).json({ error: "Tenant not found" });
+      const cur = existing[0];
+      const newName = b.name !== undefined ? String(b.name).trim() : cur.name;
+      const newDomain = b.domain !== undefined ? String(b.domain).trim().toLowerCase() : cur.domain;
+      const newTier = b.tier !== undefined ? b.tier : cur.tier;
+      const newModels = Array.isArray(b.allowed_models) ? b.allowed_models : cur.allowed_models;
+      const newSpaces = Array.isArray(b.allowed_spaces) ? b.allowed_spaces : cur.allowed_spaces;
+      const newAgents = Array.isArray(b.allowed_agents) ? b.allowed_agents : cur.allowed_agents;
+      const newAdmin = b.admin_email !== undefined ? b.admin_email : cur.admin_email;
+      const newAuthProviders = Array.isArray(b.auth_providers)
+        ? b.auth_providers
+        : (b.auth_provider ? [b.auth_provider] : (cur.auth_providers || ["local"]));
+      const newAuthProv = newAuthProviders[0] || cur.auth_provider || "local";
+      const newStatus = b.status !== undefined ? b.status : cur.status;
+
+      const { rows: updated } = await pool.query(
+        `UPDATE app_tenants
+         SET name = $1, domain = $2, tier = $3, allowed_models = $4, allowed_spaces = $5, allowed_agents = $6, admin_email = $7, auth_provider = $8, auth_providers = $9, status = $10, updated_at = now()
+         WHERE id = $11
+         RETURNING *`,
+        [newName, newDomain, newTier, newModels, newSpaces, newAgents, newAdmin, newAuthProv, newAuthProviders, newStatus, cur.id]
+      );
+      res.json({ ok: true, tenant: updated[0] });
+    } catch (e) {
+      res.status(500).json({ error: String(e.message || e) });
+    }
+  });
+
+  app.delete("/api/identity/tenants/:id", async (req, res) => {
+    if (!await isAdminCaller(req)) return res.status(403).json({ ok: false, error: "admin required" });
+    const id = req.params.id;
+    try {
+      const { rows } = await pool.query("SELECT slug FROM app_tenants WHERE id::text = $1 OR slug = $1", [id]);
+      if (!rows.length) return res.status(404).json({ error: "Tenant not found" });
+      if (rows[0].slug === "default") return res.status(400).json({ error: "Cannot delete default organization" });
+      await pool.query("DELETE FROM app_tenants WHERE slug = $1", [rows[0].slug]);
+      res.json({ ok: true, message: "Tenant deleted successfully" });
+    } catch (e) {
+      res.status(500).json({ error: String(e.message || e) });
+    }
+  });
+
   // ---------- Users ----------
   app.get("/api/identity/users", async (_req, res) => {
     try {

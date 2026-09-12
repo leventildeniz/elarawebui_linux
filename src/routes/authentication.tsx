@@ -190,6 +190,19 @@ function AuthenticationPage() {
                           value={cfg.label}
                           onClick={(e) => e.stopPropagation()}
                           onChange={(e) => setDraft(stored.key, { ...cfg, label: e.target.value })}
+                          onBlur={() => {
+                            if (cfg.label !== stored.label) {
+                              update(stored.key, { label: cfg.label });
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.currentTarget.blur();
+                              if (cfg.label !== stored.label) {
+                                update(stored.key, { label: cfg.label });
+                              }
+                            }
+                          }}
                           title="Source name — the domain, tenant or cluster this configuration points at"
                           placeholder="Source name"
                           className="w-[220px] rounded-md border border-transparent bg-transparent px-2 py-[3px] font-mono text-[12.5px] text-foreground outline-none transition-colors hover:border-white/[0.09] focus:border-sapphire/50"
@@ -206,7 +219,10 @@ function AuthenticationPage() {
                           on={cfg.enabled}
                           disabled={spec.id === "local"}
                           tone={spec.tone}
-                          onChange={(v) => setDraft(stored.key, { ...cfg, enabled: v })}
+                          onChange={(v) => {
+                            setDraft(stored.key, { ...cfg, enabled: v });
+                            update(stored.key, { enabled: v });
+                          }}
                         />
                         {spec.id !== "local" && (
                           <button
@@ -336,12 +352,14 @@ function AuthenticationPage() {
                                   disabled={!dirty}
                                   onSave={() => {
                                     update(stored.key, {
+                                      label: cfg.label,
                                       enabled: cfg.enabled,
                                       priority: cfg.priority,
                                       defaultRole: cfg.defaultRole,
                                       fields: cfg.fields,
                                     });
                                     clearDraft(stored.key);
+                                    toast.success(`Authentication source "${cfg.label}" saved.`);
                                   }}
                                 />
                               </div>

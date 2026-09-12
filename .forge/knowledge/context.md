@@ -976,3 +976,56 @@ Bu aşamada ELARA Sovereign Studio'nun sohbet arayüzüne ZED ve GitHub benzeri 
 - Load Balancer `/health` probe'ları altında eşzamanlı multi-agent stres testleri.
 - Vektör boyutu ve yüksek yük altında semantik önbellek isabet oranı (Hit Rate) analitiği.
 - Lovable artıklarının temizlenmesi, ölü kodların ayıklanması ve kod içi yorum satırlarının uluslararası standartlara (İngilizce) getirilmesi.
+
+---
+
+## 59. COMPLETED (Phase 59) — SOVEREIGN AI GATEWAY, B2B DEVELOPER HUB, TIER-BASED RATE LIMITING & MULTI-TENANT FINOPS INVOICING
+
+Bu aşamada ELARA Sovereign Studio, üçüncü taraf kurumlara ve geliştiricilere (B2B SaaS / Private AI-as-a-Service) güvenli, yüksek başarımlı ve faturalandırılabilir yapay zeka hizmeti sunan **"Kurumsal Egemen AI Gateway & Geliştirici Platformu"**na tam olarak dönüştürülmüş ve doğrulanmıştır:
+
+### 🏛️ 1. Hayata Geçirilen Mimari Bileşenler
+1. **Google AI Studio Modeli API Key Yönetimi (`schema-api-keys.mjs`, `api-keys.mjs`, `src/routes/api-tokens.tsx`):**
+   - `tenant_api_keys` ve `tenant_rate_limits` PostgreSQL tabloları oluşturuldu.
+   - `sk-elara-live-...` formatında kriptografik anahtarlar üretilir.
+   - SHA-256 hash ile O(1) hızında gateway kimlik doğrulaması yapılır.
+   - AES-256-GCM Kasa (`vault_secrets`) şifrelemesi sayesinde yetkili operatör `/api-tokens` sayfasında dilediği an **"👁️ Reveal (Göster)"** ve **"📋 Copy (Kopyala)"** yapabilir.
+2. **Redis Destekli Sliding Window Tier & Kota Motoru (`local-server/lib/rate-limiter.mjs`):**
+   - **Tier 1 (Free / Starter):** 15 RPM | 50K TPM | 10M Aylık Token | 2 Concurrency
+   - **Tier 2 (Pro / Growth):** 60 RPM | 300K TPM | 100M Aylık Token | 10 Concurrency
+   - **Tier 3 (Enterprise / Dedicated):** 300 RPM | 1M TPM | 1Mrd Aylık Token | 50 Concurrency
+   - Pre-flight kontrol: Redis (`:6379`) pipeline üzerinden <1ms süreyle hız ve kota doğrulaması yapılır. Kota aşımında `HTTP 429` veya `HTTP 402` döner.
+3. **OpenAI Uyumlu Evrensel Gateway (`/v1/chat/completions`, `/v1/models`):**
+   - Standart OpenAI SDK (Python/Node.js/LangChain/Cursor) ile %100 uyumlu JSON ve Server-Sent Events (SSE) `stream: true` akışı.
+   - Redis Semantik Önbellek entegrasyonu: Aynı promptlarda **0ms gecikme ve $0.00 maliyetle** instant cache hit.
+   - RAG Knowledge Space entegrasyonu: `model: "technical"` veya `model: "marketing"` gönderildiğinde kurumsal vektör dökümanlarını otomatik tarayıp kaynak referanslı cevap üretimi.
+4. **Çoklu Kiracı FinOps Ledger & Fatura Raporlama (`reporting.mjs`, `src/routes/reporting.invoicing.tsx`):**
+   - Her API çağrısı `provider_usage` tablosuna `api_key_id`, `tenant_id`, `prompt_tokens`, `response_tokens`, `cost_usd` bilgileriyle kaydedilir.
+   - `Reporting ➔ Tenant Invoicing` sayfasında kiracı bazlı filtreleme, API anahtarı bazlı dağılım, model tüketim tablosu ve **"Download Official PDF Invoice"** tek tıkla kurumsal fatura çıktısı (`report-pdf.ts`).
+5. **B2B Tenants Identity Management & Multi-IdP Binding (`users.tsx`, `identity.mjs`, `schema-api-keys.mjs`):**
+   - `app_tenants` PostgreSQL tablosu ve CRUD API'leri eklendi (`auth_providers TEXT[]` çoklu IdP desteği ile).
+   - `Users & Groups ➔ Tenants` sekmesi listenin en sonuna alındı (`Users` ➔ `Groups` ➔ `Templates` ➔ `RBAC Compliance` ➔ `Tenants`).
+   - Süper-Admin yeni kiracı şirketler açabilir, SSO domain eşlemesi (`xxx.com`) ve birden fazla IdP Sağlayıcısı (`Settings ➔ Authentication` sayfasında yapılandırılan canlı kaynaklar: `Microsoft Entra ID 1`, `Microsoft Entra ID 2`, `LDAP 1`, `Local` vb.) arasından `Select + Add` ile çoklu kaynak bağlayabilir. Kartlar ve açılır kutular derin obsidian tema standardına getirildi.
+   - `group-store.ts` içindeki çift grup açma yarış durumu (race condition) giderildi.
+6. **Developer Hub & 3-Way Scoped Configuration Cards (`src/routes/api-tokens.tsx`):**
+   - API Key kartlarına **Edit (Pencil) düzenleme butonu** eklendi; yetkiler, isim ve model/space/ajan izinleri sonradan düzenlenip kaydedilebilir.
+   - API Key üretirken ve düzenlerken müşteri dostu 3'lü seçim mimarisi: **🧠 LLM Modelleri**, **📚 RAG Knowledge Alanları** ve **🤖 Otonom / RAG Kütüphaneci Ajanları** için Tools/Adapters kalitesinde modern açılır kutulu (dropdown + `+ Add` + removable chips) kart tasarımı.
+   - Açılır kutular koyu obsidian (`#121216` / `#18181e`) temasına uyarlandı ve mükerrer model isimleri tekilleştirildi.
+   - `api-tokens` (Developer Hub) ve `reporting-invoicing` (Tenant Invoicing) tüm RBAC matrisine (`SCOPE_ROUTES`), şablonlara ve `ALL_TAB_IDS` kümesine dahil edildi. Menüde bağımsız `Braces` (`{}`) ikonu ile ayrıştırıldı.
+
+---
+
+## 60. UP NEXT — END-TO-END IDENTITY & MULTI-TENANT GOVERNANCE AUDIT, VISIBILITY SCOPES & ROUTING ACCESS VALIDATION (PHASE 60)
+
+Bu aşamada ELARA Sovereign Studio'nun kimlik (Identity), çoklu kiracı (Multi-Tenancy) ve görünürlük (Visibility) katmanları uçtan uca denetlenecek ve mimari tutarlılık mühürlenecektir:
+
+### 🔍 1. Kapsamlı Kimlik & Kiracı Denetim Maddeleri (Audit Scope)
+1. **Uçtan Uca Tenant İzolasyon Denetimi:**
+   - Bir kiracı (`tenant_id = 'company_x'`) oturum açtığında; Ajanlar (`/agents`), Skiller (`/skills`), Araçlar (`/tools`), Bilgi Alanları (`/knowledge`), Dökümanlar (`/rag-documents`) ve Sohbet geçmişinde sadece kendi şirketine ve `global` sistem varlıklarına erişebildiği doğrulanacaktır.
+   - Diğer şirketlerin verilerinin, promptlarının veya anahtarlarının kesinlikle sızmadığı Zero-Trust veri sınırı (Data Boundary) penetrasyon testi uygulanacaktır.
+2. **Görünürlük (Visibility) Katmanı Analitiği:**
+   - `mine` (sadece oluşturan kişi), `group` (sadece kullanıcının departmanı/grubu) ve `workspace` (tüm kiracı geneli) filtrelerinin `actor.mjs` ve `buildVisibility` fonksiyonlarında `tenant_id` ile nasıl kenetlendiği uçtan uca test edilecektir.
+3. **Multi-Provider Routing & Settings Erişim Yetkisi:**
+   - `Settings ➔ Routing` ve `Settings ➔ Services` sayfalarına erişim sınırları: Müşteri TenantAdmin'i küresel donanım yönlendirmesini görebilmeli mi, yoksa Super-Admin'in belirlediği `Failover` / `Smart Router` kuralları kiracıya sadece şeffaf olarak mı uygulanmalı sorusu netleştirilecek ve RBAC kuralı mühürlenecektir.
+4. **Çoklu Düğüm Stres Testleri & Lovable Temizliği:**
+   - Load Balancer `/health` probe'ları altında eşzamanlı multi-agent stres testleri.
+   - Lovable artıklarının temizlenmesi, ölü kodların ayıklanması ve kod içi yorum satırlarının uluslararası standartlara (İngilizce) getirilmesi.

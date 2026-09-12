@@ -64,6 +64,8 @@ import { mountChatOrchestrateRoutes } from './chat-orchestrate.mjs';
 import { mountReportingRoutes } from './reporting.mjs';
 import { mountInfraRoutes } from './infra.mjs';
 import { mountSelfHealingRoutes } from './self-healing.mjs';
+import { mountApiKeysRoutes } from './api-keys.mjs';
+import { mountOpenAiGatewayRoutes } from './openai-gateway.mjs';
 
 async function safeMount(name, mountFn, app, deps) {
   try {
@@ -150,6 +152,8 @@ export async function mountApiRoutes(app, deps) {
   await safeMount('Reporting & Analytics', mountReportingRoutes, app, deps);
   await safeMount('Infrastructure & Cluster', mountInfraRoutes, app, deps);
   await safeMount('Self-Healing Watchdog', mountSelfHealingRoutes, app, deps);
+  await safeMount('Developer Hub', mountApiKeysRoutes, app, deps);
+  await safeMount('OpenAI-Compatible Gateway', mountOpenAiGatewayRoutes, app, deps);
 
   console.log('[API Gateway] Route mounting sequence completed.');
 }

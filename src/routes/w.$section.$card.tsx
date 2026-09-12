@@ -1,4 +1,4 @@
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { Surface, Row } from "@/components/sovereign/surface";
 import { Tag } from "@/components/sovereign/primitives";
@@ -12,15 +12,22 @@ function titleize(slug: string) {
 
 function CardDetail() {
   const { section, card } = Route.useParams();
-  const router = useRouter();
+  const navigate = useNavigate();
   const title = `${titleize(section)} — ${card.replace(/^.*?-(\d+)$/, "$1")}`;
+
+  const handleBack = () => {
+    const targetPath = "/" + section.replace(/-/g, "/");
+    navigate({ to: targetPath as "/" }).catch(() => {
+      navigate({ to: "/" });
+    });
+  };
 
   return (
     <Surface title={titleize(card)} meta={`${section} · template module · ready`} wide>
       <div className="mb-8">
         <button
           type="button"
-          onClick={() => router.history.back()}
+          onClick={handleBack}
           className="inline-flex items-center gap-2 font-mono text-[12px] text-muted-foreground transition-colors hover:text-foreground"
         >
           <ArrowLeft className="h-3.5 w-3.5" /> back to {section}

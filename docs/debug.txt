@@ -1,9 +1,32 @@
-__root.tsx:40
- Error: Objects are not valid as a React child (found: object with keys {expected_payload}). If you meant to render a collection of children, use an array instead.
-react-dom-client.development.js:9410
- Error: Objects are not valid as a React child (found: object with keys {expected_payload}). If you meant to render a collection of children, use an array instead.
-
-
-The above error occurred in the <span> component.
-
-React will try to recreate this component tree from scratch using the error boundary you provided, CatchBoundaryImpl.
+VM249:2
+ Uncaught TypeError: Cannot read properties of undefined (reading 'startTime')
+    at et.reportAllChanges (<anonymous>:2:19429)
+    at <anonymous>:2:13070
+    at <anonymous>:2:331
+    at d (<anonymous>:2:6141)
+    at <anonymous>:2:6326
+    at <anonymous>:2:2895
+    at n.timeout (<anonymous>:2:5652)
+[NEW] Explain Console errors by using Copilot in Edge: click 
+ to explain an error. Learn more
+Don’t show again
+VM249:2
+ Uncaught TypeError: Cannot read properties of undefined (reading 'startTime')
+    at et.reportAllChanges (<anonymous>:2:19429)
+    at <anonymous>:2:13070
+    at <anonymous>:2:331
+    at d (<anonymous>:2:6141)
+    at <anonymous>:2:6326
+    at <anonymous>:2:2895
+    at n.timeout (<anonymous>:2:5652)
+et.reportAllChanges	@	VM249:2
+(anonymous)	@	VM249:2
+(anonymous)	@	VM249:2
+d	@	VM249:2
+(anonymous)	@	VM249:2
+(anonymous)	@	VM249:2
+n.timeout	@	VM249:2
+requestIdleCallback		
+x	@	VM249:2
+g	@	VM249:2
+(anonymous)	@	VM249:2

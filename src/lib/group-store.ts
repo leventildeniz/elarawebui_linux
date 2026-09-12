@@ -277,8 +277,9 @@ export function useIdentity() {
     };
 
     setGroups(prev => {
+      if (prev.some(g => g.id === group.id)) return prev;
       const next = [...prev, group];
-      write(G_KEY, next);
+      window.localStorage.setItem(G_KEY, JSON.stringify(next));
       return next;
     });
 

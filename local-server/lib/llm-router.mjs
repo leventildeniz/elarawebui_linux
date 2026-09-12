@@ -245,6 +245,7 @@ export async function streamRoutedLLM({ messages, signal, overrideProviderId }) 
     console.error("[llm-router] Failed to read policy, using default failover", e.message);
   }
 
+  const mode = policy.mode || "failover";
   if (mode === "manual_only") {
     if (overrideProviderId) {
       const customProvider = await getProviderById(pool, overrideProviderId);
@@ -272,8 +273,6 @@ export async function streamRoutedLLM({ messages, signal, overrideProviderId }) 
   }
 
   // 4) Execute Routing Strategy
-  const mode = policy.mode || "failover";
-  
   if (mode === "single") {
     // Single: Always pick the top-priority provider
     return await streamFromVendor({ provider: activeProviders[0], messages, signal });

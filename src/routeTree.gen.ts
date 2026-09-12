@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AccountRouteImport } from './routes/account'
 import { Route as AdaptersRouteImport } from './routes/adapters'
 import { Route as AgentsRouteImport } from './routes/agents'
+import { Route as ApiTokensRouteImport } from './routes/api-tokens'
 import { Route as ApprovalsRouteImport } from './routes/approvals'
 import { Route as AuthenticationRouteImport } from './routes/authentication'
 import { Route as BackupRouteImport } from './routes/backup'
@@ -52,6 +53,7 @@ import { Route as VisionRouteImport } from './routes/vision'
 import { Route as VisionAudioRouteImport } from './routes/vision-audio'
 import { Route as ReportingCostRouteImport } from './routes/reporting.cost'
 import { Route as ReportingExportsRouteImport } from './routes/reporting.exports'
+import { Route as ReportingInvoicingRouteImport } from './routes/reporting.invoicing'
 import { Route as ReportingOverviewRouteImport } from './routes/reporting.overview'
 import { Route as ReportingRagRouteImport } from './routes/reporting.rag'
 import { Route as ReportingUsageRouteImport } from './routes/reporting.usage'
@@ -76,6 +78,11 @@ const AdaptersRoute = AdaptersRouteImport.update({
 const AgentsRoute = AgentsRouteImport.update({
   id: '/agents',
   path: '/agents',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTokensRoute = ApiTokensRouteImport.update({
+  id: '/api-tokens',
+  path: '/api-tokens',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApprovalsRoute = ApprovalsRouteImport.update({
@@ -273,6 +280,11 @@ const ReportingExportsRoute = ReportingExportsRouteImport.update({
   path: '/reporting/exports',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ReportingInvoicingRoute = ReportingInvoicingRouteImport.update({
+  id: '/reporting/invoicing',
+  path: '/reporting/invoicing',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ReportingOverviewRoute = ReportingOverviewRouteImport.update({
   id: '/reporting/overview',
   path: '/reporting/overview',
@@ -304,6 +316,7 @@ export interface FileRoutesByFullPath {
   '/account': typeof AccountRoute
   '/adapters': typeof AdaptersRoute
   '/agents': typeof AgentsRoute
+  '/api-tokens': typeof ApiTokensRoute
   '/approvals': typeof ApprovalsRoute
   '/authentication': typeof AuthenticationRoute
   '/backup': typeof BackupRoute
@@ -343,6 +356,7 @@ export interface FileRoutesByFullPath {
   '/vision-audio': typeof VisionAudioRoute
   '/reporting/cost': typeof ReportingCostRoute
   '/reporting/exports': typeof ReportingExportsRoute
+  '/reporting/invoicing': typeof ReportingInvoicingRoute
   '/reporting/overview': typeof ReportingOverviewRoute
   '/reporting/rag': typeof ReportingRagRoute
   '/reporting/usage': typeof ReportingUsageRoute
@@ -354,6 +368,7 @@ export interface FileRoutesByTo {
   '/account': typeof AccountRoute
   '/adapters': typeof AdaptersRoute
   '/agents': typeof AgentsRoute
+  '/api-tokens': typeof ApiTokensRoute
   '/approvals': typeof ApprovalsRoute
   '/authentication': typeof AuthenticationRoute
   '/backup': typeof BackupRoute
@@ -393,6 +408,7 @@ export interface FileRoutesByTo {
   '/vision-audio': typeof VisionAudioRoute
   '/reporting/cost': typeof ReportingCostRoute
   '/reporting/exports': typeof ReportingExportsRoute
+  '/reporting/invoicing': typeof ReportingInvoicingRoute
   '/reporting/overview': typeof ReportingOverviewRoute
   '/reporting/rag': typeof ReportingRagRoute
   '/reporting/usage': typeof ReportingUsageRoute
@@ -405,6 +421,7 @@ export interface FileRoutesById {
   '/account': typeof AccountRoute
   '/adapters': typeof AdaptersRoute
   '/agents': typeof AgentsRoute
+  '/api-tokens': typeof ApiTokensRoute
   '/approvals': typeof ApprovalsRoute
   '/authentication': typeof AuthenticationRoute
   '/backup': typeof BackupRoute
@@ -444,6 +461,7 @@ export interface FileRoutesById {
   '/vision-audio': typeof VisionAudioRoute
   '/reporting/cost': typeof ReportingCostRoute
   '/reporting/exports': typeof ReportingExportsRoute
+  '/reporting/invoicing': typeof ReportingInvoicingRoute
   '/reporting/overview': typeof ReportingOverviewRoute
   '/reporting/rag': typeof ReportingRagRoute
   '/reporting/usage': typeof ReportingUsageRoute
@@ -457,6 +475,7 @@ export interface FileRouteTypes {
     | '/account'
     | '/adapters'
     | '/agents'
+    | '/api-tokens'
     | '/approvals'
     | '/authentication'
     | '/backup'
@@ -496,6 +515,7 @@ export interface FileRouteTypes {
     | '/vision-audio'
     | '/reporting/cost'
     | '/reporting/exports'
+    | '/reporting/invoicing'
     | '/reporting/overview'
     | '/reporting/rag'
     | '/reporting/usage'
@@ -507,6 +527,7 @@ export interface FileRouteTypes {
     | '/account'
     | '/adapters'
     | '/agents'
+    | '/api-tokens'
     | '/approvals'
     | '/authentication'
     | '/backup'
@@ -546,6 +567,7 @@ export interface FileRouteTypes {
     | '/vision-audio'
     | '/reporting/cost'
     | '/reporting/exports'
+    | '/reporting/invoicing'
     | '/reporting/overview'
     | '/reporting/rag'
     | '/reporting/usage'
@@ -557,6 +579,7 @@ export interface FileRouteTypes {
     | '/account'
     | '/adapters'
     | '/agents'
+    | '/api-tokens'
     | '/approvals'
     | '/authentication'
     | '/backup'
@@ -596,6 +619,7 @@ export interface FileRouteTypes {
     | '/vision-audio'
     | '/reporting/cost'
     | '/reporting/exports'
+    | '/reporting/invoicing'
     | '/reporting/overview'
     | '/reporting/rag'
     | '/reporting/usage'
@@ -608,6 +632,7 @@ export interface RootRouteChildren {
   AccountRoute: typeof AccountRoute
   AdaptersRoute: typeof AdaptersRoute
   AgentsRoute: typeof AgentsRoute
+  ApiTokensRoute: typeof ApiTokensRoute
   ApprovalsRoute: typeof ApprovalsRoute
   AuthenticationRoute: typeof AuthenticationRoute
   BackupRoute: typeof BackupRoute
@@ -647,6 +672,7 @@ export interface RootRouteChildren {
   VisionAudioRoute: typeof VisionAudioRoute
   ReportingCostRoute: typeof ReportingCostRoute
   ReportingExportsRoute: typeof ReportingExportsRoute
+  ReportingInvoicingRoute: typeof ReportingInvoicingRoute
   ReportingOverviewRoute: typeof ReportingOverviewRoute
   ReportingRagRoute: typeof ReportingRagRoute
   ReportingUsageRoute: typeof ReportingUsageRoute
@@ -682,6 +708,13 @@ declare module '@tanstack/react-router' {
       path: '/agents'
       fullPath: '/agents'
       preLoaderRoute: typeof AgentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api-tokens': {
+      id: '/api-tokens'
+      path: '/api-tokens'
+      fullPath: '/api-tokens'
+      preLoaderRoute: typeof ApiTokensRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/approvals': {
@@ -957,6 +990,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReportingExportsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/reporting/invoicing': {
+      id: '/reporting/invoicing'
+      path: '/reporting/invoicing'
+      fullPath: '/reporting/invoicing'
+      preLoaderRoute: typeof ReportingInvoicingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/reporting/overview': {
       id: '/reporting/overview'
       path: '/reporting/overview'
@@ -1000,6 +1040,7 @@ const rootRouteChildren: RootRouteChildren = {
   AccountRoute: AccountRoute,
   AdaptersRoute: AdaptersRoute,
   AgentsRoute: AgentsRoute,
+  ApiTokensRoute: ApiTokensRoute,
   ApprovalsRoute: ApprovalsRoute,
   AuthenticationRoute: AuthenticationRoute,
   BackupRoute: BackupRoute,
@@ -1039,6 +1080,7 @@ const rootRouteChildren: RootRouteChildren = {
   VisionAudioRoute: VisionAudioRoute,
   ReportingCostRoute: ReportingCostRoute,
   ReportingExportsRoute: ReportingExportsRoute,
+  ReportingInvoicingRoute: ReportingInvoicingRoute,
   ReportingOverviewRoute: ReportingOverviewRoute,
   ReportingRagRoute: ReportingRagRoute,
   ReportingUsageRoute: ReportingUsageRoute,

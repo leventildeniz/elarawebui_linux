@@ -7,6 +7,7 @@ import {
   BarChart3,
   Blocks,
   Bot,
+  Braces,
   Cable,
   Boxes,
   Brain,
@@ -124,6 +125,7 @@ const groups = [
     items: [
       { icon: Library, label: "Knowledge / RAG", to: "/knowledge" },
       { icon: KeyRound, label: "RBAC", to: "/rbac" },
+      { icon: Braces, label: "Developer Hub", to: "/api-tokens" },
       { icon: ShieldCheck, label: "Policies & Security", to: "/policy" },
       { icon: CheckCircle2, label: "Approval Queue", to: "/approvals" },
       { icon: ShieldAlert, label: "CVE Feed / Audit", to: "/security" },
@@ -138,6 +140,7 @@ const groups = [
       { icon: PieChart, label: "Overview", to: "/reporting/overview" },
       { icon: BarChart3, label: "Usage Analytics", to: "/reporting/usage" },
       { icon: Receipt, label: "Cost & Spend", to: "/reporting/cost" },
+      { icon: Receipt, label: "Tenant Invoicing", to: "/reporting/invoicing" },
       { icon: Users, label: "Operator Analytics", to: "/reporting/users" },
       { icon: Library, label: "RAG Analytics", to: "/reporting/rag" },
       { icon: FileDown, label: "Scheduled Exports", to: "/reporting/exports" },
@@ -806,7 +809,7 @@ function ModuleTabs() {
   // Users & Groups: identity surfaces.
   if (pathname === "/users") {
     const uv = search?.view;
-    const view = uv === "groups" || uv === "templates" || uv === "compliance" ? uv : "users";
+    const view = uv === "tenants" || uv === "groups" || uv === "templates" || uv === "compliance" ? uv : "users";
     return (
       <div className="ml-2 hidden items-center gap-1.5 md:flex">
         {(
@@ -815,6 +818,7 @@ function ModuleTabs() {
             { id: "groups", label: "Groups", tone: "emerald" },
             { id: "templates", label: "Templates", tone: "amethyst" },
             { id: "compliance", label: "RBAC Compliance", tone: "topaz" },
+            { id: "tenants", label: "Tenants", tone: "ruby" },
           ] as const
         ).map((t) => (
           <Link
@@ -877,7 +881,7 @@ function ModuleTabs() {
   }
 
   // Single-surface registries — no template cards.
-  if (pathname === "/runtime" || pathname === "/targets" || pathname === "/rag-documents")
+  if (pathname === "/runtime" || pathname === "/targets" || pathname === "/rag-documents" || pathname === "/api-tokens")
     return null;
 
   // Models registry: model groups + Vision.
@@ -1071,6 +1075,7 @@ function ModuleTabs() {
       { to: "/reporting/overview", label: "Overview", tone: "sapphire" },
       { to: "/reporting/usage", label: "Usage Analytics", tone: "emerald" },
       { to: "/reporting/cost", label: "Cost & Spend", tone: "amethyst" },
+      { to: "/reporting/invoicing", label: "Tenant Invoicing", tone: "topaz" },
       { to: "/reporting/users", label: "Operator Analytics", tone: "ruby" },
       { to: "/reporting/rag", label: "RAG Analytics", tone: "emerald" },
       { to: "/reporting/exports", label: "Scheduled Exports", tone: "topaz" },
