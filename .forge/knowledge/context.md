@@ -1080,12 +1080,24 @@ Bu aşamada ELARA Sovereign Studio'nun Kimlik (Identity), Çoklu Kiracı (Multi-
    - Fatura ve raporlama sayfalarındaki kiracı seçici beyaz açılır kutulardan arındırılarak koyu obsidian `#111113]/95` buzlu cam `ObsidianPick` standardına kavuşturuldu.
    - Tüm Reporting uç noktaları (`overview`, `usage`, `cost`, `operators`, `rag`, `invoicing`) kiracı ve kullanıcı bazlı süzme yapabilecek şekilde zenginleştirildi.
 
+6. **Geliştirici Hub & Proaktif Kota / Rate Limit Alarmları (`api-tokens.tsx`, `api-keys.mjs`):**
+   - API Key üretim ve düzenleme modalına **`Quota & Rate Limit Email Alerts`** yeteneği eklendi (`alert_on_limit` & `alert_email`).
+   - Anahtar kartlarına `🔔 Quota Alert` rozeti konuldu. Kotalar %80 / %100'e ulaştığında veya aşım olduğunda otomatik alarm e-postası üretilir.
+7. **Scheduled Exports Eksiksiz Şablon & Koyu Tema Entegrasyonu (`reporting.exports.tsx`, `report-templates.ts`):**
+   - Rapor zamanlama motoruna **`Tenant Invoicing & Billing`** ve **`RAG & Knowledge Retrieval`** şablonları dahil edildi.
+   - `Organization (Tenant Scope)` seçicisi ve koyu obsidian açılır kutu standardı uygulandı.
+8. **RBAC Önizleme Güvenliği (Fail-Safe Escape Hatch):**
+   - RBAC önizleme modunda (`Preview as Viewer` vb.) ekranın en tepesine sabit **amber renkli `[EXIT PREVIEW]`** kaçış şeridi yerleştirildi; adminlerin kısıtlı rollerde kilitlenip kalması imkansız kılındı.
+
 ---
 
-## 61. UP NEXT — MULTI-NODE BENCHMARKING, LIVE AGENT STRESS TESTS & LOAD BALANCER HEALTH PROBE VALIDATION (PHASE 61)
-- Load Balancer `/health` probe'ları altında eşzamanlı multi-agent stres testleri.
-- Vektör boyutu ve yüksek yük altında semantik önbellek isabet oranı (Hit Rate) analitiği.
-- Lovable artıklarının temizlenmesi, ölü kodların ayıklanması ve kod içi yorum satırlarının uluslararası standartlara (İngilizce) getirilmesi.
-- Load Balancer `/health` probe'ları altında eşzamanlı multi-agent stres testleri.
-- Vektör boyutu ve yüksek yük altında semantik önbellek isabet oranı (Hit Rate) analitiği.
-- Lovable artıklarının temizlenmesi, ölü kodların ayıklanması ve kod içi yorum satırlarının uluslararası standartlara (İngilizce) getirilmesi.
+## 61. UP NEXT — CHAT HYBRID ATTACHMENT STORAGE OPTIMIZATION, MULTI-NODE BENCHMARKING & ENTERPRISE PERFORMANCE SEAL (PHASE 61)
+
+1. **Hibrit Chat Dosya & Ek Depolama Optimizasyonu (DB Bloat Prevention):**
+   - Küçük ekran görüntüleri (`< 500 KB`): Doğrudan Base64 Data URI olarak anında rendering için DB'de tutulur.
+   - Ağır PDF'ler, dökümanlar ve büyük dosyalar (`> 500 KB`): `local-server/uploads/` (veya S3) altında saklanır; `chat_files.url` kolonuna sadece `"/api/uploads/id"` linki yazılarak veritabanı satır boyutu 20 MB'tan 200 bayta indirilir. `GET /api/threads` sorguları ultra hafif ve hızlı kalır.
+2. **Çoklu Düğüm Yük Testleri & Load Balancer Doğrulaması:**
+   - Load Balancer `/health` probe'ları altında eşzamanlı multi-agent stres testleri.
+   - Yüksek yük altında Redis semantik önbellek isabet oranı (Hit Rate) analitiği.
+3. **Lovable Artıklarının Temizlenmesi & Ölü Kod Ayıklama:**
+   - Lovable legacy artıklarının taranıp temizlenmesi, ölü kodların ayıklanması ve kod içi yorum satırlarının uluslararası standartlara (İngilizce) getirilmesi.
