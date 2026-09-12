@@ -30,6 +30,7 @@ import {
   type Schedule,
 } from "@/lib/schedule-store";
 import { cn, fmtDateTime } from "@/lib/utils";
+import { fetchApi } from "@/lib/api";
 
 export const Route = createFileRoute("/reporting/exports")({
   head: () => ({

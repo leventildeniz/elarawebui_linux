@@ -56655,3 +56655,6 @@ Node.js v22.22.1
 [RabbitMQ] Initialization notice: connect ECONNREFUSED 127.0.0.1:5672
 [Reporting API] Notice creating indices: column "owner_id" does not exist
 [Reporting API] Notice creating indices: column "owner_id" does not exist
+[RabbitMQ] Initialization notice: connect ECONNREFUSED 127.0.0.1:5672
+[Reporting API] Notice creating indices: column "owner_id" does not exist
+[Reporting API] Notice creating indices: column "owner_id" does not exist
