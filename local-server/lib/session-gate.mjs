@@ -143,7 +143,7 @@ export function requireSession(opts = {}) {
   const requiredRoles = Array.isArray(opts.roles)
     ? opts.roles.map((r) => String(r).toLowerCase())
     : null;
-  return (req, res, next) => {
+  return async (req, res, next) => {
     if (!req.session) {
       return res.status(401).json({
         ok: false,
@@ -151,11 +151,30 @@ export function requireSession(opts = {}) {
         message: "Geçerli oturum yok. Lütfen yeniden giriş yapın.",
       });
     }
-    if (requiredRoles && !requiredRoles.includes(req.session.role)) {
+    const userRole = String(req.session.role || "user").toLowerCase();
+    // Admin & Sovereign always have full access across all operations
+    if (userRole === "admin" || userRole === "sovereign") {
+      return next();
+    }
+    if (requiredRoles && !requiredRoles.includes(userRole)) {
+      // Check if custom role in PostgreSQL app_roles satisfies this operation dynamically
+      try {
+        if (_pool) {
+          const rRes = await _pool.query("SELECT is_system, scopes, actions FROM app_roles WHERE lower(name) = lower($1) OR id = $1 LIMIT 1", [userRole]);
+          if (rRes.rows.length > 0) {
+            const roleData = rRes.rows[0];
+            const actions = Array.isArray(roleData.actions) ? roleData.actions : [];
+            if (actions.includes("write") || actions.includes("approve") || actions.includes("workspace-all")) {
+              return next();
+            }
+          }
+        }
+      } catch {}
+
       return res.status(403).json({
         ok: false,
         error: "role_required",
-        message: `Bu işlem için yetkin yok (gerekli: ${requiredRoles.join(", ")}).`,
+        message: `Bu işlem için yetkiniz yok (gerekli roller: ${requiredRoles.join(", ")}).`,
         required: requiredRoles,
         actual: req.session.role,
       });
