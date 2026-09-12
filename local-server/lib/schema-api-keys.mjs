@@ -145,6 +145,19 @@ export function initApiKeysSchema({ pool }) {
     });
 
     // 5. Ensure tenant_id and is_global on all ownable domain entities (Multi-Tenant Isolation)
+    await pool.query(`
+      ALTER TABLE guard_rules ADD COLUMN IF NOT EXISTS engine_type TEXT DEFAULT 'native';
+      ALTER TABLE guard_rules ADD COLUMN IF NOT EXISTS endpoint_url TEXT;
+      ALTER TABLE guard_rules ADD COLUMN IF NOT EXISTS auth_mode TEXT DEFAULT 'vault';
+      ALTER TABLE guard_rules ADD COLUMN IF NOT EXISTS vault_ref TEXT;
+      ALTER TABLE guard_rules ADD COLUMN IF NOT EXISTS api_key TEXT;
+      ALTER TABLE guard_rules ADD COLUMN IF NOT EXISTS provider_format TEXT DEFAULT 'generic';
+      ALTER TABLE guard_rules ADD COLUMN IF NOT EXISTS risk_threshold NUMERIC DEFAULT 0.70;
+      ALTER TABLE guard_rules ADD COLUMN IF NOT EXISTS stage TEXT DEFAULT 'input';
+      ALTER TABLE guard_rules ADD COLUMN IF NOT EXISTS timeout_ms INT DEFAULT 1500;
+      ALTER TABLE guard_rules ADD COLUMN IF NOT EXISTS fail_mode TEXT DEFAULT 'fail_open';
+    `).catch(() => {});
+
     const tablesToTenantize = [
       'app_users', 'app_sessions', 'app_groups', 'agents', 'skills', 'tools',
       'workflows', 'orchestrations', 'knowledge_spaces', 'rag_folders',

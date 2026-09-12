@@ -1121,7 +1121,14 @@ Bu aşamada ELARA Sovereign Studio'nun Chat ekleri, görseller, PDF ve belge iş
 2. **Arka Plan Temizlik Motoru (`retention.mjs` & `storage-engine.mjs`):**
    - `runTenantChatRetention(pool)` motoru geliştirildi; aktif şirketlerde `updated_at` süresi dolan (ve korunmayan) sohbetlerin hem veritabanı kayıtları hem de diskteki fiziksel resim/PDF dosyaları (`purgeThreadAttachments`) otomatik olarak temizlenir.
 
-#### D. Geriye Dönük Tam Uyumluluk (Zero-Breakage):
+#### D. 3. Parti Harici AI Guardrail & LLMFort / Lakera Entegrasyonu (`genguard-scanner.mjs`, `policy.tsx`):
+1. **Bring-Your-Own AI Firewall (BYO-Guardrail):**
+   - `guard_rules` tablosuna `engine_type ('native' | 'external')`, `endpoint_url`, `auth_mode ('vault' | 'direct')`, `vault_ref`, `api_key`, `provider_format ('llmfort' | 'lakera' | 'llamaguard' | 'generic')`, `risk_threshold`, `timeout_ms` ve `fail_mode ('fail_open' | 'fail_closed')` kolonları eklendi.
+   - `local-server/lib/genguard-scanner.mjs` motoru geliştirildi; harici güvenlik duvarlarına (LLMFort, Lakera, Llama Guard vb.) Secret Vault üzerinden şifreli API anahtarıyla asenkron denetim yapılır.
+   - `chat-orchestrate.mjs` içine entegre edildi; risk eşiğini aşan prompt enjeksiyonları veya politika ihlalleri anında bloklanıp denetim günlüğüne (`policy.genguard.external`) kaydedilir.
+   - `src/routes/policy.tsx` GenGuard modalına yerel Regex ve harici API motoru seçimi eklendi; kural listesinde `🌐 [LLMFORT] https://...` rozetleri görüntülendi.
+
+#### E. Geriye Dönük Tam Uyumluluk (Zero-Breakage):
 - Sistem hem eski Base64 formatındaki (`data:image/...`) sohbet geçmişini hem de yeni `/api/uploads/...` formatını şeffafça destekler; mevcut verilerde hiçbir bozulma yaşanmaz.
 - `npx tsc --noEmit` tam derleme kontrolü 0 hata ile doğrulanmıştır.
 

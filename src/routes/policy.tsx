@@ -374,56 +374,173 @@ const vaultFields: FieldSpec[] = [
   { key: "note", label: "note", type: "text", placeholder: "What is this used for?", full: true },
 ];
 
-const guardFields: FieldSpec[] = [
-  {
-    key: "name",
-    label: "rule set name",
-    type: "text",
-    placeholder: "Baseline injection defence",
-    full: true,
-  },
-  { key: "seq", label: "sequence #", type: "text", placeholder: "10", mono: true },
-  { key: "enabled", label: "active", type: "toggle" },
-  {
-    key: "sensitivity",
-    label: "sensitivity",
-    type: "select",
-    options: ["low", "medium", "high", "paranoid"],
-  },
-  {
-    key: "action",
-    label: "ACTION on match",
-    type: "select",
-    options: policyActions,
-    optionLabels: actionLabel,
-  },
+const buildGuardFields = (secrets: Array<{ id: string; name: string; kind?: string }>): FieldSpec[] => {
+  const secretOptions = secrets.map((s) => s.name || s.id);
+  const secretOptionLabels = Object.fromEntries(
+    secrets.map((s) => [s.name || s.id, `🔑 ${s.name} (${s.kind || "secret"})`])
+  );
 
-  {
-    key: "inputBlacklist",
-    label: "input blacklist (comma separated)",
-    type: "textarea",
-    placeholder: "ignore previous, base64, system prompt",
-    mono: true,
-    full: true,
-  },
-  {
-    key: "outputPatterns",
-    label: "output regex patterns (comma separated)",
-    type: "textarea",
-    placeholder: "\\.env, BEGIN RSA PRIVATE KEY",
-    mono: true,
-    full: true,
-  },
-  {
-    key: "rulesPath",
-    label: "local machine file path (read on the host)",
-    type: "text",
-    placeholder: "/Users/admin/genguard/rules.txt",
-    mono: true,
-    full: true,
-    hint: "Both sources are merged into the GenGuard ruleset on the local middleware.",
-  },
-];
+  const vaultRefField: FieldSpec = secretOptions.length > 0
+    ? {
+        key: "vaultRef",
+        label: "Secret Vault Key Reference",
+        type: "select",
+        options: secretOptions,
+        optionLabels: secretOptionLabels,
+        placeholder: "— select vault key —",
+        mono: true,
+        when: (v) => String(v["engineType"] ?? "") === "external" && (String(v["authMode"] ?? "vault") === "vault" || !v["authMode"]),
+      }
+    : {
+        key: "vaultRef",
+        label: "Secret Vault Key Reference",
+        type: "text",
+        placeholder: "Type vault key name...",
+        mono: true,
+        when: (v) => String(v["engineType"] ?? "") === "external" && (String(v["authMode"] ?? "vault") === "vault" || !v["authMode"]),
+      };
+
+  return [
+    {
+      key: "name",
+      label: "rule set name",
+      type: "text",
+      placeholder: "e.g. LLMFort Corporate Firewall or Baseline injection defence",
+      full: true,
+    },
+    { key: "seq", label: "sequence #", type: "text", placeholder: "10", mono: true },
+    { key: "enabled", label: "active", type: "toggle" },
+    {
+      key: "engineType",
+      label: "Guardrail Engine / Model",
+      type: "select",
+      options: ["native", "external"],
+      optionLabels: {
+        native: "🛡️ Native Pattern & Blacklist (Local Engine)",
+        external: "🌐 External AI Guardrail API (LLMFort / Lakera / REST)",
+      },
+      full: true,
+    },
+
+    /* Action on Match: Paired with Dialect on External, paired with Sensitivity on Native */
+    {
+      key: "action",
+      label: "ACTION on match",
+      type: "select",
+      options: policyActions,
+      optionLabels: actionLabel,
+    },
+
+    /* --- External AI Guardrail Fields --- */
+    {
+      key: "providerFormat",
+      label: "AI Firewall Provider / Dialect",
+      type: "select",
+      options: ["llmfort", "lakera", "llamaguard", "generic"],
+      optionLabels: {
+        llmfort: "LLMFort Corporate Gateway",
+        lakera: "Lakera Guard AI (REST)",
+        llamaguard: "Meta Llama Guard (vLLM / Ollama)",
+        generic: "Generic AI Content Safety (JSON)",
+      },
+      when: (v) => String(v["engineType"] ?? "") === "external",
+    },
+    {
+      key: "endpointUrl",
+      label: "Target Endpoint URL",
+      type: "text",
+      placeholder: "https://llmfort.corp.local:8443/v1/scan",
+      mono: true,
+      full: true,
+      when: (v) => String(v["engineType"] ?? "") === "external",
+    },
+    {
+      key: "authMode",
+      label: "Authentication Mode",
+      type: "select",
+      options: ["vault", "direct", "none"],
+      optionLabels: {
+        vault: "🔒 Secret Vault (Encrypted Reference)",
+        direct: "Manual API Key",
+        none: "None / Internal Trust",
+      },
+      when: (v) => String(v["engineType"] ?? "") === "external",
+    },
+    vaultRefField,
+    {
+      key: "apiKey",
+      label: "Manual API Key",
+      type: "secret",
+      placeholder: "••••••••",
+      when: (v) => String(v["engineType"] ?? "") === "external" && String(v["authMode"] ?? "") === "direct",
+    },
+    {
+      key: "riskThreshold",
+      label: "Risk Score Threshold (0.0 - 1.0)",
+      type: "text",
+      placeholder: "0.70",
+      mono: true,
+      when: (v) => String(v["engineType"] ?? "") === "external",
+    },
+    {
+      key: "timeoutMs",
+      label: "Probe Timeout (ms)",
+      type: "text",
+      placeholder: "1500",
+      mono: true,
+      when: (v) => String(v["engineType"] ?? "") === "external",
+    },
+    {
+      key: "failMode",
+      label: "Fail-Safe Behavior (on Timeout / Error)",
+      type: "select",
+      options: ["fail_open", "fail_closed"],
+      optionLabels: {
+        fail_open: "⚠️ Fail-Open (Log Warning & Allow)",
+        fail_closed: "🚫 Fail-Closed (Strict Security Block)",
+      },
+      full: true,
+      when: (v) => String(v["engineType"] ?? "") === "external",
+    },
+
+    /* --- Native Local Fields --- */
+    {
+      key: "sensitivity",
+      label: "sensitivity",
+      type: "select",
+      options: ["low", "medium", "high", "paranoid"],
+      when: (v) => String(v["engineType"] ?? "native") !== "external",
+    },
+    {
+      key: "inputBlacklist",
+      label: "input blacklist (comma separated)",
+      type: "textarea",
+      placeholder: "ignore previous, base64, system prompt",
+      mono: true,
+      full: true,
+      when: (v) => String(v["engineType"] ?? "native") !== "external",
+    },
+    {
+      key: "outputPatterns",
+      label: "output regex patterns (comma separated)",
+      type: "textarea",
+      placeholder: "\\.env, BEGIN RSA PRIVATE KEY",
+      mono: true,
+      full: true,
+      when: (v) => String(v["engineType"] ?? "native") !== "external",
+    },
+    {
+      key: "rulesPath",
+      label: "local machine file path (read on the host)",
+      type: "text",
+      placeholder: "/Users/admin/genguard/rules.txt",
+      mono: true,
+      full: true,
+      hint: "Both sources are merged into the GenGuard ruleset on the local middleware.",
+      when: (v) => String(v["engineType"] ?? "native") !== "external",
+    },
+  ];
+};
 
 const buildIsolationFields = (
   subjects: { id: string; name: string }[],
@@ -643,6 +760,7 @@ function PolicyView() {
   };
   const mcpName = (id: string) => mcp.clients.find((c) => c.id === id)?.name ?? id;
 
+  const guardFields = useMemo(() => buildGuardFields(vault.items), [vault.items]);
   const guardRules = useMemo(() => normaliseGuardRules(guard.items), [guard.items]);
   const engineRules = useMemo(() => normalisePolicyRules(engine.items), [engine.items]);
 
@@ -682,20 +800,35 @@ function PolicyView() {
             emptyDraft={{
               name: "",
               enabled: true,
-              sensitivity: "medium",
+              engineType: "native",
               action: "deny",
+              sensitivity: "medium",
               inputBlacklist: "",
               outputPatterns: "",
               rulesPath: "",
+              providerFormat: "generic",
+              endpointUrl: "",
+              authMode: "vault",
+              vaultRef: "",
+              apiKey: "",
+              riskThreshold: 0.70,
+              timeoutMs: 1500,
+              failMode: "fail_open",
             }}
             items={guardRules}
             onCreate={guard.create}
             onUpdate={guard.update}
             onRemove={guard.remove}
             condition={(g) =>
-              [g.inputBlacklist, g.outputPatterns].filter(Boolean).join(" | ") || "— no pattern"
+              g.engineType === "external"
+                ? `🌐 [${(g.providerFormat || "REST").toUpperCase()}] ${g.endpointUrl || "no endpoint"} (threshold ${g.riskThreshold ?? 0.7})`
+                : [g.inputBlacklist, g.outputPatterns].filter(Boolean).join(" | ") || "— no pattern"
             }
-            detail={(g) => `sensitivity ${g.sensitivity}${g.rulesPath ? ` · ${g.rulesPath}` : ""}`}
+            detail={(g) =>
+              g.engineType === "external"
+                ? `external guardrail · ${g.authMode === "vault" ? `vault: ${g.vaultRef || "—"}` : g.authMode === "direct" ? "manual key" : "no auth"} · ${g.failMode || "fail_open"}`
+                : `sensitivity ${g.sensitivity}${g.rulesPath ? ` · ${g.rulesPath}` : ""}`
+            }
             match={(g, ctx) => matchGuard(g, ctx)}
           />
         )}
@@ -1784,7 +1917,7 @@ function EntityDialog({
                 .filter((f) => !f.when || f.when(values))
                 .map((f, i) => (
                   <div key={`${f.key}-${i}`} className={cn("space-y-1.5", f.full && "col-span-2")}>
-                    <label className="mono-label block" htmlFor={`f-${f.key}`}>
+                    <label className="mono-label block truncate h-[17px] leading-[17px]" htmlFor={`f-${f.key}`}>
                       {f.label}
                     </label>
                     {f.type === "textarea" ? (

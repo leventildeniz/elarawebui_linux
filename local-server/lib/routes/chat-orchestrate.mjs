@@ -5,6 +5,7 @@ import https from "https";
 import { URL } from "url";
 import { ragProbeAndFetch } from "../rag/retrieval.mjs";
 import { resolveAttachmentForLlm } from "../storage-engine.mjs";
+import { scanExternalGuardrail } from "../genguard-scanner.mjs";
 
 function mapJsonSchemaType(t) {
   const x = String(t || "string").toLowerCase();
@@ -900,38 +901,68 @@ export async function mountChatOrchestrateRoutes(app, deps) {
             let matched = false;
             let matchReason = "";
 
-            // Check input blacklist phrases (comma or newline separated)
-            if (rule.input_blacklist) {
-              const blacklists = rule.input_blacklist
-                .split(/[\n,]/)
-                .map((s) => s.trim())
-                .filter(Boolean);
-              for (const phrase of blacklists) {
-                if (phrase && userPromptText.toLowerCase().includes(phrase.toLowerCase())) {
-                  matched = true;
-                  matchReason = `blacklisted term "${phrase}"`;
-                  break;
-                }
-              }
-            }
+            if (rule.engine_type === "external" && rule.endpoint_url) {
+              const scanResult = await scanExternalGuardrail({
+                rule,
+                promptText: userPromptText,
+                messages,
+                pool,
+              });
 
-            // Check regex output/input patterns
-            if (!matched && rule.output_patterns) {
-              try {
-                const patterns = rule.output_patterns
-                  .split("\n")
+              emitDebug(
+                scanResult.flagged ? "warn" : "debug",
+                "policy.genguard.external",
+                `External guardrail #${rule.seq || 10} "${rule.name}" (${rule.provider_format || "REST"}) probe ${scanResult.latencyMs}ms → ${scanResult.flagged ? "VIOLATION" : "PASSED"} (score: ${scanResult.score ?? 0})`,
+                {
+                  ruleId: rule.id,
+                  ruleName: rule.name,
+                  format: rule.provider_format,
+                  score: scanResult.score,
+                  flagged: scanResult.flagged,
+                  latencyMs: scanResult.latencyMs,
+                  stream: "policy",
+                },
+                thread_id,
+              );
+
+              if (scanResult.flagged) {
+                matched = true;
+                matchReason = scanResult.reason;
+              }
+            } else {
+              // Check input blacklist phrases (comma or newline separated)
+              if (rule.input_blacklist) {
+                const blacklists = rule.input_blacklist
+                  .split(/[\n,]/)
                   .map((s) => s.trim())
                   .filter(Boolean);
-                for (const pat of patterns) {
-                  const reg = new RegExp(pat, "i");
-                  if (reg.test(userPromptText)) {
+                for (const phrase of blacklists) {
+                  if (phrase && userPromptText.toLowerCase().includes(phrase.toLowerCase())) {
                     matched = true;
-                    matchReason = `matched pattern /${pat}/i`;
+                    matchReason = `blacklisted term "${phrase}"`;
                     break;
                   }
                 }
-              } catch (regErr) {
-                /* ignore invalid regex */
+              }
+
+              // Check regex output/input patterns
+              if (!matched && rule.output_patterns) {
+                try {
+                  const patterns = rule.output_patterns
+                    .split("\n")
+                    .map((s) => s.trim())
+                    .filter(Boolean);
+                  for (const pat of patterns) {
+                    const reg = new RegExp(pat, "i");
+                    if (reg.test(userPromptText)) {
+                      matched = true;
+                      matchReason = `matched pattern /${pat}/i`;
+                      break;
+                    }
+                  }
+                } catch (regErr) {
+                  /* ignore invalid regex */
+                }
               }
             }
 

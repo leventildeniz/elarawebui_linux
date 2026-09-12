@@ -48,6 +48,16 @@ export type GenGuardRule = {
   /** firewall ordering — evaluated ascending, first match wins */
   seq?: number;
   action?: RuleAction;
+  engineType?: "native" | "external";
+  endpointUrl?: string;
+  authMode?: "vault" | "direct" | "none";
+  vaultRef?: string;
+  apiKey?: string;
+  providerFormat?: "llmfort" | "lakera" | "llamaguard" | "generic";
+  riskThreshold?: number;
+  stage?: "input" | "output" | "both";
+  timeoutMs?: number;
+  failMode?: "fail_open" | "fail_closed";
 };
 
 export type IsolationProfile = {
@@ -299,9 +309,19 @@ export function useCollection<T extends { id: string; createdAt: number }>(
     if (prefix === "gg") {
       return {
         ...row,
-        inputBlacklist: row.input_blacklist,
-        outputPatterns: row.output_patterns,
-        rulesPath: row.rules_path,
+        inputBlacklist: row.input_blacklist || "",
+        outputPatterns: row.output_patterns || "",
+        rulesPath: row.rules_path || "",
+        engineType: row.engine_type || "native",
+        endpointUrl: row.endpoint_url || "",
+        authMode: row.auth_mode || "vault",
+        vaultRef: row.vault_ref || "",
+        apiKey: row.api_key || "",
+        providerFormat: row.provider_format || "generic",
+        riskThreshold: row.risk_threshold !== null && row.risk_threshold !== undefined ? Number(row.risk_threshold) : 0.70,
+        stage: row.stage || "input",
+        timeoutMs: row.timeout_ms || 1500,
+        failMode: row.fail_mode || "fail_open",
         createdAt: new Date(row.created_at).getTime()
       } as unknown as T;
     }
