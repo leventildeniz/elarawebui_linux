@@ -194,6 +194,9 @@ export function initApiKeysSchema({ pool }) {
       UPDATE policy_rules SET is_global = true WHERE tenant_id = 'default';
     `).catch(() => {});
 
+    // Create index on knowledge_chunks(space_id) for instant O(log N) multi-tenant RAG retrieval
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_space ON knowledge_chunks(space_id);`).catch(() => {});
+
     console.log("[Schema] ✅ Enterprise API Keys & Multi-Tenant Zero-Trust Isolation (360° Ring 1 & Ring 2) schema ready.");
   }
 

@@ -157,7 +157,7 @@ export function buildVisibility(
 
   // If TenantAdmin of this tenant, can see all assets in their tenant + all global assets
   if (ctx?.isTenantAdmin) {
-    const clause = `(COALESCE(${globalCol}, false) = true OR ${tenantCol} = ${tenantSlot} OR ${tenantCol} IS NULL)`;
+    const clause = `(COALESCE(${globalCol}, false) = true OR ${tenantCol} = ${tenantSlot})`;
     return { clause, params };
   }
 
@@ -186,7 +186,7 @@ export function buildVisibility(
   subClauses.push(`(${ownerCol} IS NULL AND (COALESCE(${globalCol}, false) = true OR ${tenantCol} = ${tenantSlot}))`);
 
   const innerScope = subClauses.join(" OR ");
-  const clause = `((COALESCE(${globalCol}, false) = true OR ${tenantCol} = ${tenantSlot} OR ${tenantCol} IS NULL) AND (${innerScope}))`;
+  const clause = `((COALESCE(${globalCol}, false) = true OR ${tenantCol} = ${tenantSlot}) AND (${innerScope}))`;
 
   return { clause, params };
 }
