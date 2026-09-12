@@ -1,15 +1,26 @@
 export async function mountKnowledgeSpacesRoutes(app, deps) {
-  const { pool, isAdminCaller, createPrefixedId } = deps;
+  const { pool, isAdminCaller, createPrefixedId, resolveActorContext } = deps;
 
   app.get("/api/knowledge/spaces", async (req, res) => {
     try {
-      const { rows } = await pool.query("SELECT * FROM knowledge_spaces ORDER BY created_at ASC");
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
+      let query = "SELECT * FROM knowledge_spaces";
+      const params = [];
+      if (!ctx.isSuperAdmin) {
+        query += " WHERE (tenant_id = $1 OR is_global = true OR tenant_id = 'default')";
+        params.push(ctx.tenantId || "default");
+      }
+      query += " ORDER BY created_at ASC";
+
+      const { rows } = await pool.query(query, params);
       res.json(rows.map(s => ({
         id: s.id,
         name: s.name,
         slug: s.slug,
         description: s.description || "",
         tone: s.tone || "sapphire",
+        tenant_id: s.tenant_id || "default",
+        is_global: !!s.is_global,
         readerGroups: Array.isArray(s.reader_groups) ? s.reader_groups : [],
         readerUsers: Array.isArray(s.reader_users) ? s.reader_users : [],
         contributorGroups: Array.isArray(s.contributor_groups) ? s.contributor_groups : [],
@@ -22,14 +33,18 @@ export async function mountKnowledgeSpacesRoutes(app, deps) {
 
   app.post("/api/knowledge/spaces", async (req, res) => {
     if (!await isAdminCaller(req)) return res.status(403).json({ ok: false, error: "admin required" });
+    const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
     const id = req.body.id || createPrefixedId("spc.");
     const s = req.body;
+    const tenantId = s.tenant_id || (ctx.isSuperAdmin ? (s.tenant_id || "default") : ctx.tenantId);
+
     try {
       await pool.query(
-        `INSERT INTO knowledge_spaces (id, name, slug, description, tone, reader_groups, reader_users, contributor_groups, contributor_users, allowed_types, max_mb)
-         VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8::jsonb, $9::jsonb, $10::jsonb, $11)`,
+        `INSERT INTO knowledge_spaces (id, name, slug, description, tone, tenant_id, is_global, reader_groups, reader_users, contributor_groups, contributor_users, allowed_types, max_mb)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10::jsonb, $11::jsonb, $12::jsonb, $13)`,
         [
           id, s.name || "New Space", s.slug || id, s.description || "", s.tone || "sapphire",
+          tenantId, ctx.isSuperAdmin ? (s.is_global || false) : false,
           JSON.stringify(s.readerGroups || []), JSON.stringify(s.readerUsers || []),
           JSON.stringify(s.contributorGroups || []), JSON.stringify(s.contributorUsers || []),
           JSON.stringify(s.allowedTypes || []), s.maxMb || 50
@@ -45,8 +60,16 @@ export async function mountKnowledgeSpacesRoutes(app, deps) {
 
   app.put("/api/knowledge/spaces/:id", async (req, res) => {
     if (!await isAdminCaller(req)) return res.status(403).json({ ok: false, error: "admin required" });
+    const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
     const id = req.params.id;
     const s = req.body;
+
+    if (!ctx.isSuperAdmin) {
+      const chk = await pool.query("SELECT tenant_id FROM knowledge_spaces WHERE id = $1", [id]);
+      if (!chk.rows.length || (chk.rows[0].tenant_id !== ctx.tenantId && chk.rows[0].tenant_id !== "default")) {
+        return res.status(403).json({ ok: false, error: "Access denied to knowledge space outside your organization" });
+      }
+    }
 
     const updates = [];
     const values = [];
@@ -88,8 +111,16 @@ export async function mountKnowledgeSpacesRoutes(app, deps) {
 
   app.delete("/api/knowledge/spaces/:id", async (req, res) => {
     if (!await isAdminCaller(req)) return res.status(403).json({ ok: false, error: "admin required" });
+    const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
+    const id = req.params.id;
     try {
-      await pool.query("DELETE FROM knowledge_spaces WHERE id=$1", [req.params.id]);
+      if (!ctx.isSuperAdmin) {
+        const chk = await pool.query("SELECT tenant_id FROM knowledge_spaces WHERE id = $1", [id]);
+        if (!chk.rows.length || chk.rows[0].tenant_id !== ctx.tenantId) {
+          return res.status(403).json({ ok: false, error: "Access denied to knowledge space outside your organization" });
+        }
+      }
+      await pool.query("DELETE FROM knowledge_spaces WHERE id=$1", [id]);
       res.status(204).end();
     } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
   });

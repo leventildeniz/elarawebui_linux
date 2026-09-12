@@ -21,6 +21,7 @@ export async function mountIdentityRoutes(app, deps) {
     isAdminCaller, rlLogin, enqueueWrite, broadcastAudit,
     encryptSecret, decryptSecret,
     authenticateLdap, authenticateRadius,
+    resolveActorContext,
   } = deps;
 
   const { ensureFederatedUser } = initAuthSchema({ pool, hashPassword, createPrefixedId, randomBytes });
@@ -140,23 +141,37 @@ export async function mountIdentityRoutes(app, deps) {
   });
 
   // ---------- Users ----------
-  app.get("/api/identity/users", async (_req, res) => {
+  app.get("/api/identity/users", async (req, res) => {
     try {
-      const { rows } = await pool.query("SELECT * FROM app_users ORDER BY created_at ASC");
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
+      let query = "SELECT * FROM app_users";
+      const params = [];
+      if (!ctx.isSuperAdmin) {
+        query += " WHERE tenant_id = $1";
+        params.push(ctx.tenantId || "default");
+      } else if (req.query?.tenant_id) {
+        query += " WHERE tenant_id = $1";
+        params.push(String(req.query.tenant_id));
+      }
+      query += " ORDER BY created_at ASC";
+      const { rows } = await pool.query(query, params);
       res.json(rows.map(rowToUser));
     } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
   });
 
   app.post("/api/identity/users", async (req, res) => {
     if (!await isAdminCaller(req)) return res.status(403).json({ ok: false, error: "admin required" });
+    const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
     const u = req.body ?? {};
     if (!u.username) return res.status(400).json({ error: "username required" });
     const id = u.id || createPrefixedId("u_");
     const { hash, salt } = hashPassword(u.password || randomBytes(8).toString("hex"));
+    const tenantId = u.tenantId || u.tenant_id || (ctx.isSuperAdmin ? (u.tenant_id || "default") : ctx.tenantId);
+
     try {
       await pool.query(
-        `INSERT INTO app_users(id,username,display_name,email,phone,password_hash,password_salt,provider,role,groups,template_id,status,valid_until,must_change_password,avatar_style,avatar_jewel,avatar_seed,allowed_providers,can_override_provider,allowed_agents,allowed_tools,allowed_skills)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12,$13,$14,$15,$16,$17,$18::jsonb,$19,$20::jsonb,$21::jsonb,$22::jsonb)`,
+        `INSERT INTO app_users(id,username,display_name,email,phone,password_hash,password_salt,provider,role,groups,template_id,status,valid_until,must_change_password,avatar_style,avatar_jewel,avatar_seed,allowed_providers,can_override_provider,allowed_agents,allowed_tools,allowed_skills,tenant_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12,$13,$14,$15,$16,$17,$18::jsonb,$19,$20::jsonb,$21::jsonb,$22::jsonb,$23)`,
         [id, u.username, u.name ?? u.username, u.email ?? "", u.phone ?? "", hash, salt,
          u.provider ?? "local", u.role ?? "Viewer", JSON.stringify(u.groups ?? []),
          u.templateId ?? null, u.status ?? "invited",
@@ -166,7 +181,8 @@ export async function mountIdentityRoutes(app, deps) {
          u.canOverrideProvider !== false,
          JSON.stringify(Array.isArray(u.allowedAgents) ? u.allowedAgents : []),
          JSON.stringify(Array.isArray(u.allowedTools) ? u.allowedTools : []),
-         JSON.stringify(Array.isArray(u.allowedSkills) ? u.allowedSkills : [])]
+         JSON.stringify(Array.isArray(u.allowedSkills) ? u.allowedSkills : []),
+         tenantId]
       );
       if (u.templateId) {
         await pool.query(
@@ -201,11 +217,18 @@ export async function mountIdentityRoutes(app, deps) {
 
   app.put("/api/identity/users/:id", async (req, res) => {
     if (!await isAdminCaller(req)) return res.status(403).json({ ok: false, error: "admin required" });
+    const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
     const id = req.params.id;
     const u = req.body ?? {};
     try {
       const before = (await pool.query("SELECT * FROM app_users WHERE id=$1", [id])).rows[0];
       if (!before) return res.status(404).json({ error: "User not found" });
+
+      if (!ctx.isSuperAdmin && before.tenant_id !== ctx.tenantId) {
+        return res.status(403).json({ error: "Access denied to user outside your organization" });
+      }
+
+      const tenantId = ctx.isSuperAdmin ? (u.tenantId || u.tenant_id || before.tenant_id || "default") : before.tenant_id;
 
       const fields = {
         username: u.username !== undefined ? u.username : before.username,
@@ -228,6 +251,7 @@ export async function mountIdentityRoutes(app, deps) {
         allowed_agents: u.allowedAgents !== undefined ? JSON.stringify(u.allowedAgents) : JSON.stringify(before.allowed_agents || []),
         allowed_tools: u.allowedTools !== undefined ? JSON.stringify(u.allowedTools) : JSON.stringify(before.allowed_tools || []),
         allowed_skills: u.allowedSkills !== undefined ? JSON.stringify(u.allowedSkills) : JSON.stringify(before.allowed_skills || []),
+        tenant_id: tenantId
       };
 
       await pool.query(
@@ -236,12 +260,12 @@ export async function mountIdentityRoutes(app, deps) {
          avatar_style=$13,avatar_jewel=$14,avatar_seed=$15,
          allowed_providers=$16::jsonb,can_override_provider=$17,
          allowed_agents=$18::jsonb,allowed_tools=$19::jsonb,allowed_skills=$20::jsonb,
-         locked=$21
+         locked=$21, tenant_id=$22
          WHERE id=$1`,
         [id, fields.username, fields.display_name, fields.email, fields.phone, fields.provider, fields.role,
          fields.groups, fields.template_id, fields.status, fields.valid_until,
          fields.must_change_password, fields.avatar_style, fields.avatar_jewel, fields.avatar_seed, fields.allowed_providers, fields.can_override_provider,
-         fields.allowed_agents, fields.allowed_tools, fields.allowed_skills, fields.locked]
+         fields.allowed_agents, fields.allowed_tools, fields.allowed_skills, fields.locked, fields.tenant_id]
       );
       if (fields.template_id) {
         await pool.query(
@@ -257,10 +281,18 @@ export async function mountIdentityRoutes(app, deps) {
 
   app.delete("/api/identity/users/:id", async (req, res) => {
     if (!await isAdminCaller(req)) return res.status(403).json({ ok: false, error: "admin required" });
-    try { await pool.query("DELETE FROM app_users WHERE id=$1", [req.params.id]); res.status(204).end(); }
-    catch (e) { res.status(500).json({ error: String(e.message || e) }); }
-  });
+    const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
+    try {
+      const before = (await pool.query("SELECT * FROM app_users WHERE id=$1", [req.params.id])).rows[0];
+      if (!before) return res.status(404).json({ error: "User not found" });
 
+      if (!ctx.isSuperAdmin && before.tenant_id !== ctx.tenantId) {
+        return res.status(403).json({ error: "Access denied to user outside your organization" });
+      }
+      await pool.query("DELETE FROM app_users WHERE id=$1", [req.params.id]);
+      res.status(204).end();
+    } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
+  });
 
   // ---------- RBAC rules ----------
   app.get("/api/identity/rbac", async (_req, res) => {
@@ -474,9 +506,10 @@ export async function mountIdentityRoutes(app, deps) {
         [u.username, String(realIp).slice(0,64), String(device).slice(0,128)]
       ).catch(()=>{});
       const sid = createPrefixedId("s_");
+      const userTenant = u.tenant_id || "default";
       await pool.query(
-        `INSERT INTO app_sessions(id,user_id,username,role,provider,ip,device) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-        [sid, u.id, u.username, u.role, u.provider, String(realIp).slice(0,64), String(device).slice(0,128)]
+        `INSERT INTO app_sessions(id,user_id,username,role,provider,ip,device,tenant_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+        [sid, u.id, u.username, u.role, u.provider, String(realIp).slice(0,64), String(device).slice(0,128), userTenant]
       );
       enqueueWrite(
         `INSERT INTO agent_logs(agent,level,message,meta) VALUES ('auth','info',$1,$2)`,

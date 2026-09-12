@@ -111,6 +111,8 @@ export function rowToUser(r) {
     name: r.display_name || r.username,
     email: r.email || "",
     role: r.role,
+    tenantId: r.tenant_id || "default",
+    tenant_id: r.tenant_id || "default",
     provider: r.provider,
     status: r.status,
     groups: r.groups || [],

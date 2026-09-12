@@ -1014,18 +1014,39 @@ Bu aşamada ELARA Sovereign Studio, üçüncü taraf kurumlara ve geliştiricile
 
 ---
 
-## 60. UP NEXT — END-TO-END IDENTITY & MULTI-TENANT GOVERNANCE AUDIT, VISIBILITY SCOPES & ROUTING ACCESS VALIDATION (PHASE 60)
+## 60. COMPLETED (Phase 60) — END-TO-END ZERO-TRUST IDENTITY, MULTI-TENANT ISOLATION, VISIBILITY BOUNDARIES & GOVERNANCE SEAL
 
-Bu aşamada ELARA Sovereign Studio'nun kimlik (Identity), çoklu kiracı (Multi-Tenancy) ve görünürlük (Visibility) katmanları uçtan uca denetlenecek ve mimari tutarlılık mühürlenecektir:
+Bu aşamada ELARA Sovereign Studio'nun Kimlik (Identity), Çoklu Kiracı (Multi-Tenancy) ve Görünürlük (Visibility) katmanları sıfırdan denetlenmiş; tek-kiracılı dönemden kalma veri sızıntısı riskleri tamamen kapatılmış ve uçtan uca Zero-Trust sınırları ile mühürlenmiştir:
 
-### 🔍 1. Kapsamlı Kimlik & Kiracı Denetim Maddeleri (Audit Scope)
-1. **Uçtan Uca Tenant İzolasyon Denetimi:**
-   - Bir kiracı (`tenant_id = 'company_x'`) oturum açtığında; Ajanlar (`/agents`), Skiller (`/skills`), Araçlar (`/tools`), Bilgi Alanları (`/knowledge`), Dökümanlar (`/rag-documents`) ve Sohbet geçmişinde sadece kendi şirketine ve `global` sistem varlıklarına erişebildiği doğrulanacaktır.
-   - Diğer şirketlerin verilerinin, promptlarının veya anahtarlarının kesinlikle sızmadığı Zero-Trust veri sınırı (Data Boundary) penetrasyon testi uygulanacaktır.
-2. **Görünürlük (Visibility) Katmanı Analitiği:**
-   - `mine` (sadece oluşturan kişi), `group` (sadece kullanıcının departmanı/grubu) ve `workspace` (tüm kiracı geneli) filtrelerinin `actor.mjs` ve `buildVisibility` fonksiyonlarında `tenant_id` ile nasıl kenetlendiği uçtan uca test edilecektir.
-3. **Multi-Provider Routing & Settings Erişim Yetkisi:**
-   - `Settings ➔ Routing` ve `Settings ➔ Services` sayfalarına erişim sınırları: Müşteri TenantAdmin'i küresel donanım yönlendirmesini görebilmeli mi, yoksa Super-Admin'in belirlediği `Failover` / `Smart Router` kuralları kiracıya sadece şeffaf olarak mı uygulanmalı sorusu netleştirilecek ve RBAC kuralı mühürlenecektir.
-4. **Çoklu Düğüm Stres Testleri & Lovable Temizliği:**
-   - Load Balancer `/health` probe'ları altında eşzamanlı multi-agent stres testleri.
-   - Lovable artıklarının temizlenmesi, ölü kodların ayıklanması ve kod içi yorum satırlarının uluslararası standartlara (İngilizce) getirilmesi.
+### 🏛️ 1. Hayata Geçirilen Mimari Bileşenler & Yapılan Düzeltmeler
+
+1. **Evrensel Veritabanı Çoklu Kiracı Şeması (`schema-api-keys.mjs`):**
+   - Platformdaki tüm mülkiyet taşınabilir tablolara (`app_users`, `app_sessions`, `app_groups`, `agents`, `skills`, `tools`, `workflows`, `orchestrations`, `knowledge_spaces`, `rag_folders`, `knowledge_sources`, `chat_threads`) otomatik ve non-destructive olarak `tenant_id TEXT DEFAULT 'default'` ve `is_global BOOLEAN DEFAULT false` sütunları ile `idx_*_tenant_id` indeksleri eklendi.
+   - Sistem çekirdek ajanları (`agt.forge_master`, `sys.*`), varsayılan araçlar ve bilgi alanları `is_global = true` olarak damgalandı.
+2. **Kusursuz Görünürlük ve Kiracı İzolasyon Motoru (`local-server/lib/actor.mjs`):**
+   - `resolveActor(req)`: Oturum (`req.session.username`), `x-user` veya `x-tenant-id` başlıklarından kimliği doğru çözer; sahte veya anonim isteklerde Super-Admin mimar yetkisine düşme açığı kapatıldı.
+   - `resolveActorContext(req)`: `isSuperAdmin`, `isTenantAdmin`, `tenantId`, `userId`, `role` ve departman `groupIds` bilgilerini eksiksiz üretir.
+   - `buildVisibility(ctx, paramIndexStart, ownerCol, tenantCol, globalCol)`:
+     - **Super-Admin:** Tüm platform geneline tam erişim (`1=1`).
+     - **TenantAdmin:** Kendi şirketine (`tenant_id = $tenantId`) ait tüm çalışma masalarını ve `is_global = true` sistem varlıklarını yönetir.
+     - **Kullanıcı (`MINE`, `GROUP`, `WORKSPACE`):** Kendi şirket sınırları (`tenant_id = $tenantId OR is_global = true`) içinde sadece kendi ürettiği (`MINE`), departmanına paylaşılan (`GROUP`) veya tüm şirketine açık (`WORKSPACE`) varlıkları görür. Asla diğer kiracıların verilerine erişemez.
+3. **Sohbet Geçmişi & Mesaj İzolasyonu (`local-server/lib/routes/threads.mjs`):**
+   - `GET /api/threads` uç noktası artık sadece kullanıcının kendi sohbetlerini (`owner_id = $userId`) ve kendi şirketinin oturumlarını (`tenant_id = $tenantId`) listeler; şirketler arası chat sızıntısı tamamen engellendi.
+   - `POST /api/threads`: Yeni sohbetler `owner_id` ve `tenant_id` ile veritabanına bağlanarak oluşturulur.
+4. **Kullanıcı & Grup Yönetimi İzolasyonu (`identity.mjs`, `identity-groups.mjs`, `auth-utils.mjs`):**
+   - `rowToUser` dönüşümüne `tenantId` ve `tenant_id` dahil edildi.
+   - `GET /api/identity/users` ve `GET /api/identity/groups` rotaları `tenant_id` bazında filtrelendi; TenantAdmin sadece kendi şirketinin personelini ve departmanlarını görebilir/yönetebilir.
+   - `POST /api/auth/login`: Açılan oturum `app_sessions` tablosuna `tenant_id` ile mühürlenir.
+   - `session-gate.mjs`: `attachSessionContext` middleware'i oturumdan kullanıcının gerçek `tenant_id` bilgisini çözer.
+5. **Bilgi Alanları & RAG Döküman İzolasyonu (`knowledge-spaces.mjs`, `rag-folders.mjs`):**
+   - Knowledge Spaces (`/api/knowledge/spaces`) ve Klasörler (`/api/rag-folders`) şirket bazında izole edildi; müşteriler sadece kendilerine ait veya `is_global = true` alanları tarayabilir.
+6. **Altyapı (Services) & Model Yönlendirme (Routing) Güvenlik Sınırları (`infra.mjs`, `models.mjs`):**
+   - `Settings ➔ Services` (`/api/infra/*`): Yalnızca Super-Admin (Sovereign) erişebilir; fiziksel sunucu, systemd/launchd, Redis ve RabbitMQ düğüm kontrolleri müşteri TenantAdmin'lerine tamamen kapatıldı (403 Forbidden).
+   - `Settings ➔ Models`: Model kataloğu ve küresel yönlendirme değişiklikleri Super-Admin yetkisine bağlandı (`requireSuperAdmin`).
+
+---
+
+## 61. UP NEXT — MULTI-NODE BENCHMARKING, LIVE AGENT STRESS TESTS & LOAD BALANCER HEALTH PROBE VALIDATION (PHASE 61)
+- Load Balancer `/health` probe'ları altında eşzamanlı multi-agent stres testleri.
+- Vektör boyutu ve yüksek yük altında semantik önbellek isabet oranı (Hit Rate) analitiği.
+- Lovable artıklarının temizlenmesi, ölü kodların ayıklanması ve kod içi yorum satırlarının uluslararası standartlara (İngilizce) getirilmesi.

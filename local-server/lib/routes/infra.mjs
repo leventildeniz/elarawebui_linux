@@ -176,8 +176,9 @@ export async function mountInfraRoutes(app, deps) {
     });
   }
 
-  // GET /api/infra/overview — Global cluster & infrastructure health overview
+  // GET /api/infra/overview — Global cluster & infrastructure health overview (SuperAdmin only)
   app.get("/api/infra/overview", async (req, res) => {
+    if (!await isAdminCaller(req)) return res.status(403).json({ ok: false, error: "admin required" });
     try {
       // 1. Database status & active pool metrics
       let dbLatency = 0;
@@ -276,6 +277,7 @@ export async function mountInfraRoutes(app, deps) {
 
   // POST /api/infra/db/test — Real probe for candidate PostgreSQL connection
   app.post("/api/infra/db/test", async (req, res) => {
+    if (!await isAdminCaller(req)) return res.status(403).json({ ok: false, error: "admin required" });
     const { authMode, vaultRef, targetHost, connectionString } = req.body || {};
 
     try {
@@ -357,6 +359,7 @@ export async function mountInfraRoutes(app, deps) {
 
   // POST /api/infra/redis/test — Test Redis connectivity & RESP ping
   app.post("/api/infra/redis/test", async (req, res) => {
+    if (!await isAdminCaller(req)) return res.status(403).json({ ok: false, error: "admin required" });
     const { authMode, vaultRef, targetHost, uri } = req.body || {};
 
     try {
@@ -439,6 +442,7 @@ export async function mountInfraRoutes(app, deps) {
 
   // POST /api/infra/rabbitmq/test — Test RabbitMQ AMQP handshake
   app.post("/api/infra/rabbitmq/test", async (req, res) => {
+    if (!await isAdminCaller(req)) return res.status(403).json({ ok: false, error: "admin required" });
     const { authMode, vaultRef, targetHost, uri } = req.body || {};
 
     try {

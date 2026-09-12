@@ -132,7 +132,30 @@ export function initApiKeysSchema({ pool }) {
       console.warn("[Schema] api keys indices notice:", err.message);
     });
 
-    console.log("[Schema] ✅ Enterprise API Keys & Multi-Tenant Rate Limits schema ready.");
+    // 5. Ensure tenant_id and is_global on all ownable domain entities (Multi-Tenant Isolation)
+    const tablesToTenantize = [
+      'app_users', 'app_sessions', 'app_groups', 'agents', 'skills', 'tools',
+      'workflows', 'orchestrations', 'knowledge_spaces', 'rag_folders',
+      'knowledge_sources', 'chat_threads'
+    ];
+
+    for (const tbl of tablesToTenantize) {
+      await pool.query(`ALTER TABLE ${tbl} ADD COLUMN IF NOT EXISTS tenant_id TEXT DEFAULT 'default';`).catch(() => {});
+      if (tbl !== 'app_users' && tbl !== 'app_sessions') {
+        await pool.query(`ALTER TABLE ${tbl} ADD COLUMN IF NOT EXISTS is_global BOOLEAN DEFAULT false;`).catch(() => {});
+      }
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_${tbl}_tenant_id ON ${tbl}(tenant_id);`).catch(() => {});
+    }
+
+    // Seal system / platform global assets
+    await pool.query(`
+      UPDATE agents SET is_global = true WHERE id = 'agt.forge_master' OR id LIKE 'sys.%' OR (owner_id IS NULL AND tenant_id = 'default');
+      UPDATE skills SET is_global = true WHERE system = true OR (owner_id IS NULL AND tenant_id = 'default');
+      UPDATE tools SET is_global = true WHERE source = 'native' OR (owner_id IS NULL AND tenant_id = 'default');
+      UPDATE knowledge_spaces SET is_global = true WHERE id = 'spc.default' OR slug = 'default';
+    `).catch(() => {});
+
+    console.log("[Schema] ✅ Enterprise API Keys & Multi-Tenant Zero-Trust Isolation schema ready.");
   }
 
   return { ensureApiKeysSchema };

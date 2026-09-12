@@ -28,37 +28,86 @@ export async function resolveDefaultActor() {
 }
 
 export async function resolveActor(req) {
-  const actor = String(req?.actor || "").trim().toLowerCase();
+  const actor = String(
+    req?.session?.username ||
+    req?.actor ||
+    req?.headers?.["x-user"] ||
+    req?.headers?.["x-username"] ||
+    ""
+  ).trim().toLowerCase();
   if (actor) return actor;
-  return await resolveDefaultActor();
+  if (_hasLoopbackAdminToken(req)) {
+    return await resolveDefaultActor();
+  }
+  return null;
 }
 
-// Sovereign hierarchy: Admin (role='Admin' OR first registered Mimar) sees EVERYTHING.
-// Returns { actor, isAdmin }. Admin bypasses owner_user_id filtering entirely.
+// Sovereign hierarchy: Super-Admin (role='admin' & tenant_id='default' OR first registered Mimar) sees EVERYTHING.
+// TenantAdmin (role='admin' with tenant_id!='default') sees ALL items in their own tenant.
+// Regular users see MINE + GROUP + WORKSPACE strictly within their own tenant (+ global system assets).
 export async function resolveActorContext(req) {
   const actor = await resolveActor(req);
-  if (!actor) return { actor: null, isAdmin: false, userId: null, groupIds: [] };
+  const sessionTenantId = req?.session?.tenant_id || req?.headers?.["x-tenant-id"] || null;
+  if (!actor) {
+    return {
+      actor: null,
+      isAdmin: false,
+      isSuperAdmin: false,
+      isTenantAdmin: false,
+      userId: null,
+      tenantId: sessionTenantId || "default",
+      groupIds: [],
+      role: "viewer"
+    };
+  }
   try {
     const { rows } = await _pool.query(
-      "SELECT id, role FROM app_users WHERE lower(username)=lower($1) LIMIT 1",
+      "SELECT id, role, tenant_id FROM app_users WHERE lower(username)=lower($1) LIMIT 1",
       [actor]
     );
     const role = String(rows[0]?.role ?? "").toLowerCase();
     const userId = rows[0]?.id || null;
+    const userTenantId = rows[0]?.tenant_id || sessionTenantId || "default";
     
     let groupIds = [];
     if (userId) {
-      const gRes = await _pool.query("SELECT id FROM app_groups WHERE members ? $1", [userId]);
+      const gRes = await _pool.query(
+        "SELECT id FROM app_groups WHERE members ? $1 AND (tenant_id = $2 OR tenant_id = 'default')",
+        [userId, userTenantId]
+      );
       groupIds = gRes.rows.map(g => g.id);
     }
     
-    if (role === "admin") return { actor, isAdmin: true, userId, groupIds };
+    const defaultActor = await resolveDefaultActor();
+    const isFirstMimar = !!defaultActor && actor === defaultActor;
+    const isSuperAdmin = (role === "admin" || role === "sovereign" || isFirstMimar) && userTenantId === "default";
+    const isTenantAdmin = (role === "admin" || role === "sovereign") && userTenantId !== "default";
+    
+    return {
+      actor,
+      isAdmin: isSuperAdmin,
+      isSuperAdmin,
+      isTenantAdmin,
+      userId,
+      tenantId: userTenantId,
+      groupIds,
+      role
+    };
   } catch {}
+
   // Mimar fallback: the first-registered user is the system architect.
   const defaultActor = await resolveDefaultActor();
-  const isAdmin = !!defaultActor && actor === defaultActor;
-  // If we couldn't fetch userId above, we might need a fallback, but normally app_users exists.
-  return { actor, isAdmin, userId: null, groupIds: [] };
+  const isSuperAdmin = !!defaultActor && actor === defaultActor;
+  return {
+    actor,
+    isAdmin: isSuperAdmin,
+    isSuperAdmin,
+    isTenantAdmin: false,
+    userId: null,
+    tenantId: sessionTenantId || "default",
+    groupIds: [],
+    role: isSuperAdmin ? "admin" : "viewer"
+  };
 }
 
 // 2026-05-30 R-2: Legacy ownerless satırların owner_user_id'sini default
@@ -85,26 +134,61 @@ export async function autoLinkLegacyOwnership({ migrateReady } = {}) {
 
 // ---- pure helpers ----------------------------------------------------------
 
-// Build a visibility WHERE clause + params. Admin → no filter (returns null).
-export function buildVisibility(ctx, paramIndexStart = 1, ownerCol = "owner_id") {
-  if (ctx.isAdmin) return { clause: "1=1", params: [] };
-  
-  const userMatches = [ctx.userId, ctx.username, ctx.actor, ctx.user?.name].filter(Boolean);
-  if (userMatches.length > 0) {
-    let placeholders = userMatches.map((_, i) => `$${paramIndexStart + i}`).join(', ');
-    let clause = `(${ownerCol} = ANY(ARRAY[${placeholders}]::text[]) OR lower(${ownerCol}) = ANY(ARRAY[${placeholders}]::text[]) OR visibility = 'workspace' OR ${ownerCol} IS NULL`;
-    let params = [...userMatches];
-    
-    if (ctx.groupIds && ctx.groupIds.length > 0) {
-      const groupStart = paramIndexStart + userMatches.length;
-      const groupChecks = ctx.groupIds.map((g, i) => `shared_with ? $${groupStart + i}`).join(' OR ');
-      clause += ` OR (visibility = 'shared' AND (${groupChecks}))`;
-      params.push(...ctx.groupIds);
-    }
-    clause += ')';
+// Build a visibility WHERE clause + params. Super-Admin → 1=1 (unconstrained).
+// Tenant / User → Zero-Trust Boundary: (is_global = true OR tenant_id = $tenantId) AND (mine/group/workspace).
+export function buildVisibility(
+  ctx,
+  paramIndexStart = 1,
+  ownerCol = "owner_id",
+  tenantCol = "tenant_id",
+  globalCol = "is_global"
+) {
+  if (ctx?.isSuperAdmin) return { clause: "1=1", params: [] };
+
+  const tenantId = ctx?.tenantId || "default";
+  const userMatches = [ctx?.userId, ctx?.username, ctx?.actor, ctx?.user?.name].filter(Boolean);
+
+  let curParam = paramIndexStart;
+  const params = [];
+
+  // Parameter for tenant_id
+  const tenantSlot = `$${curParam++}`;
+  params.push(tenantId);
+
+  // If TenantAdmin of this tenant, can see all assets in their tenant + all global assets
+  if (ctx?.isTenantAdmin) {
+    const clause = `(COALESCE(${globalCol}, false) = true OR ${tenantCol} = ${tenantSlot} OR ${tenantCol} IS NULL)`;
     return { clause, params };
   }
-  return { clause: `(${ownerCol} IS NULL OR visibility = 'workspace')`, params: [] };
+
+  // Regular user (mine / group / workspace within their tenant or global)
+  let subClauses = [];
+
+  if (userMatches.length > 0) {
+    const userPlaceholders = userMatches.map(() => `$${curParam++}`).join(", ");
+    params.push(...userMatches);
+    subClauses.push(`${ownerCol} = ANY(ARRAY[${userPlaceholders}]::text[])`);
+    subClauses.push(`lower(${ownerCol}) = ANY(ARRAY[${userPlaceholders}]::text[])`);
+  }
+
+  // Workspace visibility (all members of this tenant can view)
+  subClauses.push(`visibility = 'workspace'`);
+
+  // Group visibility (members of the group can view)
+  if (ctx?.groupIds && ctx.groupIds.length > 0) {
+    const groupPlaceholders = ctx.groupIds.map(() => `$${curParam++}`);
+    params.push(...ctx.groupIds);
+    const groupChecks = groupPlaceholders.map(p => `shared_with ? ${p}`).join(" OR ");
+    subClauses.push(`(visibility = 'shared' AND (${groupChecks}))`);
+  }
+
+  // Unowned global seeds (e.g. system tools, default spaces)
+  subClauses.push(`(${ownerCol} IS NULL AND (COALESCE(${globalCol}, false) = true OR ${tenantCol} = ${tenantSlot}))`);
+
+  const innerScope = subClauses.join(" OR ");
+  const clause = `((COALESCE(${globalCol}, false) = true OR ${tenantCol} = ${tenantSlot} OR ${tenantCol} IS NULL) AND (${innerScope}))`;
+
+  return { clause, params };
 }
 
 export function _isLoopbackReq(req) {

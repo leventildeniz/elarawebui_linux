@@ -3,6 +3,13 @@ import { requireSession } from "../session-gate.mjs";
 export async function mountModelsRoutes(app, { pool }) {
   const admin = requireSession();
 
+  function requireSuperAdmin(req, res, next) {
+    if (!req.session || req.session.role !== "admin" || (req.session.tenant_id && req.session.tenant_id !== "default")) {
+      return res.status(403).json({ error: "Only Super-Admin can modify LLM provider and model catalog." });
+    }
+    next();
+  }
+
   // Ensure model_groups table exists
   try {
     await pool.query(`
@@ -86,7 +93,7 @@ export async function mountModelsRoutes(app, { pool }) {
   });
 
   // --- CRUD GROUPS ---
-  app.post("/api/models/groups", admin, async (req, res) => {
+  app.post("/api/models/groups", admin, requireSuperAdmin, async (req, res) => {
     try {
       const { id, name, tone } = req.body;
       const { rows } = await pool.query(
@@ -97,7 +104,7 @@ export async function mountModelsRoutes(app, { pool }) {
     } catch (e) { res.status(400).json({ error: e.message }); }
   });
 
-  app.patch("/api/models/groups/:id", admin, async (req, res) => {
+  app.patch("/api/models/groups/:id", admin, requireSuperAdmin, async (req, res) => {
     try {
       const { name } = req.body;
       const { rows } = await pool.query(
@@ -108,7 +115,7 @@ export async function mountModelsRoutes(app, { pool }) {
     } catch (e) { res.status(400).json({ error: e.message }); }
   });
 
-  app.delete("/api/models/groups/:id", admin, async (req, res) => {
+  app.delete("/api/models/groups/:id", admin, requireSuperAdmin, async (req, res) => {
     try {
       await pool.query("DELETE FROM model_groups WHERE id=$1", [req.params.id]);
       res.json({ ok: true });
@@ -116,7 +123,7 @@ export async function mountModelsRoutes(app, { pool }) {
   });
 
   // --- CRUD MODELS ---
-  app.post("/api/models", admin, async (req, res) => {
+  app.post("/api/models", admin, requireSuperAdmin, async (req, res) => {
     try {
       const m = req.body;
       
@@ -144,7 +151,7 @@ export async function mountModelsRoutes(app, { pool }) {
     } catch (e) { res.status(400).json({ error: e.message }); }
   });
 
-  app.patch("/api/models/:id", admin, async (req, res) => {
+  app.patch("/api/models/:id", admin, requireSuperAdmin, async (req, res) => {
     try {
       const m = req.body;
       const updates = [];
@@ -181,7 +188,7 @@ export async function mountModelsRoutes(app, { pool }) {
     } catch (e) { res.status(400).json({ error: e.message }); }
   });
 
-  app.delete("/api/models/:id", admin, async (req, res) => {
+  app.delete("/api/models/:id", admin, requireSuperAdmin, async (req, res) => {
     try {
       await pool.query("DELETE FROM models WHERE id=$1", [req.params.id]);
       res.json({ ok: true });

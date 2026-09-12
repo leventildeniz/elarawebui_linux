@@ -4,87 +4,139 @@
 // Extracted from server.mjs (Block T-2a, 2026-05-30).
 
 export function mountThreadRoutes(app, deps) {
-  const { pool, isUuid, flushModelKvCache } = deps;
+  const { pool, isUuid, flushModelKvCache, resolveActorContext } = deps;
   if (!pool || typeof isUuid !== "function" || typeof flushModelKvCache !== "function") {
     throw new Error("mountThreadRoutes: missing required deps (pool, isUuid, flushModelKvCache)");
   }
 
-  app.get("/api/threads", async (_req, res) => {
-    // 1. Temizlik: İçi boş ve varsayılan isimli (New chat vs) kullanılmayan eski chatleri temizle.
-    // En son açılan 1 tanesini (kullanıcının o an ekranda gördüğü boş chat olabilir diye) koru.
-    await pool.query(`
-      DELETE FROM chat_threads t
-       WHERE (t.title = 'New chat' OR t.title = 'New conversation' OR t.title ~ '^Chat [0-9]+$')
-         AND NOT EXISTS (SELECT 1 FROM chat_messages m WHERE m.thread_id = t.id)
-         AND t.id NOT IN (
-           SELECT id FROM chat_threads
-            WHERE (title = 'New chat' OR title = 'New conversation' OR title ~ '^Chat [0-9]+$')
-            ORDER BY updated_at DESC
-            LIMIT 1
-         )
-    `).catch(() => {});
-    const { rows: threads } = await pool.query("SELECT id, title, pinned, color, context, branched_from as \"branchedFrom\", title_locked as \"titleLocked\", EXTRACT(EPOCH FROM created_at)*1000 as \"createdAt\" FROM chat_threads ORDER BY updated_at DESC LIMIT 50");
-    
-    // Fetch messages for these threads
-    const { rows: msgs } = await pool.query("SELECT thread_id, role, body as text, thinking, streaming, approval, proposals, compaction, agent, retrieval, activity FROM chat_messages WHERE thread_id = ANY($1) ORDER BY seq ASC", [threads.map(t => t.id)]);
-    
-    // Fetch files for these threads
-    const { rows: files } = await pool.query("SELECT thread_id, message_id, id, name, size_bytes as size, kind, mime, url FROM chat_files WHERE thread_id = ANY($1)", [threads.map(t => t.id)]);
+  app.get("/api/threads", async (req, res) => {
+    try {
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default", actor: "admin" };
+      const tenantId = ctx.tenantId || "default";
+      const userMatches = [ctx.userId, ctx.username, ctx.actor].filter(Boolean);
 
-    const result = threads.map(t => {
-      const threadMsgs = msgs.filter(m => m.thread_id === t.id).map(m => {
-         const mFiles = files.filter(f => f.message_id === m.id).map(f => ({
-            id: f.id, name: f.name, size: f.size, kind: f.kind, mime: f.mime, url: f.url
-         }));
-         return {
-            role: m.role,
-            text: m.text,
-            thinking: m.thinking,
-            streaming: m.streaming,
-            approval: m.approval,
-            proposals: m.proposals,
-            compaction: m.compaction,
-            agent: m.agent,
-            retrieval: m.retrieval,
-            activity: m.activity,
-            files: mFiles
-         };
+      // 1. Temizlik: İçi boş ve varsayılan isimli (New chat vs) kullanılmayan eski chatleri temizle.
+      await pool.query(`
+        DELETE FROM chat_threads t
+         WHERE (t.title = 'New chat' OR t.title = 'New conversation' OR t.title ~ '^Chat [0-9]+$')
+           AND NOT EXISTS (SELECT 1 FROM chat_messages m WHERE m.thread_id = t.id)
+           AND t.id NOT IN (
+             SELECT id FROM chat_threads
+              WHERE (title = 'New chat' OR title = 'New conversation' OR title ~ '^Chat [0-9]+$')
+              ORDER BY updated_at DESC
+              LIMIT 1
+           )
+      `).catch(() => {});
+
+      let query = "SELECT id, title, pinned, color, context, branched_from as \"branchedFrom\", title_locked as \"titleLocked\", EXTRACT(EPOCH FROM created_at)*1000 as \"createdAt\" FROM chat_threads";
+      const params = [];
+
+      if (!ctx.isSuperAdmin) {
+        if (userMatches.length > 0) {
+          query += ` WHERE (tenant_id = $1 OR is_global = true OR tenant_id IS NULL) AND (owner_id = ANY(ARRAY[$2]::text[]) OR lower(owner_id) = ANY(ARRAY[$2]::text[]) OR owner_id IS NULL)`;
+          params.push(tenantId, userMatches);
+        } else {
+          query += ` WHERE (tenant_id = $1 OR is_global = true OR tenant_id IS NULL)`;
+          params.push(tenantId);
+        }
+      }
+      query += " ORDER BY updated_at DESC LIMIT 50";
+
+      const { rows: threads } = await pool.query(query, params);
+      if (!threads.length) return res.json([]);
+      
+      const threadIds = threads.map(t => t.id);
+      // Fetch messages for these threads
+      const { rows: msgs } = await pool.query("SELECT thread_id, role, body as text, thinking, streaming, approval, proposals, compaction, agent, retrieval, activity FROM chat_messages WHERE thread_id = ANY($1) ORDER BY seq ASC", [threadIds]);
+      
+      // Fetch files for these threads
+      const { rows: files } = await pool.query("SELECT thread_id, message_id, id, name, size_bytes as size, kind, mime, url FROM chat_files WHERE thread_id = ANY($1)", [threadIds]);
+
+      const result = threads.map(t => {
+        const threadMsgs = msgs.filter(m => m.thread_id === t.id).map(m => {
+           const mFiles = files.filter(f => f.message_id === m.id).map(f => ({
+              id: f.id, name: f.name, size: f.size, kind: f.kind, mime: f.mime, url: f.url
+           }));
+           return {
+              role: m.role,
+              text: m.text,
+              thinking: m.thinking,
+              streaming: m.streaming,
+              approval: m.approval,
+              proposals: m.proposals,
+              compaction: m.compaction,
+              agent: m.agent,
+              retrieval: m.retrieval,
+              activity: m.activity,
+              files: mFiles
+           };
+        });
+        const threadFiles = files.filter(f => f.thread_id === t.id && !f.message_id).map(f => ({
+           id: f.id, name: f.name, size: f.size, kind: f.kind, mime: f.mime, url: f.url
+        }));
+        return {
+           ...t,
+           messages: threadMsgs,
+           files: threadFiles
+        };
       });
-      const threadFiles = files.filter(f => f.thread_id === t.id && !f.message_id).map(f => ({
-         id: f.id, name: f.name, size: f.size, kind: f.kind, mime: f.mime, url: f.url
-      }));
-      return {
-         ...t,
-         messages: threadMsgs,
-         files: threadFiles
-      };
-    });
-    
-    res.json(result);
+      
+      res.json(result);
+    } catch (e) {
+      res.status(500).json({ error: String(e.message || e) });
+    }
   });
 
   app.post("/api/threads", async (req, res) => {
-    const title = String(req.body?.title ?? "New conversation").slice(0, 200);
-    const providedId = req.body?.id;
-    const isChatId = typeof providedId === "string" && providedId.startsWith("chat_");
-    const id = isChatId ? providedId : ('chat_' + (Date.now() * 1000).toString());
+    try {
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default", actor: "admin" };
+      const title = String(req.body?.title ?? "New conversation").slice(0, 200);
+      const providedId = req.body?.id;
+      const isChatId = typeof providedId === "string" && providedId.startsWith("chat_");
+      const id = isChatId ? providedId : ('chat_' + (Date.now() * 1000).toString());
+      let ownerId = ctx.userId || null;
+      if (!ownerId && ctx.actor) {
+        const uRow = await pool.query("SELECT id FROM app_users WHERE lower(username) = lower($1) LIMIT 1", [ctx.actor]);
+        ownerId = uRow.rows[0]?.id || null;
+      }
+      const tenantId = ctx.tenantId || "default";
 
-    const { rows } = await pool.query(
-      "INSERT INTO chat_threads(id, title) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title RETURNING id, title, pinned, color, context, branched_from as \"branchedFrom\", title_locked as \"titleLocked\", EXTRACT(EPOCH FROM created_at)*1000 as \"createdAt\"",
-      [id, title]
-    );
-    const result = {
-      ...rows[0],
-      messages: [],
-      files: []
-    };
-    res.status(201).json(result);
+      const { rows } = await pool.query(
+        `INSERT INTO chat_threads(id, title, owner_id, tenant_id) 
+         VALUES ($1, $2, $3, $4) 
+         ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, updated_at = now()
+         RETURNING id, title, pinned, color, context, branched_from as "branchedFrom", title_locked as "titleLocked", EXTRACT(EPOCH FROM created_at)*1000 as "createdAt"`,
+        [id, title, ownerId, tenantId]
+      );
+      const result = {
+        ...rows[0],
+        messages: [],
+        files: []
+      };
+      res.status(201).json(result);
+    } catch (e) {
+      res.status(500).json({ error: String(e.message || e) });
+    }
   });
 
   app.delete("/api/threads/:id", async (req, res) => {
     if (!req.params.id) return res.status(400).json({ error: "missing thread id" });
-    await pool.query("DELETE FROM chat_threads WHERE id = $1", [req.params.id]);
-    res.status(204).end();
+    try {
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default", actor: "admin" };
+      if (!ctx.isSuperAdmin) {
+        const userMatches = [ctx.userId, ctx.username, ctx.actor].filter(Boolean);
+        await pool.query(
+          `DELETE FROM chat_threads 
+           WHERE id = $1 AND (tenant_id = $2 OR tenant_id IS NULL) AND (owner_id = ANY(ARRAY[$3]::text[]) OR lower(owner_id) = ANY(ARRAY[$3]::text[]) OR owner_id IS NULL)`,
+          [req.params.id, ctx.tenantId || "default", userMatches]
+        );
+      } else {
+        await pool.query("DELETE FROM chat_threads WHERE id = $1", [req.params.id]);
+      }
+      res.status(204).end();
+    } catch (e) {
+      res.status(500).json({ error: String(e.message || e) });
+    }
   });
 
   app.get("/api/threads/:id/messages", async (req, res) => {

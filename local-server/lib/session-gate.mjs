@@ -78,25 +78,12 @@ export function attachSessionContext() {
 
     if (!_initialized || !_pool) return next();
     const sid = pickSid(req);
-    
-    // --- BYPASS FOR DEVELOPMENT / UI TESTING ---
-    if (sid && sid.length > 0) {
-      req.session = {
-        id: sid,
-        userId: null,
-        username: sid,
-        role: "admin",
-        provider: "local",
-      };
-      return next();
-    }
-    // ------------------------------------------
-
     if (!sid) return next();
+
     try {
       const { rows } = await _pool.query(
-        `SELECT s.id, s.user_id, s.username, s.role, s.provider, s.last_seen,
-                u.role AS db_role
+        `SELECT s.id, s.user_id, s.username, s.role, s.provider, s.tenant_id, s.last_seen,
+                u.role AS db_role, u.tenant_id AS user_tenant_id
            FROM app_sessions s
            LEFT JOIN app_users u ON lower(u.username) = lower(s.username)
           WHERE s.id = $1
@@ -104,25 +91,43 @@ export function attachSessionContext() {
         [sid]
       );
       const row = rows[0];
-      if (!row) return next();
-      // Stale session — sessizce yok say (15 dk üstü zaten temizleniyor).
-      const lastSeen = row.last_seen ? new Date(row.last_seen).getTime() : 0;
-      if (lastSeen && Date.now() - lastSeen > 24 * 60 * 60 * 1000) return next();
-      // DB rolü > session.role > "user".
-      const role = String(row.db_role || row.role || "user").toLowerCase();
-      req.session = {
-        id: row.id,
-        userId: row.user_id || null,
-        username: String(row.username || "").toLowerCase(),
-        role,
-        provider: row.provider || "local",
-      };
-      // last_seen'i güncel tut; oturum açık olduğu sürece prune'lanmasın.
-      _pool
-        .query("UPDATE app_sessions SET last_seen = now() WHERE id = $1", [sid])
-        .catch(() => {});
-    } catch {
-      // DB hatasında sessizce devam et — gate uygulanan endpoint zaten reddedecek.
+      if (row) {
+        // Stale session check (24h)
+        const lastSeen = row.last_seen ? new Date(row.last_seen).getTime() : 0;
+        if (!lastSeen || Date.now() - lastSeen <= 24 * 60 * 60 * 1000) {
+          const role = String(row.db_role || row.role || "user").toLowerCase();
+          req.session = {
+            id: row.id,
+            userId: row.user_id || null,
+            username: String(row.username || "").toLowerCase(),
+            role,
+            tenant_id: row.tenant_id || row.user_tenant_id || "default",
+            provider: row.provider || "local",
+          };
+          _pool.query("UPDATE app_sessions SET last_seen = now() WHERE id = $1", [sid]).catch(() => {});
+          return next();
+        }
+      }
+
+      // Fallback: If sid is directly a username in development/loopback, resolve their real DB user profile
+      const { rows: uRows } = await _pool.query(
+        `SELECT id, username, role, tenant_id, provider FROM app_users WHERE lower(username) = lower($1) LIMIT 1`,
+        [sid]
+      );
+      if (uRows[0]) {
+        const u = uRows[0];
+        req.session = {
+          id: sid,
+          userId: u.id,
+          username: String(u.username).toLowerCase(),
+          role: String(u.role || "user").toLowerCase(),
+          tenant_id: u.tenant_id || "default",
+          provider: u.provider || "local",
+        };
+        return next();
+      }
+    } catch (err) {
+      // DB error in session resolution
     }
     next();
   };

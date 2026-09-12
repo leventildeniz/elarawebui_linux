@@ -131,11 +131,13 @@ export function mountWorkflowRoutes(app, deps) {
     try {
       const ctx = await deps.resolveActorContext(req);
       const owner = ownerId || ctx.userId || req.actor || null;
+      const tenantId = req.body?.tenant_id || req.body?.tenantId || (ctx.isSuperAdmin ? (req.body?.tenant_id || "default") : ctx.tenantId);
+      const isGlobal = ctx.isSuperAdmin ? (req.body?.is_global || false) : false;
       
       await pool.query(
-        `INSERT INTO workflows(id, name, status, trigger, runs, nodes, edges, color, visibility, shared_with, owner_id, owner_name, updated_at) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8,$9,$10::jsonb,$11,$12,now())
-         ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, status = EXCLUDED.status, trigger = EXCLUDED.trigger, runs = EXCLUDED.runs, nodes = EXCLUDED.nodes, edges = EXCLUDED.edges, color = EXCLUDED.color, visibility = EXCLUDED.visibility, shared_with = EXCLUDED.shared_with, owner_id = COALESCE(workflows.owner_id, EXCLUDED.owner_id), owner_name = COALESCE(workflows.owner_name, EXCLUDED.owner_name), updated_at = now()`,
-        [id, name, status || 'draft', trigger || null, runs || 0, JSON.stringify(nodes), JSON.stringify(edges), color || 'sapphire', visibility || 'private', JSON.stringify(shared_with || []), owner, ownerName || null]
+        `INSERT INTO workflows(id, name, status, trigger, runs, nodes, edges, color, visibility, shared_with, owner_id, owner_name, tenant_id, is_global, updated_at) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8,$9,$10::jsonb,$11,$12,$13,$14,now())
+         ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, status = EXCLUDED.status, trigger = EXCLUDED.trigger, runs = EXCLUDED.runs, nodes = EXCLUDED.nodes, edges = EXCLUDED.edges, color = EXCLUDED.color, visibility = EXCLUDED.visibility, shared_with = EXCLUDED.shared_with, owner_id = COALESCE(workflows.owner_id, EXCLUDED.owner_id), owner_name = COALESCE(workflows.owner_name, EXCLUDED.owner_name), tenant_id = COALESCE(workflows.tenant_id, EXCLUDED.tenant_id), updated_at = now()`,
+        [id, name, status || 'draft', trigger || null, runs || 0, JSON.stringify(nodes), JSON.stringify(edges), color || 'sapphire', visibility || 'private', JSON.stringify(shared_with || []), owner, ownerName || null, tenantId, isGlobal]
       );
 
       const ctxActor = req.session?.userId || null;
@@ -524,11 +526,13 @@ export function mountWorkflowRoutes(app, deps) {
     try {
       const ctx = await deps.resolveActorContext(req);
       const owner = ownerId || ctx.userId || req.actor || null;
+      const tenantId = req.body?.tenant_id || req.body?.tenantId || (ctx.isSuperAdmin ? (req.body?.tenant_id || "default") : ctx.tenantId);
+      const isGlobal = ctx.isSuperAdmin ? (req.body?.is_global || false) : false;
 
       await pool.query(
-        `INSERT INTO orchestrations(id, name, status, trigger, runs, nodes, edges, color, visibility, shared_with, owner_id, owner_name, created_at) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8,$9,$10::jsonb,$11,$12,now())
-         ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name, status=EXCLUDED.status, trigger=EXCLUDED.trigger, runs=EXCLUDED.runs, nodes=EXCLUDED.nodes, edges=EXCLUDED.edges, color=EXCLUDED.color, visibility=EXCLUDED.visibility, shared_with=EXCLUDED.shared_with, owner_id = COALESCE(orchestrations.owner_id, EXCLUDED.owner_id), owner_name = COALESCE(orchestrations.owner_name, EXCLUDED.owner_name)`,
-        [id, name, status || 'draft', trigger || null, runs || 0, JSON.stringify(nodes), JSON.stringify(edges), color || 'ruby', visibility || 'private', JSON.stringify(shared_with || []), owner, ownerName || null]
+        `INSERT INTO orchestrations(id, name, status, trigger, runs, nodes, edges, color, visibility, shared_with, owner_id, owner_name, tenant_id, is_global, created_at) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8,$9,$10::jsonb,$11,$12,$13,$14,now())
+         ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name, status=EXCLUDED.status, trigger=EXCLUDED.trigger, runs=EXCLUDED.runs, nodes=EXCLUDED.nodes, edges=EXCLUDED.edges, color=EXCLUDED.color, visibility=EXCLUDED.visibility, shared_with=EXCLUDED.shared_with, owner_id = COALESCE(orchestrations.owner_id, EXCLUDED.owner_id), owner_name = COALESCE(orchestrations.owner_name, EXCLUDED.owner_name), tenant_id = COALESCE(orchestrations.tenant_id, EXCLUDED.tenant_id)`,
+        [id, name, status || 'draft', trigger || null, runs || 0, JSON.stringify(nodes), JSON.stringify(edges), color || 'ruby', visibility || 'private', JSON.stringify(shared_with || []), owner, ownerName || null, tenantId, isGlobal]
       );
 
       const ctxActor = req.session?.userId || null;

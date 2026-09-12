@@ -54,7 +54,10 @@ export function mountAgentsCrudRoutes(app, deps) {
     const name = String(a.name ?? "agent").trim();
     if (!id || !name) return res.status(400).json({ ok: false, error: "id/name required" });
 
-    const owner = await resolveActor(req);
+    const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default", actor: "admin" };
+    const owner = ctx.actor || await resolveActor(req);
+    const tenantId = a.tenant_id || a.tenantId || (ctx.isSuperAdmin ? (a.tenant_id || "default") : ctx.tenantId);
+    const isGlobal = ctx.isSuperAdmin ? (a.is_global || false) : false;
 
     try {
       await pool.query(
@@ -66,7 +69,7 @@ export function mountAgentsCrudRoutes(app, deps) {
            skills, tools, adapters, targets,
            mcp_servers, packs,
            rag, rag_brands, rag_keywords, rag_space_id,
-           icon, avatar, stats, owner_id, owner_name, visibility, shared_with, updated_at
+           icon, avatar, stats, owner_id, owner_name, visibility, shared_with, tenant_id, is_global, updated_at
          ) VALUES (
            $1, $2, $3, $4, $5, $6, $7, $8, $9,
            $10,
@@ -75,7 +78,7 @@ export function mountAgentsCrudRoutes(app, deps) {
            $23, $24, $25, $26,
            $35, $36,
            $27, $28, $29, $30,
-           $31, $32, $33, $34, $37, $38, $39::jsonb, now()
+           $31, $32, $33, $34, $37, $38, $39::jsonb, $40, $41, now()
          ) ON CONFLICT (id) DO UPDATE SET
            name=EXCLUDED.name, squad=EXCLUDED.squad, role=EXCLUDED.role, description=EXCLUDED.description,
            system_prompt=EXCLUDED.system_prompt, model_id=EXCLUDED.model_id, model_ref=EXCLUDED.model_ref, provider=EXCLUDED.provider,
@@ -91,6 +94,7 @@ export function mountAgentsCrudRoutes(app, deps) {
            owner_name=COALESCE(agents.owner_name, EXCLUDED.owner_name),
            visibility=COALESCE(EXCLUDED.visibility, agents.visibility),
            shared_with=COALESCE(EXCLUDED.shared_with, agents.shared_with),
+           tenant_id=COALESCE(agents.tenant_id, EXCLUDED.tenant_id),
            updated_at=now()`,
         [
           id, name,
@@ -130,7 +134,9 @@ export function mountAgentsCrudRoutes(app, deps) {
           JSON.stringify(a.packs || []),
           a.ownerName || a.owner_name || null,
           a.visibility || (a.sharedWith?.length ? "shared" : "private"),
-          JSON.stringify(a.sharedWith || a.shared_with || [])
+          JSON.stringify(a.sharedWith || a.shared_with || []),
+          tenantId,
+          isGlobal
         ]
       );
       
@@ -163,8 +169,17 @@ export function mountAgentsCrudRoutes(app, deps) {
     if (id === "agt.forge_master" || id.startsWith("sys.")) {
       return res.status(403).json({ error: "System infrastructure agents cannot be deleted." });
     }
-    try { await pool.query("DELETE FROM agents WHERE id=$1", [id]); res.status(204).end(); }
-    catch (e) { res.status(500).json({ error: String(e.message || e) }); }
+    const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
+    try {
+      if (!ctx.isSuperAdmin) {
+        const cur = await pool.query("SELECT tenant_id, is_global FROM agents WHERE id=$1", [id]);
+        if (!cur.rows.length || cur.rows[0].is_global || (cur.rows[0].tenant_id !== ctx.tenantId && cur.rows[0].tenant_id !== "default")) {
+          return res.status(403).json({ error: "Access denied to delete this agent." });
+        }
+      }
+      await pool.query("DELETE FROM agents WHERE id=$1", [id]);
+      res.status(204).end();
+    } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
   });
 
   app.put("/api/agents/:id", async (req, res) => {

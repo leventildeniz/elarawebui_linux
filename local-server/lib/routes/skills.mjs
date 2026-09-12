@@ -165,12 +165,15 @@ export function mountSkillRoutes(app, deps) {
       }
       const keepSystem = !!existing?.system;
 
+      const tenantId = b.tenant_id || b.tenantId || (ctx.isSuperAdmin ? (b.tenant_id || "default") : ctx.tenantId);
+      const isGlobal = ctx.isSuperAdmin ? (b.is_global || false) : false;
+
       await pool.query(
         `INSERT INTO skills(
            id, name, description, instructions, squad, icon, type, params,
            script_path, runtime_id, workflow_id, mcp_client_id, enabled, system, jewel, owner_id, owner_name,
-           visibility, shared_with
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+           visibility, shared_with, tenant_id, is_global
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
          ON CONFLICT (id) DO UPDATE SET
            name=EXCLUDED.name, description=EXCLUDED.description, instructions=EXCLUDED.instructions,
            squad=EXCLUDED.squad, icon=EXCLUDED.icon, type=EXCLUDED.type, params=EXCLUDED.params,
@@ -179,7 +182,8 @@ export function mountSkillRoutes(app, deps) {
            enabled=EXCLUDED.enabled, jewel=EXCLUDED.jewel,
            owner_id=COALESCE(skills.owner_id, EXCLUDED.owner_id),
            owner_name=COALESCE(skills.owner_name, EXCLUDED.owner_name),
-           visibility=EXCLUDED.visibility, shared_with=EXCLUDED.shared_with`,
+           visibility=EXCLUDED.visibility, shared_with=EXCLUDED.shared_with,
+           tenant_id=COALESCE(skills.tenant_id, EXCLUDED.tenant_id)`,
         [
           id,
           name,
@@ -199,7 +203,9 @@ export function mountSkillRoutes(app, deps) {
           owner,
           ownerName,
           b.visibility || "workspace",
-          JSON.stringify(b.sharedWith || [])
+          JSON.stringify(b.sharedWith || []),
+          tenantId,
+          isGlobal
         ]
       );
       

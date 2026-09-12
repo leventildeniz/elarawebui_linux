@@ -1,18 +1,29 @@
 import { requireSession } from '../session-gate.mjs';
 
 export async function mountRagFoldersRoutes(app, deps) {
-  const { pool, createPrefixedId } = deps;
+  const { pool, createPrefixedId, resolveActorContext } = deps;
 
   app.get("/api/rag-folders", requireSession(), async (req, res) => {
     try {
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
+      const tenantId = req.session?.tenant_id || ctx.tenantId || "default";
+
       // Create uploads folder if missing
       await pool.query(`
-        INSERT INTO rag_folders (id, name, auto_tags, builtin, color)
-        VALUES ('uploads', 'Uploads', '[]'::jsonb, true, 'sapphire')
+        INSERT INTO rag_folders (id, name, auto_tags, builtin, color, tenant_id, is_global)
+        VALUES ('uploads', 'Uploads', '[]'::jsonb, true, 'sapphire', 'default', true)
         ON CONFLICT (id) DO NOTHING
       `);
 
-      const { rows } = await pool.query("SELECT * FROM rag_folders ORDER BY created_at ASC");
+      let query = "SELECT * FROM rag_folders";
+      const params = [];
+      if (!ctx.isSuperAdmin) {
+        query += " WHERE (tenant_id = $1 OR is_global = true OR builtin = true OR tenant_id = 'default')";
+        params.push(tenantId);
+      }
+      query += " ORDER BY created_at ASC";
+
+      const { rows } = await pool.query(query, params);
       res.json(rows.map(r => ({
         id: r.id,
         name: r.name,
@@ -20,7 +31,8 @@ export async function mountRagFoldersRoutes(app, deps) {
         builtin: r.builtin,
         color: r.color,
         createdAt: new Date(r.created_at).getTime(),
-        ownerId: r.owner_id
+        ownerId: r.owner_id,
+        tenant_id: r.tenant_id || "default"
       })));
     } catch (e) {
       res.status(500).json({ ok: false, error: String(e.message || e) });
@@ -30,12 +42,13 @@ export async function mountRagFoldersRoutes(app, deps) {
   app.post("/api/rag-folders", requireSession(), async (req, res) => {
     const { name, autoTags, color } = req.body;
     const id = createPrefixedId("fld.");
+    const tenantId = req.session?.tenant_id || "default";
 
     try {
       await pool.query(
-        `INSERT INTO rag_folders (id, name, auto_tags, builtin, color, owner_id)
-         VALUES ($1, $2, $3::jsonb, false, $4, $5)`,
-        [id, name, JSON.stringify(autoTags || []), color || "sapphire", req.session?.userId || null]
+        `INSERT INTO rag_folders (id, name, auto_tags, builtin, color, owner_id, tenant_id)
+         VALUES ($1, $2, $3::jsonb, false, $4, $5, $6)`,
+        [id, name, JSON.stringify(autoTags || []), color || "sapphire", req.session?.userId || null, tenantId]
       );
       res.json({ ok: true, id });
     } catch (e) {
