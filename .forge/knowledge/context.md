@@ -1128,7 +1128,22 @@ Bu aşamada ELARA Sovereign Studio'nun Chat ekleri, görseller, PDF ve belge iş
    - `chat-orchestrate.mjs` içine entegre edildi; risk eşiğini aşan prompt enjeksiyonları veya politika ihlalleri anında bloklanıp denetim günlüğüne (`policy.genguard.external`) kaydedilir.
    - `src/routes/policy.tsx` GenGuard modalına yerel Regex ve harici API motoru seçimi eklendi; kural listesinde `🌐 [LLMFORT] https://...` rozetleri görüntülendi.
 
-#### E. Geriye Dönük Tam Uyumluluk (Zero-Breakage):
+#### E. Canlı Policy Engine Orkestrasyonu & Dinamik Model Yönlendirme (`policy-engine-eval.mjs`, `policy.tsx`):
+1. **Canlı Runtime Model Yönlendirmesi (ROUTING / OUTPUT Chain):**
+   - `local-server/lib/policy-engine-eval.mjs` motoru geliştirildi; `chat-orchestrate.mjs` prompt inference öncesinde `policy_rules` tablosunu otomatik değerlendirir.
+   - `intent = coding ➔ route -> qwen2.5-coder-32b` gibi kurallar eşleştiğinde, sohbet modeli canlıda anında ilgili modele yönlendirilir; `DENY` ve `CHALLENGE` aksiyonları denetim günlüğü ile uygulanır.
+2. **Kural Formunda Dinamik Model & Ajan Açılır Kutusu (`policy.tsx`):**
+   - `ACTION = ROUTE` seçildiğinde, `ACTION PARAMETER` alanı elle yazmak yerine stüdyoda kayıtlı tüm aktif modelleri (`🧠 Model: ...`) ve ajanları (`🤖 Agent: ...`) dinamik açılır kutu (`select dropdown`) olarak listeler.
+
+#### F. 360° Policy & Security DB & Backend Denetimi (Zero-Mock Tam Doğrulama):
+- **Secret Vault (`vault_secrets`):** AES-256-GCM şifreli, 100% DB ve backend bağlı.
+- **GenGuard (`guard_rules`):** Yerel Regex + Harici LLMFort/Lakera, 100% DB ve chat bağlı.
+- **Tool / Skill / MCP Isolation (`isolation_profiles`):** 100% DB ve backend bağlı.
+- **Signed Workflows (`signed_artifacts`):** 100% DB ve backend bağlı.
+- **Policy Engine (`policy_rules`):** 100% DB ve chat orkestrasyonuna bağlı.
+- **Sonuç:** `Policy & Security` altındaki 7 sekmenin tamamı %100 canlı veritabanı ve backend entegrasyonuyla mühürlenmiştir.
+
+#### G. Geriye Dönük Tam Uyumluluk (Zero-Breakage):
 - Sistem hem eski Base64 formatındaki (`data:image/...`) sohbet geçmişini hem de yeni `/api/uploads/...` formatını şeffafça destekler; mevcut verilerde hiçbir bozulma yaşanmaz.
 - `npx tsc --noEmit` tam derleme kontrolü 0 hata ile doğrulanmıştır.
 

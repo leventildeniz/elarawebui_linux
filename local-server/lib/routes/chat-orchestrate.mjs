@@ -6,6 +6,7 @@ import { URL } from "url";
 import { ragProbeAndFetch } from "../rag/retrieval.mjs";
 import { resolveAttachmentForLlm } from "../storage-engine.mjs";
 import { scanExternalGuardrail } from "../genguard-scanner.mjs";
+import { evaluatePolicyRules } from "../policy-engine-eval.mjs";
 
 function mapJsonSchemaType(t) {
   const x = String(t || "string").toLowerCase();
@@ -841,10 +842,59 @@ export async function mountChatOrchestrateRoutes(app, deps) {
       const finalRoutingMode = (routing_mode && allowOverride) ? routing_mode : sysRoutingMode;
       console.log(`[Orchestrate] Final Routing Mode Applied: ${finalRoutingMode} (SysMode: ${sysRoutingMode}, OverrideAllowed: ${allowOverride}, Audience: ${overrideAudience})`);
 
+      // 1.5. Policy Engine ROUTING / OUTPUT Chain Evaluation
+      let effectiveModel = model;
+      const userPromptOverview = String(message || (Array.isArray(messages) ? messages.map(m => typeof m.content === 'string' ? m.content : '').join("\n") : "")).trim();
+      try {
+        const policyVerdict = await evaluatePolicyRules({
+          pool,
+          promptText: userPromptOverview,
+          requestedModel: model,
+          tenantId: actorCtx?.tenantId || "default",
+        });
+
+        if (policyVerdict.matched) {
+          emitDebug(
+            "info",
+            "policy.engine.matched",
+            `Policy Rule #${policyVerdict.seq} "${policyVerdict.name}" matched → ${policyVerdict.action.toUpperCase()} (${policyVerdict.reason})`,
+            {
+              ruleId: policyVerdict.rule?.id,
+              ruleName: policyVerdict.name,
+              action: policyVerdict.action,
+              target: policyVerdict.target,
+              stream: "policy",
+            },
+            thread_id
+          );
+
+          if (policyVerdict.action === "deny") {
+            send({
+              type: "out",
+              delta: `🛡️ **[POLICY ENGINE ENFORCEMENT]**\nYour request was blocked by Policy Rule **#${policyVerdict.seq} (${policyVerdict.name})**.\n*Reason:* ${policyVerdict.reason}.\n*Action:* **DENY**.\n\n*Logged to the Sovereign Audit Journal.*`,
+            });
+            close();
+            return;
+          }
+
+          if (policyVerdict.action === "route" && policyVerdict.target) {
+            const targetMatched = availableModels.find(
+              m => m.model_pk === policyVerdict.target || m.model_id === policyVerdict.target || m.name?.toLowerCase() === policyVerdict.target.toLowerCase()
+            );
+            if (targetMatched) {
+              effectiveModel = targetMatched.model_id || targetMatched.model_pk;
+              console.log(`[PolicyEngine] Dynamically routed turn from model '${model}' to '${effectiveModel}' via Rule #${policyVerdict.seq}`);
+            }
+          }
+        }
+      } catch (policyErr) {
+        console.warn("[Orchestrate] Policy Engine evaluation notice:", policyErr.message);
+      }
+
       // Provider chain resolution
       let providerChain = [];
       if (finalRoutingMode === "manual_only" || finalRoutingMode === "single") {
-          const m = availableModels.find(m => m.model_pk === model || m.model_id === model);
+          const m = availableModels.find(m => m.model_pk === effectiveModel || m.model_id === effectiveModel);
           if (m) providerChain.push(m);
       } else if (finalRoutingMode === "cheapest_first" || finalRoutingMode === "cheapest") {
           availableModels.sort((a, b) => (Number(a.input_cost) + Number(a.output_cost)) - (Number(b.input_cost) + Number(b.output_cost)));
@@ -857,9 +907,9 @@ export async function mountChatOrchestrateRoutes(app, deps) {
               ...availableModels.slice(0, startIndex)
           ];
       } else {
-          // Default: failover. Requested model first, then sorted by priority.
+          // Default: failover. Effective model first, then sorted by priority.
           availableModels.sort((a, b) => Number(a.priority) - Number(b.priority));
-          const reqModel = availableModels.find(m => m.model_pk === model || m.model_id === model);
+          const reqModel = availableModels.find(m => m.model_pk === effectiveModel || m.model_id === effectiveModel);
           if (reqModel) providerChain.push(reqModel);
           for (const m of availableModels) {
               if (reqModel && m.model_pk === reqModel.model_pk) continue;

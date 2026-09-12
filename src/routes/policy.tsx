@@ -59,6 +59,8 @@ import { useForge } from "@/lib/forge-store";
 import { useSkills } from "@/lib/skill-store";
 import { useMcp } from "@/lib/mcp-store";
 import { useVaultStore } from "@/lib/vault-store";
+import { useModels } from "@/lib/model-store";
+import { useAgents } from "@/lib/agent-store";
 import { parkForApproval } from "@/lib/approval-gate";
 import { JewelButton as GateButton } from "@/components/sovereign/primitives";
 import { cn } from "@/lib/utils";
@@ -617,37 +619,82 @@ const signedFields: FieldSpec[] = [
   },
 ];
 
-const engineFields: FieldSpec[] = [
-  { key: "name", label: "rule name", type: "text", placeholder: "Route coding intent", full: true },
-  { key: "seq", label: "sequence #", type: "text", placeholder: "10", mono: true },
-  { key: "enabled", label: "active", type: "toggle" },
-  {
-    key: "ifCondition",
-    label: "MATCH condition",
-    type: "text",
-    placeholder: "intent = coding and cost < 5",
-    mono: true,
-    full: true,
-    hint: 'Clauses: always · intent = x · target = x · cost > n · text contains "x" · output matches /re/ — join with "and".',
-  },
-  {
-    key: "action",
-    label: "ACTION",
-    type: "select",
-    options: policyActions,
-    optionLabels: actionLabel,
-    full: true,
-  },
-  {
-    key: "thenAction",
-    label: "action parameter",
-    type: "text",
-    placeholder: "route → forge-coder",
-    mono: true,
-    full: true,
-    hint: "Rules are evaluated top-down by sequence number — the first match wins and the chain stops.",
-  },
-];
+const buildEngineFields = (
+  models: Array<{ id: string; name: string; modelId?: string }>,
+  agents: Array<{ id: string; name: string }>,
+): FieldSpec[] => {
+  const routeOptions: string[] = [];
+  const routeOptionLabels: Record<string, string> = {};
+
+  for (const m of models) {
+    const key = `route -> ${m.modelId || m.id}`;
+    routeOptions.push(key);
+    routeOptionLabels[key] = `🧠 Model: ${m.name} (${m.modelId || m.id})`;
+  }
+
+  for (const a of agents) {
+    const key = `route -> ${a.id}`;
+    routeOptions.push(key);
+    routeOptionLabels[key] = `🤖 Agent: ${a.name} (${a.id})`;
+  }
+
+  const thenActionField: FieldSpec =
+    routeOptions.length > 0
+      ? {
+          key: "thenAction",
+          label: "Route Target (Model / Agent)",
+          type: "select",
+          options: routeOptions,
+          optionLabels: routeOptionLabels,
+          placeholder: "— select target model / agent —",
+          mono: true,
+          full: true,
+          when: (v) => String(v["action"] ?? "route") === "route",
+          hint: "Requests matching this condition will be automatically routed to this model or agent.",
+        }
+      : {
+          key: "thenAction",
+          label: "Route Target Parameter",
+          type: "text",
+          placeholder: "route -> qwen2.5-coder",
+          mono: true,
+          full: true,
+          when: (v) => String(v["action"] ?? "route") === "route",
+        };
+
+  return [
+    { key: "name", label: "rule name", type: "text", placeholder: "Route coding intent", full: true },
+    { key: "seq", label: "sequence #", type: "text", placeholder: "10", mono: true },
+    { key: "enabled", label: "active", type: "toggle" },
+    {
+      key: "ifCondition",
+      label: "MATCH condition",
+      type: "text",
+      placeholder: "intent = coding and cost < 5",
+      mono: true,
+      full: true,
+      hint: 'Clauses: always · intent = x · target = x · cost > n · text contains "x" · output matches /re/ — join with "and".',
+    },
+    {
+      key: "action",
+      label: "ACTION",
+      type: "select",
+      options: policyActions,
+      optionLabels: actionLabel,
+      full: true,
+    },
+    thenActionField,
+    {
+      key: "thenAction",
+      label: "Action parameter (redaction pattern / note)",
+      type: "text",
+      placeholder: "e.g. [REDACTED] or approval note",
+      mono: true,
+      full: true,
+      when: (v) => String(v["action"] ?? "route") !== "route",
+    },
+  ];
+};
 
 /* ------------------------------------------------- signed workflow master switch */
 
@@ -731,6 +778,8 @@ function PolicyView() {
   const engine = useCollection<PolicyRule>("sovereign.security.engine", policySeed, "pol");
   const { items: forgeItems } = useForge();
   const { skills } = useSkills();
+  const { models } = useModels();
+  const { agents } = useAgents();
   const mcp = useMcp();
 
   const skillIsolation = useCollection<IsolationProfile>(
@@ -761,6 +810,7 @@ function PolicyView() {
   const mcpName = (id: string) => mcp.clients.find((c) => c.id === id)?.name ?? id;
 
   const guardFields = useMemo(() => buildGuardFields(vault.items), [vault.items]);
+  const engineFields = useMemo(() => buildEngineFields(models, agents), [models, agents]);
   const guardRules = useMemo(() => normaliseGuardRules(guard.items), [guard.items]);
   const engineRules = useMemo(() => normalisePolicyRules(engine.items), [engine.items]);
 
@@ -1040,9 +1090,9 @@ function PolicyView() {
             fields={engineFields}
             emptyDraft={{
               name: "",
-              ifCondition: "",
-              thenAction: "",
-              action: "log",
+              ifCondition: "intent = coding",
+              thenAction: models[0] ? `route -> ${models[0].modelId || models[0].id}` : "route -> default",
+              action: "route",
               priority: "normal",
               enabled: true,
             }}
