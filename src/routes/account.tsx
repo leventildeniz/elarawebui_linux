@@ -168,6 +168,14 @@ function AccountPage() {
                 />
                 <ReadOnly label="Template" value={template?.name ?? "no template bound"} />
                 <ReadOnly
+                  label="Organization (Tenant)"
+                  value={
+                    (self?.tenantId || self?.tenant_id || "default") === "default"
+                      ? "Default Sovereign Organization (default)"
+                      : `${self?.tenantId || self?.tenant_id}`
+                  }
+                />
+                <ReadOnly
                   label="Validity"
                   value={
                     self?.locked

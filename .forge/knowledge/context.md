@@ -1014,13 +1014,13 @@ Bu aşamada ELARA Sovereign Studio, üçüncü taraf kurumlara ve geliştiricile
 
 ---
 
-## 60. COMPLETED (Phase 60) — 360° ZERO-TRUST IDENTITY & MULTI-TENANT GOVERNANCE SEAL (RING 1 & RING 2 COMPLETE)
+## 60. COMPLETED (Phase 60) — 360° ZERO-TRUST IDENTITY, MULTI-TENANT GOVERNANCE SEAL & ENTERPRISE FEDERATION
 
-Bu aşamada ELARA Sovereign Studio'nun Kimlik (Identity), Çoklu Kiracı (Multi-Tenancy) ve Görünürlük (Visibility) katmanları baştan uca 360 derece denetlenmiş; ana çekirdek (Ring 1) ve tüm yan alt sistemler (Ring 2) Zero-Trust sınırları ile eksiksiz mühürlenmiştir:
+Bu aşamada ELARA Sovereign Studio'nun Kimlik (Identity), Çoklu Kiracı (Multi-Tenancy) ve Görünürlük (Visibility) katmanları baştan uca 360 derece denetlenmiş; ana çekirdek (Ring 1), yan alt sistemler (Ring 2) ve kurumsal federasyon akışları Zero-Trust sınırları ile eksiksiz mühürlenmiştir:
 
 ### 🏛️ 1. Hayata Geçirilen Mimari Bileşenler & Yapılan Düzeltmeler
 
-#### A. 1. Halka (Ring 1 — Çekirdek Varlıklar):
+#### A. 1. Halka (Ring 1 — Çekirdek Varlıklar & Kimlik Sınırları):
 1. **Evrensel Veritabanı Çoklu Kiracı Şeması (`schema-api-keys.mjs`):**
    - Platformdaki tüm mülkiyet taşınabilir tablolara (`app_users`, `app_sessions`, `app_groups`, `agents`, `skills`, `tools`, `workflows`, `orchestrations`, `knowledge_spaces`, `rag_folders`, `knowledge_sources`, `chat_threads`) `tenant_id TEXT DEFAULT 'default'`, `is_global BOOLEAN DEFAULT false` ve `idx_*_tenant_id` indeksleri eklendi.
 2. **Kusursuz Görünürlük ve Kiracı İzolasyon Motoru (`local-server/lib/actor.mjs`):**
@@ -1031,9 +1031,10 @@ Bu aşamada ELARA Sovereign Studio'nun Kimlik (Identity), Çoklu Kiracı (Multi-
 4. **Kullanıcı & Grup Yönetimi İzolasyonu (`identity.mjs`, `identity-groups.mjs`, `auth-utils.mjs`):**
    - `rowToUser` dönüşümüne `tenantId` eklendi. Kullanıcı/grup listeleme ve ekleme rotaları kiracı sınırına alındı.
 5. **Bilgi Alanları & RAG Döküman İzolasyonu (`knowledge-spaces.mjs`, `rag-folders.mjs`):**
-   - Knowledge Spaces ve RAG Klasörleri kiracı bazında izole edildi.
+   - Knowledge Spaces ve RAG Klasörleri kiracı bazında izole edildi; Access Spaces içerisindeki `everyone` butonu yalnızca ilgili şirketin çalışma alanına (`workspace`) sınırlandırıldı.
 6. **Altyapı (Services) & Model Yönlendirme (Routing) Güvenlik Sınırları (`infra.mjs`, `models.mjs`):**
    - `Settings ➔ Services` yalnızca Super-Admin erişimine kilitlendi (`403 Forbidden`).
+   - `Settings ➔ Models` katalog ve yönlendirme değişiklikleri `requireSuperAdmin` ile güvenceye alındı.
 
 #### B. 2. Halka (Ring 2 — 360° Yan Modüller & Alt Sistemler):
 1. **Model Context Protocol (MCP Client Servers & Exposures — `mcp.mjs`, `client.mjs`):**
@@ -1058,10 +1059,33 @@ Bu aşamada ELARA Sovereign Studio'nun Kimlik (Identity), Çoklu Kiracı (Multi-
     - Vault secret kayıtları `tenant_id` ve `is_global` ile etiketlendi; müşteri BYOK anahtarları kendi şirketine münhasır kılındı.
 11. **Schedules & Raporlamalar (`reporting.mjs`):**
     - Otomatik zamanlanmış raporlar (`schedules`) kiracı bazında izole edildi.
+12. **Güvenlik Politikaları & Özel Takip Listeleri (`security-policies.mjs`, `cve.mjs`):**
+    - `guard_rules`, `isolation_profiles`, `policy_rules`, `signed_artifacts` ve `cve_watchlists` kiracı ayrımına alındı.
+13. **Denetim Günlükleri & Canlı Hata Ayıklama (`system-misc.mjs`, `system.tsx`):**
+    - `/api/logs` uç noktası TenantAdmin için otomatik olarak kendi personeline sınırlandırıldı; `/api/logs/purge` işlemi yalnızca Super-Admin (`tenant_id = 'default'`) yetkisine kilitlendi.
+
+#### C. Kurumsal UI/UX İyileştirmeleri & Otomatik Federasyon:
+1. **Otomatik Slug (Identifier) & Kilit Mekanizması (`users.tsx` ➔ `TenantsTab`):**
+   - Şirket adı yazıldıkça Tenant Slug anlık üretilir (`acme_corp`). `[🔒 Auto]` / `[🔓 Custom]` kilit butonuyla elle düzenleme izne bağlandı; mevcut şirketler için slug değiştirilemez (immutable) kılındı.
+2. **Çoklu SSO Domain Etiketleri & Akıllı IdP Keşfi (`users.tsx` ➔ `TenantsTab`):**
+   - Şirketlere birden fazla domain etiketi (`[@acme.com (x)] [@acme.co.uk (x)]`) tanımlama desteği eklendi.
+   - `Authentication Sources` listesinden bir IdP seçilip `+ Add` dendiğinde, sistem IdP metadata'sındaki domainleri (Entra/LDAP) otomatik tespit edip domain listesine ekler.
+3. **Otomatik Super-Admin Eşleme & Directory Claims (`schema-auth.mjs`):**
+   - `d-teknoloji.com.tr` gibi kurumsal domainler Global Sovereign Tenant'a (`default`) bağlandığında veya Active Directory / Entra üzerinde `Domain Admins` grubu `Administrators` grubuna eşlendiğinde, personeller kurumsal IdP ile oturum açtığı an sıfır-manuel müdahale ile **Super-Admin / Sovereign Operator** olarak tanınır.
+4. **Kullanıcı & Grup Kartı Kiracı Seçimi (`users.tsx` ➔ `UsersTab`, `GroupsTab`):**
+   - Kullanıcı kartında `VALID UNTIL` karşısına simetrik **`ORGANIZATION (TENANT)`** açılır kutusu ve sol listede `@admin · Admin · local · default` kiracı rozetleri eklendi.
+   - Grup kartına **`ORGANIZATION (TENANT)`** seçicisi eklenerek grupların küresel mi yoksa şirkete özel mi olduğu kontrol altına alındı.
+   - `/account` profil sayfasına **`Organization (Tenant)`** kimlik kartı eklendi.
+5. **Reporting & Invoicing Obsidian Koyu Tema Standardizasyonu (`reporting.invoicing.tsx`, `reporting.mjs`):**
+   - Fatura ve raporlama sayfalarındaki kiracı seçici beyaz açılır kutulardan arındırılarak koyu obsidian `#111113]/95` buzlu cam `ObsidianPick` standardına kavuşturuldu.
+   - Tüm Reporting uç noktaları (`overview`, `usage`, `cost`, `operators`, `rag`, `invoicing`) kiracı ve kullanıcı bazlı süzme yapabilecek şekilde zenginleştirildi.
 
 ---
 
 ## 61. UP NEXT — MULTI-NODE BENCHMARKING, LIVE AGENT STRESS TESTS & LOAD BALANCER HEALTH PROBE VALIDATION (PHASE 61)
+- Load Balancer `/health` probe'ları altında eşzamanlı multi-agent stres testleri.
+- Vektör boyutu ve yüksek yük altında semantik önbellek isabet oranı (Hit Rate) analitiği.
+- Lovable artıklarının temizlenmesi, ölü kodların ayıklanması ve kod içi yorum satırlarının uluslararası standartlara (İngilizce) getirilmesi.
 - Load Balancer `/health` probe'ları altında eşzamanlı multi-agent stres testleri.
 - Vektör boyutu ve yüksek yük altında semantik önbellek isabet oranı (Hit Rate) analitiği.
 - Lovable artıklarının temizlenmesi, ölü kodların ayıklanması ve kod içi yorum satırlarının uluslararası standartlara (İngilizce) getirilmesi.

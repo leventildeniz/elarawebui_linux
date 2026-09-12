@@ -353,6 +353,14 @@ export function mountSystemMiscRoutes(app, deps) {
       const params = [];
       const whereConditions = [];
 
+      const sessionTenant = req.session?.tenant_id || req.headers["x-tenant-id"] || null;
+      const isSuperAdmin = req.session?.role === "admin" && (!sessionTenant || sessionTenant === "default");
+
+      if (!isSuperAdmin) {
+        params.push(sessionTenant || "default");
+        whereConditions.push(`(meta->>'tenant_id' = $${params.length} OR meta->>'actor' IN (SELECT username FROM app_users WHERE tenant_id = $${params.length}) OR meta->>'stream' = 'auth')`);
+      }
+
       if (thread_id) {
         params.push(thread_id);
         whereConditions.push(`thread_id = $${params.length}`);
@@ -399,6 +407,12 @@ export function mountSystemMiscRoutes(app, deps) {
 
   app.post("/api/logs/purge", async (req, res) => {
     try {
+      const sessionTenant = req.session?.tenant_id || req.headers["x-tenant-id"] || null;
+      const isSuperAdmin = req.session?.role === "admin" && (!sessionTenant || sessionTenant === "default");
+      if (!isSuperAdmin) {
+        return res.status(403).json({ ok: false, error: "Only Super-Admin can purge the system audit journal." });
+      }
+
       const { before } = req.body || {};
       if (before) {
         const beforeDate = new Date(isNaN(Number(before)) ? String(before) : Number(before));
