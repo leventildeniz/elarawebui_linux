@@ -1151,7 +1151,22 @@ Bu aşamada ELARA Sovereign Studio'nun Chat ekleri, görseller, PDF ve belge iş
    - Canlı SIEM soket probe uç noktası (`POST /api/system/siem/test`) geliştirildi; UDP, TCP ve TLS üzerinden gerçek bağlantı gecikmesi (`latencyMs`) hesaplanır.
    - `siem-forwarder.mjs` akış filtreleme mantığıyla güçlendirildi; yalnızca seçilen kanallar harici SIEM toplayıcısına (ArcSight, QRadar, Splunk, Wazuh) aktarılır.
 
-#### H. Geriye Dönük Tam Uyumluluk (Zero-Breakage):
+#### H. Global Converter & Canlı Dizin Seçici (`converter.tsx`):
+1. **Dış Kaynaklı Yetenek Temizliği & Veritabanı Kaydı:**
+   - Cursor, CloudCode, Copilot, Claude Code tanımlarındaki harici yollar otomatik temizlenir.
+   - `Create Capability` butonu dönüştürülen yeteneği doğrudan ilgili veritabanı uçlarına (`/api/agents`, `/api/skills`, `/api/forge/actions`) kaydeder.
+   - `showDirectoryPicker` API ile işletim sistemi tabanlı canlı klasör seçici entegre edildi.
+
+#### I. Omni-Search Command Palette (`command-palette.tsx`, `palette-surfaces.ts`):
+- `Cmd+K` global arama motoruna Developer Hub, FinOps Invoicing, Tenants, GenGuard, Global Converter ve RAG Bilgi Alanları (`useSpaces()`) eklendi.
+- Yeni sohbet başlatma, ajan/iş akışı üretme ve API Key oluşturma hızlı eylem kısayolları (`Quick Actions`) bağlandı.
+
+#### J. Tema Duyarlı Açılır Kutu (`ObsidianSelect`) & Arayüz Hijyeni:
+- İşletim sistemi kaynaklı beyaz/siyah native açılır kutu parlamalarını engelleyen tema duyarlı `ObsidianSelect` bileşeni geliştirildi; `users`, `api-tokens`, `reporting`, `telemetry-sources`, `siem` ve `vault-key-field` alanlarına uygulandı.
+- `GenGuard` aksiyon listesi arındırıldı (`DENY`, `CHALLENGE`, `LOG`, `ALLOW`), `CHALLENGE` durumunda `approval_requests` güvenlik karantinası bağlandı.
+- Sistem servisleri klasörü işletim sistemi bağımsız `local-server/system_services` olarak standardize edildi.
+
+#### K. Geriye Dönük Tam Uyumluluk (Zero-Breakage):
 - Sistem hem eski Base64 formatındaki (`data:image/...`) sohbet geçmişini hem de yeni `/api/uploads/...` formatını şeffafça destekler; mevcut verilerde hiçbir bozulma yaşanmaz.
 - `npx tsc --noEmit` tam derleme kontrolü 0 hata ile doğrulanmıştır.
 

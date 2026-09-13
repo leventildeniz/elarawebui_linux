@@ -1041,8 +1041,36 @@ export async function mountChatOrchestrateRoutes(app, deps) {
                 close();
                 return;
               }
-              // First match wins
-              break;
+
+              if (ruleAction === "challenge") {
+                const reqId = `appr_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+                await pool.query(
+                  `INSERT INTO approval_requests (id, title, origin, tool, target, policy, risk, args, status, tenant_id)
+                   VALUES ($1, $2, 'genguard', 'firewall.challenge', $3, $4, 'high', $5, 'pending', $6)`,
+                  [
+                    reqId,
+                    `Security Quarantine: ${rule.name}`,
+                    userPromptText.slice(0, 100),
+                    `GenGuard Rule #${rule.seq || 10}: ${matchReason}`,
+                    JSON.stringify({ prompt: userPromptText, reason: matchReason, rule: rule.name }),
+                    actorCtx?.tenantId || "default"
+                  ]
+                ).catch(() => {});
+
+                send({
+                  type: "out",
+                  delta: `🛡️ **[SECURITY QUARANTINE — GenGuard Challenge]**\nYour request has triggered security inspection rule **#${rule.seq || 10} (${rule.name})**.\n*Reason:* ${matchReason}.\n*Status:* **Pending Operator Approval in Approvals Queue.**`,
+                });
+                close();
+                return;
+              }
+
+              if (ruleAction === "allow") {
+                // First-match-wins explicit allow whitelist
+                break;
+              }
+
+              // If action is "log", continue evaluating subsequent rules in chain
             }
           }
         }

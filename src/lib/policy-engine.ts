@@ -24,6 +24,13 @@ export const policyActions: PolicyAction[] = [
   "log",
 ];
 
+export const guardActions: PolicyAction[] = [
+  "deny",
+  "challenge",
+  "log",
+  "allow",
+];
+
 export const actionLabel: Record<PolicyAction, string> = {
   allow: "ALLOW · pass the request through",
   deny: "DENY · block and raise an audit alarm",
@@ -31,6 +38,13 @@ export const actionLabel: Record<PolicyAction, string> = {
   route: "ROUTE · pin the request to a target",
   challenge: "CHALLENGE · require operator approval",
   log: "LOG · observe only, no enforcement",
+};
+
+export const guardActionLabels: Record<string, string> = {
+  deny: "DENY · block and raise an audit alarm",
+  challenge: "CHALLENGE · require operator approval",
+  log: "LOG · observe only, no enforcement",
+  allow: "ALLOW · pass the request through",
 };
 
 export const actionTone: Record<PolicyAction, string> = {

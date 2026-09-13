@@ -43,6 +43,8 @@ import {
   chainMeta,
   emptyContext,
   evaluateChain,
+  guardActions,
+  guardActionLabels,
   matchExpression,
   matchGuard,
   nextSeq,
@@ -429,8 +431,8 @@ const buildGuardFields = (secrets: Array<{ id: string; name: string; kind?: stri
       key: "action",
       label: "ACTION on match",
       type: "select",
-      options: policyActions,
-      optionLabels: actionLabel,
+      options: guardActions,
+      optionLabels: guardActionLabels,
     },
 
     /* --- External AI Guardrail Fields --- */
