@@ -181,8 +181,15 @@ function safeRegex(pattern: string): RegExp | null {
   }
 }
 
-/** GenGuard match: any blacklist term in the input, or any regex on the output. */
+/** GenGuard match: external guardrail scan or local blacklist/regex check. */
 export function matchGuard(rule: GenGuardRule, ctx: EvalContext): string | null {
+  if (rule.engineType === "external") {
+    const text = ctx.text.toLowerCase();
+    if (text && rule.endpointUrl) {
+      return `external AI guardrail (${(rule.providerFormat || "REST").toUpperCase()}) inspection active`;
+    }
+    return null;
+  }
   const text = ctx.text.toLowerCase();
   for (const term of splitList(rule.inputBlacklist)) {
     if (term && text.includes(term.toLowerCase())) return `input contains "${term}"`;

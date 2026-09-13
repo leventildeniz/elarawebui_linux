@@ -638,10 +638,10 @@ const buildEngineFields = (
     routeOptionLabels[key] = `🤖 Agent: ${a.name} (${a.id})`;
   }
 
-  const thenActionField: FieldSpec =
+  const routeTargetField: FieldSpec =
     routeOptions.length > 0
       ? {
-          key: "thenAction",
+          key: "routeTarget",
           label: "Route Target (Model / Agent)",
           type: "select",
           options: routeOptions,
@@ -653,7 +653,7 @@ const buildEngineFields = (
           hint: "Requests matching this condition will be automatically routed to this model or agent.",
         }
       : {
-          key: "thenAction",
+          key: "routeTarget",
           label: "Route Target Parameter",
           type: "text",
           placeholder: "route -> qwen2.5-coder",
@@ -683,15 +683,26 @@ const buildEngineFields = (
       optionLabels: actionLabel,
       full: true,
     },
-    thenActionField,
+    routeTargetField,
     {
-      key: "thenAction",
-      label: "Action parameter (redaction pattern / note)",
+      key: "redactMask",
+      label: "Redaction Replacement / Mask",
       type: "text",
-      placeholder: "e.g. [REDACTED] or approval note",
+      placeholder: "[REDACTED]",
       mono: true,
       full: true,
-      when: (v) => String(v["action"] ?? "route") !== "route",
+      when: (v) => String(v["action"] ?? "") === "redact",
+      hint: "Matched sensitive content in the model output will be replaced with this text.",
+    },
+    {
+      key: "challengeReason",
+      label: "Approval Reason / Ticket Policy Note",
+      type: "text",
+      placeholder: "e.g. High-risk operation requires operator sign-off",
+      mono: true,
+      full: true,
+      when: (v) => String(v["action"] ?? "") === "challenge",
+      hint: "This reason will be attached to the approval request in the Approvals Queue.",
     },
   ];
 };
@@ -1097,11 +1108,33 @@ function PolicyView() {
               enabled: true,
             }}
             items={engineRules}
-            onCreate={engine.create}
-            onUpdate={engine.update}
+            onCreate={(d: Record<string, unknown>) => {
+              const action = String(d["action"] || "route");
+              const cleanThen =
+                action === "route" ? String(d["routeTarget"] || d["thenAction"] || "") :
+                action === "redact" ? String(d["redactMask"] || "[REDACTED]") :
+                action === "challenge" ? String(d["challengeReason"] || "Operator approval required") :
+                "";
+              engine.create({ ...d, thenAction: cleanThen } as any);
+            }}
+            onUpdate={(id, p: Record<string, unknown>) => {
+              const currentAction = String(p["action"] ?? "");
+              let cleanThen = p["thenAction"];
+              if (currentAction === "route") cleanThen = p["routeTarget"] ?? p["thenAction"];
+              else if (currentAction === "redact") cleanThen = p["redactMask"] ?? "[REDACTED]";
+              else if (currentAction === "challenge") cleanThen = p["challengeReason"] ?? "Operator approval required";
+              else if (["allow", "deny", "log"].includes(currentAction)) cleanThen = "";
+
+              engine.update(id, cleanThen !== undefined ? { ...p, thenAction: cleanThen } as any : (p as any));
+            }}
             onRemove={engine.remove}
             condition={(r) => r.ifCondition || "always"}
-            detail={(r) => r.thenAction || "—"}
+            detail={(r) => {
+              if (r.action === "route") return r.thenAction || "—";
+              if (r.action === "redact") return r.thenAction ? `mask: ${r.thenAction}` : "auto-redact";
+              if (r.action === "challenge") return r.thenAction ? `note: ${r.thenAction}` : "approval required";
+              return "standard enforcement";
+            }}
             match={(r, ctx) => matchExpression(r.ifCondition, ctx)}
           />
         )}
@@ -1919,6 +1952,25 @@ function EntityDialog({
     const next: Record<string, unknown> = {};
     for (const f of fields)
       next[f.key] = initial[f.key] ?? (f.type === "toggle" ? false : f.type === "multi" ? [] : "");
+
+    // Contextual mapping for thenAction to prevent cross-contamination
+    const initialThen = String(initial["thenAction"] || "");
+    const initialAction = String(initial["action"] || "route");
+    if (initialAction === "route" || initialThen.startsWith("route ->")) {
+      next["routeTarget"] = initialThen;
+      next["redactMask"] = "[REDACTED]";
+      next["challengeReason"] = "Operator approval required";
+    } else if (initialAction === "redact") {
+      next["redactMask"] = initialThen || "[REDACTED]";
+      next["challengeReason"] = "Operator approval required";
+    } else if (initialAction === "challenge") {
+      next["challengeReason"] = initialThen || "Operator approval required";
+      next["redactMask"] = "[REDACTED]";
+    } else {
+      next["redactMask"] = "[REDACTED]";
+      next["challengeReason"] = "Operator approval required";
+    }
+
     setValues(next);
   }
 
