@@ -57,6 +57,39 @@ function ConverterPage() {
   const push = (line: string) =>
     setLog((l) => [`${new Date().toISOString().slice(11, 19)} · ${line}`, ...l].slice(0, 200));
 
+  const handleBrowseFolder = async (rowId: string) => {
+    try {
+      if ("showDirectoryPicker" in window) {
+        const handle = await (window as any).showDirectoryPicker();
+        if (handle?.name) {
+          const pickedPath = `~/Documents/skills/${handle.name}`;
+          setPaths((rows) => rows.map((r) => (r.id === rowId ? { ...r, path: pickedPath } : r)));
+          push(`browse · selected folder '${handle.name}' → ${pickedPath}`);
+          toast.success(`Selected directory: ${handle.name}`);
+        }
+      } else {
+        const fileInput = document.createElement("input");
+        fileInput.type = "file";
+        (fileInput as any).webkitdirectory = true;
+        fileInput.onchange = (e: any) => {
+          const files = e.target.files;
+          if (files && files.length > 0) {
+            const folderName = files[0].webkitRelativePath?.split("/")[0] || "skills";
+            const pickedPath = `~/Documents/skills/${folderName}`;
+            setPaths((rows) => rows.map((r) => (r.id === rowId ? { ...r, path: pickedPath } : r)));
+            push(`browse · selected folder '${folderName}' → ${pickedPath}`);
+            toast.success(`Selected directory: ${folderName}`);
+          }
+        };
+        fileInput.click();
+      }
+    } catch (err: any) {
+      if (err.name !== "AbortError") {
+        toast.info("Folder picker closed");
+      }
+    }
+  };
+
   const convert = () => {
     const base = paths[0]?.path ?? "~/";
     let body = input;
@@ -295,7 +328,12 @@ function ConverterPage() {
                   )
                 }
               />
-              <button className={btnCls} title="Browse">
+              <button
+                type="button"
+                className={btnCls}
+                title="Browse directory"
+                onClick={() => handleBrowseFolder(p.id)}
+              >
                 <FolderOpen size={12} />
               </button>
               <button
@@ -424,13 +462,19 @@ function ConverterPage() {
               <div className="flex items-center gap-2">
                 <button
                   className={btnCls}
-                  onClick={() => navigator.clipboard?.writeText(JSON.stringify(log, null, 2))}
+                  onClick={() => {
+                    navigator.clipboard?.writeText(JSON.stringify(log, null, 2));
+                    toast.success("Debug log copied to clipboard");
+                  }}
                 >
                   <Copy size={12} /> COPY JSON
                 </button>
                 <button
                   className={cn(btnCls, "text-ruby/80 hover:border-ruby/50 hover:text-ruby")}
-                  onClick={() => setLog([])}
+                  onClick={() => {
+                    setLog([]);
+                    toast.info("Debug log cleared");
+                  }}
                 >
                   <Trash2 size={12} /> CLEAR
                 </button>
