@@ -5,6 +5,7 @@ import { Check, Cpu, Loader2, Pencil, Play, Plus, Search, Square, Trash2, X } fr
 import { Surface } from "@/components/sovereign/surface";
 import { JewelButton, Sheen, StatusDot, Tag } from "@/components/sovereign/primitives";
 import { useRuntimes, type PythonRuntime, type RuntimeStatus } from "@/lib/runtime-store";
+import { fetchApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/runtime")({
@@ -271,40 +272,34 @@ function RuntimeDialog({
     setDetecting(true);
     setDetected(null);
     
-    // Doğru Mantık:
-    // Eğer input kutusu (pythonPath) tamamen BOŞ ise -> "Gerçek Auto-Detect"
-    // Gider makinedeki standart 'python3' komutunu bulur, path'i doldurur ve dropdown'u ona göre (örn. 3.14) günceller.
-    // Eğer kullanıcı input kutusuna kendisi bir yol (örn. 'python3.12' veya '/usr/bin/python3.12') GİRDİYSE -> "Manual Verify"
-    // Sadece kullanıcının girdiği o path'i sunucuya sorar. Doğruysa onu verified eder. Dropdown'ı değiştirmesine gerek yok.
+    // Detection logic:
+    // If input field (pythonPath) is empty -> "Auto-Detect" mode.
+    // Resolves standard 'python3' command on host, fills path, and updates dropdown version.
+    // If user provided a specific path (e.g. 'python3.12' or '/usr/bin/python3.12') -> "Manual Verify" mode.
+    // Only verifies the provided binary path against the server.
     
     let targetPath = draft.pythonPath?.trim();
-    const isAutoDetect = !targetPath; // Kullanıcı path girmeden bastıysa auto-detect'tir.
+    const isAutoDetect = !targetPath; // Auto-detect mode if path input is empty
     
     if (isAutoDetect) {
       targetPath = "python3";
     }
     
     try {
-      const res = await fetch("/api/python/detect", {
+      const data = await fetchApi("/api/python/detect", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-session-id": "demo", 
-        },
         body: JSON.stringify({ path: targetPath }),
       });
       
-      const data = await res.json();
-      
-      if (res.ok && data.ok) {
-        // BAŞARILI: Path bulundu ve versiyon tespit edildi.
-        const detectedVersion = data.version.replace('Python ', '');
-        const majorMinor = detectedVersion.split('.').slice(0, 2).join('.'); // 3.14.4 -> 3.14
+      if (data && data.ok) {
+        // SUCCESS: Binary found and version detected
+        const detectedVersion = data.version.replace("Python ", "");
+        const majorMinor = detectedVersion.split(".").slice(0, 2).join("."); // 3.14.4 -> 3.14
         
         setDraft((d) => {
           const next = { ...d };
           if (isAutoDetect) {
-            next.pythonPath = "python3"; // Keep agnostic instead of data.path
+            next.pythonPath = "python3"; // Keep agnostic instead of absolute path
             next.version = majorMinor;
           }
           next.venvPath = d.venvPath || "/opt/elara/venvs/sandbox";
@@ -313,19 +308,17 @@ function RuntimeDialog({
         
         setDetected(detectedVersion);
       } else {
-        // İlk deneme başarısız oldu.
+        // Primary probe failed
         if (isAutoDetect) {
-          // Auto-detect modundaysak ve "python3" patladıysa, bir de "python" ı deneyelim (Windows için)
-          const fallbackRes = await fetch("/api/python/detect", {
+          // If in auto-detect mode and 'python3' failed, fallback probe for 'python' (Windows)
+          const fbData = await fetchApi("/api/python/detect", {
             method: "POST",
-            headers: { "Content-Type": "application/json", "x-session-id": "demo" },
             body: JSON.stringify({ path: "python" }),
           });
-          const fbData = await fallbackRes.json();
   
-          if (fallbackRes.ok && fbData.ok) {
-            const detectedVersion = fbData.version.replace('Python ', '');
-            const majorMinor = detectedVersion.split('.').slice(0, 2).join('.');
+          if (fbData && fbData.ok) {
+            const detectedVersion = fbData.version.replace("Python ", "");
+            const majorMinor = detectedVersion.split(".").slice(0, 2).join(".");
             
             setDraft((d) => ({
               ...d,
@@ -335,11 +328,11 @@ function RuntimeDialog({
             }));
             setDetected(detectedVersion);
           } else {
-             // İkisi de yok
+             // Neither binary verified
              setDetected("not verified");
           }
         } else {
-          // Manuel olarak bir path girildi ve o path yanlış çıktı.
+          // Manually specified path was not found or invalid
           setDetected("not found");
         }
       }
