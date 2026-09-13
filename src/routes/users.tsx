@@ -31,7 +31,8 @@ import { cn } from "@/lib/utils";
 
 import { AvatarPicker, EntityAvatar } from "@/components/sovereign/identity";
 import { Surface, Row } from "@/components/sovereign/surface";
-import { Tag, JewelButton } from "@/components/sovereign/primitives";
+import { Tag, JewelButton, StatusDot } from "@/components/sovereign/primitives";
+import { ObsidianSelect } from "@/components/sovereign/obsidian-select";
 import { SCOPE_LABELS, TAB_SCOPES, roleActions, useRoles } from "@/lib/rbac-store";
 import { useIdentity, type Account } from "@/lib/group-store";
 import type { JewelTone } from "@/lib/rbac-store";
@@ -1113,12 +1114,18 @@ function TenantsTab() {
       {/* MODAL: Create / Edit Tenant Organization with Multi-IdP Selector */}
       <AnimatePresence>
         {modalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-canvas/70 p-4 backdrop-blur-[3px]"
+            onClick={() => setModalOpen(false)}
+          >
             <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-white/10 bg-surface-overlay p-6 shadow-2xl"
+              role="dialog"
+              onClick={(e) => e.stopPropagation()}
+              initial={{ opacity: 0, y: 14, filter: "blur(6px)" }}
+              animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+              exit={{ opacity: 0, y: -8, filter: "blur(6px)" }}
+              transition={{ duration: 0.15, ease: [0.22, 1, 0.36, 1] }}
+              className="obsidian-slab w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-[16px] p-6"
             >
               <div className="flex items-center justify-between border-b border-white/8 pb-3">
                 <h3 className="flex items-center gap-2 text-base font-semibold text-foreground">
@@ -1152,33 +1159,24 @@ function TenantsTab() {
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
                       <label className="block font-mono text-[11px] uppercase tracking-wider text-muted-foreground/70">
-                        Tenant Slug (Identifier)
+                        Tenant Identifier
                       </label>
-                      {!editingId && (
-                        <button
-                          type="button"
-                          onClick={() => setSlugLocked(!slugLocked)}
-                          className="inline-flex items-center gap-1 text-[10px] font-mono text-muted-foreground hover:text-foreground transition-colors"
-                          title={slugLocked ? "Slug is auto-generated from name. Click to customize." : "Slug is in manual mode. Click to re-lock to name."}
-                        >
-                          {slugLocked ? <Lock className="h-3 w-3 text-sapphire" /> : <Unlock className="h-3 w-3 text-amber-400" />}
-                          <span className={slugLocked ? "text-sapphire" : "text-amber-400"}>
-                            {slugLocked ? "Auto" : "Custom"}
-                          </span>
-                        </button>
-                      )}
+                      <span className="inline-flex items-center gap-1 text-[10px] font-mono text-muted-foreground/60">
+                        <Lock className="h-3 w-3 text-sapphire" />
+                        <span className="text-sapphire">Locked</span>
+                      </span>
                     </div>
                     <input
                       type="text"
                       required
-                      disabled={!!editingId || slugLocked}
+                      readOnly
+                      disabled
                       placeholder="e.g. acme_corp"
                       value={slug}
-                      onChange={(e) => setSlug(e.target.value)}
-                      className="w-full rounded-lg border border-white/8 bg-raised/50 px-3 py-2 font-mono text-sm text-foreground outline-none transition-colors focus:border-sapphire disabled:opacity-60 disabled:cursor-not-allowed"
+                      className="w-full rounded-lg border border-white/8 bg-raised/40 px-3 py-2 font-mono text-sm text-foreground/80 outline-none transition-colors opacity-80 cursor-not-allowed"
                     />
                     <span className="mt-1 block font-mono text-[10px] text-muted-foreground/50">
-                      {editingId ? "Immutable primary tenant key" : (slugLocked ? "Auto-synced from organization name" : "Custom slug identifier")}
+                      Auto-generated primary identifier
                     </span>
                   </div>
                 </div>
@@ -1188,17 +1186,14 @@ function TenantsTab() {
                     <label className="mb-1.5 block font-mono text-[11px] uppercase tracking-wider text-muted-foreground/70">
                       Assigned Rate Limit Package
                     </label>
-                    <select
+                    <ObsidianSelect
                       value={tier}
-                      onChange={(e) => setTier(e.target.value)}
-                      className="w-full rounded-lg border border-white/10 bg-[#121216] px-3 py-2 font-mono text-sm text-foreground outline-none transition-colors focus:border-sapphire"
-                    >
-                      {tiers.map((t) => (
-                        <option key={t.tier} value={t.tier} className="bg-[#18181e] text-foreground py-1.5">
-                          {t.name} ({t.rpm_limit} RPM · {(Number(t.monthly_token_quota) / 1000000).toFixed(0)}M/mo)
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(val) => setTier(val)}
+                      options={tiers.map((t) => ({
+                        value: t.tier,
+                        label: `${t.name} (${t.rpm_limit} RPM · ${(Number(t.monthly_token_quota) / 1000000).toFixed(0)}M/mo)`,
+                      }))}
+                    />
                   </div>
 
                   <div>
@@ -1286,20 +1281,18 @@ function TenantsTab() {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <select
+                    <ObsidianSelect
+                      className="flex-1"
                       value={idpSelectVal}
-                      onChange={(e) => setIdpSelectVal(e.target.value)}
-                      className="flex-1 rounded-lg border border-white/10 bg-[#121216] px-3 py-2 font-mono text-xs text-foreground outline-none transition-colors focus:border-sapphire"
-                    >
-                      <option value="" className="bg-[#18181e] text-muted-foreground">— Select IdP Source to bind —</option>
-                      {authProvidersList
+                      onChange={(val) => setIdpSelectVal(val)}
+                      placeholder="— Select IdP Source to bind —"
+                      options={authProvidersList
                         .filter((p) => !selectedIdps.includes(p.key || p.id))
-                        .map((p) => (
-                          <option key={p.key || p.id} value={p.key || p.id} className="bg-[#18181e] text-foreground py-1.5">
-                            {p.label}
-                          </option>
-                        ))}
-                    </select>
+                        .map((p) => ({
+                          value: p.key || p.id,
+                          label: p.label || p.id,
+                        }))}
+                    />
                     <JewelButton
                       type="button"
                       variant="outline"
@@ -1427,14 +1420,14 @@ function TenantsTab() {
                     <label className="mb-1.5 block font-mono text-[11px] uppercase tracking-wider text-muted-foreground/70">
                       Organization Status
                     </label>
-                    <select
+                    <ObsidianSelect
                       value={status}
-                      onChange={(e) => setStatus(e.target.value as "active" | "suspended")}
-                      className="w-full rounded-lg border border-white/10 bg-[#121216] px-3 py-2 font-mono text-sm text-foreground outline-none transition-colors focus:border-sapphire"
-                    >
-                      <option value="active" className="bg-[#18181e] text-emerald">Active (Full Access & API Gateway enabled)</option>
-                      <option value="suspended" className="bg-[#18181e] text-red-400">Suspended (API Gateway & Logins blocked)</option>
-                    </select>
+                      onChange={(val) => setStatus(val as "active" | "suspended")}
+                      options={[
+                        { value: "active", label: "Active (Full Access & API Gateway enabled)", icon: <StatusDot tone="emerald" /> },
+                        { value: "suspended", label: "Suspended (API Gateway & Logins blocked)", icon: <StatusDot tone="ruby" /> },
+                      ]}
+                    />
                   </div>
                 )}
 

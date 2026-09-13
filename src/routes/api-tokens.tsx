@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { Surface } from "@/components/sovereign/surface";
 import { JewelButton } from "@/components/sovereign/primitives";
+import { ObsidianSelect } from "@/components/sovereign/obsidian-select";
 import { confirmAction } from "@/components/sovereign/confirm-dialog";
 import { cn } from "@/lib/utils";
 import { fetchApi } from "@/lib/api";
@@ -684,7 +685,7 @@ function ApiTokensPage() {
                         >
                           {key.tier_name || key.tier}
                         </span>
-                        <span className="rounded-md border border-white/6 bg-black/30 px-2 py-0.5 font-mono text-[10px] text-muted-foreground/70">
+                        <span className="rounded-md border border-white/8 bg-raised/50 px-2 py-0.5 font-mono text-[10px] text-muted-foreground/80">
                           {key.rpm_limit} RPM · {(key.tpm_limit / 1000).toFixed(0)}K TPM
                         </span>
                         {key.alert_on_limit && (
@@ -699,7 +700,7 @@ function ApiTokensPage() {
 
                       {/* Secret Key Input Bar */}
                       <div className="flex items-center gap-2">
-                        <div className="flex select-all items-center rounded-lg border border-white/8 bg-black/40 px-3 py-1.5 font-mono text-xs text-foreground/90">
+                        <div className="flex select-all items-center rounded-lg border border-white/[0.08] bg-raised/40 px-3 py-1.5 font-mono text-xs text-foreground/90">
                           {isRevealed ? (
                             <span>{key.raw_key}</span>
                           ) : (
@@ -791,8 +792,8 @@ function ApiTokensPage() {
             })}
 
             {/* Quick Connection Code Snippet */}
-            <div className="rounded-xl border border-white/8 bg-black/40 p-4">
-              <div className="flex items-center justify-between border-b border-white/6 pb-2">
+            <div className="rounded-xl border border-white/[0.08] bg-raised/20 p-4">
+              <div className="flex items-center justify-between border-b border-white/[0.06] pb-2">
                 <span className="flex items-center gap-1.5 font-mono text-xs font-medium text-muted-foreground">
                   <Terminal className="h-3.5 w-3.5 text-sapphire" />
                   Quickstart — Universal OpenAI SDK Integration
@@ -801,7 +802,7 @@ function ApiTokensPage() {
                   Python 3.10+ / Node.js
                 </span>
               </div>
-              <pre className="mt-3 overflow-x-auto font-mono text-[11.5px] leading-relaxed text-foreground/90">
+              <pre className="mt-3 overflow-x-auto rounded-lg border border-white/[0.05] bg-raised/30 p-3 font-mono text-[11.5px] leading-relaxed text-foreground/90">
                 {`from openai import OpenAI
 
 # Connect directly to ELARA Sovereign AI Gateway
@@ -954,12 +955,18 @@ for chunk in response:
       {/* MODAL: Generate API Key with 3-Way Scoped Configuration Cards */}
       <AnimatePresence>
         {createKeyModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-canvas/70 p-4 backdrop-blur-[3px]"
+            onClick={() => setCreateKeyModalOpen(false)}
+          >
             <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-2xl border border-white/10 bg-surface-overlay p-6 shadow-2xl"
+              role="dialog"
+              onClick={(e) => e.stopPropagation()}
+              initial={{ opacity: 0, y: 14, filter: "blur(6px)" }}
+              animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+              exit={{ opacity: 0, y: -8, filter: "blur(6px)" }}
+              transition={{ duration: 0.15, ease: [0.22, 1, 0.36, 1] }}
+              className="obsidian-slab w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-[16px] p-6"
             >
               <div className="flex items-center justify-between border-b border-white/8 pb-3">
                 <h3 className="flex items-center gap-2 text-base font-semibold text-foreground">
@@ -1027,20 +1034,18 @@ for chunk in response:
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <select
+                        <ObsidianSelect
+                          className="flex-1"
                           value={modelSelectVal}
-                          onChange={(e) => setModelSelectVal(e.target.value)}
-                          className="flex-1 rounded-lg border border-white/10 bg-[#121216] px-3 py-2 font-mono text-xs text-foreground outline-none transition-colors focus:border-sapphire"
-                        >
-                          <option value="" className="bg-[#18181e] text-muted-foreground">— Select Model to authorize —</option>
-                          {availableModels
+                          onChange={(val) => setModelSelectVal(val)}
+                          placeholder="— Select Model to authorize —"
+                          options={availableModels
                             .filter((m) => !selectedModels.includes(m.id))
-                            .map((m) => (
-                              <option key={m.id} value={m.id} className="bg-[#18181e] text-foreground py-1.5">
-                                {m.name}
-                              </option>
-                            ))}
-                        </select>
+                            .map((m) => ({
+                              value: m.id,
+                              label: m.name,
+                            }))}
+                        />
                         <JewelButton
                           type="button"
                           variant="outline"
@@ -1086,20 +1091,18 @@ for chunk in response:
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <select
+                        <ObsidianSelect
+                          className="flex-1"
                           value={spaceSelectVal}
-                          onChange={(e) => setSpaceSelectVal(e.target.value)}
-                          className="flex-1 rounded-lg border border-white/10 bg-[#121216] px-3 py-2 font-mono text-xs text-foreground outline-none transition-colors focus:border-emerald"
-                        >
-                          <option value="" className="bg-[#18181e] text-muted-foreground">— Select Knowledge Space —</option>
-                          {availableSpaces
+                          onChange={(val) => setSpaceSelectVal(val)}
+                          placeholder="— Select Knowledge Space —"
+                          options={availableSpaces
                             .filter((s) => !selectedSpaces.includes(s.id))
-                            .map((s) => (
-                              <option key={s.id} value={s.id} className="bg-[#18181e] text-foreground py-1.5">
-                                {s.name}
-                              </option>
-                            ))}
-                        </select>
+                            .map((s) => ({
+                              value: s.id,
+                              label: s.name,
+                            }))}
+                        />
                         <JewelButton
                           type="button"
                           variant="outline"
@@ -1145,20 +1148,18 @@ for chunk in response:
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <select
+                        <ObsidianSelect
+                          className="flex-1"
                           value={agentSelectVal}
-                          onChange={(e) => setAgentSelectVal(e.target.value)}
-                          className="flex-1 rounded-lg border border-white/10 bg-[#121216] px-3 py-2 font-mono text-xs text-foreground outline-none transition-colors focus:border-topaz"
-                        >
-                          <option value="" className="bg-[#18181e] text-muted-foreground">— Select Specialized Agent —</option>
-                          {availableAgents
+                          onChange={(val) => setAgentSelectVal(val)}
+                          placeholder="— Select Specialized Agent —"
+                          options={availableAgents
                             .filter((a) => !selectedAgents.includes(a.id))
-                            .map((a) => (
-                              <option key={a.id} value={a.id} className="bg-[#18181e] text-foreground py-1.5">
-                                {a.name}
-                              </option>
-                            ))}
-                        </select>
+                            .map((a) => ({
+                              value: a.id,
+                              label: a.name,
+                            }))}
+                        />
                         <JewelButton
                           type="button"
                           variant="outline"
@@ -1225,7 +1226,7 @@ for chunk in response:
                         placeholder="Recipient email (leave blank to use Tenant Admin default)"
                         value={alertEmail}
                         onChange={(e) => setAlertEmail(e.target.value)}
-                        className="w-full rounded-lg border border-white/10 bg-[#121216] px-3 py-1.5 font-mono text-xs text-foreground outline-none transition-colors focus:border-sapphire placeholder:text-muted-foreground/40"
+                        className="w-full rounded-lg border border-white/[0.08] bg-raised/50 px-3 py-2 font-mono text-xs text-foreground outline-none transition-colors focus:border-sapphire placeholder:text-muted-foreground/40"
                       />
                     </div>
                   )}
@@ -1253,12 +1254,18 @@ for chunk in response:
       {/* MODAL: Create / Edit Rate Limit Tier */}
       <AnimatePresence>
         {tierModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-canvas/70 p-4 backdrop-blur-[3px]"
+            onClick={() => setTierModalOpen(false)}
+          >
             <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="w-full max-w-lg rounded-2xl border border-white/10 bg-surface-overlay p-6 shadow-2xl"
+              role="dialog"
+              onClick={(e) => e.stopPropagation()}
+              initial={{ opacity: 0, y: 14, filter: "blur(6px)" }}
+              animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+              exit={{ opacity: 0, y: -8, filter: "blur(6px)" }}
+              transition={{ duration: 0.15, ease: [0.22, 1, 0.36, 1] }}
+              className="obsidian-slab w-full max-w-lg rounded-[16px] p-6"
             >
               <div className="flex items-center justify-between border-b border-white/8 pb-3">
                 <h3 className="flex items-center gap-2 text-base font-semibold text-foreground">

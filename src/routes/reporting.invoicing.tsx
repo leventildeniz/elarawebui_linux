@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Building2, KeyRound, Layers, Download, Check, ChevronDown } from "lucide-react";
 import { Surface } from "@/components/sovereign/surface";
 import { JewelButton } from "@/components/sovereign/primitives";
+import { ObsidianSelect } from "@/components/sovereign/obsidian-select";
 import {
   DataTable,
   KpiGrid,
@@ -281,19 +282,20 @@ function InvoicingPage() {
           <div className="flex flex-wrap items-center gap-3">
             {control}
 
-            {/* Tenant Filter using ObsidianPick */}
-            <ObsidianPick
+            {/* Tenant Filter using ObsidianSelect */}
+            <ObsidianSelect
+              full={false}
+              className="min-w-[180px]"
               value={selectedTenant}
+              icon={<Building2 className="h-3.5 w-3.5 text-sapphire shrink-0" />}
               options={[
                 { value: "all", label: `All Tenants (${totals.total_tenants})` },
                 ...(data?.tenants.map((t) => ({
                   value: t.tenant_id,
                   label: t.tenant_id,
-                  hint: `${fmtTokens(t.tokens)} tokens`,
                 })) || []),
               ]}
               onChange={(v) => setSelectedTenant(v)}
-              icon={<Building2 className="h-3.5 w-3.5 text-sapphire" />}
             />
           </div>
 

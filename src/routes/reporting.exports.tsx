@@ -31,6 +31,7 @@ import {
 } from "@/lib/schedule-store";
 import { cn, fmtDateTime } from "@/lib/utils";
 import { fetchApi } from "@/lib/api";
+import { ObsidianSelect } from "@/components/sovereign/obsidian-select";
 
 export const Route = createFileRoute("/reporting/exports")({
   head: () => ({
@@ -461,22 +462,17 @@ function ExportsPage() {
               </div>
               <div>
                 <Label>Organization (Tenant Scope)</Label>
-                <select
-                  className="w-full rounded-lg border border-white/10 bg-[#121216] px-3 py-2 font-mono text-[12.5px] text-foreground outline-none transition-colors focus:border-sapphire"
+                <ObsidianSelect
                   value={editing.tenant_id || "default"}
-                  onChange={(e) =>
-                    setEditing({ ...editing, tenant_id: e.target.value })
-                  }
-                >
-                  <option value="default" className="bg-[#18181e] text-foreground py-1.5">
-                    All Tenants (Global Sovereign Rollup)
-                  </option>
-                  {tenantsList.map((t) => (
-                    <option key={t.slug} value={t.slug} className="bg-[#18181e] text-foreground py-1.5">
-                      {t.name} ({t.slug})
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => setEditing({ ...editing, tenant_id: val })}
+                  options={[
+                    { value: "default", label: "All Tenants (Global Sovereign Rollup)" },
+                    ...tenantsList.map((t) => ({
+                      value: t.slug,
+                      label: `${t.name} (${t.slug})`,
+                    })),
+                  ]}
+                />
                 <p className="mt-1.5 font-mono text-[11px] text-muted-foreground/50">
                   Target organization boundary for automated delivery.
                 </p>
