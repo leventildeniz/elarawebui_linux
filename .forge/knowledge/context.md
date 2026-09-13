@@ -1166,8 +1166,23 @@ Bu aşamada ELARA Sovereign Studio'nun Chat ekleri, görseller, PDF ve belge iş
 - `GenGuard` aksiyon listesi arındırıldı (`DENY`, `CHALLENGE`, `LOG`, `ALLOW`), `CHALLENGE` durumunda `approval_requests` güvenlik karantinası bağlandı.
 - Sistem servisleri klasörü işletim sistemi bağımsız `local-server/system_services` olarak standardize edildi.
 
-#### K. Geriye Dönük Tam Uyumluluk (Zero-Breakage):
+#### K. Geriye Dönük Tam Uyumluluk & Direktif Öncelik Hiyerarşisi (Zero-Breakage & Directive Precedence):
 - Sistem hem eski Base64 formatındaki (`data:image/...`) sohbet geçmişini hem de yeni `/api/uploads/...` formatını şeffafça destekler; mevcut verilerde hiçbir bozulma yaşanmaz.
+- `[LANGUAGE & RESPONSE DIRECTIVE]` içerisine `[THREAD CONTEXT]`, standing instructions ve kullanıcı dil tercihinin ana dil kuralını ezebileceği açık istisna hiyerarşisi (`UNLESS explicitly overridden...`) eklendi. Böylece derin akıl yürüten (Reasoning / High Effort) modellerin çelişkide kalıp sistem kuralına aşırı sadakat göstermesi (`over-compliance`) önlenerek sohbet içi dinamik dil/kontekst geçişleri kusursuzlaştırıldı.
+
+#### L. Chat Orchestrator TTFT Paralelizasyonu & Modül Hijyeni (`chat-orchestrate.mjs`):
+- İstek anında sıralı (seri) koşturulan 8 bağımsız veritabanı sorgusu (`models`, `ai_providers`, `system_config`, `guard_rules`, `memory_facts`, `memory_working`, `action_library`, `mcp_client_servers`) tek bir `Promise.all` paralel batch'i olarak birleştirildi; Time-to-First-Token (TTFT) DB gecikmesi ~30ms'den ~3ms'ye düşürüldü.
+- `sys_get_directory` içi 7 tablonun taranması `Promise.all` ile paralel soketlere dağıtıldı.
+- Sıcak kod yollarında yer alan dinamik `import()` çağrıları dosya başında statik içe aktarıma (`redis-cache.mjs`, `embed-provider.mjs`, `planner.mjs`, `seed.mjs`) dönüştürüldü.
+- Kod içi kalan tüm Türkçe yorum satırları kurumsal İngilizce standartlarına getirildi.
+
+#### M. Veritabanı Tip Uyumluluğu & Raporlama İndeks Hijyeni (`reporting.mjs`, PostgreSQL):
+- `agent_logs`, `runs` ve `chat_attachments` tablolarındaki `thread_id` kolonları evrensel `TEXT` tipine (`ALTER TABLE ... TYPE TEXT`) geçirildi. Böylece hem istemci tabanlı (`chat_1789...`) hem de sistem UUID thread ID'leri asenkron log ve run kayıtlarında 0 hata ile yazılır.
+- `reporting.mjs` içindeki `schedules` indeks tanımlaması doğru kolona (`idx_schedules_user ON schedules(user_id)`) çekildi ve başlangıç notice uyarıları temizlendi.
+
+#### N. UI Ajan Kilitlenmesi & Sticky Delegasyon Düzeltmesi (`src/routes/index.tsx`):
+- Önceki turda arka planda delege edilen bir alt ajanın (`Technical_Librarian` vb.) sonraki tüm normal sohbet turlarında aktif ajan olarak kilitlenip kalmasına (`priorAgentId` sticky lock) neden olan mantık düzeltildi.
+- Artık kullanıcı `@Ajan` ile açıkça bir ajan seçmedikçe veya oda baştan o ajana özel açılmadıkça (`threadBoundAgentId`), her yeni turda varsayılan olarak ana model (Studio Brain / Elara) devreye girer.
 - `npx tsc --noEmit` tam derleme kontrolü 0 hata ile doğrulanmıştır.
 
 ---

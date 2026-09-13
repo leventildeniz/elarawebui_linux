@@ -287,7 +287,7 @@ function SovereignChat() {
 
   /** Simulated streaming run: reasoning trace first, then the answer. */
   const runAgent = async (base: Msg[], agent?: StudioAgent | undefined, query = "", activity?: ToolActivity) => {
-    console.log("[UI] runAgent tetiklendi! Base mesaj sayısı:", base.length, "Agent:", agent?.name);
+    console.log("[UI] runAgent dispatched! Base message count:", base.length, "Agent:", agent?.name);
     
     const runId = Date.now();
     activeRunId.current = runId;
@@ -732,11 +732,11 @@ function SovereignChat() {
     setMessages(base);
     if (active) autoTitle(active.id, label);
     const mentioned = mentions.find((m) => m.kind === "agent");
-    const priorAgentId = (active?.messages as Msg[] ?? []).slice().reverse().find((m) => m.role === "agent" && m.agent?.kind === "agent")?.agent?.id;
+    const threadBoundAgentId = (active as any)?.agent_id || (active as any)?.agentId;
     const agent = mentioned 
       ? agents.find((a) => a.id === mentioned.id) 
-      : priorAgentId 
-        ? agents.find((a) => a.id === priorAgentId)
+      : threadBoundAgentId 
+        ? agents.find((a) => a.id === threadBoundAgentId)
         : undefined;
 
     const caps = buildCapabilities(mentions);

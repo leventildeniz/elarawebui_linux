@@ -82,7 +82,7 @@ export async function mountReportingRoutes(app, deps) {
   try {
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_rag_queries_at ON rag_queries(at DESC);
-      CREATE INDEX IF NOT EXISTS idx_schedules_owner ON schedules(owner_id);
+      CREATE INDEX IF NOT EXISTS idx_schedules_user ON schedules(user_id);
     `);
   } catch (err) {
     console.warn("[Reporting API] Notice creating indices:", err.message);

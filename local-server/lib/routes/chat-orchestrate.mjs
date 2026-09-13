@@ -7,6 +7,10 @@ import { ragProbeAndFetch } from "../rag/retrieval.mjs";
 import { resolveAttachmentForLlm } from "../storage-engine.mjs";
 import { scanExternalGuardrail } from "../genguard-scanner.mjs";
 import { evaluatePolicyRules } from "../policy-engine-eval.mjs";
+import { getSemanticCache, setSemanticCache } from "../infra/redis-cache.mjs";
+import { embed } from "../embed-provider.mjs";
+import { buildInventory, extractForgeJson, validateForgePlan } from "../meta-forge/planner.mjs";
+import { ensureMetaForgeAgent } from "../meta-forge/seed.mjs";
 
 function mapJsonSchemaType(t) {
   const x = String(t || "string").toLowerCase();
@@ -248,7 +252,7 @@ export async function mountChatOrchestrateRoutes(app, deps) {
         "Content-Type": "application/json",
         "x-api-key": apiKey,
         "anthropic-version": "2023-06-01",
-        "anthropic-beta": "messages-2023-12-15" // Gerekirse
+        "anthropic-beta": "messages-2023-12-15" // Beta headers if required
       }
     }, JSON.stringify(payload), signal);
 
@@ -344,7 +348,7 @@ export async function mountChatOrchestrateRoutes(app, deps) {
     })();
   }
 
-    // Standart OpenAI Uyumlu Streamer (Ollama, vLLM, LMStudio, Google vb.)
+  // Standard OpenAI-Compatible Streamer (Ollama, vLLM, LMStudio, Google, etc.)
   async function fetchOpenAIStream(provider, baseUrl, apiKey, targetModel, messages, tools, signal, effort) {
     let requestUrl = `${baseUrl}/chat/completions`;
     if (baseUrl.includes("generativelanguage.googleapis.com") && !requestUrl.includes("/openai/")) {
@@ -411,7 +415,7 @@ export async function mountChatOrchestrateRoutes(app, deps) {
         }
     }
 
-    // Stop Sequences (Durdurma Dizilimleri)
+    // Stop Sequences
     if (provider.stop_sequences) {
         let stops = [];
         if (Array.isArray(provider.stop_sequences)) {
@@ -731,30 +735,55 @@ export async function mountChatOrchestrateRoutes(app, deps) {
       let t0 = Date.now();
       let tFirstToken = 0;
 
-      // 2. Resolve Provider & Model from DB using Routing Mode Logic
+      // 2. Resolve Provider & Model from DB using Routing Mode Logic (Parallelized Query Batch)
       let prov = null;
       let availableModels = [];
 
-      // Query all active studio models
-      const dbRes = await pool.query(`
-        SELECT
-          m.id as model_pk, m.name as model_name, m.model_id, m.base_url as model_base_url, m.api_key_ref as model_api_key, m.system_prompt,
-          m.input_cost, m.output_cost, m.provider_id, m.advanced, m.think_enabled, m.think_statement,
-          m.temperature, m.top_p, m.top_k, m.repetition_penalty, m.max_tokens, m.context_window,
-          m.stop_sequences, m.chat_template,
-          p.id as provider_pk, p.name as provider_name, p.base_url, p.secret_id, p.priority
-        FROM models m
-        LEFT JOIN ai_providers p ON m.provider_id = p.id
-        WHERE m.enabled = true AND (p.active IS NULL OR p.active = true)
-      `);
-      
-      // Query fallback AI Providers from settings
-      const fallbackProvidersRes = await pool.query(`
-        SELECT 
-          id as provider_pk, name as provider_name, base_url, secret_id, priority, model as model_id
-        FROM ai_providers 
-        WHERE active = true AND kind = 'llm'
-      `);
+      // Query all initial metadata in parallel to minimize Time-to-First-Token (TTFT)
+      const [
+        dbRes,
+        fallbackProvidersRes,
+        rRow,
+        guardRowsRes,
+        factRes,
+        pinnedRes,
+        systemToolsRes,
+        mcpServerRes
+      ] = await Promise.all([
+        // 1. Studio Models
+        pool.query(`
+          SELECT
+            m.id as model_pk, m.name as model_name, m.model_id, m.base_url as model_base_url, m.api_key_ref as model_api_key, m.system_prompt,
+            m.input_cost, m.output_cost, m.provider_id, m.advanced, m.think_enabled, m.think_statement,
+            m.temperature, m.top_p, m.top_k, m.repetition_penalty, m.max_tokens, m.context_window,
+            m.stop_sequences, m.chat_template,
+            p.id as provider_pk, p.name as provider_name, p.base_url, p.secret_id, p.priority
+          FROM models m
+          LEFT JOIN ai_providers p ON m.provider_id = p.id
+          WHERE m.enabled = true AND (p.active IS NULL OR p.active = true)
+        `),
+        // 2. Fallback Providers
+        pool.query(`
+          SELECT 
+            id as provider_pk, name as provider_name, base_url, secret_id, priority, model as model_id
+          FROM ai_providers 
+          WHERE active = true AND kind = 'llm'
+        `),
+        // 3. Routing Policy Config
+        pool.query("SELECT value FROM system_config WHERE key = 'routing_policy'").catch(() => ({ rows: [] })),
+        // 4. GenGuard Rules
+        pool.query("SELECT * FROM guard_rules WHERE enabled = true ORDER BY seq ASC, created_at ASC").catch(() => ({ rows: [] })),
+        // 5. Long-term semantic facts
+        pool.query("SELECT key, value, scope, confidence FROM memory_facts WHERE confidence >= 0.5 ORDER BY updated_at DESC LIMIT 30").catch(() => ({ rows: [] })),
+        // 6. Thread pinned memory
+        thread_id 
+          ? pool.query("SELECT label, origin FROM memory_working WHERE thread_id = $1 AND pinned = true ORDER BY updated_at ASC", [thread_id]).catch(() => ({ rows: [] }))
+          : Promise.resolve({ rows: [] }),
+        // 7. Global system action library tools
+        pool.query("SELECT id FROM action_library WHERE (visibility = 'workspace' OR is_system = true) AND COALESCE((runtime->>'orphan')::boolean, false) = false").catch(() => ({ rows: [] })),
+        // 8. Ready MCP client servers
+        pool.query("SELECT slug, name, tools_cache, auto_inject FROM mcp_client_servers WHERE enabled = true AND last_status = 'ready'").catch(() => ({ rows: [] }))
+      ]);
 
       availableModels = [...dbRes.rows];
       
@@ -801,7 +830,6 @@ export async function mountChatOrchestrateRoutes(app, deps) {
       let overrideUsers = [];
       let overrideRoles = ["Admin", "Operator"];
       try {
-          const rRow = await pool.query("SELECT value FROM system_config WHERE key = 'routing_policy'");
           if (rRow.rows.length > 0 && rRow.rows[0].value) {
               const parsedConfig = typeof rRow.rows[0].value === 'string' ? JSON.parse(rRow.rows[0].value) : rRow.rows[0].value;
               sysRoutingMode = parsedConfig.mode || "failover";
@@ -933,10 +961,8 @@ export async function mountChatOrchestrateRoutes(app, deps) {
 
       // 2.1. GenGuard Prompt-Injection & Blacklist Security Firewall
       try {
-        const guardRows = await pool.query(
-          "SELECT * FROM guard_rules WHERE enabled = true ORDER BY seq ASC, created_at ASC"
-        );
-        if (guardRows.rows.length > 0) {
+        const guardRows = guardRowsRes?.rows || [];
+        if (guardRows.length > 0) {
           const userPromptText = messages
             .map((m) =>
               typeof m.content === "string"
@@ -1135,7 +1161,7 @@ export async function mountChatOrchestrateRoutes(app, deps) {
       // 3.1. Master System Directives (Sovereignty, Tri-Tier Autonomy, MetaForge, Search & Honesty)
       const masterDirectives = [
         `[SOVEREIGN CORE DIRECTIVE]: You are ELARA, an enterprise-grade autonomous AI engine. You operate with absolute technical accuracy, intelligence, zero guessing, and adaptive execution.`,
-        `[LANGUAGE & RESPONSE DIRECTIVE]: Always respond in the same language as the user's prompt (e.g. Turkish if the user writes in Turkish). Maintain a clear, professional, and structured tone.`,
+        `[LANGUAGE & RESPONSE DIRECTIVE]: Respond in the same language as the user's prompt (e.g. Turkish if the user writes in Turkish), UNLESS explicitly overridden by [THREAD CONTEXT], standing instructions, an active agent persona, or a direct language request from the user. Maintain a clear, professional, and structured tone.`,
         `[DECISION HIERARCHY & TASK ROUTING]:
 When the user asks you a question or assigns a task, intelligently apply the following 3-tier decision framework:
 
@@ -1172,41 +1198,24 @@ When the user asks you a question or assigns a task, intelligently apply the fol
       }
 
       if (threadContext) {
-        masterDirectives.push(`[THREAD CONTEXT (STANDING INSTRUCTIONS)]: ${threadContext}`);
+        masterDirectives.push(`[THREAD CONTEXT (STANDING INSTRUCTIONS & OVERRIDES)]: The following instructions are explicitly set by the operator for this conversation and MUST take precedence over standard response style defaults:\n${threadContext}`);
       }
 
       // 3.2. Inject Long-Term Semantic Facts & Memory
-      try {
-        const factRes = await pool.query(
-          `SELECT key, value, scope, confidence FROM memory_facts WHERE confidence >= 0.5 ORDER BY updated_at DESC LIMIT 30`
+      if (factRes && factRes.rows && factRes.rows.length > 0) {
+        const factsList = factRes.rows.map(f => `- [${f.scope.toUpperCase()}] ${f.key}: ${f.value}`);
+        masterDirectives.push(
+          `[LONG-TERM DECLARATIVE MEMORY & ORGANIZATIONAL FACTS]:\nThe following verified facts are stored in the system's long-term memory. Retain and respect them throughout the interaction:\n${factsList.join("\n")}`
         );
-        if (factRes.rows.length > 0) {
-          const factsList = factRes.rows.map(f => `- [${f.scope.toUpperCase()}] ${f.key}: ${f.value}`);
-          masterDirectives.push(
-            `[LONG-TERM DECLARATIVE MEMORY & ORGANIZATIONAL FACTS]:\nThe following verified facts are stored in the system's long-term memory. Retain and respect them throughout the interaction:\n${factsList.join("\n")}`
-          );
-          emitDebug("debug", "memory.recall", `recalled ${factRes.rows.length} long-term facts`, { count: factRes.rows.length, stream: "memory" }, thread_id);
-        }
-      } catch (memFactErr) {
-        console.warn("[Orchestrate] Failed to load semantic memory facts:", memFactErr.message);
+        emitDebug("debug", "memory.recall", `recalled ${factRes.rows.length} long-term facts`, { count: factRes.rows.length, stream: "memory" }, thread_id);
       }
 
       // 3.3. Inject Pinned Working Memory Blocks for this Thread
-      if (thread_id) {
-        try {
-          const pinnedRes = await pool.query(
-            `SELECT label, origin FROM memory_working WHERE thread_id = $1 AND pinned = true ORDER BY updated_at ASC`,
-            [thread_id]
-          );
-          if (pinnedRes.rows.length > 0) {
-            const pinnedList = pinnedRes.rows.map(p => `- ${p.label}`);
-            masterDirectives.push(
-              `[PINNED WORKING MEMORY (PERSISTENT CONTEXT)]:\n${pinnedList.join("\n")}`
-            );
-          }
-        } catch (pinnedErr) {
-          console.warn("[Orchestrate] Failed to load pinned working memory:", pinnedErr.message);
-        }
+      if (pinnedRes && pinnedRes.rows && pinnedRes.rows.length > 0) {
+        const pinnedList = pinnedRes.rows.map(p => `- ${p.label}`);
+        masterDirectives.push(
+          `[PINNED WORKING MEMORY (PERSISTENT CONTEXT)]:\n${pinnedList.join("\n")}`
+        );
       }
 
       if (prov && prov.think_enabled && prov.think_statement) {
@@ -1423,20 +1432,8 @@ When the user asks you a question or assigns a task, intelligently apply the fol
       const openAiTools = [];
       const toolMap = {}; // Map LLM-safe function names (e.g. tool_xyz) to canonical database IDs
 
-      let finalToolIds = [];
-      try {
-          // Collect global native tools from action_library
-          const systemToolsRes = await pool.query(
-             `SELECT id FROM action_library WHERE (visibility = 'workspace' OR is_system = true) AND COALESCE((runtime->>'orphan')::boolean, false) = false`
-          );
-          const systemToolIds = systemToolsRes.rows.map(r => r.id);
-          
-          // Merge user-requested capabilities with global workspace tools
-          finalToolIds = [...new Set([...requestedTools, ...requestedMcp, ...systemToolIds])];
-      } catch (err) {
-          console.warn("[Orchestrate] Failed to query global system tools:", err.message);
-          finalToolIds = [...requestedTools, ...requestedMcp];
-      }
+      const systemToolIds = (systemToolsRes?.rows || []).map(r => r.id);
+      let finalToolIds = [...new Set([...requestedTools, ...requestedMcp, ...systemToolIds])];
 
       if (capabilities || finalToolIds.length > 0) {
          try {
@@ -1543,11 +1540,7 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                  }
              }
              // 3. #MCP (MCP client servers tools - auto-injected for ready servers or explicitly requested)
-             const mcpServerRes = await pool.query(
-                 `SELECT slug, name, tools_cache, auto_inject FROM mcp_client_servers WHERE enabled = true AND last_status = 'ready'`
-             );
-             
-             for (const server of mcpServerRes.rows) {
+             for (const server of (mcpServerRes?.rows || [])) {
                  const serverMcpId = `mcp.${server.slug}`;
                  const isExplicitlyRequested = requestedMcp && requestedMcp.length > 0 && (
                      requestedMcp.includes(serverMcpId) || requestedMcp.some(x => x.startsWith(`mcp.${server.slug}.`))
@@ -1705,8 +1698,6 @@ When the user asks you a question or assigns a task, intelligently apply the fol
               // Semantic LLM Cache: check if this candidate model already has a valid cached answer
               if (iteration === 1 && !hasExplicitCapabilities && userQueryStr.length > 2) {
                   try {
-                      const { getSemanticCache } = await import("../infra/redis-cache.mjs");
-                      const { embed } = await import("../embed-provider.mjs");
                       const qVec = await embed(userQueryStr).catch(() => null);
                       const cacheHit = await getSemanticCache(qVec, userQueryStr, targetModelKey, 0.98);
                       if (cacheHit && cacheHit.hit && cacheHit.response) {
@@ -2002,41 +1993,24 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                   try {
                       const parsedArgs = JSON.parse(funcArgs || "{}");
                       
-                      // META-FORGE: Otonom Keşif ve Alt-Ajan Yetkilendirme
+                      // META-FORGE: Autonomous Discovery and Sub-Agent Delegation
                       if (realToolId === "sys_get_directory") {
                           const { clause: agtClause, params: agtParams } = deps.buildVisibility(actorCtx, 1, 'owner_id');
-                          const agtRes = await pool.query(
-                             `SELECT id, name, squad, description FROM agents WHERE ${agtClause}`,
-                             agtParams
-                          );
                           const { clause: actClause, params: actParams } = deps.buildVisibility(actorCtx, 1, 'owner_user_id');
-                          const actRes = await pool.query(
-                             `SELECT id, name, category, description, params FROM action_library WHERE (${actClause}) AND is_system = false AND COALESCE((runtime->>'orphan')::boolean, false) = false`,
-                             actParams
-                          );
                           const { clause: skillClause, params: skillParams } = deps.buildVisibility(actorCtx, 1, 'owner_id');
-                          const skillRes = await pool.query(
-                             `SELECT id, name, description, params FROM skills WHERE enabled = true AND (${skillClause})`,
-                             skillParams
-                          );
                           const { clause: wfClause, params: wfParams } = deps.buildVisibility(actorCtx, 1, 'owner_id');
-                          const wfRes = await pool.query(
-                             `SELECT id, name, trigger, status FROM workflows WHERE ${wfClause} ORDER BY updated_at DESC`,
-                             wfParams
-                          );
                           const { clause: orcClause, params: orcParams } = deps.buildVisibility(actorCtx, 1, 'owner_id');
-                          const orcRes = await pool.query(
-                             `SELECT id, name, trigger, status FROM orchestrations WHERE ${orcClause} ORDER BY created_at DESC`,
-                             orcParams
-                          );
                           const { clause: whClause, params: whParams } = deps.buildVisibility(actorCtx, 1, 'owner_id');
-                          const whRes = await pool.query(
-                             `SELECT id, name, slug, description, category, connection, enabled FROM webhooks WHERE enabled = true AND (${whClause}) ORDER BY created_at DESC`,
-                             whParams
-                          ).catch(() => ({ rows: [] }));
-                          const mcpRes = await pool.query(
-                             `SELECT slug, name, tools_cache FROM mcp_client_servers WHERE enabled = true`
-                          );
+
+                          const [agtRes, actRes, skillRes, wfRes, orcRes, whRes, mcpRes] = await Promise.all([
+                             pool.query(`SELECT id, name, squad, description FROM agents WHERE ${agtClause}`, agtParams),
+                             pool.query(`SELECT id, name, category, description, params FROM action_library WHERE (${actClause}) AND is_system = false AND COALESCE((runtime->>'orphan')::boolean, false) = false`, actParams),
+                             pool.query(`SELECT id, name, description, params FROM skills WHERE enabled = true AND (${skillClause})`, skillParams),
+                             pool.query(`SELECT id, name, trigger, status FROM workflows WHERE ${wfClause} ORDER BY updated_at DESC`, wfParams),
+                             pool.query(`SELECT id, name, trigger, status FROM orchestrations WHERE ${orcClause} ORDER BY created_at DESC`, orcParams),
+                             pool.query(`SELECT id, name, slug, description, category, connection, enabled FROM webhooks WHERE enabled = true AND (${whClause}) ORDER BY created_at DESC`, whParams).catch(() => ({ rows: [] })),
+                             pool.query(`SELECT slug, name, tools_cache FROM mcp_client_servers WHERE enabled = true`).catch(() => ({ rows: [] }))
+                          ]);
 
                           const standardTools = actRes.rows.map(t => {
                              let pKeys = [];
@@ -2331,8 +2305,7 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                           // 1. Build Inventory
                           let inventory = { agents: [], tools: [], skills: [], packs: [], counts: {} };
                           try {
-                              const mod = await import("../meta-forge/planner.mjs");
-                              inventory = await mod.buildInventory(pool);
+                              inventory = await buildInventory(pool);
                           } catch (invErr) {
                               console.warn("meta_forge inventory error:", invErr);
                           }
@@ -2343,7 +2316,6 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                           // Auto-seed forge_master agent if missing or incomplete
                           if (forgeAgentRes.rows.length === 0 || !forgeAgentRes.rows[0].system_prompt.includes("COMPOSITION GUIDANCE")) {
                               try {
-                                  const { ensureMetaForgeAgent } = await import("../meta-forge/seed.mjs");
                                   await ensureMetaForgeAgent(pool);
                                   forgeAgentRes = await pool.query(`SELECT id, system_prompt FROM agents WHERE id = 'agt.forge_master' LIMIT 1`);
                               } catch(e) {
@@ -2393,16 +2365,14 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                                   console.log(`[MetaForge] Output:\n${subAnswer}`);
 
                                   // 3. Parse and Save the Plan
-                                  const plannerMod = await import("../meta-forge/planner.mjs");
-                                  
-                                  const obj = plannerMod.extractForgeJson ? plannerMod.extractForgeJson(subAnswer) : null;
+                                  const obj = extractForgeJson ? extractForgeJson(subAnswer) : null;
 
                                   if (!obj || !obj.plan) {
                                       toolResultStr = JSON.stringify({ error: `MetaForge failed to generate a valid JSON plan. Raw output was: ${subAnswer}` });
                                       toolStatus = "failed";
                                   } else {
                                       try {
-                                          const validated = plannerMod.validateForgePlan(obj.plan);
+                                          const validated = validateForgePlan(obj.plan);
                                           const requestedBy = actorCtx?.username || actorCtx?.user?.name || req.session?.username || (actorId && !actorId.includes("-") ? actorId : "admin");
                                           
                                           const ins = await pool.query(
@@ -2570,8 +2540,6 @@ When the user asks you a question or assigns a task, intelligently apply the fol
               if (iteration === 1 && assembled && assembled.trim().length > 0 && finalQuery.length > 2 && !hasExplicitCapabilities) {
                   (async () => {
                       try {
-                          const { setSemanticCache } = await import("../infra/redis-cache.mjs");
-                          const { embed } = await import("../embed-provider.mjs");
                           const qVec = await embed(finalQuery).catch(() => null);
                           await setSemanticCache(qVec, finalQuery, assembled, { model: usedModelStr });
                       } catch {}
