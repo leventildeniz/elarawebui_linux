@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { KeyRound, Network, Plus, Sparkles, Trash2, X } from "lucide-react";
+import { KeyRound, Network, Pencil, Plus, Sparkles, Trash2, X } from "lucide-react";
 import { JewelButton, StatusDot } from "@/components/sovereign/primitives";
 import { confirmAction } from "@/components/sovereign/confirm-dialog";
 import { type SecretEntry } from "@/lib/security-store";
@@ -158,7 +158,7 @@ export function AiProvidersPanel() {
               onChange={(e) => patchRouting({ mode: e.target.value as never })}
             >
               {routingModes.map((m) => (
-                <option key={m.key} value={m.key} className="bg-canvas">
+                <option key={m.key} value={m.key} className="bg-[#18181e] text-foreground py-1">
                   {m.label} — {m.hint}
                 </option>
               ))}
@@ -469,10 +469,10 @@ export function AiProvidersPanel() {
               value={draft.kind}
               onChange={(e) => setDraft({ ...draft, kind: e.target.value as ProviderKind })}
             >
-              <option value="llm" className="bg-canvas">
+              <option value="llm" className="bg-[#18181e] text-foreground py-1">
                 LLM
               </option>
-              <option value="search" className="bg-canvas">
+              <option value="search" className="bg-[#18181e] text-foreground py-1">
                 Search
               </option>
             </select>
@@ -625,22 +625,46 @@ export function AiProvidersPanel() {
                         {secretLabel(p.secretId)}
                       </span>
                     </div>
-                    <Toggle on={p.active} onClick={() => update(p.id, { active: !p.active })} />
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        const ok = await confirmAction({
-                          title: `Delete provider ${p.name}?`,
-                          body: "This provider will be permanently removed from the routing pool. This action cannot be undone.",
-                          confirmLabel: "Delete",
-                          cancelLabel: "Cancel",
-                        });
-                        if (ok) remove(p.id);
-                      }}
-                      className="text-muted-foreground/50 transition-colors hover:text-ruby"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" strokeWidth={1.7} />
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <Toggle on={p.active} onClick={() => update(p.id, { active: !p.active })} />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDraft({
+                            name: p.name,
+                            kind: p.kind,
+                            priority: p.priority,
+                            baseUrl: p.baseUrl || "",
+                            model: p.model || "",
+                            secretId: p.secretId || "",
+                            active: p.active,
+                            isCheapest: p.isCheapest,
+                          });
+                          setEditingId(p.id);
+                          window.scrollTo({ top: 0, behavior: "smooth" });
+                        }}
+                        className="rounded p-1 text-muted-foreground/60 transition-colors hover:bg-white/6 hover:text-foreground"
+                        title="Edit provider configuration"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const ok = await confirmAction({
+                            title: `Delete provider ${p.name}?`,
+                            body: "This provider will be permanently removed from the routing pool. This action cannot be undone.",
+                            confirmLabel: "Delete",
+                            cancelLabel: "Cancel",
+                          });
+                          if (ok) remove(p.id);
+                        }}
+                        className="rounded p-1 text-muted-foreground/50 transition-colors hover:bg-red-500/15 hover:text-ruby"
+                        title="Delete provider"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" strokeWidth={1.7} />
+                      </button>
+                    </div>
                   </motion.div>
                 ))}
             </AnimatePresence>
