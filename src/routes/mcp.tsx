@@ -136,11 +136,16 @@ function ServerTab() {
     [agents, skills, items],
   );
 
-  const endpoint = `http://127.0.0.1:8787/mcp/${mcp.server.namespace}`;
-  const exposedTotal =
-    mcp.server.exposed.agents.length +
-    mcp.server.exposed.skills.length +
-    mcp.server.exposed.tools.length;
+  const hostOrigin =
+    typeof window !== "undefined"
+      ? `${window.location.protocol}//${window.location.hostname}:3005`
+      : "http://127.0.0.1:3005";
+  const endpoint = `${hostOrigin}/mcp/${mcp.server.namespace || "elara"}`;
+
+  const exposedAgentsCount = catalog.agents.filter((e) => mcp.server.exposed.agents.includes(e.id)).length;
+  const exposedSkillsCount = catalog.skills.filter((e) => mcp.server.exposed.skills.includes(e.id)).length;
+  const exposedToolsCount = catalog.tools.filter((e) => mcp.server.exposed.tools.includes(e.id)).length;
+  const exposedTotal = exposedAgentsCount + exposedSkillsCount + exposedToolsCount;
 
   const copy = () => {
     navigator.clipboard?.writeText(endpoint);

@@ -150,7 +150,7 @@ export function useMcp() {
         ownerName: s.created_by || "",
         visibility: s.visibility || "workspace",
         sharedWith: s.shared_with || [],
-        toolCatalog: s.tools_cache || [] // Katalog datası için
+        toolCatalog: s.tools_cache || [] // Catalog tool metadata
       }));
 
       setState(prev => {
