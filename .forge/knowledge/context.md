@@ -1185,6 +1185,11 @@ Bu aşamada ELARA Sovereign Studio'nun Chat ekleri, görseller, PDF ve belge iş
 - Artık kullanıcı `@Ajan` ile açıkça bir ajan seçmedikçe veya oda baştan o ajana özel açılmadıkça (`threadBoundAgentId`), her yeni turda varsayılan olarak ana model (Studio Brain / Elara) devreye girer.
 - `npx tsc --noEmit` tam derleme kontrolü 0 hata ile doğrulanmıştır.
 
+#### O. Model-Agnostik Orkestrasyon Hiyerarşisi & Self-Healing Retry (`seed.mjs`, `planner.mjs`, `chat-orchestrate.mjs`):
+- **Bilişsel Kural & İngilizce Prompt Standartları (`seed.mjs`):** `META_FORGE_SYSTEM_PROMPT` içine `[ORCHESTRATION CHAIN & WORKFLOW ARCHITECTURAL INVARIANTS]` eklendi. Tüm modeller için (Gemma-4, Gemini Flash, Claude, OpenAI) mikro-iş akışı (`workflow`) ile makro-orkestrasyon (`chain`) ayrımı netleştirildi. Bir Chain'in doğrudan araç çalıştıramayacağı, en az 2 bağımsız Workflow bağlaması gerektiği ve eksik Workflow'ların aynı planda önceden üretilmesi gerektiği kurala bağlandı.
+- **Şema Doğrulama Katmanı (`planner.mjs`):** `validateForgePlan` fonksiyonunda Chain düğümlerine doğrudan `tool` konulması engellendi.
+- **Self-Healing Retry Katmanı (`chat-orchestrate.mjs`):** MetaForge plan üretiminde şema veya JSON ayrıştırma hatası yaşanırsa, 1 turluk self-healing retry ile modele doğrulama hatası bildirilerek düzeltilmiş plan üretmesi sağlandı.
+
 ---
 
 ## 62. UP NEXT — MULTI-NODE BENCHMARKING, LIVE AGENT STRESS TESTS & DEAD CODE CLEANUP (PHASE 62)

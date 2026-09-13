@@ -2313,8 +2313,8 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                           // 2. Call the metaforge master agent
                           let forgeAgentRes = await pool.query(`SELECT id, system_prompt FROM agents WHERE id = 'agt.forge_master' LIMIT 1`);
                           
-                          // Auto-seed forge_master agent if missing or incomplete
-                          if (forgeAgentRes.rows.length === 0 || !forgeAgentRes.rows[0].system_prompt.includes("COMPOSITION GUIDANCE")) {
+                          // Auto-seed forge_master agent if missing or prompt is outdated
+                          if (forgeAgentRes.rows.length === 0 || !forgeAgentRes.rows[0].system_prompt.includes("ORCHESTRATION CHAIN & WORKFLOW ARCHITECTURAL INVARIANTS")) {
                               try {
                                   await ensureMetaForgeAgent(pool);
                                   forgeAgentRes = await pool.query(`SELECT id, system_prompt FROM agents WHERE id = 'agt.forge_master' LIMIT 1`);
@@ -2364,15 +2364,67 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                                   // Debug: log what metaforge returned
                                   console.log(`[MetaForge] Output:\n${subAnswer}`);
 
-                                  // 3. Parse and Save the Plan
-                                  const obj = extractForgeJson ? extractForgeJson(subAnswer) : null;
+                                  // 3. Parse and Validate the Plan
+                                  let obj = extractForgeJson ? extractForgeJson(subAnswer) : null;
+                                  let validated = null;
+                                  let validationError = null;
 
-                                  if (!obj || !obj.plan) {
-                                      toolResultStr = JSON.stringify({ error: `MetaForge failed to generate a valid JSON plan. Raw output was: ${subAnswer}` });
+                                  if (obj && obj.plan) {
+                                      try {
+                                          validated = validateForgePlan(obj.plan);
+                                      } catch (err) {
+                                          validationError = err.message;
+                                      }
+                                  } else {
+                                      validationError = "Failed to extract valid JSON plan object.";
+                                  }
+
+                                  // 4. One-turn Self-Healing Retry on Validation or JSON extraction failure
+                                  if (!validated) {
+                                      console.warn(`[MetaForge] Validation failed (${validationError}). Initiating self-healing retry...`);
+                                      const retryPrompt = obj && obj.plan 
+                                          ? `Your proposed JSON plan failed architectural validation: ${validationError}\n\nREMINDER: Orchestration Chains cannot directly contain 'tool' nodes. If creating an Orchestration Chain, you MUST synthesize each independent 'workflow' (DAG) FIRST in the 'create' array, and then connect them in the 'chain' object. Output the corrected, full JSON object now.`
+                                          : `Your output did not parse as a valid JSON plan object. Output ONLY a valid JSON object starting with { and ending with } containing {"intent": "...", "plan": {"create": [...], "reuse": [...]}}.`;
+
+                                      try {
+                                          const retryMessages = [
+                                              ...forgeMessages,
+                                              { role: "assistant", content: subAnswer },
+                                              { role: "user", content: retryPrompt }
+                                          ];
+                                          const retryIt = await streamFromProvider({
+                                              provider: forgeProv,
+                                              messages: retryMessages,
+                                              tools: undefined,
+                                              signal: requestAbort.signal,
+                                              effort: "none"
+                                          });
+
+                                          let retryAnswer = "";
+                                          for await (const chunk of retryIt) {
+                                              try {
+                                                  const parsed = JSON.parse(chunk);
+                                                  if (parsed.type === "out") retryAnswer += (parsed.delta || "");
+                                              } catch(e) {
+                                                  retryAnswer += chunk;
+                                              }
+                                          }
+                                          console.log(`[MetaForge] Self-Healing Output:\n${retryAnswer}`);
+                                          obj = extractForgeJson ? extractForgeJson(retryAnswer) : null;
+                                          if (obj && obj.plan) {
+                                              validated = validateForgePlan(obj.plan);
+                                              validationError = null;
+                                          }
+                                      } catch (retryErr) {
+                                          console.error("[MetaForge] Self-healing retry failed:", retryErr.message);
+                                      }
+                                  }
+
+                                  if (!validated) {
+                                      toolResultStr = JSON.stringify({ error: `MetaForge failed to generate a valid plan: ${validationError || subAnswer}` });
                                       toolStatus = "failed";
                                   } else {
                                       try {
-                                          const validated = validateForgePlan(obj.plan);
                                           const requestedBy = actorCtx?.username || actorCtx?.user?.name || req.session?.username || (actorId && !actorId.includes("-") ? actorId : "admin");
                                           
                                           const ins = await pool.query(

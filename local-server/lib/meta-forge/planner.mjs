@@ -16,9 +16,32 @@ export function validateForgePlan(plan) {
     if (item.type && !item.kind) {
       item.kind = item.type;
     }
+    if (item.kind === "orchestration") {
+      item.kind = "chain";
+    }
 
     if (!VALID_KINDS.has(item.kind)) throw new Error(`invalid kind: ${item.kind}`);
     if (!item.slug || typeof item.slug !== "string") throw new Error("item.slug required");
+
+    // Enforce Orchestration Chain invariants (Macro-Orchestration cannot execute raw tools directly)
+    if (item.kind === "chain") {
+      let chainNodes = Array.isArray(item.nodes) ? item.nodes : [];
+      if (!chainNodes.length && typeof item.source === "object" && item.source !== null) {
+        chainNodes = Array.isArray(item.source?.nodes) ? item.source.nodes : [];
+      } else if (!chainNodes.length && typeof item.source === "string") {
+        try {
+          const parsed = JSON.parse(item.source);
+          chainNodes = Array.isArray(parsed?.nodes) ? parsed.nodes : [];
+        } catch {}
+      }
+
+      if (chainNodes.length > 0) {
+        const hasDirectTool = chainNodes.some(n => (n.kind === "tool" || n.type === "tool"));
+        if (hasDirectTool) {
+          throw new Error("Orchestration Chains cannot directly contain 'tool' nodes. Raw tools must be encapsulated inside independent 'workflow' (DAG) objects.");
+        }
+      }
+    }
   }
   if (!create.length && !reuse.length) throw new Error("plan is empty");
   return { reuse, create };
