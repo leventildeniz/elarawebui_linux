@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
+import { toast } from "sonner";
 import { motion } from "motion/react";
 import { Bug, Copy, FolderOpen, Plus, RotateCcw, Trash2, Wand2, ArrowRight } from "lucide-react";
 import { Surface } from "@/components/sovereign/surface";
@@ -65,26 +66,41 @@ function ConverterPage() {
         if (m.from.trim()) body = body.split(m.from).join(m.to);
       });
     }
-    const kind = target === "auto" ? "tool" : target;
-    const name = (input.match(/^#\s*(?:Skill|Tool|Agent):\s*(.+)$/m)?.[1] ?? "untitled").trim();
+
+    // Auto-detect target kind if auto
+    let kind = target;
+    if (kind === "auto") {
+      if (/^#\s*Skill:/im.test(input) || /SKILL\.md/i.test(input)) kind = "skill";
+      else if (/^#\s*Agent:/im.test(input) || /system_prompt/i.test(input)) kind = "agent";
+      else kind = "tool";
+    }
+
+    const name = (input.match(/^#\s*(?:Skill|Tool|Agent):\s*(.+)$/m)?.[1] ?? "Converted Capability").trim();
     const slug = name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "");
-      
+
     const payload = {
       id: `${kind}_${slug}`,
+      slug: slug || "converted-capability",
       name,
       kind,
       category: "converted",
-      visibility: "org",
+      visibility: "workspace",
+      description: `Converted from ${source}`,
       source_code: body,
+      system_prompt: body,
+      instructions: body,
+      params: [],
+      outputs: [],
+      runtime: { handler: "builtin" },
       definition: {
         description: `Converted from ${source}`,
         parameters: { type: "object", properties: {} }
       }
     };
-    
+
     setRawOutput(payload);
     setOutput(JSON.stringify(payload, null, 2));
     push(`convert · ${source} → ${kind} · ${slug}`);
@@ -93,19 +109,73 @@ function ConverterPage() {
   const createCapability = async () => {
     if (!rawOutput) return;
     setSaving(true);
-    push(`saving · sending POST /api/forge/actions...`);
+    const kind = rawOutput.kind || "tool";
+
     try {
-      const res = await fetchApi("/forge/actions", {
-        method: "POST",
-        body: JSON.stringify(rawOutput)
-      });
-      if (res.ok) {
-        push(`success · ${rawOutput.kind} capability saved to database (${res.id})`);
+      if (kind === "agent") {
+        push(`saving · sending POST /api/agents...`);
+        const res = await fetchApi("/api/agents", {
+          method: "POST",
+          body: JSON.stringify({
+            id: rawOutput.slug,
+            name: rawOutput.name,
+            description: rawOutput.description,
+            system_prompt: rawOutput.source_code,
+            squad: "Platform engineering",
+            status: "active"
+          })
+        });
+        if (res?.ok || res?.id) {
+          push(`success · Agent '${rawOutput.name}' saved to Agents Catalog!`);
+          toast.success(`Agent '${rawOutput.name}' created successfully`);
+        } else {
+          push(`error · API returned non-ok status: ${res?.error || "Unknown error"}`);
+        }
+      } else if (kind === "skill") {
+        push(`saving · sending POST /api/skills...`);
+        const res = await fetchApi("/api/skills", {
+          method: "POST",
+          body: JSON.stringify({
+            slug: rawOutput.slug,
+            name: rawOutput.name,
+            description: rawOutput.description,
+            instructions: rawOutput.source_code,
+            squad: "Platform engineering"
+          })
+        });
+        if (res?.ok || res?.id) {
+          push(`success · Skill '${rawOutput.name}' saved to Skills Catalog!`);
+          toast.success(`Skill '${rawOutput.name}' created successfully`);
+        } else {
+          push(`error · API returned non-ok status: ${res?.error || "Unknown error"}`);
+        }
       } else {
-        push(`error · API returned non-ok status`);
+        // Tool -> Forge Action
+        push(`saving · sending POST /api/forge/actions...`);
+        const res = await fetchApi("/api/forge/actions", {
+          method: "POST",
+          body: JSON.stringify({
+            id: rawOutput.id,
+            name: rawOutput.name,
+            kind: "action",
+            category: "Converted",
+            description: rawOutput.description,
+            system_prompt: rawOutput.source_code,
+            params: [],
+            outputs: [],
+            runtime: { handler: "builtin" }
+          })
+        });
+        if (res?.ok || res?.id) {
+          push(`success · Tool Action '${rawOutput.name}' saved to Action Library!`);
+          toast.success(`Tool '${rawOutput.name}' created successfully`);
+        } else {
+          push(`error · API returned non-ok status: ${res?.error || "Unknown error"}`);
+        }
       }
     } catch (e: any) {
       push(`error · failed to save capability: ${e.message}`);
+      toast.error(`Failed to save: ${e.message}`);
     } finally {
       setSaving(false);
     }
