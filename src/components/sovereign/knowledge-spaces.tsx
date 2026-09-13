@@ -131,16 +131,16 @@ export function KnowledgeSpacesTab() {
               </div>
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <span className="mono-label">slug (auto-generated)</span>
+                  <span className="mono-label">identifier (auto-generated)</span>
                   <span className="flex items-center gap-1 font-mono text-[10.5px] text-muted-foreground/60">
                     <Lock size={11} className="text-sapphire/80" /> locked
                   </span>
                 </div>
                 <input
                   readOnly
-                  className={cn(field, "bg-black/40 text-muted-foreground/80 cursor-default border-dashed border-white/10 select-all focus:border-white/10")}
+                  className={cn(field, "bg-raised/40 text-foreground/80 cursor-default border border-white/[0.08] select-all focus:border-white/15")}
                   value={active.slug}
-                  placeholder="auto-generated-slug"
+                  placeholder="auto-generated-identifier"
                 />
               </div>
             </div>

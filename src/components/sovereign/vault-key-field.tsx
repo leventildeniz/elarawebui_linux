@@ -1,6 +1,7 @@
 import { KeyRound, Pencil } from "lucide-react";
 import { type SecretEntry } from "@/lib/security-store";
 import { useVaultStore } from "@/lib/vault-store";
+import { ObsidianSelect } from "@/components/sovereign/obsidian-select";
 import { cn } from "@/lib/utils";
 
 /**
@@ -49,7 +50,7 @@ export function vaultKeyLabel(value: string, items: SecretEntry[]) {
 }
 
 const fieldCls =
-  "w-full rounded-lg border border-white/[0.08] bg-black/25 px-3 py-2 font-mono text-[12.5px] text-foreground outline-none transition-colors focus:border-sapphire/50";
+  "w-full rounded-lg border border-white/[0.08] bg-raised/40 px-3 py-2 font-mono text-[12.5px] text-foreground outline-none transition-colors placeholder:text-muted-foreground/40 focus:border-sapphire/50";
 
 export function VaultKeyField({
   value,
@@ -68,7 +69,7 @@ export function VaultKeyField({
 
   return (
     <div className={cn("space-y-2", className)}>
-      <div className="flex items-center gap-1 rounded-lg border border-white/[0.07] bg-black/20 p-1">
+      <div className="flex items-center gap-1 rounded-lg border border-white/[0.07] bg-raised/30 p-1">
         <ModeTab
           active={!manual}
           icon={<KeyRound className="h-3 w-3" strokeWidth={1.8} />}
@@ -93,17 +94,15 @@ export function VaultKeyField({
           onChange={(e) => onChange(RAW_PREFIX + e.target.value)}
         />
       ) : (
-        <select className={fieldCls} value={safeValue} onChange={(e) => onChange(e.target.value)}>
-          <option value="" className="bg-canvas">
-            — select vault entry —
-          </option>
-          {vault.items.map((s) => (
-            <option key={s.id} value={VAULT_PREFIX + s.id} className="bg-canvas">
-              {s.scope === "global" ? "" : s.scope}
-              {s.name} · {s.kind}
-            </option>
-          ))}
-        </select>
+        <ObsidianSelect
+          value={safeValue}
+          onChange={(val) => onChange(val)}
+          placeholder="— select vault entry —"
+          options={vault.items.map((s) => ({
+            value: VAULT_PREFIX + s.id,
+            label: `${s.scope === "global" ? "" : `${s.scope} · `}${s.name} · ${s.kind}`,
+          }))}
+        />
       )}
     </div>
   );

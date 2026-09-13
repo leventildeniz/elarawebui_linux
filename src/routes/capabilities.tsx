@@ -4,7 +4,7 @@ import { OwnerChip, ShareControl } from "@/components/sovereign/ownership-contro
 import { confirmAction } from "@/components/sovereign/confirm-dialog";
 import { createFileRoute } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
-import { Copy, Layers, Pencil, Plus, Search, Trash2, X } from "lucide-react";
+import { Copy, Layers, Lock, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import { Surface } from "@/components/sovereign/surface";
 import { JewelButton, Tag } from "@/components/sovereign/primitives";
 import { IconPicker, JewelSwatches } from "@/components/sovereign/identity";
@@ -236,13 +236,23 @@ function PackEditor({
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="id (slug)" hint="Auto-generated from the name.">
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="mono-label block">identifier</span>
+              <span className="flex items-center gap-1 font-mono text-[10.5px] text-muted-foreground/60">
+                <Lock size={11} className="text-sapphire" />
+                <span className="text-sapphire">locked</span>
+              </span>
+            </div>
             <input
-              className={cn(input, "font-mono text-[12.5px] cursor-not-allowed opacity-60 bg-black/10")}
+              className={cn(input, "font-mono text-[12.5px] cursor-default bg-raised/40 text-foreground/80 border border-white/[0.08] select-all opacity-80")}
               value={isNew ? slugifyPack(draft.name || "new pack") : draft.id}
               readOnly
             />
-          </Field>
+            <span className="mt-1.5 block text-[11.5px] text-muted-foreground/60">
+              Auto-generated primary identifier
+            </span>
+          </div>
           <Field label="name">
             <input
               className={input}

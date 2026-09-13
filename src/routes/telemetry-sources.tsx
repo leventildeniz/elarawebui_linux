@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { Activity, ChevronDown, Plus, Trash2, Wifi } from "lucide-react";
 import { Surface } from "@/components/sovereign/surface";
 import { JewelButton, StatusDot } from "@/components/sovereign/primitives";
+import { ObsidianSelect } from "@/components/sovereign/obsidian-select";
 import { ResetButton, SaveButton } from "@/components/sovereign/action-buttons";
 import { confirmAction } from "@/components/sovereign/confirm-dialog";
 import {
@@ -42,7 +43,7 @@ export const Route = createFileRoute("/telemetry-sources")({
 });
 
 const fieldCls =
-  "w-full rounded-lg border border-white/[0.08] bg-black/25 px-3 py-2 font-mono text-[12.5px] text-foreground outline-none transition-colors focus:border-sapphire/50";
+  "w-full rounded-lg border border-white/[0.08] bg-raised/40 px-3 py-2 font-mono text-[12.5px] text-foreground outline-none transition-colors placeholder:text-muted-foreground/40 focus:border-sapphire/50";
 
 function Label({ children }: { children: React.ReactNode }) {
   return (
@@ -208,13 +209,17 @@ function SourceCard({
                   placeholder="model-runtime-a100"
                 />
               </label>
-              <label className="block">
+              <div className="block">
                 <Label>Collector type</Label>
-                <select
-                  className={fieldCls}
+                <ObsidianSelect
                   value={source.kind}
-                  onChange={(e) => {
-                    const k = e.target.value as TelemetryKind;
+                  options={telemetryKinds.map((k) => ({
+                    value: k.id,
+                    label: k.label,
+                    hint: k.hint,
+                  }))}
+                  onChange={(val) => {
+                    const k = val as TelemetryKind;
                     const preset = telemetryKinds.find((x) => x.id === k)!;
                     onPatch({
                       kind: k,
@@ -223,14 +228,8 @@ function SourceCard({
                       intervalSec: preset.defaultInterval,
                     });
                   }}
-                >
-                  {telemetryKinds.map((k) => (
-                    <option key={k.id} value={k.id}>
-                      {k.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                />
+              </div>
               <label className="block">
                 <Label>Labels</Label>
                 <input
@@ -267,20 +266,17 @@ function SourceCard({
                 />
               </label>
 
-              <label className="block">
+              <div className="block">
                 <Label>Auth mode</Label>
-                <select
-                  className={fieldCls}
+                <ObsidianSelect
                   value={source.auth}
-                  onChange={(e) => onPatch({ auth: e.target.value as TelemetryAuth })}
-                >
-                  {telemetryAuths.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                  options={telemetryAuths.map((a) => ({
+                    value: a.id,
+                    label: a.label,
+                  }))}
+                  onChange={(val) => onPatch({ auth: val as TelemetryAuth })}
+                />
+              </div>
               <div className="block md:col-span-2">
                 <Label>
                   Credential — vault binding or manual entry

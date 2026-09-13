@@ -4,6 +4,7 @@ import { motion } from "motion/react";
 import { Check, ChevronDown, Radio, Save, ShieldCheck, Wifi, X, Search, Shield, KeyRound, Server, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { JewelButton, StatusDot } from "@/components/sovereign/primitives";
+import { ObsidianSelect } from "@/components/sovereign/obsidian-select";
 import {
   siemFormats,
   siemProtocols,
@@ -16,7 +17,7 @@ import {
 import { cn } from "@/lib/utils";
 
 const fieldCls =
-  "w-full rounded-lg border border-white/[0.08] bg-black/25 px-3 py-2 font-mono text-[12.5px] text-foreground outline-none transition-colors focus:border-sapphire/50";
+  "w-full rounded-lg border border-white/[0.08] bg-raised/40 px-3 py-2 font-mono text-[12.5px] text-foreground outline-none transition-colors placeholder:text-muted-foreground/40 focus:border-sapphire/50";
 
 function Label({ children }: { children: React.ReactNode }) {
   return (
@@ -187,34 +188,28 @@ export function SiemPanel() {
               placeholder="514"
             />
           </label>
-          <label className="block">
+          <div className="block">
             <Label>Protocol</Label>
-            <select
-              className={fieldCls}
+            <ObsidianSelect
               value={config.protocol}
-              onChange={(e) => patch({ protocol: e.target.value as SiemProtocol })}
-            >
-              {siemProtocols.map((p) => (
-                <option key={p.id} value={p.id} className="bg-canvas">
-                  {p.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block">
+              options={siemProtocols.map((p) => ({
+                value: p.id,
+                label: p.label,
+              }))}
+              onChange={(val) => patch({ protocol: val as SiemProtocol })}
+            />
+          </div>
+          <div className="block">
             <Label>Format</Label>
-            <select
-              className={fieldCls}
+            <ObsidianSelect
               value={config.format}
-              onChange={(e) => patch({ format: e.target.value as SiemFormat })}
-            >
-              {siemFormats.map((f) => (
-                <option key={f.id} value={f.id} className="bg-canvas">
-                  {f.label}
-                </option>
-              ))}
-            </select>
-          </label>
+              options={siemFormats.map((f) => ({
+                value: f.id,
+                label: f.label,
+              }))}
+              onChange={(val) => patch({ format: val as SiemFormat })}
+            />
+          </div>
           <label className="block">
             <Label>Facility</Label>
             <input
@@ -306,7 +301,7 @@ export function SiemPanel() {
                 initial={{ opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.15 }}
-                className="absolute z-30 mt-1.5 max-h-80 w-full overflow-y-auto rounded-xl border border-white/[0.12] bg-[#121216]/98 p-2 shadow-[0_24px_60px_-24px_oklch(0_0_0/0.95)] backdrop-blur-md"
+                className="obsidian-slab absolute z-30 mt-1.5 max-h-80 w-full overflow-y-auto rounded-xl p-2 shadow-[0_24px_68px_-20px_rgba(0,0,0,0.85)]"
               >
                 <div className="relative mb-2 px-1">
                   <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-muted-foreground/60" />
