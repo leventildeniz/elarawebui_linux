@@ -1,15 +1,12 @@
 #!/usr/bin/env bash
 # ============================================================
-#  ELARA — launchd uninstaller
-#  Varsayılan: uygulama birimlerini kaldırır, com.elara.postgres'e dokunmaz.
+#  ELARA — launchd uninstaller (macOS)
+#  Default: unloads application services, preserves PostgreSQL.
 #
-#  Kullanım:
-#    bash uninstall-launchd.sh           # postgres hariç hepsini kaldır
-#    bash uninstall-launchd.sh --all     # postgres dahil HER ŞEYİ kaldır
-#    bash uninstall-launchd.sh --postgres  # sadece postgres'i kaldır
-#
-#  Gerekçe: Postgres birimi kale temelidir; reboot sonrası middleware
-#  ona bağlanır. Yanlışlıkla silinirse :3005/:3006 sessizce ölür.
+#  Usage:
+#    bash local-server/system_services/uninstall-launchd.sh             # unloads app services
+#    bash local-server/system_services/uninstall-launchd.sh --all       # unloads everything
+#    bash local-server/system_services/uninstall-launchd.sh --postgres  # unloads postgres only
 # ============================================================
 set -euo pipefail
 

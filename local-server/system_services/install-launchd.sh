@@ -7,13 +7,13 @@
 #    com.elara.vite         → vite dev (8080)
 #    com.elara.tls-proxy    → dev-tls-proxy.mjs (10443)
 #
-#  Kullanım:
-#    bash local-server/launchd/install-launchd.sh           # kur + yükle
-#    bash local-server/launchd/install-launchd.sh --reload  # sıfırla + yeniden yükle
-#    bash local-server/launchd/install-launchd.sh --status  # durum
+#  Usage:
+#    bash local-server/system_services/install-launchd.sh           # install + load
+#    bash local-server/system_services/install-launchd.sh --reload  # reload
+#    bash local-server/system_services/install-launchd.sh --status  # status
 #
-#  Kaldırma:
-#    bash local-server/launchd/uninstall-launchd.sh
+#  Uninstall:
+#    bash local-server/system_services/uninstall-launchd.sh
 # ============================================================
 set -euo pipefail
 

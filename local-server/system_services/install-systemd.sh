@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 # ============================================================
-#  ELARA — systemd installer (Linux/WSL)
+#  ELARA — systemd installer (Linux / WSL)
 #
-#  Tüm ELARA servislerini (Worker, Middleware, Vite, Proxy)
-#  systemd unit olarak otomatik kurar ve açılışa bağlar.
+#  Installs and enables all ELARA enterprise services:
+#    - elara-worker.service      (Port 8082 - Vector embeddings)
+#    - elara-middleware.service  (Port 3005/3006 - Core API & Orchestrator)
+#    - elara-vite.service        (Port 8080 - Vite UI)
+#    - elara-tls-proxy.service   (Port 10443 - HTTPS Proxy)
 # ============================================================
 set -euo pipefail
 
@@ -15,27 +18,30 @@ SYSTEMD_DIR="/etc/systemd/system"
 
 # Check for root privileges
 if [[ "$EUID" -ne 0 ]]; then
-  echo "[systemd] HATA: Bu script root yetkileri gerektirir (sudo kullanın)." >&2
+  echo "[systemd] ERROR: This script requires root privileges (use sudo)." >&2
   exit 1
 fi
 
 # Detect actual user when run with sudo
 USER_NAME="${SUDO_USER:-$(whoami)}"
 if [ "$USER_NAME" = "root" ]; then
-    echo "[systemd] UYARI: Servisler root kullanıcısı adına kurulacak!"
+    echo "[systemd] WARNING: Services will be installed on behalf of root user."
 fi
 
 # Find binaries
 BUN_BIN="$(which bun || echo "/usr/local/bin/bun")"
 NODE_BIN="$(which node || echo "/usr/bin/node")"
 PYTHON_BIN="$LOCAL_SERVER_DIR/venv/bin/python3"
+if [ ! -f "$PYTHON_BIN" ]; then
+  PYTHON_BIN="$(which python3 || echo "/usr/bin/python3")"
+fi
 
-echo "[systemd] Kurulum başlıyor..."
-echo "  Kullanıcı : $USER_NAME"
-echo "  Proje Kök : $PROJECT_ROOT"
-echo "  Bun Yolu  : $BUN_BIN"
-echo "  Node Yolu : $NODE_BIN"
-echo "  Python    : $PYTHON_BIN"
+echo "[systemd] Starting ELARA service installation..."
+echo "  User         : $USER_NAME"
+echo "  Project Root : $PROJECT_ROOT"
+echo "  Bun Binary   : $BUN_BIN"
+echo "  Node Binary  : $NODE_BIN"
+echo "  Python Binary: $PYTHON_BIN"
 echo "-----------------------------------------------------------"
 
 # --- 1. Worker Service File (Port 8082) ---
@@ -64,18 +70,19 @@ echo "  [2/4] Creating elara-middleware.service..."
 cat <<EOF > "$SYSTEMD_DIR/elara-middleware.service"
 [Unit]
 Description=ELARA Middleware & Core API
-After=network.target elara-worker.service
-Requires=elara-worker.service
+After=network.target postgresql.service
+Wants=postgresql.service
 
 [Service]
 Type=simple
 User=$USER_NAME
 WorkingDirectory=$LOCAL_SERVER_DIR
-ExecStart=$BUN_BIN run server.mjs
+$([ -f "$LOCAL_SERVER_DIR/.env" ] && echo "EnvironmentFile=$LOCAL_SERVER_DIR/.env")
+ExecStart=$NODE_BIN server.mjs
 Restart=always
 RestartSec=5
-StandardOutput=append:$LOCAL_SERVER_DIR/server.log
-StandardError=append:$LOCAL_SERVER_DIR/server.err
+StandardOutput=append:$LOCAL_SERVER_DIR/middleware.log
+StandardError=append:$LOCAL_SERVER_DIR/middleware.err
 
 [Install]
 WantedBy=multi-user.target
@@ -126,30 +133,31 @@ EOF
 
 # --- Daemon Reload and Enable ---
 echo "-----------------------------------------------------------"
-echo "[systemd] Daemon reload ediliyor..."
+echo "[systemd] Reloading systemd daemon..."
 systemctl daemon-reload
 
 SERVICES=(elara-worker elara-middleware elara-vite elara-tls-proxy)
 
-echo "[systemd] Tüm servisler başlangıca (boot) ekleniyor..."
+echo "[systemd] Enabling and restarting all 4 services..."
 for s in "${SERVICES[@]}"; do
   systemctl enable "$s"
   systemctl restart "$s"
-  echo "  ✓ $s aktif edildi ve başlatıldı."
+  echo "  ✓ $s enabled & started."
 done
 
 echo ""
-echo "✅ BAŞARILI: Tüm 4 servis sisteme başarıyla kuruldu ve başlatıldı!"
+echo "✅ SUCCESS: All 4 ELARA services are active and running!"
 echo "-----------------------------------------------------------"
-echo "Sistem artık boot edildiğinde otomatik olarak başlayacak."
+echo "Services will automatically restart on system boot."
 echo ""
-echo "Durumları kontrol etmek için:"
+echo "Verify status with:"
 echo "  systemctl status elara-worker"
 echo "  systemctl status elara-middleware"
 echo "  systemctl status elara-vite"
 echo "  systemctl status elara-tls-proxy"
 echo ""
-echo "Artık şu adreslerden sisteme erişebilirsiniz:"
-echo "  👉 Güvenli Giriş:  https://localhost:10443"
-echo "  👉 Standart Giriş: http://localhost:8080"
+echo "Access endpoints:"
+echo "  👉 HTTPS Secure Gateway:  https://localhost:10443"
+echo "  👉 HTTP Vite WebUI:       http://localhost:8080"
+echo "  👉 Core API Gateway:      http://localhost:3005"
 echo "-----------------------------------------------------------"
