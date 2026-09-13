@@ -13,7 +13,9 @@ export type Telemetry = {
 
 /** Mono telemetry strip rendered above an agent answer. */
 export function TelemetryStrip({ t, live }: { t: Telemetry; live?: boolean }) {
-  const tps = t.totalMs > 0 ? Math.round((t.tokens / t.totalMs) * 1000) : 0;
+  // Compute true generation throughput (tokens / active generation time after TTFT)
+  const genMs = Math.max(50, t.totalMs - (t.firstTokenMs || 0));
+  const tps = t.tokens > 0 ? Math.round((t.tokens / genMs) * 1000) : (t.totalMs > 0 ? Math.round((t.tokens / t.totalMs) * 1000) : 0);
   const items: [string, string][] = [
     ["ttft", `${t.firstTokenMs} ms`],
     ["elapsed", `${(t.totalMs / 1000).toFixed(2)} s`],

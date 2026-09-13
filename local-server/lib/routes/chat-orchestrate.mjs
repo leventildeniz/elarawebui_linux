@@ -1,113 +1,24 @@
-import { randomUUID } from "crypto";
-import { resolveCredential } from "../vault.mjs";
-import http from "http";
-import https from "https";
-import { URL } from "url";
-import { ragProbeAndFetch } from "../rag/retrieval.mjs";
+// local-server/lib/routes/chat-orchestrate.mjs
+// Central Chat Orchestration Gateway for ELARA Sovereign Studio.
+// Modularized Architecture: Directives, Stream Bridge, Tool Dispatcher & FinOps Meter.
+
 import { resolveAttachmentForLlm } from "../storage-engine.mjs";
 import { scanExternalGuardrail } from "../genguard-scanner.mjs";
 import { evaluatePolicyRules } from "../policy-engine-eval.mjs";
 import { getSemanticCache, setSemanticCache } from "../infra/redis-cache.mjs";
 import { embed } from "../embed-provider.mjs";
-import { buildInventory, extractForgeJson, validateForgePlan } from "../meta-forge/planner.mjs";
-import { ensureMetaForgeAgent } from "../meta-forge/seed.mjs";
+import { ragProbeAndFetch } from "../rag/retrieval.mjs";
 
-function mapJsonSchemaType(t) {
-  const x = String(t || "string").toLowerCase();
-  if (x === "number" || x === "int" || x === "integer" || x === "float") return "number";
-  if (x === "bool" || x === "boolean") return "boolean";
-  if (x === "object" || x === "json") return "object";
-  if (x === "array") return "array";
-  return "string";
-}
-
-// --- NATIVE STREAM REQUEST (TCP KILLER) ---
-// Standard Node.js fetch does not immediately tear down sockets on abort due to draining.
-// Local engines (Llama.cpp / Gemma) continue token generation unless the TCP socket is forcefully killed.
-// This wrapper sends an immediate TCP RST destruction when an abort signal is received.
-async function nativeStreamRequest(urlStr, options, payloadStr, signal) {
-  return new Promise((resolve, reject) => {
-    try {
-      const parsedUrl = new URL(urlStr);
-      const lib = parsedUrl.protocol === 'https:' ? https : http;
-      
-      if (payloadStr) {
-        // Enforce Content-Length header on POST payloads to prevent socket hang up on strict servers
-        options.headers['Content-Length'] = Buffer.byteLength(payloadStr);
-      }
-
-      console.log(`\n[TCP-KILLER] ➔ Request Dispatching: ${options.method || 'POST'} ${urlStr}`);
-      console.log(`[TCP-KILLER] ➔ Headers:`, JSON.stringify(options.headers));
-      if (payloadStr) {
-         console.log(`[TCP-KILLER] ➔ Payload (first 300 chars):`, payloadStr.substring(0, 300) + (payloadStr.length > 300 ? '...' : ''));
-      }
-
-      const reqOptions = {
-        hostname: parsedUrl.hostname,
-        port: parsedUrl.port || (parsedUrl.protocol === 'https:' ? 443 : 80),
-        path: parsedUrl.pathname + parsedUrl.search,
-        method: options.method || 'POST',
-        headers: {
-            "Accept": "*/*",
-            "User-Agent": "Elara-Orchestrator/1.0",
-            ...options.headers
-        },
-        agent: false // Spawn fresh request connections without pooling
-      };
-
-      let responseObj = null;
-      const llmReq = lib.request(reqOptions, (llmRes) => {
-        responseObj = llmRes;
-        resolve({
-          ok: llmRes.statusCode >= 200 && llmRes.statusCode < 300,
-          status: llmRes.statusCode,
-          text: async () => {
-             let body = '';
-             for await (const chunk of llmRes) body += chunk;
-             return body;
-          },
-          body: llmRes
-        });
-      });
-
-      llmReq.on('error', (err) => {
-        console.error(`[TCP-KILLER] Request Error to ${parsedUrl.hostname}:${reqOptions.port}: ${err.message}`);
-        reject(err);
-      });
-
-      if (signal) {
-        if (signal.aborted) {
-          llmReq.destroy(new Error('Aborted before request started'));
-          return reject(new Error('Aborted before request started'));
-        }
-        signal.addEventListener('abort', () => {
-          console.log(`\n🚨 [TCP-KILLER] 🚨 ABORT SIGNAL RECEIVED -> Destroying TCP socket for ${parsedUrl.hostname}!`);
-          
-          if (responseObj) {
-            responseObj.destroy(new Error("Client Aborted"));
-          }
-          if (llmReq.socket) {
-             llmReq.socket.destroy(); 
-          }
-          llmReq.destroy(new Error("Client Aborted"));
-        });
-      }
-
-      if (payloadStr) {
-        llmReq.write(payloadStr);
-      }
-      llmReq.end();
-    } catch (err) {
-      reject(err);
-    }
-  });
-}
+import { buildMasterDirectives } from "../orchestrator/directives.mjs";
+import { streamFromProvider, mapJsonSchemaType } from "../orchestrator/stream-bridge.mjs";
+import { dispatchToolCall } from "../orchestrator/tool-dispatcher.mjs";
+import { calculateTurnTokens, calculateTurnCost, persistTurnTelemetry } from "../orchestrator/finops-meter.mjs";
 
 export async function mountChatOrchestrateRoutes(app, deps) {
-  const { pool, getRagSettings, approxTokens, calculateAIQuality, recordUsage, trace, invokeTool, broadcastAudit, enqueueWrite, logCheckpoint } = deps;
+  const { pool, approxTokens, trace, invokeTool, broadcastAudit, enqueueWrite, logCheckpoint } = deps;
   console.log("[Chat Orchestrate] approxTokens available:", !!approxTokens);
 
-  // GLOBAL STREAM MAP: Track in-flight streams for explicit cancel/stop signals
+  // Active in-flight stream tracking for explicit cancel/stop signals
   const activeStreams = new Map();
 
   app.post("/api/chat/cancel", (req, res) => {
@@ -125,512 +36,6 @@ export async function mountChatOrchestrateRoutes(app, deps) {
     }
   });
 
-  // --- LLM DIALECT ADAPTERS ---
-
-  // Anthropic (Claude) API dialect adapter
-  async function fetchAnthropicStream(provider, baseUrl, apiKey, targetModel, messages, tools, signal) {
-    let systemPrompt = "";
-    const anthropicMessages = [];
-  
-    for (const m of messages) {
-      if (m.role === "system") {
-        let textContent = Array.isArray(m.content) ? m.content.find(c => c.type === 'text')?.text || "" : m.content;
-        systemPrompt += (systemPrompt ? "\n" : "") + textContent;
-      } else {
-        let content = m.content;
-        
-        // Anthropic tool mapping from OpenAI format
-        if (m.tool_calls && m.tool_calls.length > 0) {
-           const blocks = [];
-           if (typeof content === "string" && content) {
-               blocks.push({ type: "text", text: content });
-           }
-           for (const tc of m.tool_calls) {
-               blocks.push({
-                   type: "tool_use",
-                   id: tc.id,
-                   name: tc.function.name,
-                   input: JSON.parse(tc.function.arguments || "{}")
-               });
-           }
-           content = blocks;
-        } else if (m.role === "tool") {
-           m.role = "user";
-           content = [{
-               type: "tool_result",
-               tool_use_id: m.tool_call_id,
-               content: m.content
-           }];
-        }
-
-        if (Array.isArray(content)) {
-          content = content.map(c => {
-             if (c.type === "image_url") {
-                const url = c.image_url.url;
-                const match = url.match(/^data:(image\/[^;]+);(?:[^,]*;)?base64,(.+)$/);
-                if (match) {
-                   return {
-                      type: "image",
-                      source: {
-                         type: "base64",
-                         media_type: match[1],
-                         data: match[2]
-                      }
-                   };
-                }
-                // If URL (not base64), Anthropic does not support raw URLs as image blocks; provide as text.
-                return { type: "text", text: `[Image URL: ${url}]` };
-             }
-             return c;
-          });
-        }
-        anthropicMessages.push({ role: m.role, content: content });
-      }
-    }
-
-    // Anthropic API requires alternating user/assistant roles.
-    // Combine consecutive messages of the same role.
-    const consolidatedMessages = [];
-    for (const m of anthropicMessages) {
-        if (consolidatedMessages.length > 0) {
-            const last = consolidatedMessages[consolidatedMessages.length - 1];
-            if (last.role === m.role) {
-                // Ensure both are arrays before combining
-                let lastContent = Array.isArray(last.content) ? last.content : [{ type: "text", text: last.content }];
-                let currentContent = Array.isArray(m.content) ? m.content : [{ type: "text", text: m.content }];
-                last.content = lastContent.concat(currentContent);
-                continue;
-            }
-        }
-        consolidatedMessages.push(m);
-    }
-
-    // Anthropic tool specification schema differs from OpenAI format
-    let anthropicTools = undefined;
-    if (tools && tools.length > 0) {
-        anthropicTools = tools.map(t => ({
-            name: t.function.name,
-            description: t.function.description,
-            input_schema: t.function.parameters
-        }));
-    }
-
-    const temp = provider?.temperature !== undefined && provider?.temperature !== null ? Number(provider.temperature) : 0.7;
-    const topP = provider?.top_p !== undefined && provider?.top_p !== null ? Number(provider.top_p) : undefined;
-    const maxTokens = provider?.max_tokens !== undefined && provider?.max_tokens !== null ? Number(provider.max_tokens) : 4096;
-
-    const payload = {
-        model: targetModel,
-        system: systemPrompt || undefined,
-        messages: consolidatedMessages,
-        max_tokens: maxTokens,
-        stream: true,
-        temperature: temp,
-        ...(topP !== undefined ? { top_p: topP } : {})
-    };
-
-    if (Array.isArray(anthropicTools) && anthropicTools.length > 0) {
-        payload.tools = anthropicTools;
-    }
-
-    // Stop Sequences
-    if (provider?.stop_sequences) {
-        let stops = [];
-        if (Array.isArray(provider.stop_sequences)) {
-            stops = provider.stop_sequences;
-        } else if (typeof provider.stop_sequences === "string") {
-            try { stops = JSON.parse(provider.stop_sequences); } catch { stops = provider.stop_sequences.split(/[\n,]/).map(s => s.trim()).filter(Boolean); }
-        }
-        if (stops.length > 0) {
-            payload.stop_sequences = stops;
-        }
-    }
-
-    const res = await nativeStreamRequest(`${baseUrl}/messages`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        "anthropic-beta": "messages-2023-12-15" // Beta headers if required
-      }
-    }, JSON.stringify(payload), signal);
-
-    if (!res.ok) {
-      const errText = await res.text().catch(() => "");
-      throw new Error(`Anthropic API returned ${res.status}: ${errText}`);
-    }
-
-    return (async function* () {
-      const decoder = new TextDecoder();
-      const reader = res.body?.getReader?.();
-      
-      try {
-        if (reader) {
-           let buffer = "";
-           while (true) {
-             const { done, value } = await reader.read();
-             if (done) break;
-             buffer += decoder.decode(value, { stream: true });
-             const lines = buffer.split('\n');
-             buffer = lines.pop() || "";
-
-             for (const line of lines) {
-               const trimmed = line.trim();
-               if (trimmed.startsWith('data: ')) {
-                 const dataStr = trimmed.slice(6).trim();
-                 if (dataStr) {
-                   try {
-                     const parsed = JSON.parse(dataStr);
-                     if (parsed.type === 'message_stop') return;
-                     if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
-                       yield JSON.stringify({ type: "out", delta: parsed.delta.text });
-                     }
-                     if (parsed.type === 'content_block_start' && parsed.content_block?.type === 'tool_use') {
-                        yield JSON.stringify({ 
-                           type: "tool_call_delta", 
-                           delta: { index: parsed.index, id: parsed.content_block.id, function: { name: parsed.content_block.name, arguments: "" } }
-                        });
-                     }
-                     if (parsed.type === 'content_block_delta' && parsed.delta?.type === 'input_json_delta') {
-                        yield JSON.stringify({ 
-                           type: "tool_call_delta", 
-                           delta: { index: parsed.index, function: { arguments: parsed.delta.partial_json } }
-                        });
-                     }
-                   } catch (e) {}
-                 }
-               }
-             }
-           }
-        } else {
-           let buffer = "";
-           for await (const chunk of res.body) {
-             buffer += decoder.decode(chunk, { stream: true });
-             const lines = buffer.split('\n');
-             buffer = lines.pop() || "";
-
-             for (const line of lines) {
-               const trimmed = line.trim();
-               if (trimmed.startsWith('data: ')) {
-                 const dataStr = trimmed.slice(6).trim();
-                 if (dataStr) {
-                   try {
-                     const parsed = JSON.parse(dataStr);
-                     if (parsed.type === 'message_stop') return;
-                     if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
-                       yield JSON.stringify({ type: "out", delta: parsed.delta.text });
-                     }
-                     if (parsed.type === 'content_block_start' && parsed.content_block?.type === 'tool_use') {
-                        yield JSON.stringify({ 
-                           type: "tool_call_delta", 
-                           delta: { index: parsed.index, id: parsed.content_block.id, function: { name: parsed.content_block.name, arguments: "" } }
-                        });
-                     }
-                     if (parsed.type === 'content_block_delta' && parsed.delta?.type === 'input_json_delta') {
-                        yield JSON.stringify({ 
-                           type: "tool_call_delta", 
-                           delta: { index: parsed.index, function: { arguments: parsed.delta.partial_json } }
-                        });
-                     }
-                   } catch (e) {}
-                 }
-               }
-             }
-           }
-        }
-      } finally {
-        if (reader) {
-            try { await reader.cancel(); } catch(e) {}
-            try { reader.releaseLock(); } catch(e) {}
-        }
-      }
-    })();
-  }
-
-  // Standard OpenAI-Compatible Streamer (Ollama, vLLM, LMStudio, Google, etc.)
-  async function fetchOpenAIStream(provider, baseUrl, apiKey, targetModel, messages, tools, signal, effort) {
-    let requestUrl = `${baseUrl}/chat/completions`;
-    if (baseUrl.includes("generativelanguage.googleapis.com") && !requestUrl.includes("/openai/")) {
-        requestUrl = baseUrl.replace(/\/$/, "") + "/openai/chat/completions";
-    }
-
-    const headers = {
-      "Content-Type": "application/json"
-    };
-
-    if (apiKey && apiKey !== "dummy-key") {
-        headers["Authorization"] = `Bearer ${apiKey}`;
-        if (baseUrl.includes("generativelanguage.googleapis.com")) {
-            headers["x-goog-api-key"] = apiKey;
-        }
-    }
-
-    const temp = provider?.temperature !== undefined && provider?.temperature !== null ? Number(provider.temperature) : 0.7;
-    const topP = provider?.top_p !== undefined && provider?.top_p !== null ? Number(provider.top_p) : undefined;
-    const topK = provider?.top_k !== undefined && provider?.top_k !== null ? Number(provider.top_k) : undefined;
-    const repPenalty = provider?.repetition_penalty !== undefined && provider?.repetition_penalty !== null ? Number(provider.repetition_penalty) : undefined;
-    const maxTokens = provider?.max_tokens !== undefined && provider?.max_tokens !== null ? Number(provider.max_tokens) : 4096;
-
-    // Detect if target endpoint is a local engine (Llama.cpp / vLLM / Ollama)
-    const isLocalEngine = baseUrl.includes("127.0.0.1") || baseUrl.includes("localhost") || baseUrl.includes("192.168.") || baseUrl.includes(":8000") || baseUrl.includes(":8001") || baseUrl.includes(":11434");
-
-    const payload = {
-      model: targetModel,
-      messages,
-      stream: true,
-      temperature: temp,
-      max_tokens: maxTokens,
-      ...(topP !== undefined ? { top_p: topP } : {}),
-      ...(isLocalEngine && topK !== undefined ? { top_k: topK } : {}),
-      ...(isLocalEngine && repPenalty !== undefined ? { repetition_penalty: repPenalty, repeat_penalty: repPenalty } : {})
-    };
-
-    // Reasoning effort parameter support for OpenAI o1/o3 and Gemini 3.x series
-    if (effort && effort !== "none" && (targetModel.includes("o1") || targetModel.includes("o3") || targetModel.toLowerCase().includes("gemini"))) {
-       if (targetModel.toLowerCase().includes("gemini")) {
-           // In Gemini 3.x OpenAI compatibility API, placing thinking_config in the root causes 400 bad request.
-           // Canonical format: "extra_body": { "google": { "thinking_config": { "thinking_level": effort, "include_thoughts": true } } }
-           payload.extra_body = {
-               google: {
-                   thinking_config: {
-                       thinking_level: effort,
-                       include_thoughts: true
-                   }
-               }
-           };
-       } else {
-           payload.reasoning_effort = effort;
-       }
-    }
-
-    if (provider.advanced && Array.isArray(provider.advanced)) {
-        for (const p of provider.advanced) {
-            if (!p.key) continue;
-            let val = p.value;
-            if (val === "true") val = true;
-            else if (val === "false") val = false;
-            else if (!isNaN(Number(val))) val = Number(val);
-            payload[p.key] = val;
-        }
-    }
-
-    // Stop Sequences
-    if (provider.stop_sequences) {
-        let stops = [];
-        if (Array.isArray(provider.stop_sequences)) {
-            stops = provider.stop_sequences;
-        } else if (typeof provider.stop_sequences === "string") {
-            try { stops = JSON.parse(provider.stop_sequences); } catch { stops = provider.stop_sequences.split(/[\n,]/).map(s => s.trim()).filter(Boolean); }
-        }
-        if (stops.length > 0) {
-            payload.stop = stops;
-        }
-    }
-
-    if (Array.isArray(tools) && tools.length > 0) {
-       payload.tools = tools;
-    }
-
-    const res = await nativeStreamRequest(requestUrl, {
-      method: "POST",
-      headers
-    }, JSON.stringify(payload), signal);
-
-    if (!res.ok) {
-      const errText = await res.text().catch(() => "");
-      console.error(`[fetchOpenAIStream] ❌ LLM API returned ${res.status} for ${targetModel} at ${requestUrl}:`, errText);
-      throw new Error(`LLM API returned ${res.status}: ${errText}`);
-    }
-
-    return (async function* () {
-      const decoder = new TextDecoder();
-      const reader = res.body?.getReader?.();
-      let inThought = false;
-
-      function* handleContent(content) {
-        if (!content || content === "null") return;
-
-        if (content.includes("<think>")) {
-          inThought = true;
-          content = content.replace("<think>", "");
-        }
-        if (content.includes("</think>")) {
-          inThought = false;
-          const parts = content.split("</think>");
-          if (parts[0]) yield JSON.stringify({ type: "think", delta: parts[0] });
-          if (parts[1]) yield JSON.stringify({ type: "out", delta: parts[1] });
-          return;
-        }
-        if (content.includes("<thought>")) {
-          inThought = true;
-          content = content.replace("<thought>", "");
-        }
-        if (content.includes("</thought>")) {
-          inThought = false;
-          const parts = content.split("</thought>");
-          if (parts[0]) yield JSON.stringify({ type: "think", delta: parts[0] });
-          if (parts[1]) yield JSON.stringify({ type: "out", delta: parts[1] });
-          return;
-        }
-
-        if (inThought) {
-          yield JSON.stringify({ type: "think", delta: content });
-        } else {
-          yield JSON.stringify({ type: "out", delta: content });
-        }
-      }
-
-      try {
-        if (reader) {
-           let buffer = "";
-           while (true) {
-             const { done, value } = await reader.read();
-             if (done) break;
-             buffer += decoder.decode(value, { stream: true });
-             const lines = buffer.split('\n');
-             buffer = lines.pop() || "";
-             for (const line of lines) {
-               const trimmed = line.trim();
-               if (trimmed.startsWith('data: ')) {
-                 const dataStr = trimmed.slice(6).trim();
-                 if (dataStr === '[DONE]') return;
-                 if (dataStr) {
-                   try {
-                     const parsed = JSON.parse(dataStr);
-                     const deltaObj = parsed.choices?.[0]?.delta || {};
-
-                     if (deltaObj.tool_calls) {
-                         for (const tc of deltaObj.tool_calls) {
-                             yield JSON.stringify({ type: "tool_call_delta", delta: tc });
-                         }
-                         continue;
-                     }
-
-                     if (deltaObj.reasoning_content) {
-                       yield JSON.stringify({ type: "think", delta: deltaObj.reasoning_content });
-                     }
-                   
-                     const content = deltaObj.content || parsed.message?.content || parsed.content || "";
-                     if (content && content !== "null") {
-                       yield* handleContent(content);
-                     }
-                   } catch (e) {}
-                 }
-               }
-             }
-           }
-        } else {
-           let buffer = "";
-           for await (const chunk of res.body) {
-             buffer += decoder.decode(chunk, { stream: true });
-             const lines = buffer.split('\n');
-             buffer = lines.pop() || "";
-           
-             for (const line of lines) {
-               const trimmed = line.trim();
-               if (trimmed.startsWith('data: ')) {
-                 const dataStr = trimmed.slice(6).trim();
-                 if (dataStr === '[DONE]') return;
-                 if (dataStr) {
-                   try {
-                     const parsed = JSON.parse(dataStr);
-                     const deltaObj = parsed.choices?.[0]?.delta || {};
-
-                     if (deltaObj.tool_calls) {
-                         for (const tc of deltaObj.tool_calls) {
-                             yield JSON.stringify({ type: "tool_call_delta", delta: tc });
-                         }
-                         continue;
-                     }
-
-                     if (deltaObj.reasoning_content) {
-                       yield JSON.stringify({ type: "think", delta: deltaObj.reasoning_content });
-                     }
-                   
-                     const content = deltaObj.content || parsed.message?.content || parsed.content || "";
-                     if (content && content !== "null") {
-                       yield* handleContent(content);
-                     }
-                   } catch (e) {}
-                 }
-               }
-             }
-           }
-        }
-      } finally {
-        if (reader) {
-            try { await reader.cancel(); } catch(e) {}
-            try { reader.releaseLock(); } catch(e) {}
-        }
-      }
-    })();
-  }
-
-  async function streamFromProvider({ provider, messages, tools, signal, effort }) {
-    const baseUrl = (provider.model_base_url || provider.base_url || "http://127.0.0.1:8000/v1").replace(/\/$/, "");
-    let apiKeyRef = provider.model_api_key || provider.secret_id || "dummy-key"; 
-    
-    // Resolve credentials via Vault URI or raw prefix
-    let apiKey = await resolveCredential(pool, apiKeyRef, "api_key");
-
-    if (!apiKey || apiKey.trim() === "") {
-        apiKey = "dummy-key";
-    }
-
-    const targetModel = provider.model_id || provider.model || "default";
-    console.log(`[Streamer] API Key Status for ${targetModel}:`, apiKey === "dummy-key" ? "Dummy" : "Valid Key");
-
-    let finalMessages = messages.filter(m => {
-        if (!m) return false;
-        if (m.tool_calls && m.tool_calls.length > 0) return true;
-        if (m.role === "tool") return true;
-        
-        if (!m.content) return false;
-        if (typeof m.content === "string") return m.content.trim() !== "";
-        return Array.isArray(m.content) && m.content.length > 0;
-    });
-    if (provider.system_prompt) {
-        finalMessages = [ { role: "system", content: provider.system_prompt }, ...finalMessages ];
-    }
-
-    // Extended timeout (120s) for cold local LLM prompt ingestion
-    const timeoutMs = 120000;
-    const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), timeoutMs);
-
-    if (signal) {
-        if (signal.aborted) {
-            clearTimeout(id);
-            controller.abort();
-        } else {
-            signal.addEventListener("abort", () => {
-                clearTimeout(id);
-                controller.abort();
-            });
-        }
-    }
-
-    try {
-        console.log(`[Streamer] Dispatching request to: ${baseUrl} (Model: ${targetModel})`);
-      
-        let iterator;
-        if (baseUrl.includes("api.anthropic.com")) {
-           iterator = await fetchAnthropicStream(provider, baseUrl, apiKey, targetModel, finalMessages, tools, controller.signal);
-        } else {
-           iterator = await fetchOpenAIStream(provider, baseUrl, apiKey, targetModel, finalMessages, tools, controller.signal, effort);
-        }
-
-        clearTimeout(id);
-        console.log(`[Streamer] Connection established, stream starting...`);
-        return iterator;
-      
-    } catch (err) {
-        clearTimeout(id);
-        throw new Error(`Connection to LLM failed: ${err.message}`);
-    }
-  }
-
   app.post("/api/chat/orchestrate", async (req, res) => {
     const thread_id = req.body?.thread_id || req.body?.threadId;
     const agent_id = req.body?.agent_id || req.body?.agentId;
@@ -640,12 +45,12 @@ export async function mountChatOrchestrateRoutes(app, deps) {
     let actorId = null;
     let actorCtx = null;
     if (deps.resolveActorContext) {
-       try {
-          actorCtx = await deps.resolveActorContext(req);
-          actorId = actorCtx?.username || actorCtx?.user?.name || req.session?.username || actorCtx?.userId || req.actor || null;
-       } catch(e) {
-          console.warn("[Orchestrate] Security context could not be resolved:", e.message);
-       }
+      try {
+        actorCtx = await deps.resolveActorContext(req);
+        actorId = actorCtx?.username || actorCtx?.user?.name || req.session?.username || actorCtx?.userId || req.actor || null;
+      } catch (e) {
+        console.warn("[Orchestrate] Security context could not be resolved:", e.message);
+      }
     }
     if (!actorCtx) actorCtx = { actor: null, isAdmin: false, userId: null, groupIds: [] };
 
@@ -656,14 +61,14 @@ export async function mountChatOrchestrateRoutes(app, deps) {
     res.flushHeaders();
 
     const heartbeat = setInterval(() => {
-       res.write(":\n\n");
+      res.write(":\n\n");
     }, 15000);
 
     const send = (payload) => {
       res.write(`data: ${JSON.stringify(payload)}\n\n`);
     };
 
-    const emitDebug = (level, tag, message, meta = {}, threadId = thread_id) => {
+    const emitDebug = (level, tag, msg, meta = {}, threadId = thread_id) => {
       const fullMeta = { tag, thread_id: threadId, stream: tag.split(".")[0] || "chat", ...meta };
       if (broadcastAudit) {
         try {
@@ -671,8 +76,8 @@ export async function mountChatOrchestrateRoutes(app, deps) {
             thread_id: threadId,
             agent: tag.split(".")[0] || "chat",
             level,
-            message: `${tag}: ${message}`,
-            meta: fullMeta
+            message: `${tag}: ${msg}`,
+            meta: fullMeta,
           });
         } catch (err) {
           console.warn("[Orchestrate] broadcastAudit notice:", err.message);
@@ -681,11 +86,11 @@ export async function mountChatOrchestrateRoutes(app, deps) {
       if (["chat.request", "model.responded", "tool.exec", "agent.step.start", "rag.search.done"].includes(tag) || level === "error" || level === "warn") {
         try {
           if (typeof logCheckpoint === "function") {
-            logCheckpoint(level, tag, message, fullMeta, threadId);
+            logCheckpoint(level, tag, msg, fullMeta, threadId);
           } else if (typeof enqueueWrite === "function") {
             enqueueWrite(
               `INSERT INTO agent_logs(thread_id, agent, level, message, meta) VALUES ($1,$2,$3,$4,$5)`,
-              [threadId, tag.split(".")[0] || "chat", level, `${tag}: ${message}`, fullMeta]
+              [threadId, tag.split(".")[0] || "chat", level, `${tag}: ${msg}`, fullMeta]
             );
           }
         } catch (err) {
@@ -702,44 +107,43 @@ export async function mountChatOrchestrateRoutes(app, deps) {
       res.end();
       if (thread_id) activeStreams.delete(thread_id);
       if (!requestAbort.signal.aborted) {
-         requestAbort.abort();
+        requestAbort.abort();
       }
     };
 
     const requestAbort = new AbortController();
     if (thread_id) {
-        activeStreams.set(thread_id, requestAbort);
+      activeStreams.set(thread_id, requestAbort);
     }
 
     const abortHandler = () => {
-        clearInterval(heartbeat);
-        if (!requestAbort.signal.aborted) {
-            console.log("🛑 [Orchestrate] UI Stop signal received!");
-            requestAbort.abort();
-        }
-        if (thread_id) activeStreams.delete(thread_id);
+      clearInterval(heartbeat);
+      if (!requestAbort.signal.aborted) {
+        console.log("🛑 [Orchestrate] UI Stop signal received!");
+        requestAbort.abort();
+      }
+      if (thread_id) activeStreams.delete(thread_id);
     };
     req.on("aborted", abortHandler);
-    
+
     res.on("close", () => {
-        clearInterval(heartbeat);
-        if (!res.writableEnded && !requestAbort.signal.aborted) {
-            console.log("🛑 [Orchestrate] Client disconnected abnormally!");
-            requestAbort.abort();
-        }
-        if (thread_id) activeStreams.delete(thread_id);
+      clearInterval(heartbeat);
+      if (!res.writableEnded && !requestAbort.signal.aborted) {
+        console.log("🛑 [Orchestrate] Client disconnected abnormally!");
+        requestAbort.abort();
+      }
+      if (thread_id) activeStreams.delete(thread_id);
     });
 
     try {
       send({ phase: "accepted" });
-      let t0 = Date.now();
+      const t0 = Date.now();
       let tFirstToken = 0;
 
-      // 2. Resolve Provider & Model from DB using Routing Mode Logic (Parallelized Query Batch)
+      // 2. Resolve Provider & Model from DB (Parallelized Batch Query)
       let prov = null;
       let availableModels = [];
 
-      // Query all initial metadata in parallel to minimize Time-to-First-Token (TTFT)
       const [
         dbRes,
         fallbackProvidersRes,
@@ -748,9 +152,8 @@ export async function mountChatOrchestrateRoutes(app, deps) {
         factRes,
         pinnedRes,
         systemToolsRes,
-        mcpServerRes
+        mcpServerRes,
       ] = await Promise.all([
-        // 1. Studio Models
         pool.query(`
           SELECT
             m.id as model_pk, m.name as model_name, m.model_id, m.base_url as model_base_url, m.api_key_ref as model_api_key, m.system_prompt,
@@ -762,67 +165,56 @@ export async function mountChatOrchestrateRoutes(app, deps) {
           LEFT JOIN ai_providers p ON m.provider_id = p.id
           WHERE m.enabled = true AND (p.active IS NULL OR p.active = true)
         `),
-        // 2. Fallback Providers
         pool.query(`
           SELECT 
             id as provider_pk, name as provider_name, base_url, secret_id, priority, model as model_id
           FROM ai_providers 
           WHERE active = true AND kind = 'llm'
         `),
-        // 3. Routing Policy Config
         pool.query("SELECT value FROM system_config WHERE key = 'routing_policy'").catch(() => ({ rows: [] })),
-        // 4. GenGuard Rules
         pool.query("SELECT * FROM guard_rules WHERE enabled = true ORDER BY seq ASC, created_at ASC").catch(() => ({ rows: [] })),
-        // 5. Long-term semantic facts
         pool.query("SELECT key, value, scope, confidence FROM memory_facts WHERE confidence >= 0.5 ORDER BY updated_at DESC LIMIT 30").catch(() => ({ rows: [] })),
-        // 6. Thread pinned memory
-        thread_id 
+        thread_id
           ? pool.query("SELECT label, origin FROM memory_working WHERE thread_id = $1 AND pinned = true ORDER BY updated_at ASC", [thread_id]).catch(() => ({ rows: [] }))
           : Promise.resolve({ rows: [] }),
-        // 7. Global system action library tools
         pool.query("SELECT id FROM action_library WHERE (visibility = 'workspace' OR is_system = true) AND COALESCE((runtime->>'orphan')::boolean, false) = false").catch(() => ({ rows: [] })),
-        // 8. Ready MCP client servers
-        pool.query("SELECT slug, name, tools_cache, auto_inject FROM mcp_client_servers WHERE enabled = true AND last_status = 'ready'").catch(() => ({ rows: [] }))
+        pool.query("SELECT slug, name, tools_cache, auto_inject FROM mcp_client_servers WHERE enabled = true AND last_status = 'ready'").catch(() => ({ rows: [] })),
       ]);
 
       availableModels = [...dbRes.rows];
-      
-      // Map standalone AI providers into model candidates
+
       for (const fp of fallbackProvidersRes.rows) {
-          if (!fp.model_id) continue;
-          availableModels.push({
-             model_pk: fp.provider_pk,
-             model_name: fp.provider_name + " (Provider Fallback)",
-             model_id: fp.model_id,
-             model_base_url: fp.base_url,
-             model_api_key: fp.secret_id,
-             system_prompt: "",
-             input_cost: 0,
-             output_cost: 0,
-             provider_id: fp.provider_pk,
-             provider_name: fp.provider_name,
-             priority: fp.priority || 50,
-             temperature: 0.7,
-             top_p: 0.85,
-             top_k: 40,
-             repetition_penalty: 1.1,
-             max_tokens: 4096,
-             context_window: 8192,
-             stop_sequences: [],
-             chat_template: "",
-             advanced: []
-          });
+        if (!fp.model_id) continue;
+        availableModels.push({
+          model_pk: fp.provider_pk,
+          model_name: fp.provider_name + " (Provider Fallback)",
+          model_id: fp.model_id,
+          model_base_url: fp.base_url,
+          model_api_key: fp.secret_id,
+          system_prompt: "",
+          input_cost: 0,
+          output_cost: 0,
+          provider_id: fp.provider_pk,
+          provider_name: fp.provider_name,
+          priority: fp.priority || 50,
+          temperature: 0.7,
+          top_p: 0.85,
+          top_k: 40,
+          repetition_penalty: 1.1,
+          max_tokens: 4096,
+          context_window: 8192,
+          stop_sequences: [],
+          chat_template: "",
+          advanced: [],
+        });
       }
 
       if (availableModels.length === 0) {
-         console.error("[Orchestrate] FATAL: No active AI provider/model found in DB!");
-         throw new Error("No active AI provider/model found in DB.");
+        console.error("[Orchestrate] FATAL: No active AI provider/model found in DB!");
+        throw new Error("No active AI provider/model found in DB.");
       }
 
-      console.log(`\n===========================================`);
-      console.log(`[Orchestrate] Request Model ID: ${model}, UI Routing Mode: ${routing_mode}, Effort: ${effort}`);
-
-      // Fetch global system routing policy
+      // Fetch global routing policy
       let sysRoutingMode = "failover";
       let allowOverride = true;
       let overrideAudience = "everyone";
@@ -830,49 +222,41 @@ export async function mountChatOrchestrateRoutes(app, deps) {
       let overrideUsers = [];
       let overrideRoles = ["Admin", "Operator"];
       try {
-          if (rRow.rows.length > 0 && rRow.rows[0].value) {
-              const parsedConfig = typeof rRow.rows[0].value === 'string' ? JSON.parse(rRow.rows[0].value) : rRow.rows[0].value;
-              sysRoutingMode = parsedConfig.mode || "failover";
-              if (parsedConfig.allowUserOverride === false) allowOverride = false;
-              overrideAudience = parsedConfig.overrideAudience || "everyone";
-              overrideGroups = Array.isArray(parsedConfig.overrideGroups) ? parsedConfig.overrideGroups : [];
-              overrideUsers = Array.isArray(parsedConfig.overrideUsers) ? parsedConfig.overrideUsers : [];
-              overrideRoles = Array.isArray(parsedConfig.overrideRoles) ? parsedConfig.overrideRoles : ["Admin", "Operator"];
-          }
-      } catch(e) { }
+        if (rRow.rows.length > 0 && rRow.rows[0].value) {
+          const parsedConfig = typeof rRow.rows[0].value === "string" ? JSON.parse(rRow.rows[0].value) : rRow.rows[0].value;
+          sysRoutingMode = parsedConfig.mode || "failover";
+          if (parsedConfig.allowUserOverride === false) allowOverride = false;
+          overrideAudience = parsedConfig.overrideAudience || "everyone";
+          overrideGroups = Array.isArray(parsedConfig.overrideGroups) ? parsedConfig.overrideGroups : [];
+          overrideUsers = Array.isArray(parsedConfig.overrideUsers) ? parsedConfig.overrideUsers : [];
+          overrideRoles = Array.isArray(parsedConfig.overrideRoles) ? parsedConfig.overrideRoles : ["Admin", "Operator"];
+        }
+      } catch (e) {}
 
-      // Enforce Identity (Groups/Users/Roles/Admin) Scope for Override
       if (allowOverride && !actorCtx?.isAdmin) {
-          if (overrideAudience === "admins") {
-              allowOverride = false;
-          } else if (overrideAudience === "users") {
-              const uName = String(actorCtx?.username || "").toLowerCase();
-              const allowedUsers = overrideUsers.map(u => String(u).toLowerCase());
-              if (!allowedUsers.includes(uName)) {
-                  allowOverride = false;
-              }
-          } else if (overrideAudience === "groups") {
-              const uGroups = (actorCtx?.groupIds || actorCtx?.groups || []).map(g => String(g).toLowerCase());
-              const allowedGroups = overrideGroups.map(g => String(g).toLowerCase());
-              const hasGroup = uGroups.some(g => allowedGroups.includes(g));
-              if (!hasGroup) {
-                  allowOverride = false;
-              }
-          } else if (overrideAudience === "roles") {
-              const userRole = (actorCtx?.role || "Viewer").toLowerCase();
-              const allowedLower = overrideRoles.map(r => String(r).toLowerCase());
-              if (!allowedLower.includes(userRole)) {
-                  allowOverride = false;
-              }
-          }
+        if (overrideAudience === "admins") {
+          allowOverride = false;
+        } else if (overrideAudience === "users") {
+          const uName = String(actorCtx?.username || "").toLowerCase();
+          const allowedUsers = overrideUsers.map((u) => String(u).toLowerCase());
+          if (!allowedUsers.includes(uName)) allowOverride = false;
+        } else if (overrideAudience === "groups") {
+          const uGroups = (actorCtx?.groupIds || actorCtx?.groups || []).map((g) => String(g).toLowerCase());
+          const allowedGroups = overrideGroups.map((g) => String(g).toLowerCase());
+          const hasGroup = uGroups.some((g) => allowedGroups.includes(g));
+          if (!hasGroup) allowOverride = false;
+        } else if (overrideAudience === "roles") {
+          const userRole = (actorCtx?.role || "Viewer").toLowerCase();
+          const allowedLower = overrideRoles.map((r) => String(r).toLowerCase());
+          if (!allowedLower.includes(userRole)) allowOverride = false;
+        }
       }
 
-      const finalRoutingMode = (routing_mode && allowOverride) ? routing_mode : sysRoutingMode;
-      console.log(`[Orchestrate] Final Routing Mode Applied: ${finalRoutingMode} (SysMode: ${sysRoutingMode}, OverrideAllowed: ${allowOverride}, Audience: ${overrideAudience})`);
+      const finalRoutingMode = routing_mode && allowOverride ? routing_mode : sysRoutingMode;
 
-      // 1.5. Policy Engine ROUTING / OUTPUT Chain Evaluation
+      // Policy Engine ROUTING / OUTPUT Evaluation
       let effectiveModel = model;
-      const userPromptOverview = String(message || (Array.isArray(messages) ? messages.map(m => typeof m.content === 'string' ? m.content : '').join("\n") : "")).trim();
+      const userPromptOverview = String(message || (Array.isArray(messages) ? messages.map((m) => (typeof m.content === "string" ? m.content : "")).join("\n") : "")).trim();
       try {
         const policyVerdict = await evaluatePolicyRules({
           pool,
@@ -907,11 +291,10 @@ export async function mountChatOrchestrateRoutes(app, deps) {
 
           if (policyVerdict.action === "route" && policyVerdict.target) {
             const targetMatched = availableModels.find(
-              m => m.model_pk === policyVerdict.target || m.model_id === policyVerdict.target || m.name?.toLowerCase() === policyVerdict.target.toLowerCase()
+              (m) => m.model_pk === policyVerdict.target || m.model_id === policyVerdict.target || m.name?.toLowerCase() === policyVerdict.target.toLowerCase()
             );
             if (targetMatched) {
               effectiveModel = targetMatched.model_id || targetMatched.model_pk;
-              console.log(`[PolicyEngine] Dynamically routed turn from model '${model}' to '${effectiveModel}' via Rule #${policyVerdict.seq}`);
             }
           }
         }
@@ -919,61 +302,47 @@ export async function mountChatOrchestrateRoutes(app, deps) {
         console.warn("[Orchestrate] Policy Engine evaluation notice:", policyErr.message);
       }
 
-      // Provider chain resolution
+      // Provider Chain Resolution
       let providerChain = [];
       if (finalRoutingMode === "manual_only" || finalRoutingMode === "single") {
-          const m = availableModels.find(m => m.model_pk === effectiveModel || m.model_id === effectiveModel);
-          if (m) providerChain.push(m);
+        const m = availableModels.find((m) => m.model_pk === effectiveModel || m.model_id === effectiveModel);
+        if (m) providerChain.push(m);
       } else if (finalRoutingMode === "cheapest_first" || finalRoutingMode === "cheapest") {
-          availableModels.sort((a, b) => (Number(a.input_cost) + Number(a.output_cost)) - (Number(b.input_cost) + Number(b.output_cost)));
-          providerChain = availableModels;
+        availableModels.sort((a, b) => Number(a.input_cost) + Number(a.output_cost) - (Number(b.input_cost) + Number(b.output_cost)));
+        providerChain = availableModels;
       } else if (finalRoutingMode === "round_robin") {
-          global._elaraRrIndex = (global._elaraRrIndex || 0) + 1;
-          const startIndex = global._elaraRrIndex % availableModels.length;
-          providerChain = [
-              ...availableModels.slice(startIndex),
-              ...availableModels.slice(0, startIndex)
-          ];
+        global._elaraRrIndex = (global._elaraRrIndex || 0) + 1;
+        const startIndex = global._elaraRrIndex % availableModels.length;
+        providerChain = [...availableModels.slice(startIndex), ...availableModels.slice(0, startIndex)];
       } else {
-          // Default: failover. Effective model first, then sorted by priority.
-          availableModels.sort((a, b) => Number(a.priority) - Number(b.priority));
-          const reqModel = availableModels.find(m => m.model_pk === effectiveModel || m.model_id === effectiveModel);
-          if (reqModel) providerChain.push(reqModel);
-          for (const m of availableModels) {
-              if (reqModel && m.model_pk === reqModel.model_pk) continue;
-              providerChain.push(m);
-          }
+        availableModels.sort((a, b) => Number(a.priority) - Number(b.priority));
+        const reqModel = availableModels.find((m) => m.model_pk === effectiveModel || m.model_id === effectiveModel);
+        if (reqModel) providerChain.push(reqModel);
+        for (const m of availableModels) {
+          if (reqModel && m.model_pk === reqModel.model_pk) continue;
+          providerChain.push(m);
+        }
       }
 
       if (providerChain.length === 0) {
-          throw new Error(`Model ${model} requested but not found or inactive, and routing mode is strict (${finalRoutingMode}).`);
+        throw new Error(`Model ${model} requested but not found or inactive, and routing mode is strict (${finalRoutingMode}).`);
       }
 
       prov = providerChain[0];
       const usedModel = prov.model_id || prov.model || model || "gpt-3.5-turbo";
       const sourceName = prov.provider_name || "Custom/Local";
 
-      console.log(`[Orchestrate] Primary Provider Selected: ${prov.model_name} (Backup count: ${providerChain.length - 1})`);
-      console.log(`[Orchestrate] Final URL: ${prov.model_base_url || prov.base_url}`);
-      console.log(`===========================================\n`);
-      
       send({ phase: "policy", meta: { source: `provider:${sourceName}`, model: usedModel } });
 
-      // 2.1. GenGuard Prompt-Injection & Blacklist Security Firewall
+      // 2.1. GenGuard Security Firewall
       try {
         const guardRows = guardRowsRes?.rows || [];
         if (guardRows.length > 0) {
           const userPromptText = messages
-            .map((m) =>
-              typeof m.content === "string"
-                ? m.content
-                : Array.isArray(m.content)
-                  ? m.content.map((c) => c.text || "").join(" ")
-                  : "",
-            )
+            .map((m) => (typeof m.content === "string" ? m.content : Array.isArray(m.content) ? m.content.map((c) => c.text || "").join(" ") : ""))
             .join("\n");
 
-          for (const rule of guardRows.rows) {
+          for (const rule of guardRows) {
             let matched = false;
             let matchReason = "";
 
@@ -998,7 +367,7 @@ export async function mountChatOrchestrateRoutes(app, deps) {
                   latencyMs: scanResult.latencyMs,
                   stream: "policy",
                 },
-                thread_id,
+                thread_id
               );
 
               if (scanResult.flagged) {
@@ -1006,12 +375,8 @@ export async function mountChatOrchestrateRoutes(app, deps) {
                 matchReason = scanResult.reason;
               }
             } else {
-              // Check input blacklist phrases (comma or newline separated)
               if (rule.input_blacklist) {
-                const blacklists = rule.input_blacklist
-                  .split(/[\n,]/)
-                  .map((s) => s.trim())
-                  .filter(Boolean);
+                const blacklists = rule.input_blacklist.split(/[\n,]/).map((s) => s.trim()).filter(Boolean);
                 for (const phrase of blacklists) {
                   if (phrase && userPromptText.toLowerCase().includes(phrase.toLowerCase())) {
                     matched = true;
@@ -1021,13 +386,9 @@ export async function mountChatOrchestrateRoutes(app, deps) {
                 }
               }
 
-              // Check regex output/input patterns
               if (!matched && rule.output_patterns) {
                 try {
-                  const patterns = rule.output_patterns
-                    .split("\n")
-                    .map((s) => s.trim())
-                    .filter(Boolean);
+                  const patterns = rule.output_patterns.split("\n").map((s) => s.trim()).filter(Boolean);
                   for (const pat of patterns) {
                     const reg = new RegExp(pat, "i");
                     if (reg.test(userPromptText)) {
@@ -1036,9 +397,7 @@ export async function mountChatOrchestrateRoutes(app, deps) {
                       break;
                     }
                   }
-                } catch (regErr) {
-                  /* ignore invalid regex */
-                }
+                } catch (regErr) {}
               }
             }
 
@@ -1056,7 +415,7 @@ export async function mountChatOrchestrateRoutes(app, deps) {
                   reason: matchReason,
                   stream: "policy",
                 },
-                thread_id,
+                thread_id
               );
 
               if (ruleAction === "deny") {
@@ -1079,7 +438,7 @@ export async function mountChatOrchestrateRoutes(app, deps) {
                     userPromptText.slice(0, 100),
                     `GenGuard Rule #${rule.seq || 10}: ${matchReason}`,
                     JSON.stringify({ prompt: userPromptText, reason: matchReason, rule: rule.name }),
-                    actorCtx?.tenantId || "default"
+                    actorCtx?.tenantId || "default",
                   ]
                 ).catch(() => {});
 
@@ -1092,24 +451,20 @@ export async function mountChatOrchestrateRoutes(app, deps) {
               }
 
               if (ruleAction === "allow") {
-                // First-match-wins explicit allow whitelist
                 break;
               }
-
-              // If action is "log", continue evaluating subsequent rules in chain
             }
           }
         }
       } catch (guardErr) {
         console.warn("[Orchestrate] GenGuard evaluation notice:", guardErr.message);
       }
-      
-      // 3. Format messages and multimodal / document support (Hybrid Storage Resolution)
+
+      // 3. Format messages and Multimodal / Document Attachment Resolution
       const formattedMessages = [];
       for (const m of messages) {
         let safeRole = m.role || "user";
         if (safeRole === "agent") safeRole = "assistant";
-
         let safeContent = m.content || m.text || "";
 
         if (Array.isArray(m.content)) {
@@ -1120,20 +475,20 @@ export async function mountChatOrchestrateRoutes(app, deps) {
               block.image_url?.url &&
               (block.image_url.url.startsWith("/api/uploads/") || !block.image_url.url.startsWith("data:"))
             ) {
-              const res = await resolveAttachmentForLlm(
+              const r = await resolveAttachmentForLlm(
                 { url: block.image_url.url, kind: "image" },
                 { pool, extractFileContent: deps.extractFileContent }
               );
-              if (res) resolvedBlocks.push(res);
+              if (r) resolvedBlocks.push(r);
               else resolvedBlocks.push(block);
             } else if (block.type === "file" || block.file) {
               const fileData = block.file?.file_data || block.file?.url || block.url;
               const fileName = block.file?.filename || block.filename || "document";
-              const res = await resolveAttachmentForLlm(
+              const r = await resolveAttachmentForLlm(
                 { url: fileData, name: fileName, kind: "file" },
                 { pool, extractFileContent: deps.extractFileContent }
               );
-              if (res) resolvedBlocks.push(res);
+              if (r) resolvedBlocks.push(r);
               else resolvedBlocks.push({ type: "text", text: `[Attached Document: ${fileName}]` });
             } else {
               resolvedBlocks.push(block);
@@ -1143,8 +498,8 @@ export async function mountChatOrchestrateRoutes(app, deps) {
         } else if (Array.isArray(m.files) && m.files.length > 0) {
           const resolvedBlocks = [];
           for (const f of m.files) {
-            const res = await resolveAttachmentForLlm(f, { pool, extractFileContent: deps.extractFileContent });
-            if (res) resolvedBlocks.push(res);
+            const r = await resolveAttachmentForLlm(f, { pool, extractFileContent: deps.extractFileContent });
+            if (r) resolvedBlocks.push(r);
           }
           if (typeof safeContent === "string" && safeContent.trim()) {
             resolvedBlocks.push({ type: "text", text: safeContent });
@@ -1154,91 +509,25 @@ export async function mountChatOrchestrateRoutes(app, deps) {
 
         formattedMessages.push({
           role: safeRole,
-          content: safeContent
+          content: safeContent,
         });
       }
 
-      // 3.1. Master System Directives (Sovereignty, Tri-Tier Autonomy, MetaForge, Search & Honesty)
-      const masterDirectives = [
-        `[SOVEREIGN CORE DIRECTIVE]: You are ELARA, an enterprise-grade autonomous AI engine. You operate with absolute technical accuracy, intelligence, zero guessing, and adaptive execution.`,
-        `[LANGUAGE & RESPONSE DIRECTIVE]: Respond in the same language as the user's prompt (e.g. Turkish if the user writes in Turkish), UNLESS explicitly overridden by [THREAD CONTEXT], standing instructions, an active agent persona, or a direct language request from the user. Maintain a clear, professional, and structured tone.`,
-        `[DECISION HIERARCHY & TASK ROUTING]:
-When the user asks you a question or assigns a task, intelligently apply the following 3-tier decision framework:
+      // 4. Construct Master Directives & Memory Layer
+      const masterDirectives = buildMasterDirectives({
+        threadContext,
+        useRag,
+        web_search,
+        agent_id,
+        factRes,
+        pinnedRes,
+        prov,
+        effort,
+        emitDebug,
+        thread_id,
+      });
 
-1. TIER 1 — NATIVE REASONING & COMPUTATION (Solve Instantly in <think>):
-   - For algorithmic logic, subnetting / IP CIDR calculations, mathematical equations, data structure transformations, text/code refactoring, regex synthesis, and RFC standard derivations:
-   - YOU DO NOT NEED AN EXTERNAL TOOL OR METAFORGE.
-   - Use your internal deep reasoning (<think>) to solve the problem with 100% mathematical precision and answer immediately.
-
-2. TIER 2 — LIVE INFORMATION & WEB SEARCH (Use 'sys_web_search'):
-   - For current events, public news, documentation lookup, general web queries, or factual real-time search:
-   - Use 'sys_web_search' to query the live internet via search engines (Tavily / SearXNG / DuckDuckGo).
-
-3. TIER 3 — SPECIALIZED CAPABILITIES, WORKFLOWS, CHAINS & METAFORGE:
-   - For live network socket checks (SSL, DNS probe), private/public API interactions (Docker Hub, CoinGecko, GitHub, Jira), device integrations, custom Python scripts, or ANY request to CREATE/SYNTHESIZE a new tool, skill, agent, automated WORKFLOW (DAG), or ORCHESTRATION CHAIN:
-   - First, inspect your catalog via 'sys_get_directory' to see if existing tools or workflows can satisfy the request.
-   - If the user asks to CREATE, SYNTHESIZE, or REGISTER a new tool, skill, agent, workflow (DAG), or orchestration chain (or if required capabilities are missing), you MUST CALL 'sys_delegate_to_metaforge' with a detailed 'intent' explaining the pipeline, workflows, and branch logic.
-   - NEVER fabricate or invent a fake plan ID (e.g. 'mf_...') in text without calling 'sys_delegate_to_metaforge'. An approval card is ONLY generated when you invoke the 'sys_delegate_to_metaforge' function.
-
-[HONESTY & ANTI-HALLUCINATION MANDATE]:
-- NEVER invent, simulate, or hallucinate dynamic external state (such as live trading prices, live API responses, live socket certificates, or remote hardware states) without executing a tool.
-- If a tool or web search execution fails or returns an error, report the failure honestly. NEVER pretend a failed tool succeeded.
-- When asked about existing workflows, pipelines, orchestrations, tools, or agents in the system, use 'sys_get_directory' to inspect the actual registered records.
-- Report exact artifact names and IDs from the directory or MetaForge plan. NEVER invent or hallucinate alternative names for registered workflows, chains, or tools.
-
-[METAFORGE PRESENTATION & ARTIFACT NAMING DIRECTIVE]:
-- When presenting proposed capabilities or created workflows/tools to the user in chat (and answering what was created):
-  * Use the human 'name' (e.g. "SSL Expiry Monitor Workflow") as the primary title in text and tables.
-  * In tables, include the human name in the 'İsim' (Name) column and the technical identifier in the 'ID / Slug' column (e.g. 'ssl-monitor-workflow' or 'wf_ssl-monitor-workflow').
-  * When referring to a workflow in conversation, use its human display name so it matches 1:1 with what the user sees on the '/flows' Canvas tab and in the Studio catalog.
-
-[DIAGRAM & FLOW FORMATTING DIRECTIVE]:
-- When illustrating execution pipelines, logic branches, sequence steps, or architecture flows:
-  * NEVER use raw LaTeX math formulas or symbols (e.g. \\rightarrow, \\leftarrow, \\text{...}, \\begin{cases}, \\end{cases}) for procedural workflows, decision trees, or sequences.
-  * For simple inline flows, use clean Unicode arrows (e.g. "Step A → Step B → Step C") or standard Markdown bullet lists.
-  * For complex branching pipelines or multi-stage architectures, provide a clean Mermaid flowchart using \`\`\`mermaid code fences so it renders interactively in the Studio UI.`,
-      ];
-
-      if (useRag && !agent_id) {
-        masterDirectives.push(`[ENTERPRISE RAG DIRECTIVE]: The Knowledge Hub (RAG) is active. You MUST use 'sys_get_directory' to discover expert 'Librarian' agents with access to internal documents, and use 'sys_delegate_to_agent' before answering questions requiring internal organizational knowledge. Do not hallucinate internal company data.`);
-      }
-
-      if (threadContext) {
-        masterDirectives.push(`[THREAD CONTEXT (STANDING INSTRUCTIONS & OVERRIDES)]: The following instructions are explicitly set by the operator for this conversation and MUST take precedence over standard response style defaults:\n${threadContext}`);
-      }
-
-      // 3.2. Inject Long-Term Semantic Facts & Memory
-      if (factRes && factRes.rows && factRes.rows.length > 0) {
-        const factsList = factRes.rows.map(f => `- [${f.scope.toUpperCase()}] ${f.key}: ${f.value}`);
-        masterDirectives.push(
-          `[LONG-TERM DECLARATIVE MEMORY & ORGANIZATIONAL FACTS]:\nThe following verified facts are stored in the system's long-term memory. Retain and respect them throughout the interaction:\n${factsList.join("\n")}`
-        );
-        emitDebug("debug", "memory.recall", `recalled ${factRes.rows.length} long-term facts`, { count: factRes.rows.length, stream: "memory" }, thread_id);
-      }
-
-      // 3.3. Inject Pinned Working Memory Blocks for this Thread
-      if (pinnedRes && pinnedRes.rows && pinnedRes.rows.length > 0) {
-        const pinnedList = pinnedRes.rows.map(p => `- ${p.label}`);
-        masterDirectives.push(
-          `[PINNED WORKING MEMORY (PERSISTENT CONTEXT)]:\n${pinnedList.join("\n")}`
-        );
-      }
-
-      if (prov && prov.think_enabled && prov.think_statement) {
-        masterDirectives.push(prov.think_statement);
-      }
-
-      if (effort === "high") {
-        masterDirectives.push(`[THINKING EFFORT: HIGH] You MUST engage in deep, multi-step deliberation before answering. Break down the problem, explore edge cases, verify your assumptions, and provide a highly detailed, comprehensive response. ALL your internal thoughts, brainstorming, and step-by-step logic MUST be strictly enclosed within <think> and </think> XML tags. Only output the final response to the user outside of these tags.`);
-      } else if (effort === "medium") {
-        masterDirectives.push(`[THINKING EFFORT: MEDIUM] Provide a balanced response. Think carefully but avoid unnecessary over-analysis. Deliver a well-reasoned and structured answer. Enclose any internal reasoning or scratchpad notes within <think> and </think> XML tags.`);
-      } else if (effort === "low") {
-        masterDirectives.push(`[THINKING EFFORT: LOW] Perform only a light reasoning pass. Keep your internal deliberation brief and provide a fast, concise answer. If you need to think, use <think> and </think> tags briefly.`);
-      } else if (effort === "none") {
-        masterDirectives.push(`[THINKING EFFORT: NONE] DO NOT perform any step-by-step reasoning or deliberation. DO NOT output any <think> tags. Provide your final answer instantly, using your immediate intuition. Be extremely direct and concise.`);
-      }
-
-      // @Agent Mention: If a specialized agent is targeted, inject the agent persona and system directives
+      // @Agent Persona Activation & Directives
       if (agent_id) {
         try {
           const agtRow = await pool.query(
@@ -1254,14 +543,12 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                 let spaceFileIds = null;
                 if (agt.rag_space_id) {
                   const spaceSrcRes = await pool.query(`SELECT id::text FROM knowledge_sources WHERE space_id = $1`, [agt.rag_space_id]);
-                  spaceFileIds = spaceSrcRes.rows.map(r => r.id);
+                  spaceFileIds = spaceSrcRes.rows.map((r) => r.id);
                 }
 
-                const parsedKeywords = agt.rag_keywords 
-                  ? agt.rag_keywords.split(',').map(k => k.trim()).filter(Boolean) 
-                  : [];
+                const parsedKeywords = agt.rag_keywords ? agt.rag_keywords.split(",").map((k) => k.trim()).filter(Boolean) : [];
+                const lastUserMsg = [...messages].reverse().find((m) => m.role === "user")?.content || "";
 
-                const lastUserMsg = [...messages].reverse().find(m => m.role === "user")?.content || "";
                 if (lastUserMsg) {
                   emitDebug("debug", "rag.search.start", `probing knowledge space for agent ${agt.name || agt.id}`, { agent_id: agt.id, stream: "rag" }, thread_id);
                   const ragOut = await ragProbeAndFetch({
@@ -1271,14 +558,14 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                     bindingFileIds: spaceFileIds,
                     bindingBrands: Array.isArray(agt.rag_brands) ? agt.rag_brands : [],
                     agentKeywords: parsedKeywords,
-                    caller: "agent-rag"
+                    caller: "agent-rag",
                   });
 
                   if (ragOut && ragOut.rows && ragOut.rows.length > 0) {
                     emitDebug("info", "rag.search.done", `retrieved ${ragOut.rows.length} chunks · top1=${ragOut.top1 || 0} · ${ragOut.stages?.totalMs || 0}ms`, { hits: ragOut.rows.length, top1: ragOut.top1, ms: ragOut.stages?.totalMs || 0, stream: "rag" }, thread_id);
                     let ragText = "[RAG KNOWLEDGE]\nHere is verified technical documentation retrieved from the knowledge base:\n\n";
-                    ragOut.rows.forEach(r => {
-                      ragText += `--- SOURCE: ${r.path || 'unknown'} ---\n${r.content}\n\n`;
+                    ragOut.rows.forEach((r) => {
+                      ragText += `--- SOURCE: ${r.path || "unknown"} ---\n${r.content}\n\n`;
                     });
                     masterDirectives.push(ragText);
                     masterDirectives.push("[RAG INSTRUCTION]: Use the verified knowledge in [RAG KNOWLEDGE] above as your primary technical authority. Synthesize this context with your domain expertise to provide complete, accurate, and ready-to-run CLI configuration blocks. Always provide full and valid configuration syntax.");
@@ -1288,31 +575,30 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                         sources: ragOut.rows.map((r, i) => ({
                           index: i + 1,
                           id: String(r.id || `chunk-${r.ord || i}`),
-                          name: r.path ? r.path.split('/').pop() : (r.name || "Document"),
+                          name: r.path ? r.path.split("/").pop() : r.name || "Document",
                           path: r.path || "",
                           brand: r.brand || agt.rag_brands?.[0] || "",
                           ord: r.ord ?? i + 1,
                           page: r.page_start || 1,
                           score: Math.round(Math.min(1, Number(r.score) || 0) * 100),
-                          snippet: String(r.content || "").slice(0, 300)
+                          snippet: String(r.content || "").slice(0, 300),
                         })),
                         debug: {
                           queryClean: lastUserMsg,
                           probe: {
                             top1: ragOut.top1 || 0,
-                            ms: ragOut.stages?.totalMs || 0
-                          }
+                            ms: ragOut.stages?.totalMs || 0,
+                          },
                         },
                         reranker: ragOut.reranker || { used: true, model: "BAAI/bge-reranker-base" },
-                        fallback: { brands: Array.isArray(agt.rag_brands) ? agt.rag_brands : [] }
-                      }
+                        fallback: { brands: Array.isArray(agt.rag_brands) ? agt.rag_brands : [] },
+                      },
                     });
 
-                    // Asynchronously record RAG telemetry in PostgreSQL
                     const principalName = actorCtx?.username || actorCtx?.user?.name || req.session?.username || "admin";
                     const pId = actorCtx?.userId || actorId || "admin";
                     const qId = `rq.${Date.now().toString(36)}.${Math.random().toString(36).slice(2, 6)}`;
-                    const uniqueDocs = new Set(ragOut.rows.map(r => r.path)).size;
+                    const uniqueDocs = new Set(ragOut.rows.map((r) => r.path)).size;
                     pool.query(
                       `INSERT INTO rag_queries (id, at, query, principal, principal_id, agent, spaces, blocked, docs, chunks, hit)
                        VALUES ($1, now(), $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10)`,
@@ -1322,13 +608,13 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                         principalName,
                         pId,
                         agt.name || agt.id || "Agent",
-                        JSON.stringify(agt.rag_space_id ? [agt.rag_space_id] : (Array.isArray(agt.rag_brands) ? agt.rag_brands : [])),
+                        JSON.stringify(agt.rag_space_id ? [agt.rag_space_id] : Array.isArray(agt.rag_brands) ? agt.rag_brands : []),
                         0,
                         uniqueDocs,
                         ragOut.rows.length,
-                        true
+                        true,
                       ]
-                    ).catch(err => console.warn("[RAG Telemetry] Failed to log query:", err.message));
+                    ).catch((err) => console.warn("[RAG Telemetry] Failed to log query:", err.message));
                   }
                 }
               } catch (ragError) {
@@ -1340,21 +626,21 @@ When the user asks you a question or assigns a task, intelligently apply the fol
           console.warn("[Orchestrate] Agent persona load failed:", e.message);
         }
       } else if (useRag === true || req.body?.useRag === true || req.body?.use_rag === true) {
-        // Universal RAG Fallback for non-agent or default model chats
+        // Universal General RAG Fallback
         try {
-          const lastUserMsg = [...messages].reverse().find(m => m.role === "user")?.content || "";
+          const lastUserMsg = [...messages].reverse().find((m) => m.role === "user")?.content || "";
           if (lastUserMsg) {
             emitDebug("debug", "rag.search.start", `probing knowledge space for general query`, { stream: "rag" }, thread_id);
             const ragOut = await ragProbeAndFetch({
               q: lastUserMsg,
               allowedLevels: null,
-              caller: "chat-rag"
+              caller: "chat-rag",
             });
             if (ragOut && ragOut.rows && ragOut.rows.length > 0) {
               emitDebug("info", "rag.search.done", `retrieved ${ragOut.rows.length} chunks · top1=${ragOut.top1 || 0} · ${ragOut.stages?.totalMs || 0}ms`, { hits: ragOut.rows.length, top1: ragOut.top1, ms: ragOut.stages?.totalMs || 0, stream: "rag" }, thread_id);
               let ragText = "[RAG KNOWLEDGE]\nHere is verified technical documentation retrieved from the knowledge base:\n\n";
-              ragOut.rows.forEach(r => {
-                ragText += `--- SOURCE: ${r.path || 'unknown'} ---\n${r.content}\n\n`;
+              ragOut.rows.forEach((r) => {
+                ragText += `--- SOURCE: ${r.path || "unknown"} ---\n${r.content}\n\n`;
               });
               masterDirectives.push(ragText);
               masterDirectives.push("[RAG INSTRUCTION]: Use the verified knowledge in [RAG KNOWLEDGE] above as your primary technical authority. Synthesize this context with your domain expertise to provide complete, accurate, and ready-to-run CLI configuration blocks. Always provide full and valid configuration syntax.");
@@ -1364,31 +650,30 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                   sources: ragOut.rows.map((r, i) => ({
                     index: i + 1,
                     id: String(r.id || `chunk-${r.ord || i}`),
-                    name: r.path ? r.path.split('/').pop() : (r.name || "Document"),
+                    name: r.path ? r.path.split("/").pop() : r.name || "Document",
                     path: r.path || "",
                     brand: r.brand || "",
                     ord: r.ord ?? i + 1,
                     page: r.page_start || 1,
                     score: Math.round(Math.min(1, Number(r.score) || 0) * 100),
-                    snippet: String(r.content || "").slice(0, 300)
+                    snippet: String(r.content || "").slice(0, 300),
                   })),
                   debug: {
                     queryClean: lastUserMsg,
                     probe: {
                       top1: ragOut.top1 || 0,
-                      ms: ragOut.stages?.totalMs || 0
-                    }
+                      ms: ragOut.stages?.totalMs || 0,
+                    },
                   },
                   reranker: ragOut.reranker || { used: true, model: "BAAI/bge-reranker-base" },
-                  fallback: { brands: [] }
-                }
+                  fallback: { brands: [] },
+                },
               });
 
-              // Asynchronously record RAG telemetry in PostgreSQL
               const principalName = actorCtx?.username || actorCtx?.user?.name || req.session?.username || "admin";
               const pId = actorCtx?.userId || actorId || "admin";
               const qId = `rq.${Date.now().toString(36)}.${Math.random().toString(36).slice(2, 6)}`;
-              const uniqueDocs = new Set(ragOut.rows.map(r => r.path)).size;
+              const uniqueDocs = new Set(ragOut.rows.map((r) => r.path)).size;
               pool.query(
                 `INSERT INTO rag_queries (id, at, query, principal, principal_id, agent, spaces, blocked, docs, chunks, hit)
                  VALUES ($1, now(), $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10)`,
@@ -1402,9 +687,9 @@ When the user asks you a question or assigns a task, intelligently apply the fol
                   0,
                   uniqueDocs,
                   ragOut.rows.length,
-                  true
+                  true,
                 ]
-              ).catch(err => console.warn("[RAG Telemetry] Failed to log query:", err.message));
+              ).catch((err) => console.warn("[RAG Telemetry] Failed to log query:", err.message));
             }
           }
         } catch (genRagErr) {
@@ -1412,266 +697,255 @@ When the user asks you a question or assigns a task, intelligently apply the fol
         }
       }
 
-      // Explicit Capability Mentions (/Tool, !Skill, #MCP): User explicitly attached tools/capabilities to this turn
+      // Explicit Capability Mentions
       const requestedTools = capabilities?.tools || [];
       const requestedSkills = capabilities?.skills || [];
       const requestedMcp = capabilities?.mcp || [];
-      const hasExplicitCapabilities = (requestedTools.length > 0) || (requestedSkills.length > 0) || (requestedMcp.length > 0) || Boolean(agent_id);
+      const hasExplicitCapabilities = requestedTools.length > 0 || requestedSkills.length > 0 || requestedMcp.length > 0 || Boolean(agent_id);
 
       if (requestedTools.length > 0 || requestedSkills.length > 0 || requestedMcp.length > 0) {
         const attachedList = [];
-        if (requestedTools.length > 0) attachedList.push(`Tools: [${requestedTools.join(', ')}]`);
-        if (requestedSkills.length > 0) attachedList.push(`Skills: [${requestedSkills.join(', ')}]`);
-        if (requestedMcp.length > 0) attachedList.push(`MCP Server/Tools: [${requestedMcp.join(', ')}]`);
-        masterDirectives.push(`[EXPLICIT USER ATTACHMENTS & CAPABILITY MANDATE]: The user has explicitly selected and attached the following capabilities to this turn: ${attachedList.join(' · ')}. You MUST execute the corresponding attached tool(s)/MCP functions to fulfill the request. NEVER substitute or bypass an attached MCP/Tool with a generic web fetch or approximation.`);
+        if (requestedTools.length > 0) attachedList.push(`Tools: [${requestedTools.join(", ")}]`);
+        if (requestedSkills.length > 0) attachedList.push(`Skills: [${requestedSkills.join(", ")}]`);
+        if (requestedMcp.length > 0) attachedList.push(`MCP Server/Tools: [${requestedMcp.join(", ")}]`);
+        masterDirectives.push(`[EXPLICIT USER ATTACHMENTS & CAPABILITY MANDATE]: The user has explicitly selected and attached the following capabilities to this turn: ${attachedList.join(" · ")}. You MUST execute the corresponding attached tool(s)/MCP functions to fulfill the request. NEVER substitute or bypass an attached MCP/Tool with a generic web fetch or approximation.`);
       }
 
-      // 4. Inject System Directives
       formattedMessages.unshift({
         role: "system",
-        content: masterDirectives.join("\n\n")
+        content: masterDirectives.join("\n\n"),
       });
 
       emitDebug("debug", "prompt.assembly", `assembled ${formattedMessages.length} message layers · directives merged`, { model: usedModel, stream: "prompt" }, thread_id);
 
-      // 3.5. Prepare Capabilities (Tools, Skills, MCP)
+      // 5. Capability Function Schemas & Tool Registry
       const openAiTools = [];
-      const toolMap = {}; // Map LLM-safe function names (e.g. tool_xyz) to canonical database IDs
+      const toolMap = {};
 
-      const systemToolIds = (systemToolsRes?.rows || []).map(r => r.id);
+      const systemToolIds = (systemToolsRes?.rows || []).map((r) => r.id);
       let finalToolIds = [...new Set([...requestedTools, ...requestedMcp, ...systemToolIds])];
 
       if (capabilities || finalToolIds.length > 0) {
-         try {
-             // 1. /Tool (Action Library): Both explicitly selected and Zero-Shot tools
-             const dbToolIds = finalToolIds.filter(id => !id.startsWith("mcp."));
-             if (dbToolIds.length > 0) {
-                 const cleanToolIds = dbToolIds.map(id => id.startsWith("tool.") ? id : `tool.${id}`);
-                 const bareToolIds = dbToolIds.map(id => id.replace(/^tool\./, ''));
-                 const allPossibleIds = [...new Set([...dbToolIds, ...cleanToolIds, ...bareToolIds])];
+        try {
+          const dbToolIds = finalToolIds.filter((id) => !id.startsWith("mcp."));
+          if (dbToolIds.length > 0) {
+            const cleanToolIds = dbToolIds.map((id) => (id.startsWith("tool.") ? id : `tool.${id}`));
+            const bareToolIds = dbToolIds.map((id) => id.replace(/^tool\./, ""));
+            const allPossibleIds = [...new Set([...dbToolIds, ...cleanToolIds, ...bareToolIds])];
 
-                 const toolRes = await pool.query(
-                   `SELECT id, name, description, params FROM action_library 
-                     WHERE (id = ANY($1) OR name = ANY($1)) 
-                       AND COALESCE((runtime->>'orphan')::boolean, false) = false`,
-                   [allPossibleIds]
-                 );
-                 for (const t of toolRes.rows) {
-                     const properties = {};
-                     const required = [];
-                     
-                     let tParams = [];
-                     try {
-                         tParams = typeof t.params === 'string' ? JSON.parse(t.params) : (t.params || []);
-                     } catch(e) {}
-                     
-                     if (Array.isArray(tParams)) {
-                         for (const p of tParams) {
-                             const pKey = p.key || p.name || p.id;
-                             if (!pKey) continue;
-                             properties[pKey] = { type: mapJsonSchemaType(p.type), description: p.description || p.label || "" };
-                             if (p.required) required.push(pKey);
-                         }
-                     } else if (typeof tParams === 'object' && tParams !== null) {
-                         for (const [k, v] of Object.entries(tParams)) {
-                             properties[k] = { type: mapJsonSchemaType(v), description: "" };
-                         }
-                     }
+            const toolRes = await pool.query(
+              `SELECT id, name, description, params FROM action_library 
+                WHERE (id = ANY($1) OR name = ANY($1)) 
+                  AND COALESCE((runtime->>'orphan')::boolean, false) = false`,
+              [allPossibleIds]
+            );
+            for (const t of toolRes.rows) {
+              const properties = {};
+              const required = [];
 
-                     const safeName = `tool_${t.id.replace(/[^a-zA-Z0-9_]/g, '_')}`;
-                     toolMap[safeName] = t.id;
+              let tParams = [];
+              try {
+                tParams = typeof t.params === "string" ? JSON.parse(t.params) : t.params || [];
+              } catch (e) {}
 
-                     openAiTools.push({
-                         type: "function",
-                         function: {
-                             name: safeName,
-                             description: t.description || t.name || "No description",
-                             parameters: {
-                                 type: "object",
-                                 properties,
-                                 required
-                             }
-                         }
-                     });
-                 }
-             }
+              if (Array.isArray(tParams)) {
+                for (const p of tParams) {
+                  const pKey = p.key || p.name || p.id;
+                  if (!pKey) continue;
+                  properties[pKey] = { type: mapJsonSchemaType(p.type), description: p.description || p.label || "" };
+                  if (p.required) required.push(pKey);
+                }
+              } else if (typeof tParams === "object" && tParams !== null) {
+                for (const [k, v] of Object.entries(tParams)) {
+                  properties[k] = { type: mapJsonSchemaType(v), description: "" };
+                }
+              }
 
-             // 2. !Skill (Skills table)
-             if (capabilities?.skills && capabilities.skills.length > 0) {
-                 const cleanSkillIds = capabilities.skills.map(id => id.startsWith("sk.") ? id : `sk.${id.replace(/^skill\./, '')}`);
-                 const bareSkillIds = capabilities.skills.map(id => id.replace(/^(sk\.|skill\.)/, ''));
-                 const allSkillIds = [...new Set([...capabilities.skills, ...cleanSkillIds, ...bareSkillIds])];
+              const safeName = `tool_${t.id.replace(/[^a-zA-Z0-9_]/g, "_")}`;
+              toolMap[safeName] = t.id;
 
-                 const skillRes = await pool.query(
-                   `SELECT id, name, description, params FROM skills WHERE id = ANY($1) AND enabled = true`,
-                   [allSkillIds]
-                 );
-                 for (const s of skillRes.rows) {
-                     const properties = {};
-                     const required = [];
-                     
-                     let sParams = [];
-                     try {
-                         sParams = typeof s.params === 'string' ? JSON.parse(s.params) : (s.params || []);
-                     } catch(e) {}
-                     
-                     if (Array.isArray(sParams)) {
-                         for (const p of sParams) {
-                             const pKey = p.key || p.name || p.id;
-                             if (!pKey) continue;
-                             properties[pKey] = { type: mapJsonSchemaType(p.type), description: p.description || p.label || "" };
-                             if (p.required) required.push(pKey);
-                         }
-                     } else if (typeof sParams === 'object' && sParams !== null) {
-                         for (const [k, v] of Object.entries(sParams)) {
-                             properties[k] = { type: mapJsonSchemaType(v), description: "" };
-                         }
-                     }
-
-                     const safeName = `skill_${s.id.replace(/[^a-zA-Z0-9_]/g, '_')}`;
-                     toolMap[safeName] = s.id;
-
-                     openAiTools.push({
-                         type: "function",
-                         function: {
-                             name: safeName,
-                             description: s.description || s.name || "No description",
-                             parameters: {
-                                 type: "object",
-                                 properties,
-                                 required
-                             }
-                         }
-                     });
-                 }
-             }
-             // 3. #MCP (MCP client servers tools - auto-injected for ready servers or explicitly requested)
-             for (const server of (mcpServerRes?.rows || [])) {
-                 const serverMcpId = `mcp.${server.slug}`;
-                 const isExplicitlyRequested = requestedMcp && requestedMcp.length > 0 && (
-                     requestedMcp.includes(serverMcpId) || requestedMcp.some(x => x.startsWith(`mcp.${server.slug}.`))
-                 );
-                 const shouldInject = server.auto_inject || isExplicitlyRequested || (!requestedMcp || requestedMcp.length === 0);
-
-                 const tools = Array.isArray(server.tools_cache) ? server.tools_cache : [];
-                 for (const t of tools) {
-                     const mcpId = `mcp.${server.slug}.${t.name}`;
-                     if (shouldInject || (requestedMcp && requestedMcp.includes(mcpId))) {
-                         const safeName = `tool_${mcpId.replace(/[^a-zA-Z0-9_]/g, '_')}`;
-                         toolMap[safeName] = mcpId;
-                         openAiTools.push({
-                             type: "function",
-                             function: {
-                                 name: safeName,
-                                 description: `[MCP: ${server.name}] ${t.description || t.name}`,
-                                 parameters: t.inputSchema || { type: "object", properties: {} }
-                             }
-                         });
-                     }
-                 }
-             }
-         } catch(err) {
-             console.warn("[Orchestrate] Failed to extract capability schemas:", err.message);
-         }
-      }
-
-      // 3.6. META-FORGE Autonomy & System Tools
-      // Inject zero-shot system tools for main conversational orchestrator (when not chatting with a specialized agent)
-      if (!agent_id || agent_id === "meta-forge" || (capabilities && (capabilities.tools?.length > 0 || capabilities.skills?.length > 0))) {
-        if (!toolMap["sys_get_directory"]) {
-            openAiTools.push({
+              openAiTools.push({
                 type: "function",
                 function: {
-                    name: "sys_get_directory",
-                    description: "Lists all available specialized agents, tools, skills, MCP servers, workflows, orchestrations, and webhooks in the system. Use this when you need to inspect existing capabilities, registered pipelines, or external endpoints.",
-                    parameters: {
-                        type: "object",
-                        properties: {
-                            intent: { type: "string", description: "What kind of agent/tool/workflow/webhook are you looking for?" }
-                        },
-                        required: []
-                    }
+                  name: safeName,
+                  description: t.description || t.name || "No description",
+                  parameters: {
+                    type: "object",
+                    properties,
+                    required,
+                  },
+                },
+              });
+            }
+          }
+
+          if (capabilities?.skills && capabilities.skills.length > 0) {
+            const cleanSkillIds = capabilities.skills.map((id) => (id.startsWith("sk.") ? id : `sk.${id.replace(/^skill\./, "")}`));
+            const bareSkillIds = capabilities.skills.map((id) => id.replace(/^(sk\.|skill\.)/, ""));
+            const allSkillIds = [...new Set([...capabilities.skills, ...cleanSkillIds, ...bareSkillIds])];
+
+            const skillRes = await pool.query(`SELECT id, name, description, params FROM skills WHERE id = ANY($1) AND enabled = true`, [allSkillIds]);
+            for (const s of skillRes.rows) {
+              const properties = {};
+              const required = [];
+
+              let sParams = [];
+              try {
+                sParams = typeof s.params === "string" ? JSON.parse(s.params) : s.params || [];
+              } catch (e) {}
+
+              if (Array.isArray(sParams)) {
+                for (const p of sParams) {
+                  const pKey = p.key || p.name || p.id;
+                  if (!pKey) continue;
+                  properties[pKey] = { type: mapJsonSchemaType(p.type), description: p.description || p.label || "" };
+                  if (p.required) required.push(pKey);
                 }
-            });
-            toolMap["sys_get_directory"] = "sys_get_directory";
+              } else if (typeof sParams === "object" && sParams !== null) {
+                for (const [k, v] of Object.entries(sParams)) {
+                  properties[k] = { type: mapJsonSchemaType(v), description: "" };
+                }
+              }
+
+              const safeName = `skill_${s.id.replace(/[^a-zA-Z0-9_]/g, "_")}`;
+              toolMap[safeName] = s.id;
+
+              openAiTools.push({
+                type: "function",
+                function: {
+                  name: safeName,
+                  description: s.description || s.name || "No description",
+                  parameters: {
+                    type: "object",
+                    properties,
+                    required,
+                  },
+                },
+              });
+            }
+          }
+
+          for (const server of mcpServerRes?.rows || []) {
+            const serverMcpId = `mcp.${server.slug}`;
+            const isExplicitlyRequested = requestedMcp && requestedMcp.length > 0 && (requestedMcp.includes(serverMcpId) || requestedMcp.some((x) => x.startsWith(`mcp.${server.slug}.`)));
+            const shouldInject = server.auto_inject || isExplicitlyRequested || !requestedMcp || requestedMcp.length === 0;
+
+            const tools = Array.isArray(server.tools_cache) ? server.tools_cache : [];
+            for (const t of tools) {
+              const mcpId = `mcp.${server.slug}.${t.name}`;
+              if (shouldInject || (requestedMcp && requestedMcp.includes(mcpId))) {
+                const safeName = `tool_${mcpId.replace(/[^a-zA-Z0-9_]/g, "_")}`;
+                toolMap[safeName] = mcpId;
+                openAiTools.push({
+                  type: "function",
+                  function: {
+                    name: safeName,
+                    description: `[MCP: ${server.name}] ${t.description || t.name}`,
+                    parameters: t.inputSchema || { type: "object", properties: {} },
+                  },
+                });
+              }
+            }
+          }
+        } catch (err) {
+          console.warn("[Orchestrate] Failed to extract capability schemas:", err.message);
+        }
+      }
+
+      // Zero-Shot System Tools Registration
+      if (!agent_id || agent_id === "meta-forge" || (capabilities && (capabilities.tools?.length > 0 || capabilities.skills?.length > 0))) {
+        if (!toolMap["sys_get_directory"]) {
+          openAiTools.push({
+            type: "function",
+            function: {
+              name: "sys_get_directory",
+              description: "Lists all available specialized agents, tools, skills, MCP servers, workflows, orchestrations, and webhooks in the system. Use this when you need to inspect existing capabilities, registered pipelines, or external endpoints.",
+              parameters: {
+                type: "object",
+                properties: {
+                  intent: { type: "string", description: "What kind of agent/tool/workflow/webhook are you looking for?" },
+                },
+                required: [],
+              },
+            },
+          });
+          toolMap["sys_get_directory"] = "sys_get_directory";
         }
 
         if (!toolMap["sys_delegate_to_agent"]) {
-            openAiTools.push({
-                type: "function",
-                function: {
-                    name: "sys_delegate_to_agent",
-                    description: "Delegates a specific sub-task to an expert agent by their ID (found via sys_get_directory). The sub-agent will work in the background and return the final report.",
-                    parameters: {
-                        type: "object",
-                        properties: {
-                            agent_id: { type: "string", description: "The ID of the target expert agent (e.g., 'agt.netsec')" },
-                            instructions: { type: "string", description: "Detailed prompt/instructions for the sub-agent to execute." }
-                        },
-                        required: ["agent_id", "instructions"]
-                    }
-                }
-            });
-            toolMap["sys_delegate_to_agent"] = "sys_delegate_to_agent";
+          openAiTools.push({
+            type: "function",
+            function: {
+              name: "sys_delegate_to_agent",
+              description: "Delegates a specific sub-task to an expert agent by their ID (found via sys_get_directory). The sub-agent will work in the background and return the final report.",
+              parameters: {
+                type: "object",
+                properties: {
+                  agent_id: { type: "string", description: "The ID of the target expert agent (e.g., 'agt.netsec')" },
+                  instructions: { type: "string", description: "Detailed prompt/instructions for the sub-agent to execute." },
+                },
+                required: ["agent_id", "instructions"],
+              },
+            },
+          });
+          toolMap["sys_delegate_to_agent"] = "sys_delegate_to_agent";
         }
 
         if (!toolMap["sys_delegate_to_metaforge"]) {
-            openAiTools.push({
-                type: "function",
-                function: {
-                    name: "sys_delegate_to_metaforge",
-                    description: "Triggers MetaForge (the autonomous engineer) to synthesize, generate, and propose new tools, skills, agents, automated Workflows (DAG), or Orchestration Chains. Call this whenever the user asks to create/register a new capability or multi-step workflow/chain into the system.",
-                    parameters: {
-                        type: "object",
-                        properties: {
-                            intent: { type: "string", description: "Detailed description of the tool, agent, workflow DAG, or orchestration chain you need created." }
-                        },
-                        required: ["intent"]
-                    }
-                }
-            });
-            toolMap["sys_delegate_to_metaforge"] = "sys_delegate_to_metaforge";
+          openAiTools.push({
+            type: "function",
+            function: {
+              name: "sys_delegate_to_metaforge",
+              description: "Triggers MetaForge (the autonomous engineer) to synthesize, generate, and propose new tools, skills, agents, automated Workflows (DAG), or Orchestration Chains. Call this whenever the user asks to create/register a new capability or multi-step workflow/chain into the system.",
+              parameters: {
+                type: "object",
+                properties: {
+                  intent: { type: "string", description: "Detailed description of the tool, agent, workflow DAG, or orchestration chain you need created." },
+                },
+                required: ["intent"],
+              },
+            },
+          });
+          toolMap["sys_delegate_to_metaforge"] = "sys_delegate_to_metaforge";
         }
 
         if (!toolMap["sys_execute_tool"]) {
-            openAiTools.push({
-                type: "function",
-                function: {
-                    name: "sys_execute_tool",
-                    description: "Executes a specific tool or MCP capability by its ID (found via sys_get_directory) autonomously. Pass the required parameters exactly as specified in the directory.",
-                    parameters: {
-                        type: "object",
-                        properties: {
-                            tool_id: { type: "string", description: "The ID of the target tool (e.g., 'tool.weather')" },
-                            params: { type: "object", description: "A JSON object containing the required arguments for the tool." }
-                        },
-                        required: ["tool_id", "params"]
-                    }
-                }
-            });
-            toolMap["sys_execute_tool"] = "sys_execute_tool";
+          openAiTools.push({
+            type: "function",
+            function: {
+              name: "sys_execute_tool",
+              description: "Executes a specific tool or MCP capability by its ID (found via sys_get_directory) autonomously. Pass the required parameters exactly as specified in the directory.",
+              parameters: {
+                type: "object",
+                properties: {
+                  tool_id: { type: "string", description: "The ID of the target tool (e.g., 'tool.weather')" },
+                  params: { type: "object", description: "A JSON object containing the required arguments for the tool." },
+                },
+                required: ["tool_id", "params"],
+              },
+            },
+          });
+          toolMap["sys_execute_tool"] = "sys_execute_tool";
         }
       }
 
       if (web_search && !toolMap["sys_web_search"]) {
-          openAiTools.push({
-              type: "function",
-              function: {
-                  name: "sys_web_search",
-                  description: "Performs a live internet search using DuckDuckGo to get up-to-date information, news, dates, and facts.",
-                  parameters: {
-                      type: "object",
-                      properties: {
-                          query: { type: "string", description: "The search query to look up on the internet." }
-                      },
-                      required: ["query"]
-                  }
-              }
-          });
-          toolMap["sys_web_search"] = "sys_web_search";
+        openAiTools.push({
+          type: "function",
+          function: {
+            name: "sys_web_search",
+            description: "Performs a live internet search using DuckDuckGo to get up-to-date information, news, dates, and facts.",
+            parameters: {
+              type: "object",
+              properties: {
+                query: { type: "string", description: "The search query to look up on the internet." },
+              },
+              required: ["query"],
+            },
+          },
+        });
+        toolMap["sys_web_search"] = "sys_web_search";
       }
-
-
 
       let maxIterations = 15;
       let iteration = 0;
@@ -1680,1033 +954,344 @@ When the user asks you a question or assigns a task, intelligently apply the fol
 
       // === RE-ACT AGENTIC LOOP START ===
       while (iteration < maxIterations && !isDone) {
-          iteration++;
+        iteration++;
 
-          emitDebug("info", "agent.step.start", `turn ${iteration} · routing=${finalRoutingMode} · provider=${prov.model_name}`, { iteration, model: usedModel, stream: "agent" }, thread_id);
+        emitDebug("info", "agent.step.start", `turn ${iteration} · routing=${finalRoutingMode} · provider=${prov.model_name}`, { iteration, model: usedModel, stream: "agent" }, thread_id);
 
-          if (iteration === 1) {
-              send({ phase: "streaming" });
-          } else {
-              send({ phase: "agent_loop", iteration });
-              console.log(`\n[Orchestrate] --- Agent Loop Start: Turn ${iteration} ---`);
-          }
+        if (iteration === 1) {
+          send({ phase: "streaming" });
+        } else {
+          send({ phase: "agent_loop", iteration });
+          console.log(`\n[Orchestrate] --- Agent Loop Start: Turn ${iteration} ---`);
+        }
 
-          let it = null;
-          let hopIndex = 0;
-          let hopError = null;
-          const userQueryStr = String(message || [...messages].reverse().find(m => m.role === "user")?.content || "").trim();
+        let it = null;
+        let hopIndex = 0;
+        let hopError = null;
+        const userQueryStr = String(message || [...messages].reverse().find((m) => m.role === "user")?.content || "").trim();
 
-          // Failover Retry Loop (Automatic Model Hopping)
-          while (hopIndex < providerChain.length) {
-              const currentProv = providerChain[hopIndex];
-              const targetModelKey = currentProv.model_id || currentProv.model || "default";
+        // Failover & Semantic Cache Resolution Loop
+        while (hopIndex < providerChain.length) {
+          const currentProv = providerChain[hopIndex];
+          const targetModelKey = currentProv.model_id || currentProv.model || "default";
 
-              // Semantic LLM Cache: check if this candidate model already has a valid cached answer
-              if (iteration === 1 && !hasExplicitCapabilities && userQueryStr.length > 2) {
-                  try {
-                      const qVec = await embed(userQueryStr).catch(() => null);
-                      const cacheHit = await getSemanticCache(qVec, userQueryStr, targetModelKey, 0.98);
-                      if (cacheHit && cacheHit.hit && cacheHit.response) {
-                          console.log(`[SemanticCache] ⚡ Cache HIT for model ${targetModelKey} (${cacheHit.source}, score=${cacheHit.score})`);
-                          const totalMs = Date.now() - t0;
-                          const tokenCount = Math.max(1, Math.round(cacheHit.response.length / 4));
-                          send({
-                              type: "out",
-                              delta: cacheHit.response,
-                              text: cacheHit.response,
-                              meta: {
-                                  source: `cache:${cacheHit.source}`,
-                                  providerName: currentProv.model_name || targetModelKey,
-                                  cached: true,
-                                  score: cacheHit.score,
-                              }
-                          });
-                          send({
-                              latency: {
-                                  ttftMs: totalMs,
-                                  totalMs,
-                                  tokensOut: tokenCount,
-                                  modelOut: targetModelKey,
-                              }
-                          });
-                          send({ type: "done" });
-                          close();
-                          return;
-                      }
-                  } catch (cErr) {
-                      // non-blocking fallback to live inference
-                  }
+          if (iteration === 1 && !hasExplicitCapabilities && userQueryStr.length > 2) {
+            try {
+              const qVec = await embed(userQueryStr).catch(() => null);
+              const cacheHit = await getSemanticCache(qVec, userQueryStr, targetModelKey, 0.98);
+              if (cacheHit && cacheHit.hit && cacheHit.response) {
+                console.log(`[SemanticCache] ⚡ Cache HIT for model ${targetModelKey} (${cacheHit.source}, score=${cacheHit.score})`);
+                const totalMs = Date.now() - t0;
+                const tokenCount = Math.max(1, Math.round(cacheHit.response.length / 4));
+                send({
+                  type: "out",
+                  delta: cacheHit.response,
+                  text: cacheHit.response,
+                  meta: {
+                    source: `cache:${cacheHit.source}`,
+                    providerName: currentProv.model_name || targetModelKey,
+                    cached: true,
+                    score: cacheHit.score,
+                  },
+                });
+                send({
+                  latency: {
+                    ttftMs: totalMs,
+                    totalMs,
+                    tokensOut: tokenCount,
+                    modelOut: targetModelKey,
+                  },
+                });
+                send({ type: "done" });
+                close();
+                return;
               }
-              try {
-                  if (hopIndex > 0) {
-                      console.log(`[Orchestrate] ⚠️ Fallback Hop triggered! Switching to Provider: ${currentProv.model_name}`);
-                      const fallbackModelStr = currentProv.model_id || currentProv.model || "gpt-3.5-turbo";
-                      const fallbackSourceName = currentProv.provider_name || "Custom/Local";
-                      send({ phase: "policy", meta: { source: `provider:${fallbackSourceName}`, model: fallbackModelStr } });
-                  }
-                  
-                  // Adaptive Effort: Turn 1 uses user effort; Turn 2+ adapts to 'none' to avoid redundant deliberation
-                  const turnEffort = iteration === 1 ? effort : "none";
-                  it = await streamFromProvider({
-                      provider: currentProv,
-                      messages: formattedMessages,
-                      tools: openAiTools.length > 0 ? openAiTools : undefined,
-                      signal: requestAbort.signal,
-                      effort: turnEffort
-                  });
-                  
-                  finalProviderUsed = currentProv;
-                  break;
-              } catch (err) {
-                  hopError = err;
-                  console.error(`[Orchestrate] ❌ Provider ${currentProv.model_name} failed:`, err.stack || err.message);
-                  hopIndex++;
-              }
+            } catch (cErr) {}
           }
-
-          if (!it) {
-              throw new Error(`All providers in the routing chain failed. Last error: ${hopError?.message}`);
-          }
-
-          let assembled = "";
-          let assembledThinking = "";
-          let chunkCount = 0;
-          let toolCallsBuffer = {};
-
-          console.log(`[Orchestrate] Stream reading started (Turn ${iteration})...`);
 
           try {
-            for await (const piece of it) {
-              if (!tFirstToken && iteration === 1) {
-                tFirstToken = Date.now();
-                const ttftMs = tFirstToken - t0;
-                console.log(`[Orchestrate] First token received! (${ttftMs}ms)`);
-                emitDebug("debug", "model.first_token", `TTFT ${ttftMs}ms · model=${usedModel}`, { ms: ttftMs, model: usedModel, stream: "model" }, thread_id);
-              }
-
-              chunkCount++;
-
-              try {
-                 const parsedPiece = JSON.parse(piece);
-
-                 if (parsedPiece.type === "tool_call_delta") {
-                     const delta = parsedPiece.delta;
-                     let idx = delta.index;
-                     
-                     // Google Compatibility Fix: Google omits "index" but sends a unique "id".
-                     if (idx === undefined) {
-                         if (delta.id) {
-                             const existingIdx = Object.keys(toolCallsBuffer).find(k => toolCallsBuffer[k].id === delta.id);
-                             if (existingIdx !== undefined) {
-                                 idx = Number(existingIdx);
-                             } else {
-                                 idx = Object.keys(toolCallsBuffer).length;
-                             }
-                         } else {
-                             const lastIdx = Math.max(0, Object.keys(toolCallsBuffer).length - 1);
-                             const lastTool = toolCallsBuffer[lastIdx];
-                             
-                             if (delta.function?.name) {
-                                 if (lastTool && lastTool.function.arguments.length > 0) {
-                                     idx = lastIdx + 1;
-                                 } else {
-                                     idx = lastIdx;
-                                 }
-                             } else {
-                                 idx = lastIdx;
-                             }
-                         }
-                     }
-
-                     console.log(`[DEBUG] Received Tool Call Delta - Assigned Index: ${idx}, Payload:`, JSON.stringify(delta));
-
-                     if (!toolCallsBuffer[idx]) {
-                         toolCallsBuffer[idx] = { id: delta.id, type: "function", function: { name: "", arguments: "" } };
-                     }
-                     if (delta.id) toolCallsBuffer[idx].id = delta.id;
-                     if (delta.function?.name) toolCallsBuffer[idx].function.name += delta.function.name;
-                     if (delta.function?.arguments) toolCallsBuffer[idx].function.arguments += delta.function.arguments;
-                     // Google Compatibility: Keep extra_content for thought_signatures (Gemini Flash Lite etc)
-                     if (delta.extra_content) toolCallsBuffer[idx].extra_content = delta.extra_content;
-                 } else if (parsedPiece.type === "think") {
-                     assembledThinking += (parsedPiece.delta || "");
-                     send({ type: "think", delta: parsedPiece.delta });
-                 } else if (parsedPiece.type === "out") {
-                     assembled += parsedPiece.delta;
-                     // Dual output format for both delta and text listeners
-                     send({ type: "out", delta: parsedPiece.delta, text: parsedPiece.delta });
-                 }
-              } catch(e) {
-                 assembled += piece;
-                 send({ type: "out", delta: piece, text: piece });
-              }
+            if (hopIndex > 0) {
+              console.log(`[Orchestrate] ⚠️ Fallback Hop triggered! Switching to Provider: ${currentProv.model_name}`);
+              const fallbackModelStr = currentProv.model_id || currentProv.model || "gpt-3.5-turbo";
+              const fallbackSourceName = currentProv.provider_name || "Custom/Local";
+              send({ phase: "policy", meta: { source: `provider:${fallbackSourceName}`, model: fallbackModelStr } });
             }
-          } catch (streamError) {
-             if (requestAbort.signal.aborted || streamError.message?.includes("Aborted") || streamError.message?.includes("socket hang up")) {
-                console.log(`[Orchestrate] Stream intentionally stopped (STOP).`);
-                isDone = true;
-                break;
-             } else {
-                throw streamError;
-             }
+
+            const turnEffort = iteration === 1 ? effort : "none";
+            it = await streamFromProvider({
+              provider: currentProv,
+              messages: formattedMessages,
+              tools: openAiTools.length > 0 ? openAiTools : undefined,
+              signal: requestAbort.signal,
+              effort: turnEffort,
+              pool,
+            });
+
+            finalProviderUsed = currentProv;
+            break;
+          } catch (err) {
+            hopError = err;
+            console.error(`[Orchestrate] ❌ Provider ${currentProv.model_name} failed:`, err.stack || err.message);
+            hopIndex++;
           }
+        }
 
-          let toolCalls = Object.values(toolCallsBuffer);
+        if (!it) {
+          throw new Error(`All providers in the routing chain failed. Last error: ${hopError?.message}`);
+        }
 
-          // FALLBACK FOR LOCAL MODELS (Gemma 4, Mistral, LLaMA) emitting text-based tool calls:
-          if (toolCalls.length === 0 && assembled) {
-              // Pattern 1: <call:funcName key="val" key2="val2" /> or <call:funcName key="val">...</call:funcName>
-              const callMatches = [...assembled.matchAll(/<call:([a-zA-Z0-9_.-]+)([\s\S]*?)(?:\/>|>([\s\S]*?)<\/call:\1>|>)/gi)];
-              if (callMatches.length > 0) {
-                  for (const match of callMatches) {
-                      const rawTag = match[0];
-                      const funcName = match[1];
-                      const rawAttrs = match[2] || "";
-                      const innerText = match[3] || "";
-                      
-                      const argsObj = {};
-                      // Parse key="value" or key='value'
-                      const attrRegex = /([a-zA-Z0-9_-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g;
-                      let attrMatch;
-                      while ((attrMatch = attrRegex.exec(rawAttrs)) !== null) {
-                          const key = attrMatch[1];
-                          const val = attrMatch[2] ?? attrMatch[3] ?? attrMatch[4] ?? "";
-                          argsObj[key] = val;
-                      }
-                      if (innerText.trim() && !argsObj.query && !argsObj.intent && !argsObj.prompt && !argsObj.instructions) {
-                          if (funcName === "sys_delegate_to_metaforge") argsObj.intent = innerText.trim();
-                          else if (funcName === "sys_web_search") argsObj.query = innerText.trim();
-                          else if (funcName === "sys_delegate_to_agent") argsObj.instructions = innerText.trim();
-                      }
+        let assembled = "";
+        let assembledThinking = "";
+        let chunkCount = 0;
+        let toolCallsBuffer = {};
 
-                      toolCalls.push({
-                          id: `call_${Math.random().toString(36).substring(2, 9)}`,
-                          type: "function",
-                          function: {
-                              name: funcName,
-                              arguments: JSON.stringify(argsObj)
-                          }
-                      });
-                      
-                      // Strip the raw tag from the user-facing text
-                      assembled = assembled.replace(rawTag, "").trim();
+        console.log(`[Orchestrate] Stream reading started (Turn ${iteration})...`);
+
+        try {
+          for await (const piece of it) {
+            if (!tFirstToken && iteration === 1) {
+              tFirstToken = Date.now();
+              const ttftMs = tFirstToken - t0;
+              console.log(`[Orchestrate] First token received! (${ttftMs}ms)`);
+              emitDebug("debug", "model.first_token", `TTFT ${ttftMs}ms · model=${usedModel}`, { ms: ttftMs, model: usedModel, stream: "model" }, thread_id);
+            }
+
+            chunkCount++;
+
+            try {
+              const parsedPiece = JSON.parse(piece);
+
+              if (parsedPiece.type === "tool_call_delta") {
+                const delta = parsedPiece.delta;
+                let idx = delta.index;
+
+                if (idx === undefined) {
+                  if (delta.id) {
+                    const existingIdx = Object.keys(toolCallsBuffer).find((k) => toolCallsBuffer[k].id === delta.id);
+                    idx = existingIdx !== undefined ? Number(existingIdx) : Object.keys(toolCallsBuffer).length;
+                  } else {
+                    const lastIdx = Math.max(0, Object.keys(toolCallsBuffer).length - 1);
+                    const lastTool = toolCallsBuffer[lastIdx];
+                    if (delta.function?.name && lastTool && lastTool.function.arguments.length > 0) {
+                      idx = lastIdx + 1;
+                    } else {
+                      idx = lastIdx;
+                    }
                   }
-              }
-
-              // Pattern 2: <tool_call>\n{"name": "...", "arguments": {...}}\n</tool_call>
-              const toolCallBlockMatches = [...assembled.matchAll(/<tool_call>([\s\S]*?)<\/tool_call>/gi)];
-              if (toolCallBlockMatches.length > 0) {
-                  for (const match of toolCallBlockMatches) {
-                      const rawBlock = match[0];
-                      const rawJson = match[1].trim();
-                      try {
-                          const parsed = JSON.parse(rawJson);
-                          if (parsed.name) {
-                              toolCalls.push({
-                                  id: `call_${Math.random().toString(36).substring(2, 9)}`,
-                                  type: "function",
-                                  function: {
-                                      name: parsed.name,
-                                      arguments: typeof parsed.arguments === "object" ? JSON.stringify(parsed.arguments) : String(parsed.arguments || "{}")
-                                  }
-                              });
-                              assembled = assembled.replace(rawBlock, "").trim();
-                          }
-                      } catch {}
-                  }
-              }
-          }
-          
-          // CRITICAL FIX 1: Ensure every tool call has an ID (Local models like Gemma 4 might omit it, causing socket hang up)
-          // CRITICAL FIX 2: Share Google's thought_signature across parallel tool calls to prevent 400 INVALID_ARGUMENT
-          let sharedThoughtSignature = null;
-          for (const tc of toolCalls) {
-              if (!tc.id) {
-                  tc.id = `call_${Math.random().toString(36).substring(2, 9)}`;
-              }
-              if (tc.extra_content && tc.extra_content.thought_signature) {
-                  sharedThoughtSignature = tc.extra_content.thought_signature;
-              }
-          }
-          if (sharedThoughtSignature) {
-              for (const tc of toolCalls) {
-                  if (!tc.extra_content) tc.extra_content = {};
-                  tc.extra_content.thought_signature = sharedThoughtSignature;
-              }
-          }
-
-          console.log(`[Orchestrate] Stream completed (Turn ${iteration}). Total chunks: ${chunkCount}, Assembled length: ${assembled.length}, Tool calls: ${toolCalls.length}`);
-
-          if (toolCalls.length > 0) {
-              // 1. Notify UI: emit tool execution phase
-              send({ 
-                  phase: "tool_execution", 
-                  tools: toolCalls.map(t => {
-                      const fName = (t.function?.name || "").trim();
-                      let rId = toolMap[fName] || fName;
-                      if (!toolMap[fName] && toolMap[`tool_${fName}`]) {
-                          rId = toolMap[`tool_${fName}`];
-                      } else if (!toolMap[fName]) {
-                          const matched = Object.keys(toolMap).find(k => 
-                              toolMap[k].replace(/\./g, '_') === fName || 
-                              toolMap[k] === fName.replace(/_/g, '.') ||
-                              k === `tool_${fName.replace(/\./g, '_')}`
-                          );
-                          if (matched) rId = toolMap[matched];
-                      }
-                      return { id: t.id, name: rId };
-                  }) 
-              });
-
-              // 2. Append assistant tool calls to message history (OpenAI standard)
-              formattedMessages.push({
-                  role: "assistant",
-                  content: assembled || null,
-                  tool_calls: toolCalls
-              });
-
-              // 3. Execute tools sequentially and stream results to UI
-              for (const tc of toolCalls) {
-                  const funcName = (tc.function?.name || "").trim();
-                  const funcArgs = tc.function?.arguments || "";
-                  
-                  let realToolId = toolMap[funcName] || funcName;
-                  let isMapped = !!toolMap[funcName];
-
-                  if (!toolMap[funcName] && toolMap[`tool_${funcName}`]) {
-                      realToolId = toolMap[`tool_${funcName}`];
-                      isMapped = true;
-                  } else if (!toolMap[funcName]) {
-                      const matched = Object.keys(toolMap).find(k => 
-                          toolMap[k].replace(/\./g, '_') === funcName || 
-                          toolMap[k] === funcName.replace(/_/g, '.') ||
-                          k === `tool_${funcName.replace(/\./g, '_')}`
-                      );
-                      if (matched) {
-                          realToolId = toolMap[matched];
-                          isMapped = true;
-                      }
-                  }
-
-                  // Emit active tool status to UI
-                  send({ type: "tool_status", name: realToolId, status: "running" });
-
-                  let toolResultStr = "";
-                  const tStart = Date.now();
-                  let toolStatus = "completed";
-                  let toolDetail = undefined;
-
-                  try {
-                      const parsedArgs = JSON.parse(funcArgs || "{}");
-                      
-                      // META-FORGE: Autonomous Discovery and Sub-Agent Delegation
-                      if (realToolId === "sys_get_directory") {
-                          const { clause: agtClause, params: agtParams } = deps.buildVisibility(actorCtx, 1, 'owner_id');
-                          const { clause: actClause, params: actParams } = deps.buildVisibility(actorCtx, 1, 'owner_user_id');
-                          const { clause: skillClause, params: skillParams } = deps.buildVisibility(actorCtx, 1, 'owner_id');
-                          const { clause: wfClause, params: wfParams } = deps.buildVisibility(actorCtx, 1, 'owner_id');
-                          const { clause: orcClause, params: orcParams } = deps.buildVisibility(actorCtx, 1, 'owner_id');
-                          const { clause: whClause, params: whParams } = deps.buildVisibility(actorCtx, 1, 'owner_id');
-
-                          const [agtRes, actRes, skillRes, wfRes, orcRes, whRes, mcpRes] = await Promise.all([
-                             pool.query(`SELECT id, name, squad, description FROM agents WHERE ${agtClause}`, agtParams),
-                             pool.query(`SELECT id, name, category, description, params FROM action_library WHERE (${actClause}) AND is_system = false AND COALESCE((runtime->>'orphan')::boolean, false) = false`, actParams),
-                             pool.query(`SELECT id, name, description, params FROM skills WHERE enabled = true AND (${skillClause})`, skillParams),
-                             pool.query(`SELECT id, name, trigger, status FROM workflows WHERE ${wfClause} ORDER BY updated_at DESC`, wfParams),
-                             pool.query(`SELECT id, name, trigger, status FROM orchestrations WHERE ${orcClause} ORDER BY created_at DESC`, orcParams),
-                             pool.query(`SELECT id, name, slug, description, category, connection, enabled FROM webhooks WHERE enabled = true AND (${whClause}) ORDER BY created_at DESC`, whParams).catch(() => ({ rows: [] })),
-                             pool.query(`SELECT slug, name, tools_cache FROM mcp_client_servers WHERE enabled = true`).catch(() => ({ rows: [] }))
-                          ]);
-
-                          const standardTools = actRes.rows.map(t => {
-                             let pKeys = [];
-                             try {
-                               const p = typeof t.params === 'string' ? JSON.parse(t.params) : t.params;
-                               pKeys = Array.isArray(p) ? p.map(x => x.name || x.key || x.id) : (p && typeof p === 'object' ? Object.keys(p.properties || p) : []);
-                             } catch(e) {}
-                             return { id: t.id, name: t.name, desc: (t.description || "").slice(0, 120), params: pKeys };
-                          });
-                          const skillsList = skillRes.rows.map(s => {
-                             let pKeys = [];
-                             try {
-                               const p = typeof s.params === 'string' ? JSON.parse(s.params) : s.params;
-                               pKeys = Array.isArray(p) ? p.map(x => x.name || x.key || x.id) : (p && typeof p === 'object' ? Object.keys(p.properties || p) : []);
-                             } catch(e) {}
-                             return { id: s.id, name: s.name, desc: (s.description || "").slice(0, 120), params: pKeys };
-                          });
-                          const mcpTools = [];
-                          for (const server of mcpRes.rows) {
-                             const tools = Array.isArray(server.tools_cache) ? server.tools_cache : [];
-                             for (const t of tools) {
-                                mcpTools.push({
-                                   id: `mcp.${server.slug}.${t.name}`,
-                                   name: `[MCP: ${server.name}] ${t.name}`,
-                                   desc: (t.description || "").slice(0, 120),
-                                   params: t.inputSchema?.properties ? Object.keys(t.inputSchema.properties) : []
-                                });
-                             }
-                          }
-                          
-                          // If Web Search is enabled in UI, inject sys_web_search into directory discovery
-                          if (web_search) {
-                              standardTools.push({
-                                  id: "sys_web_search",
-                                  name: "Live Web Search",
-                                  desc: "Performs a live internet search using DuckDuckGo to get up-to-date information, news, dates, and facts.",
-                                  params: ["query"]
-                              });
-                          }
-
-                          toolResultStr = JSON.stringify({
-                              agents: agtRes.rows.map(a => ({ id: a.id, name: a.name, squad: a.squad, desc: (a.description || "").slice(0, 120) })),
-                              tools: [...standardTools, ...skillsList, ...mcpTools],
-                              workflows: wfRes.rows.map(w => ({ id: w.id, name: w.name, trigger: w.trigger, status: w.status })),
-                              orchestrations: orcRes.rows.map(o => ({ id: o.id, name: o.name, trigger: o.trigger, status: o.status })),
-                              webhooks: whRes.rows.map(w => ({ id: w.id, name: w.name, slug: w.slug, description: (w.description || "").slice(0, 120) })),
-                              message: "Directory loaded. Contains available agents, tools, skills, MCP servers, workflows, orchestrations, and webhooks."
-                          });
-                      } else if (realToolId === "sys_delegate_to_agent") {
-                          const targetAgentId = parsedArgs.agent_id;
-                          const targetInstructions = parsedArgs.instructions;
-
-                          const { clause: agtClause, params: agtParams } = deps.buildVisibility(actorCtx, 2, 'owner_id');
-                          const agtRow = await pool.query(
-                             `SELECT id, name, system_prompt, rag, rag_space_id, rag_brands, rag_keywords FROM agents WHERE id = $1 AND (${agtClause})`,
-                             [targetAgentId, ...agtParams]
-                          );
-                          if (agtRow.rows.length === 0) {
-                              toolResultStr = JSON.stringify({ error: `Agent ${targetAgentId} not found or you do not have permission to access it.` });
-                              toolStatus = "failed";
-                          } else {
-                              const subAgent = agtRow.rows[0];
-                              const subMessages = [
-                                  { role: "system", content: subAgent.system_prompt || "You are an expert sub-agent." },
-                                  { role: "user", content: targetInstructions }
-                              ];
-
-                              // Agentic RAG implementation
-                              if (subAgent.rag) {
-                                  try {
-                                      // 1. Resolve Space restriction into file IDs to strictly bound the retrieval
-                                      let spaceFileIds = null;
-                                      if (subAgent.rag_space_id) {
-                                          const spaceSrcRes = await pool.query(`SELECT id::text FROM knowledge_sources WHERE space_id = $1`, [subAgent.rag_space_id]);
-                                          spaceFileIds = spaceSrcRes.rows.map(r => r.id);
-                                          // If space has no files, spaceFileIds is [], which safely causes the ANY() clause in DB to match nothing.
-                                      }
-
-                                      // 2. Parse Comma-separated keywords
-                                      const parsedKeywords = subAgent.rag_keywords 
-                                          ? subAgent.rag_keywords.split(',').map(k => k.trim()).filter(Boolean) 
-                                          : [];
-
-                                      emitDebug("debug", "rag.search.start", `probing knowledge space for sub-agent ${subAgent.name || subAgent.id}`, { agent_id: subAgent.id, stream: "rag" }, thread_id);
-                                      // Call ragProbeAndFetch scoped to the sub-agent's allowed spaces/brands
-                                      const ragOut = await ragProbeAndFetch({
-                                          q: targetInstructions,
-                                          allowedLevels: null,
-                                          agentId: subAgent.id,
-                                          bindingFileIds: spaceFileIds, // STRICT SPACE BOUNDARY
-                                          bindingBrands: Array.isArray(subAgent.rag_brands) ? subAgent.rag_brands : [],
-                                          agentKeywords: parsedKeywords,
-                                          caller: "agentic-rag"
-                                      });
-
-                                      if (ragOut && ragOut.rows && ragOut.rows.length > 0) {
-                                          emitDebug("info", "rag.search.done", `retrieved ${ragOut.rows.length} chunks · top1=${ragOut.top1 || 0} · ${ragOut.stages?.totalMs || 0}ms`, { hits: ragOut.rows.length, top1: ragOut.top1, ms: ragOut.stages?.totalMs || 0, stream: "rag" }, thread_id);
-                                          let ragText = "[RAG KNOWLEDGE]\nHere is context retrieved from the organization's knowledge base:\n\n";
-                                          ragOut.rows.forEach(r => {
-                                              ragText += `--- SOURCE: ${r.path || 'unknown'} ---\n${r.content}\n\n`;
-                                          });
-                                          subMessages.push({ role: "system", content: ragText });
-
-                                          // Paint the RetrievalCard in the UI by sending the exact payload format UI expects
-                                          send({
-                                            rag: {
-                                              sources: ragOut.rows.map((r, i) => ({
-                                                  index: i + 1,
-                                                  name: r.path ? r.path.split('/').pop() : "chunk",
-                                                  path: r.path,
-                                                  ord: r.ord ?? 0,
-                                                  score: Math.round(Math.min(1, Number(r.score) || 0) * 100)
-                                              })),
-                                              debug: {
-                                                  queryClean: targetInstructions,
-                                                  probe: {
-                                                      top1: ragOut.top1 || 0,
-                                                      ms: ragOut.stages?.totalMs || 0
-                                                  }
-                                              },
-                                              reranker: ragOut.reranker || { used: false },
-                                              fallback: { brands: Array.isArray(subAgent.rag_brands) ? subAgent.rag_brands : [] }
-                                            }
-                                          });
-
-                                          // Asynchronously record RAG telemetry in PostgreSQL
-                                          const principalName = actorCtx?.username || actorCtx?.user?.name || req.session?.username || "admin";
-                                          const pId = actorCtx?.userId || actorId || "admin";
-                                          const qId = `rq.${Date.now().toString(36)}.${Math.random().toString(36).slice(2, 6)}`;
-                                          const uniqueDocs = new Set(ragOut.rows.map(r => r.path)).size;
-                                          pool.query(
-                                            `INSERT INTO rag_queries (id, at, query, principal, principal_id, agent, spaces, blocked, docs, chunks, hit)
-                                             VALUES ($1, now(), $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10)`,
-                                            [
-                                              qId,
-                                              targetInstructions,
-                                              principalName,
-                                              pId,
-                                              subAgent.name || subAgent.id || "Sub-Agent",
-                                              JSON.stringify(subAgent.rag_space_id ? [subAgent.rag_space_id] : (Array.isArray(subAgent.rag_brands) ? subAgent.rag_brands : [])),
-                                              0,
-                                              uniqueDocs,
-                                              ragOut.rows.length,
-                                              true
-                                            ]
-                                          ).catch(err => console.warn("[RAG Telemetry] Failed to log query:", err.message));
-                                      }
-                                  } catch (ragError) {
-                                      console.error(`[Orchestrate] Agentic RAG failed for agent ${subAgent.id}:`, ragError);
-                                  }
-                              }
-
-                              const subIt = await streamFromProvider({
-                                  provider: prov,
-                                  messages: subMessages,
-                                  tools: undefined,
-                                  signal: requestAbort.signal,
-                                  effort: "low"
-                              });
-                              
-                              let subAnswer = "";
-                              for await (const chunk of subIt) {
-                                  try {
-                                      const parsed = JSON.parse(chunk);
-                                      if (parsed.type === "out") subAnswer += (parsed.delta || "");
-                                  } catch(e) {}
-                              }
-                              
-                              if (!subAnswer || subAnswer.trim() === "") {
-                                  subAnswer = "[SYSTEM_WARNING: AGENT_FAILED_OR_EMPTY] The sub-agent returned no useful data. You MUST explicitly inform the user that the delegation failed.";
-                                  toolStatus = "failed";
-                              }
-
-                              toolResultStr = JSON.stringify({
-                                  agent: subAgent.name,
-                                  result: subAnswer
-                              });
-                          }
-                      } else if (realToolId === "sys_execute_tool") {
-                          const targetToolId = parsedArgs.tool_id || "";
-                          const targetParams = parsedArgs.params || {};
-
-                          // Resilient / Tolerant ID resolution (auto-resolve prefixes, safeNames, underscores)
-                          let canonicalId = targetToolId;
-                          let isAllowed = false;
-
-                          // Clean variations:
-                          // e.g. "skill_sk_system_health_synthesizer" -> "system-health-synthesizer"
-                          // e.g. "tool_tool_ssl_cert_probe" -> "ssl-cert-probe"
-                          const normalizedId = targetToolId
-                            .replace(/^(skill_|tool_|sk_|skill\.|tool\.|sk\.)+/gi, "")
-                            .replace(/_/g, '-');
-                          const dotId = targetToolId
-                            .replace(/^(skill_|tool_|sk_)+/gi, "")
-                            .replace(/_/g, '.');
-
-                          let isMcp = targetToolId.startsWith("mcp.") || dotId.startsWith("mcp.");
-                          let serverSlug = "";
-                          if (isMcp) {
-                              const cleanMcp = (targetToolId.startsWith("mcp.") ? targetToolId : dotId).slice(4);
-                              serverSlug = cleanMcp.split(".")[0];
-                              canonicalId = `mcp.${cleanMcp}`;
-                          } else if (targetToolId.includes(".") || dotId.includes(".")) {
-                              const firstPart = (targetToolId.includes(".") ? targetToolId : dotId).split(".")[0];
-                              const mcpServerCheck = await pool.query(
-                                  `SELECT slug FROM mcp_client_servers WHERE slug = $1 AND enabled = true`,
-                                  [firstPart]
-                              );
-                              if (mcpServerCheck.rows.length > 0) {
-                                  isMcp = true;
-                                  serverSlug = firstPart;
-                                  canonicalId = `mcp.${dotId}`;
-                              }
-                          }
-
-                          if (isMcp) {
-                              // It's an MCP tool
-                              const mcpRow = await pool.query(
-                                  `SELECT id FROM mcp_client_servers WHERE slug = $1 AND enabled = true`,
-                                  [serverSlug]
-                              );
-                              if (mcpRow.rows.length > 0) isAllowed = true;
-                          } else {
-                              // Check skills table (all variations: targetToolId, sk.<normalizedId>, normalizedId, etc.)
-                              const possibleSkillIds = [
-                                targetToolId,
-                                `sk.${normalizedId}`,
-                                `sk.${targetToolId}`,
-                                normalizedId,
-                                dotId
-                              ];
-                              const { clause: skillClause, params: skillParams } = deps.buildVisibility(actorCtx, 2, 'owner_id');
-                              const skillRow = await pool.query(
-                                  `SELECT id FROM skills WHERE id = ANY($1) AND enabled = true AND (${skillClause})`,
-                                  [possibleSkillIds, ...skillParams]
-                              );
-                              if (skillRow.rows.length > 0) {
-                                  isAllowed = true;
-                                  canonicalId = skillRow.rows[0].id;
-                              } else {
-                                  // Standard Tool: check all variations: targetToolId, tool.<normalizedId>, normalizedId, dotId
-                                  const possibleToolIds = [
-                                    targetToolId,
-                                    `tool.${normalizedId}`,
-                                    `tool.${dotId}`,
-                                    normalizedId,
-                                    dotId
-                                  ];
-                                  const { clause: actClause, params: actParams } = deps.buildVisibility(actorCtx, 2, 'owner_user_id');
-                                  const toolRow = await pool.query(
-                                     `SELECT id FROM action_library WHERE (id = ANY($1) OR name = ANY($1)) AND (${actClause}) AND is_system = false AND COALESCE((runtime->>'orphan')::boolean, false) = false`,
-                                     [possibleToolIds, ...actParams]
-                                  );
-                                  if (toolRow.rows.length > 0) {
-                                      isAllowed = true;
-                                      canonicalId = toolRow.rows[0].id;
-                                  }
-                              }
-                          }
-
-                          if (!isAllowed) {
-                              toolResultStr = JSON.stringify({ error: `Tool/MCP/Skill '${targetToolId}' not found, missing from disk (orphan), or permission denied.` });
-                              toolStatus = "failed";
-                          } else {
-                              const invokeRes = await invokeTool({
-                                  toolId: canonicalId,
-                                  params: targetParams,
-                                  sessionId: thread_id,
-                                  agentId: agent_id,
-                                  provider: finalProviderUsed || prov
-                              });
-
-                              let outputRes = invokeRes.output ?? invokeRes;
-                              if (!outputRes || (typeof outputRes === 'string' && outputRes.trim() === "") || (Array.isArray(outputRes) && outputRes.length === 0)) {
-                                  outputRes = "[SYSTEM_WARNING: TOOL_FAILED_OR_EMPTY] The execution returned no useful data. You MUST explicitly inform the user that it failed.";
-                                  toolStatus = "failed";
-                              }
-                              toolResultStr = JSON.stringify(outputRes);
-                              // Payload truncation guard: prevent excessive KV-cache inflation on large output payloads
-                              if (toolResultStr.length > 20000) {
-                                  const originalLen = toolResultStr.length;
-                                  const sample = toolResultStr.slice(0, 18000);
-                                  toolResultStr = `${sample}\n\n[SYSTEM NOTE: Output truncated from ${originalLen} chars to fit context safely. Summarize the findings based on the provided sample.]`;
-                              }
-                          }
-                      } else if (realToolId === "sys_delegate_to_metaforge") {
-                          const intentText = parsedArgs.intent;
-                          
-                          // Send a status update to the UI
-                          send({ phase: "meta_forge_planning", stage: "spawn" });
-
-                          // 1. Build Inventory
-                          let inventory = { agents: [], tools: [], skills: [], packs: [], counts: {} };
-                          try {
-                              inventory = await buildInventory(pool);
-                          } catch (invErr) {
-                              console.warn("meta_forge inventory error:", invErr);
-                          }
-                          
-                          // 2. Call the metaforge master agent
-                          let forgeAgentRes = await pool.query(`SELECT id, system_prompt FROM agents WHERE id = 'agt.forge_master' LIMIT 1`);
-                          
-                          // Auto-seed forge_master agent if missing or prompt is outdated
-                          if (forgeAgentRes.rows.length === 0 || !forgeAgentRes.rows[0].system_prompt.includes("ORCHESTRATION CHAIN & WORKFLOW ARCHITECTURAL INVARIANTS")) {
-                              try {
-                                  await ensureMetaForgeAgent(pool);
-                                  forgeAgentRes = await pool.query(`SELECT id, system_prompt FROM agents WHERE id = 'agt.forge_master' LIMIT 1`);
-                              } catch(e) {
-                                  console.warn("Failed to ensure forge_master:", e.message);
-                              }
-                          }
-                          
-                          if (forgeAgentRes.rows.length === 0) {
-                              toolResultStr = JSON.stringify({ error: "MetaForge master agent (agt.forge_master) not found in the system." });
-                              toolStatus = "failed";
-                          } else {
-                              // We explicitly inject the strictest possible constraint into the prompt
-                              // to prevent the LLM from outputting conversational filler.
-                              const forgeSysPrompt = (forgeAgentRes.rows[0].system_prompt || "You are MetaForge. Output valid JSON.") + "\n\nCRITICAL INSTRUCTION: Output ONLY a valid JSON object. Do NOT include ANY text, markdown, or code fences before or after the JSON. Start your response with { and end with }.";
-
-                              const forgeMessages = [
-                                  { role: "system", content: forgeSysPrompt },
-                                  { role: "user", content: `System Inventory:\n${JSON.stringify(inventory, null, 2)}\n\nGoal:\n${intentText}\n\nOutput a valid JSON containing a 'plan' object with 'create' and/or 'reuse' arrays. DO NOT USE MARKDOWN BLOCKS.` }
-                              ];
-
-                              const forgeProv = finalProviderUsed || prov;
-
-                              if (!forgeProv) {
-                                  toolResultStr = JSON.stringify({ error: "No provider found for MetaForge." });
-                                  toolStatus = "failed";
-                              } else {
-                                  // Use chat-orchestrate's native streamFromProvider to handle API keys and vault resolution properly
-                                  const subIt = await streamFromProvider({
-                                      provider: forgeProv,
-                                      messages: forgeMessages,
-                                      tools: undefined,
-                                      signal: requestAbort.signal,
-                                      effort: "none"
-                                  });
-
-                                  let subAnswer = "";
-                                  for await (const chunk of subIt) {
-                                      try {
-                                          const parsed = JSON.parse(chunk);
-                                          if (parsed.type === "out") subAnswer += (parsed.delta || "");
-                                      } catch(e) {
-                                          subAnswer += chunk;
-                                      }
-                                  }
-
-                                  // Debug: log what metaforge returned
-                                  console.log(`[MetaForge] Output:\n${subAnswer}`);
-
-                                  // 3. Parse and Validate the Plan
-                                  let obj = extractForgeJson ? extractForgeJson(subAnswer) : null;
-                                  let validated = null;
-                                  let validationError = null;
-
-                                  if (obj && obj.plan) {
-                                      try {
-                                          validated = validateForgePlan(obj.plan);
-                                      } catch (err) {
-                                          validationError = err.message;
-                                      }
-                                  } else {
-                                      validationError = "Failed to extract valid JSON plan object.";
-                                  }
-
-                                  // 4. One-turn Self-Healing Retry on Validation or JSON extraction failure
-                                  if (!validated) {
-                                      console.warn(`[MetaForge] Validation failed (${validationError}). Initiating self-healing retry...`);
-                                      const retryPrompt = obj && obj.plan 
-                                          ? `Your proposed JSON plan failed architectural validation: ${validationError}\n\nREMINDER: Orchestration Chains cannot directly contain 'tool' nodes. If creating an Orchestration Chain, you MUST synthesize each independent 'workflow' (DAG) FIRST in the 'create' array, and then connect them in the 'chain' object. Output the corrected, full JSON object now.`
-                                          : `Your output did not parse as a valid JSON plan object. Output ONLY a valid JSON object starting with { and ending with } containing {"intent": "...", "plan": {"create": [...], "reuse": [...]}}.`;
-
-                                      try {
-                                          const retryMessages = [
-                                              ...forgeMessages,
-                                              { role: "assistant", content: subAnswer },
-                                              { role: "user", content: retryPrompt }
-                                          ];
-                                          const retryIt = await streamFromProvider({
-                                              provider: forgeProv,
-                                              messages: retryMessages,
-                                              tools: undefined,
-                                              signal: requestAbort.signal,
-                                              effort: "none"
-                                          });
-
-                                          let retryAnswer = "";
-                                          for await (const chunk of retryIt) {
-                                              try {
-                                                  const parsed = JSON.parse(chunk);
-                                                  if (parsed.type === "out") retryAnswer += (parsed.delta || "");
-                                              } catch(e) {
-                                                  retryAnswer += chunk;
-                                              }
-                                          }
-                                          console.log(`[MetaForge] Self-Healing Output:\n${retryAnswer}`);
-                                          obj = extractForgeJson ? extractForgeJson(retryAnswer) : null;
-                                          if (obj && obj.plan) {
-                                              validated = validateForgePlan(obj.plan);
-                                              validationError = null;
-                                          }
-                                      } catch (retryErr) {
-                                          console.error("[MetaForge] Self-healing retry failed:", retryErr.message);
-                                      }
-                                  }
-
-                                  if (!validated) {
-                                      toolResultStr = JSON.stringify({ error: `MetaForge failed to generate a valid plan: ${validationError || subAnswer}` });
-                                      toolStatus = "failed";
-                                  } else {
-                                      try {
-                                          const requestedBy = actorCtx?.username || actorCtx?.user?.name || req.session?.username || (actorId && !actorId.includes("-") ? actorId : "admin");
-                                          
-                                          const ins = await pool.query(
-                                            `INSERT INTO forge_plans (id, actor, prompt, actions, status)
-                                             VALUES ($1, $2, $3, $4::jsonb, 'pending') RETURNING id`,
-                                            [`mf_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`, requestedBy, intentText, JSON.stringify(validated.create || [])]
-                                          );
-                                          const planId = ins.rows[0]?.id;
-
-                                          const planPayload = {
-                                              id: planId,
-                                              intent: intentText,
-                                              plan: validated,
-                                              status: "pending",
-                                              requestedBy,
-                                              autoApplied: false
-                                          };
-                                          
-                                          // Emit the approval card to UI
-                                          send({ forge_plan: planPayload });
-                                          
-                                          toolResultStr = JSON.stringify({
-                                              success: true,
-                                              message: "MetaForge plan synthesized and waiting for approval. Briefly list the proposed artifacts in a clean Markdown table (using columns: Tür, İsim, ID/Slug, Açıklama), state that an interactive approval card is provided below, and conclude your response so the user can review it.",
-                                              plan_id: planId,
-                                              proposed_artifacts: (validated.create || []).map(c => ({
-                                                  kind: c.kind,
-                                                  name: c.name || c.slug,
-                                                  slug: c.slug,
-                                                  description: c.description || ""
-                                              }))
-                                          });
-                                      } catch (valErr) {
-                                          toolResultStr = JSON.stringify({ error: `MetaForge generated an invalid plan: ${valErr.message}` });
-                                          toolStatus = "failed";
-                                      }
-                                  }
-                              }
-                          }
-                      } else if (realToolId === "sys_web_search") {
-                          const query = parsedArgs.query;
-                          try {
-                              const searchProvidersRes = await pool.query(
-                                  `SELECT provider_type, base_url, api_key_ref FROM search_providers WHERE active = true ORDER BY priority ASC`
-                              );
-                              const providers = searchProvidersRes.rows;
-                              
-                              let searchSuccess = false;
-                              let lastError = "";
-
-                              const currentDateInfo = `SYSTEM NOTE: Today is ${new Date().toDateString()}. Ignore older dates in search snippets if assessing current conditions.`;
-
-                              for (const sp of providers) {
-                                  try {
-                                      if (sp.provider_type === 'tavily') {
-                                          let apiKey = "dummy";
-                                          if (sp.api_key_ref) apiKey = await resolveCredential(pool, sp.api_key_ref, "api_key");
-                                          
-                                          const res = await fetch("https://api.tavily.com/search", {
-                                              method: "POST",
-                                              headers: { "Content-Type": "application/json" },
-                                              body: JSON.stringify({ api_key: apiKey, query, search_depth: "basic", max_results: 5 })
-                                          });
-                                          if (!res.ok) throw new Error(`Tavily error: ${res.status}`);
-                                          const data = await res.json();
-                                          toolResultStr = JSON.stringify({ _system: currentDateInfo, query, results: data.results, source: "tavily" });
-                                          searchSuccess = true;
-                                          break;
-                                      }
-                                      else if (sp.provider_type === 'searxng') {
-                                          const url = new URL(sp.base_url || "http://localhost:8080/search");
-                                          url.searchParams.set("q", query);
-                                          url.searchParams.set("format", "json");
-                                          const res = await fetch(url.toString());
-                                          if (!res.ok) throw new Error(`SearXNG error: ${res.status}`);
-                                          const data = await res.json();
-                                          const snippets = (data.results || []).slice(0, 5).map(r => r.content || r.title);
-                                          toolResultStr = JSON.stringify({ _system: currentDateInfo, query, results: snippets, source: "searxng" });
-                                          searchSuccess = true;
-                                          break;
-                                      }
-                                      else if (sp.provider_type === 'duckduckgo') {
-                                          const fetchRes = await fetch(sp.base_url || `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`);
-                                          if (!fetchRes.ok) throw new Error(`DDG error: ${fetchRes.status}`);
-                                          const html = await fetchRes.text();
-                                          const snippets = [...html.matchAll(/<a class="result__snippet[^>]*>(.*?)<\/a>/gi)]
-                                                            .map(m => m[1].replace(/<\/?[^>]+(>|$)/g, ""))
-                                                            .slice(0, 5);
-                                          if (snippets.length > 0) {
-                                              toolResultStr = JSON.stringify({ _system: currentDateInfo, query, results: snippets, source: "duckduckgo" });
-                                              searchSuccess = true;
-                                              break;
-                                          } else {
-                                              throw new Error("No results found in DDG HTML");
-                                          }
-                                      }
-                                  } catch (err) {
-                                      console.warn(`[Web Search] Provider ${sp.provider_type} failed:`, err.message);
-                                      lastError = err.message;
-                                      continue; // Fallback: try next provider in priority list
-                                  }
-                              }
-
-                              if (!searchSuccess) {
-                                  toolResultStr = JSON.stringify({ error: "Web search failed across all active providers. Last error: " + lastError });
-                                  toolStatus = "failed";
-                              }
-                          } catch(err) {
-                              toolResultStr = JSON.stringify({ error: "Web search engine failed: " + err.message });
-                              toolStatus = "failed";
-                          }
-                      } else if (isMapped) {
-                          // Invoke execution engine
-                          const invokeRes = await invokeTool({
-                              toolId: realToolId,
-                              params: parsedArgs,
-                              sessionId: thread_id,
-                              agentId: agent_id,
-                              provider: finalProviderUsed || prov
-                          });
-                          
-                          let outputRes = invokeRes.output ?? invokeRes;
-                          if (!outputRes || (typeof outputRes === 'string' && outputRes.trim() === "") || (Array.isArray(outputRes) && outputRes.length === 0)) {
-                               outputRes = "[SYSTEM_WARNING: TOOL_FAILED_OR_EMPTY] The tool executed but returned no useful data. You MUST explicitly inform the user that the tool failed.";
-                          }
-                          toolResultStr = JSON.stringify(outputRes);
-                      } else {
-                          toolResultStr = JSON.stringify({ error: "Tool execution failed: Unmapped capability name." });
-                          toolStatus = "failed";
-                          toolDetail = "Unmapped capability name.";
-                      }
-                  } catch (err) {
-                      console.error(`[Orchestrate] Tool execution error (${funcName}) - Real ID (${realToolId}):`, err.stack || err.message);
-                      toolResultStr = JSON.stringify({ error: err.message });
-                      toolStatus = "failed";
-                      toolDetail = err.message;
-                  }
-
-                  const durationMs = Date.now() - tStart;
-                  emitDebug("info", "tool.executed", `${realToolId} completed · ${durationMs}ms · status=${toolStatus}`, { tool: realToolId, ms: durationMs, status: toolStatus, stream: "skills" }, thread_id);
-                  const statusPayload = { type: "tool_status", name: realToolId, status: toolStatus, ms: durationMs || 10 };
-                  if (toolDetail) {
-                      statusPayload.detail = toolDetail;
-                  }
-                  
-                  send(statusPayload);
-
-                  // 4. Append tool result to conversation history
-                  formattedMessages.push({
-                      role: "tool",
-                      tool_call_id: tc.id,
-                      name: funcName,
-                      content: toolResultStr
-                  });
-              }
-
-              // Multi-turn continuation: loop back so LLM reviews tool results and synthesizes final answer
-
-          } else {
-              // Final turn: LLM produced final conversational answer
-              isDone = true;
-
-              // Asynchronously save to Semantic Cache only for single-turn direct conversational answers
-              const finalQuery = String(message || [...messages].reverse().find(m => m.role === "user")?.content || "").trim();
-              if (iteration === 1 && assembled && assembled.trim().length > 0 && finalQuery.length > 2 && !hasExplicitCapabilities) {
-                  (async () => {
-                      try {
-                          const qVec = await embed(finalQuery).catch(() => null);
-                          await setSemanticCache(qVec, finalQuery, assembled, { model: usedModelStr });
-                      } catch {}
-                  })();
-              }
-
-              const totalMs = Date.now() - t0;
-              const promptTokens = approxTokens ? approxTokens(formattedMessages.map(m => m.content).join("\n")) : 10;
-              const responseTokens = approxTokens ? approxTokens(assembled + assembledThinking) : 10;
-
-              emitDebug("info", "model.responded", `generation complete · ${chunkCount} chunks · ${totalMs}ms`, { ms: totalMs, model: usedModel, tokens: responseTokens, stream: "model" }, thread_id);
-              emitDebug("debug", "cost.spend", `estimated usage tokens prompt=${promptTokens} response=${responseTokens}`, { promptTokens, responseTokens, stream: "cost" }, thread_id);
-
-              // Telemetry, Costs & Quality Engine
-              const promptText = formattedMessages.map(m => typeof m.content === 'string' ? m.content : JSON.stringify(m.content)).join("\n");
-              const calculatedPromptTokens = approxTokens ? approxTokens(promptText) : Math.max(1, Math.round(promptText.length / 4));
-              const calculatedResponseTokens = approxTokens ? approxTokens(assembled + assembledThinking) : Math.max(1, Math.round((assembled + assembledThinking).length / 4));
-              const totalTokens = calculatedPromptTokens + calculatedResponseTokens;
-
-              const usedModelStr = finalProviderUsed?.model_id || finalProviderUsed?.model || model || "gpt-3.5-turbo";
-              const sourceNameStr = finalProviderUsed?.provider_name || finalProviderUsed?.name || (finalProviderUsed?.kind === "local" ? "Local sovereign runtime" : "Cloud Provider");
-              const provId = finalProviderUsed?.id && finalProviderUsed.id !== "local" ? finalProviderUsed.id : null;
-
-              // Cost calculation ($ per 1M tokens) purely from the model card in DB
-              const inputRate = Number(finalProviderUsed?.input_cost || 0);
-              const outputRate = Number(finalProviderUsed?.output_cost || 0);
-              const costUsd = Number(((calculatedPromptTokens * (inputRate / 1_000_000)) + (calculatedResponseTokens * (outputRate / 1_000_000))).toFixed(6));
-
-              // Persist working memory block
-              if (thread_id) {
-                  try {
-                      // Record turn response as an episodic working memory block
-                      const snippet = assembled.substring(0, 45).replace(/\n/g, " ") + "...";
-                      const memTokens = totalTokens;
-                      const memId = `wrk.${Math.random().toString(36).slice(2, 8)}`;
-                      const memLabel = agent_id ? `Agent response: ${snippet}` : `Model response: ${snippet}`;
-                      const memTone = agent_id ? "emerald" : "sapphire";
-                      
-                      // Ensure chat thread exists in PostgreSQL to prevent foreign key constraint violations
-                      await pool.query(
-                          `INSERT INTO chat_threads (id, title) VALUES ($1, 'New chat') ON CONFLICT (id) DO NOTHING`,
-                          [thread_id]
-                      );
-
-                      await pool.query(
-                          `INSERT INTO memory_working (id, thread_id, label, origin, tokens, tone, pinned)
-                           VALUES ($1, $2, $3, $4, $5, $6, false)`,
-                          [memId, thread_id, memLabel, usedModelStr, memTokens, memTone]
-                      );
-                  } catch(memErr) {
-                      console.error("[Orchestrate] Failed to record working memory:", memErr.message);
-                  }
-              }
-
-              // Persist provider_usage for FinOps & Usage reporting
-              try {
-                await pool.query(
-                  `INSERT INTO provider_usage (
-                     provider_id, provider_name, kind, model, thread_id,
-                     prompt_tokens, response_tokens, total_tokens, latency_ms, status,
-                     hallucination_score, groundedness_score, refusal_rate, cache_hits, cost_usd
-                   ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
-                  [
-                    provId,
-                    sourceNameStr,
-                    "llm",
-                    usedModelStr,
-                    thread_id || null,
-                    calculatedPromptTokens,
-                    calculatedResponseTokens,
-                    totalTokens,
-                    totalMs,
-                    "ok",
-                    0, 100, 0, 0,
-                    costUsd
-                  ]
-                );
-              } catch(usageErr) {
-                console.warn("[Orchestrate] Telemetry provider_usage insert failed:", usageErr.message);
-              }
-
-              // Emit final completion telemetry
-              send({
-                latency: {
-                  ttftMs: tFirstToken ? (tFirstToken - t0) : 0,
-                  totalMs,
-                  tokensOut: calculatedResponseTokens,
-                  modelOut: usedModelStr
                 }
+
+                if (!toolCallsBuffer[idx]) {
+                  toolCallsBuffer[idx] = { id: delta.id, type: "function", function: { name: "", arguments: "" } };
+                }
+                if (delta.id) toolCallsBuffer[idx].id = delta.id;
+                if (delta.function?.name) toolCallsBuffer[idx].function.name += delta.function.name;
+                if (delta.function?.arguments) toolCallsBuffer[idx].function.arguments += delta.function.arguments;
+                if (delta.extra_content) toolCallsBuffer[idx].extra_content = delta.extra_content;
+              } else if (parsedPiece.type === "think") {
+                assembledThinking += parsedPiece.delta || "";
+                send({ type: "think", delta: parsedPiece.delta });
+              } else if (parsedPiece.type === "out") {
+                assembled += parsedPiece.delta;
+                send({ type: "out", delta: parsedPiece.delta, text: parsedPiece.delta });
+              }
+            } catch (e) {
+              assembled += piece;
+              send({ type: "out", delta: piece, text: piece });
+            }
+          }
+        } catch (streamError) {
+          if (requestAbort.signal.aborted || streamError.message?.includes("Aborted") || streamError.message?.includes("socket hang up")) {
+            console.log(`[Orchestrate] Stream intentionally stopped (STOP).`);
+            isDone = true;
+            break;
+          } else {
+            throw streamError;
+          }
+        }
+
+        const rawToolCalls = Object.values(toolCallsBuffer);
+        const finalToolCalls = [];
+
+        for (const tc of rawToolCalls) {
+          if (tc.function?.name) {
+            let funcArgs = tc.function.arguments || "{}";
+            try {
+              JSON.parse(funcArgs);
+            } catch (parseErr) {
+              const match = funcArgs.match(/\{[\s\S]*\}/);
+              if (match) funcArgs = match[0];
+            }
+            finalToolCalls.push({
+              id: tc.id || `call_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+              type: "function",
+              function: {
+                name: tc.function.name,
+                arguments: funcArgs,
+              },
+              ...(tc.extra_content ? { extra_content: tc.extra_content } : {}),
+            });
+          }
+        }
+
+        // Handle Tool Invocations
+        if (finalToolCalls.length > 0) {
+          formattedMessages.push({
+            role: "assistant",
+            content: assembled || null,
+            tool_calls: finalToolCalls,
+          });
+
+          for (const tc of finalToolCalls) {
+            const funcName = tc.function.name;
+            const funcArgs = tc.function.arguments;
+            const realToolId = toolMap[funcName] || funcName;
+
+            send({ phase: "tool_running", tool: realToolId });
+            const tStart = Date.now();
+            emitDebug("info", "tool.exec", `invoking ${realToolId} · turn ${iteration}`, { tool: realToolId, stream: "skills" }, thread_id);
+
+            let toolResultStr = "";
+            let toolStatus = "completed";
+            let toolDetail = null;
+
+            try {
+              const parsedArgs = JSON.parse(funcArgs || "{}");
+              const toolContext = {
+                actorCtx,
+                actorId,
+                req,
+                thread_id,
+                agent_id,
+                web_search,
+                prov,
+                finalProviderUsed,
+                requestAbort,
+                send,
+                emitDebug,
+              };
+
+              const resOut = await dispatchToolCall({
+                toolCall: tc,
+                parsedArgs,
+                deps,
+                context: toolContext,
               });
 
-              send({ type: "done" });
-              close();
-          }
-      } // === END OF RE-ACT AGENTIC LOOP ===
-      
-      if (!isDone) {
-          send({ type: "error", message: "max agent iterations reached" });
-          close();
-      }
+              toolResultStr = resOut.toolResultStr;
+              toolStatus = resOut.toolStatus;
 
+              if (!toolResultStr && toolMap[funcName]) {
+                const invokeRes = await invokeTool({
+                  toolId: realToolId,
+                  params: parsedArgs,
+                  sessionId: thread_id,
+                  agentId: agent_id,
+                  provider: finalProviderUsed || prov,
+                });
+                let outputRes = invokeRes.output ?? invokeRes;
+                if (!outputRes || (typeof outputRes === "string" && outputRes.trim() === "") || (Array.isArray(outputRes) && outputRes.length === 0)) {
+                  outputRes = "[SYSTEM_WARNING: TOOL_FAILED_OR_EMPTY] The tool executed but returned no useful data.";
+                }
+                toolResultStr = JSON.stringify(outputRes);
+              }
+            } catch (err) {
+              console.error(`[Orchestrate] Tool execution error (${funcName}) - Real ID (${realToolId}):`, err.stack || err.message);
+              toolResultStr = JSON.stringify({ error: err.message });
+              toolStatus = "failed";
+              toolDetail = err.message;
+            }
+
+            const durationMs = Date.now() - tStart;
+            emitDebug("info", "tool.executed", `${realToolId} completed · ${durationMs}ms · status=${toolStatus}`, { tool: realToolId, ms: durationMs, status: toolStatus, stream: "skills" }, thread_id);
+            const statusPayload = { type: "tool_status", name: realToolId, status: toolStatus, ms: durationMs || 10 };
+            if (toolDetail) statusPayload.detail = toolDetail;
+            send(statusPayload);
+
+            formattedMessages.push({
+              role: "tool",
+              tool_call_id: tc.id,
+              name: funcName,
+              content: toolResultStr,
+            });
+          }
+        } else {
+          // Final conversational turn
+          isDone = true;
+          const totalMs = Date.now() - t0;
+          const usedModelStr = finalProviderUsed?.model_id || finalProviderUsed?.model || model || "gpt-3.5-turbo";
+          const sourceNameStr = finalProviderUsed?.provider_name || finalProviderUsed?.name || (finalProviderUsed?.kind === "local" ? "Local sovereign runtime" : "Cloud Provider");
+          const provId = finalProviderUsed?.id && finalProviderUsed.id !== "local" ? finalProviderUsed.id : null;
+
+          // Asynchronously save to Semantic Cache
+          const finalQuery = String(message || [...messages].reverse().find((m) => m.role === "user")?.content || "").trim();
+          if (iteration === 1 && assembled && assembled.trim().length > 0 && finalQuery.length > 2 && !hasExplicitCapabilities) {
+            (async () => {
+              try {
+                const qVec = await embed(finalQuery).catch(() => null);
+                await setSemanticCache(qVec, finalQuery, assembled, { model: usedModelStr });
+              } catch {}
+            })();
+          }
+
+          // FinOps Accounting & Telemetry
+          const { promptTokens, responseTokens, totalTokens } = calculateTurnTokens({
+            formattedMessages,
+            assembled,
+            assembledThinking,
+            approxTokens,
+          });
+
+          const costUsd = calculateTurnCost({
+            promptTokens,
+            responseTokens,
+            finalProviderUsed,
+          });
+
+          emitDebug("info", "model.responded", `generation complete · ${chunkCount} chunks · ${totalMs}ms`, { ms: totalMs, model: usedModel, tokens: responseTokens, stream: "model" }, thread_id);
+          emitDebug("debug", "cost.spend", `estimated usage tokens prompt=${promptTokens} response=${responseTokens}`, { promptTokens, responseTokens, stream: "cost" }, thread_id);
+
+          await persistTurnTelemetry({
+            pool,
+            thread_id,
+            agent_id,
+            finalProviderUsed,
+            promptTokens,
+            responseTokens,
+            totalTokens,
+            totalMs,
+            costUsd,
+            usedModelStr,
+            sourceNameStr,
+            provId,
+            assembled,
+          });
+
+          send({
+            latency: {
+              ttftMs: tFirstToken ? tFirstToken - t0 : 0,
+              totalMs,
+              tokensOut: responseTokens,
+              modelOut: usedModelStr,
+            },
+          });
+
+          send({ type: "done" });
+          close();
+        }
+      } // === END OF RE-ACT AGENTIC LOOP ===
+
+      if (!isDone) {
+        send({ type: "error", message: "max agent iterations reached" });
+        close();
+      }
     } catch (e) {
       if (thread_id) activeStreams.delete(thread_id);
       if (requestAbort.signal.aborted || e.name === "AbortError" || e.message?.includes("aborted")) {
-         if (trace) trace("orchestrate.aborted", { reason: "client_disconnected_or_aborted" });
-         close();
-         return;
+        if (trace) trace("orchestrate.aborted", { reason: "client_disconnected_or_aborted" });
+        close();
+        return;
       }
-      
+
       if (trace) trace("orchestrate.error", { error: e.message }, "error");
       send({ type: "error", message: `Core Execution Error: ${e.message}` });
       close();

@@ -40,6 +40,7 @@ async function getMermaid() {
         padding: 12,
       },
       securityLevel: "loose",
+      suppressErrorRendering: true,
     });
     _mermaidInitialized = true;
   }
@@ -104,9 +105,11 @@ export function MermaidBlock({ code }: { code: string }) {
         } catch (err: any) {
           if (active) {
             setRenderError(err?.message || "Invalid diagram syntax");
-            // Remove any error DOM artifacts inserted by mermaid
-            const errorDom = document.getElementById(`d${id}`);
-            if (errorDom) errorDom.remove();
+            try {
+              // Purge any error DOM elements injected directly into document body
+              const bodySvgs = document.querySelectorAll("body > svg[id^='dmm_'], body > svg[id^='d'], body > .mermaidError");
+              bodySvgs.forEach((el) => el.remove());
+            } catch {}
           }
         }
       })

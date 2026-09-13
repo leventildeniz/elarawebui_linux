@@ -51,20 +51,48 @@ export function extractForgeJson(text) {
   if (!text) return null;
   const raw = String(text);
 
-  // Try direct parse first (if LLM was a good boy and returned pure JSON)
+  function normalizePlan(obj) {
+    if (!obj || typeof obj !== "object") return null;
+    if (obj.plan && typeof obj.plan === "object" && (Array.isArray(obj.plan.create) || Array.isArray(obj.plan.reuse))) {
+      return obj;
+    }
+    if (Array.isArray(obj.create) || Array.isArray(obj.reuse)) {
+      return {
+        intent: obj.intent || "",
+        plan: {
+          create: Array.isArray(obj.create) ? obj.create : [],
+          reuse: Array.isArray(obj.reuse) ? obj.reuse : []
+        }
+      };
+    }
+    if (Array.isArray(obj.actions)) {
+      return {
+        intent: obj.intent || "",
+        plan: {
+          create: obj.actions,
+          reuse: []
+        }
+      };
+    }
+    return null;
+  }
+
+  // Try direct parse first (if LLM returned pure JSON)
   try {
       const direct = JSON.parse(raw);
-      if (direct && typeof direct === "object" && direct.plan) return direct;
+      const norm = normalizePlan(direct);
+      if (norm) return norm;
   } catch {}
 
-  // Try to find markdown block but DON'T blindly replace backticks everywhere
+  // Try to find markdown block
   let targetArea = raw;
   const match = raw.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
   if (match && match[1]) {
       targetArea = match[1];
       try {
         const mdParsed = JSON.parse(targetArea);
-        if (mdParsed && typeof mdParsed === "object" && mdParsed.plan) return mdParsed;
+        const norm = normalizePlan(mdParsed);
+        if (norm) return norm;
       } catch {}
   }
 
@@ -94,13 +122,11 @@ export function extractForgeJson(text) {
   for (const c of candidates) {
     try {
       const obj = JSON.parse(c);
-      if (obj && typeof obj === "object" && obj.plan) return obj;
+      const norm = normalizePlan(obj);
+      if (norm) return norm;
     } catch { /* keep scanning */ }
   }
-  for (const c of candidates) {
-    try { return JSON.parse(c); } catch {}
-  }
-  
+
   return null;
 }
 

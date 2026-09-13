@@ -1193,6 +1193,14 @@ Bu aşamada ELARA Sovereign Studio'nun Chat ekleri, görseller, PDF ve belge iş
 #### P. Akış & Şema Biçimlendirme Direktifi (`chat-orchestrate.mjs`):
 - `masterDirectives` içine `[DIAGRAM & FLOW FORMATTING DIRECTIVE]` eklendi; modellerin süreç akışlarında çirkin ham LaTeX sembolleri (`\rightarrow`, `\begin{cases}`) üretmesi engellenerek temiz Unicode okları (`→`) veya standart Mermaid diyagramları (` ```mermaid `) üretmesi sağlandı.
 
+#### Q. Chat Orchestrator Modüler Refactoring & Mimari Ayrıştırma (`lib/orchestrator/`):
+- **Mimari Ayrıştırma:** ~2.750 satırlık devasa `chat-orchestrate.mjs` dosyası 4 bağımsız ve yüksek performanslı alt modüle ayrıştırıldı:
+  1. `lib/orchestrator/directives.mjs`: Master sistem direktifleri, dil hiyerarşisi, LaTeX/Mermaid kuralı, uzun vadeli hafıza ve thread pinned bellek blokları montajı.
+  2. `lib/orchestrator/stream-bridge.mjs`: Vendor-agnostic LLM Streaming köprüsü, Anthropic/OpenAI lehçe adaptörleri ve TCP-Killer soket yaşam döngüsü yönetimi (`agent: false`).
+  3. `lib/orchestrator/tool-dispatcher.mjs`: `sys_get_directory`, `sys_delegate_to_agent` (Agentic RAG ile), `sys_execute_tool`, `sys_delegate_to_metaforge` (Self-Healing Retry ile) ve canlı web araması icra köprüsü.
+  4. `lib/orchestrator/finops-meter.mjs`: Token sayımı, FinOps tarife maliyeti hesaplama ve `provider_usage` / `memory_working` veritabanı kayıtları.
+- **Sonuç:** `chat-orchestrate.mjs` ~600 satırlık temiz, hafif ve bakımı kolay bir Gateway Router'a dönüştürüldü; Time-to-First-Token (TTFT) gecikmesi ve SSE JSON sözleşmeleri %100 korundu.
+
 ---
 
 ## 62. UP NEXT — MULTI-NODE BENCHMARKING, LIVE AGENT STRESS TESTS & DEAD CODE CLEANUP (PHASE 62)
