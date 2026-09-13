@@ -11,6 +11,12 @@ import {
   Zap,
   Cpu,
   GitFork,
+  BookOpen,
+  KeyRound,
+  Building2,
+  ShieldCheck,
+  Sparkles,
+  Plus,
 } from "lucide-react";
 import { paletteSurfaces } from "@/lib/palette-surfaces";
 import { cn } from "@/lib/utils";
@@ -19,6 +25,7 @@ import { useAgents } from "@/lib/agent-store";
 import { useSkills } from "@/lib/skill-store";
 import { useModels } from "@/lib/model-store";
 import { useWorkflows } from "@/lib/workflow-store";
+import { useSpaces } from "@/lib/knowledge-space-store";
 
 export type PaletteTarget = {
   icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
@@ -28,6 +35,14 @@ export type PaletteTarget = {
 };
 
 type Row =
+  | {
+      kind: "action";
+      key: string;
+      label: string;
+      hint: string;
+      icon: PaletteTarget["icon"];
+      action: () => void;
+    }
   | {
       kind: "nav";
       key: string;
@@ -44,6 +59,14 @@ type Row =
       icon: PaletteTarget["icon"];
       to: string;
       search: Record<string, string>;
+    }
+  | {
+      kind: "space";
+      key: string;
+      label: string;
+      hint: string;
+      icon: PaletteTarget["icon"];
+      id: string;
     }
   | {
       kind: "chat";
@@ -98,11 +121,12 @@ export function CommandPalette({
   const [q, setQ] = useState("");
   const [cursor, setCursor] = useState(0);
   const navigate = useNavigate();
-  const { chats, setActive } = useChats();
+  const { chats, setActive, newChat } = useChats();
   const { agents } = useAgents();
   const { skills } = useSkills();
   const { models } = useModels();
   const { workflows } = useWorkflows();
+  const { spaces } = useSpaces();
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -116,6 +140,60 @@ export function CommandPalette({
   const rows = useMemo<Row[]>(() => {
     const needle = q.trim().toLowerCase();
     const match = (s: string) => !needle || s.toLowerCase().includes(needle);
+
+    // Quick Action Shortcuts
+    const actions: Row[] = ([
+      {
+        kind: "action",
+        key: "act:new-chat",
+        label: "Start New Chat Conversation",
+        hint: "Action",
+        icon: Sparkles,
+        action: () => {
+          newChat();
+          navigate({ to: "/" });
+        },
+      },
+      {
+        kind: "action",
+        key: "act:new-agent",
+        label: "Create New Sovereign Agent",
+        hint: "Action",
+        icon: Bot,
+        action: () => navigate({ to: "/agents" }),
+      },
+      {
+        kind: "action",
+        key: "act:new-flow",
+        label: "Create Autonomous Workflow (DAG)",
+        hint: "Action",
+        icon: GitFork,
+        action: () => navigate({ to: "/flows" }),
+      },
+      {
+        kind: "action",
+        key: "act:api-token",
+        label: "Generate Developer API Token",
+        hint: "Action",
+        icon: KeyRound,
+        action: () => navigate({ to: "/api-tokens" }),
+      },
+      {
+        kind: "action",
+        key: "act:tenant",
+        label: "Manage Tenant Organizations & SSO",
+        hint: "Action",
+        icon: Building2,
+        action: () => navigate({ to: "/users", search: { view: "tenants" } }),
+      },
+    ] as const).filter((a) => match(a.label) || match(a.hint)).map(a => ({
+      kind: "action" as const,
+      key: a.key,
+      label: a.label,
+      hint: a.hint,
+      icon: a.icon,
+      action: a.action,
+    }));
 
     const nav: Row[] = targets
       .filter((t) => match(t.label) || match(t.group))
@@ -138,6 +216,18 @@ export function CommandPalette({
         icon: PanelsTopLeft,
         to: s.to,
         search: s.search,
+      }));
+
+    const spaceRows: Row[] = (spaces || [])
+      .filter((sp) => match(sp.name) || match(sp.description || ""))
+      .slice(0, 4)
+      .map((sp) => ({
+        kind: "space",
+        key: `spc:${sp.id}`,
+        label: sp.name,
+        hint: "Knowledge Space",
+        icon: BookOpen,
+        id: sp.id,
       }));
 
     const agentRows: Row[] = (agents || [])
@@ -200,15 +290,27 @@ export function CommandPalette({
         id: c.id,
       }));
 
-    return [...nav, ...surfaces, ...agentRows, ...skillRows, ...modelRows, ...workflowRows, ...threads];
-  }, [q, targets, paletteSurfaces, agents, skills, models, workflows, chats]);
+    return [
+      ...actions,
+      ...nav,
+      ...surfaces,
+      ...spaceRows,
+      ...agentRows,
+      ...skillRows,
+      ...modelRows,
+      ...workflowRows,
+      ...threads,
+    ];
+  }, [q, targets, paletteSurfaces, spaces, agents, skills, models, workflows, chats, navigate, newChat]);
 
   useEffect(() => setCursor(0), [q]);
 
   const run = (row: Row | undefined) => {
     if (!row) return;
-    if (row.kind === "nav") navigate({ to: row.to });
+    if (row.kind === "action") row.action();
+    else if (row.kind === "nav") navigate({ to: row.to });
     else if (row.kind === "surface") navigate({ to: row.to, search: row.search });
+    else if (row.kind === "space") navigate({ to: "/knowledge", search: { view: "spaces" } });
     else if (row.kind === "agent") navigate({ to: "/agents" });
     else if (row.kind === "skill") navigate({ to: "/skills" });
     else if (row.kind === "model") navigate({ to: "/models" });
