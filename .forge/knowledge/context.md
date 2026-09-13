@@ -1190,6 +1190,9 @@ Bu aşamada ELARA Sovereign Studio'nun Chat ekleri, görseller, PDF ve belge iş
 - **Şema Doğrulama Katmanı (`planner.mjs`):** `validateForgePlan` fonksiyonunda Chain düğümlerine doğrudan `tool` konulması engellendi.
 - **Self-Healing Retry Katmanı (`chat-orchestrate.mjs`):** MetaForge plan üretiminde şema veya JSON ayrıştırma hatası yaşanırsa, 1 turluk self-healing retry ile modele doğrulama hatası bildirilerek düzeltilmiş plan üretmesi sağlandı.
 
+#### P. Akış & Şema Biçimlendirme Direktifi (`chat-orchestrate.mjs`):
+- `masterDirectives` içine `[DIAGRAM & FLOW FORMATTING DIRECTIVE]` eklendi; modellerin süreç akışlarında çirkin ham LaTeX sembolleri (`\rightarrow`, `\begin{cases}`) üretmesi engellenerek temiz Unicode okları (`→`) veya standart Mermaid diyagramları (` ```mermaid `) üretmesi sağlandı.
+
 ---
 
 ## 62. UP NEXT — MULTI-NODE BENCHMARKING, LIVE AGENT STRESS TESTS & DEAD CODE CLEANUP (PHASE 62)

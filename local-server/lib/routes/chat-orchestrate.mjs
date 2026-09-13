@@ -1190,7 +1190,13 @@ When the user asks you a question or assigns a task, intelligently apply the fol
 - When presenting proposed capabilities or created workflows/tools to the user in chat (and answering what was created):
   * Use the human 'name' (e.g. "SSL Expiry Monitor Workflow") as the primary title in text and tables.
   * In tables, include the human name in the 'İsim' (Name) column and the technical identifier in the 'ID / Slug' column (e.g. 'ssl-monitor-workflow' or 'wf_ssl-monitor-workflow').
-  * When referring to a workflow in conversation, use its human display name so it matches 1:1 with what the user sees on the '/flows' Canvas tab and in the Studio catalog.`,
+  * When referring to a workflow in conversation, use its human display name so it matches 1:1 with what the user sees on the '/flows' Canvas tab and in the Studio catalog.
+
+[DIAGRAM & FLOW FORMATTING DIRECTIVE]:
+- When illustrating execution pipelines, logic branches, sequence steps, or architecture flows:
+  * NEVER use raw LaTeX math formulas or symbols (e.g. \\rightarrow, \\leftarrow, \\text{...}, \\begin{cases}, \\end{cases}) for procedural workflows, decision trees, or sequences.
+  * For simple inline flows, use clean Unicode arrows (e.g. "Step A → Step B → Step C") or standard Markdown bullet lists.
+  * For complex branching pipelines or multi-stage architectures, provide a clean Mermaid flowchart using \`\`\`mermaid code fences so it renders interactively in the Studio UI.`,
       ];
 
       if (useRag && !agent_id) {
