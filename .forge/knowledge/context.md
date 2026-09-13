@@ -1143,7 +1143,15 @@ Bu aşamada ELARA Sovereign Studio'nun Chat ekleri, görseller, PDF ve belge iş
 - **Policy Engine (`policy_rules`):** 100% DB ve chat orkestrasyonuna bağlı.
 - **Sonuç:** `Policy & Security` altındaki 7 sekmenin tamamı %100 canlı veritabanı ve backend entegrasyonuyla mühürlenmiştir.
 
-#### G. Geriye Dönük Tam Uyumluluk (Zero-Breakage):
+#### G. Kurumsal SIEM Forwarder Genişletmesi & 15-Kanal Audit Yayını (`siem-forwarder.mjs`, `siem-panel.tsx`):
+1. **15 Kategorik SIEM Akış Kanalı:**
+   - SIEM iletim kanalları genişletildi: `Authentication`, `RBAC`, `Multi-Tenancy`, `GenGuard (LLMFort)`, `Policy Engine`, `Secret Vault (BYOK)`, `Cryptographic Audit Ledger`, `Developer Hub (API Keys)`, `Human-in-the-Loop Approvals`, `RAG Knowledge`, `Autonomous Agents`, `Tool Sandboxes`, `Workflows (DAG)`, `Model Context Protocol (MCP)`, `System Lifecycle`.
+   - Arayüze (`siem-panel.tsx`) kategorik arama/filtreleme, `[Select All]`, `[Security Only]`, `[Clear]` hızlı aksiyon butonları ve aktif akış rozetleri eklendi.
+2. **Uçtan Uca UDP / TCP / TLS & CEF / LEEF / JSON / RFC5424 İletimi (`siem-api.mjs`):**
+   - Canlı SIEM soket probe uç noktası (`POST /api/system/siem/test`) geliştirildi; UDP, TCP ve TLS üzerinden gerçek bağlantı gecikmesi (`latencyMs`) hesaplanır.
+   - `siem-forwarder.mjs` akış filtreleme mantığıyla güçlendirildi; yalnızca seçilen kanallar harici SIEM toplayıcısına (ArcSight, QRadar, Splunk, Wazuh) aktarılır.
+
+#### H. Geriye Dönük Tam Uyumluluk (Zero-Breakage):
 - Sistem hem eski Base64 formatındaki (`data:image/...`) sohbet geçmişini hem de yeni `/api/uploads/...` formatını şeffafça destekler; mevcut verilerde hiçbir bozulma yaşanmaz.
 - `npx tsc --noEmit` tam derleme kontrolü 0 hata ile doğrulanmıştır.
 

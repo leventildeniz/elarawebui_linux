@@ -73,9 +73,19 @@ export function formatEvent(ev, format, facility) {
 
 class SiemForwarder {
   constructor() {
-    this.cfg = { enabled: false, host: "", port: 514, protocol: "udp", format: "CEF", facility: "local0" };
+    this.cfg = {
+      enabled: false,
+      host: "",
+      port: 514,
+      protocol: "udp",
+      format: "CEF",
+      facility: "local0",
+      streams: ["auth", "rbac", "genguard", "policy", "secrets", "api_tokens", "system"],
+      heartbeat_sec: 60,
+      queue_limit: 10000,
+    };
     this.queue = [];
-    this.maxQueue = 8000;
+    this.maxQueue = 10000;
     this.dropped = 0;
     this.sent = 0;
     this.dead = 0;
@@ -93,6 +103,7 @@ class SiemForwarder {
   applyConfig(next) {
     const changed = JSON.stringify(this.cfg) !== JSON.stringify(next);
     this.cfg = { ...this.cfg, ...next };
+    if (this.cfg.queue_limit) this.maxQueue = Number(this.cfg.queue_limit) || 10000;
     if (changed) this.disconnectStream();
   }
 
@@ -105,20 +116,50 @@ class SiemForwarder {
   status() {
     return {
       enabled: !!this.cfg.enabled,
-      host: this.cfg.host, port: this.cfg.port,
-      protocol: this.cfg.protocol, format: this.cfg.format, facility: this.cfg.facility,
-      queueDepth: this.queue.length, outboxDepth: this.outboxDepth,
-      dropped: this.dropped, sent: this.sent, dead: this.dead,
-      lastError: this.lastError, lastSentAt: this.lastSentAt,
+      host: this.cfg.host,
+      port: this.cfg.port,
+      protocol: this.cfg.protocol,
+      format: this.cfg.format,
+      facility: this.cfg.facility,
+      streams: this.cfg.streams || [],
+      queueLimit: this.maxQueue,
+      heartbeatSec: this.cfg.heartbeat_sec || 60,
+      queueDepth: this.queue.length,
+      outboxDepth: this.outboxDepth,
+      dropped: this.dropped,
+      sent: this.sent,
+      dead: this.dead,
+      lastError: this.lastError,
+      lastSentAt: this.lastSentAt,
     };
   }
 
   enqueue(event) {
     if (!this.cfg.enabled || !this.cfg.host) return;
+
+    // Filter event by configured active streams
+    const stream = String(
+      event.stream ||
+      event.meta?.stream ||
+      event.meta?.tag ||
+      event.name?.split(".")[0] ||
+      event.agent ||
+      "system"
+    ).toLowerCase();
+
+    const activeStreams = Array.isArray(this.cfg.streams) && this.cfg.streams.length > 0
+      ? this.cfg.streams.map((s) => s.toLowerCase())
+      : ["auth", "rbac", "genguard", "policy", "secrets", "system"];
+
+    const isMatched = activeStreams.some(
+      (s) => stream.includes(s) || s.includes(stream) || s === "all"
+    );
+    if (!isMatched) return;
+
     if (this.queue.length >= this.maxQueue) {
       this.dropped++;
       const evicted = this.queue.shift();
-      // Spill to outbox so we don't actually lose audit events.
+      // Spill to outbox so we don't lose audit events
       this.persist(evicted).catch(() => {});
     }
     this.queue.push(event);
@@ -237,7 +278,7 @@ export function startSiemConfigSync(pool) {
   siem.bindPool(pool);
   const sync = async () => {
     try {
-      const r = await pool.query("SELECT enabled, host, port, protocol, format, facility FROM app_siem_config WHERE id=1");
+      const r = await pool.query("SELECT enabled, host, port, protocol, format, facility, streams, heartbeat_sec, queue_limit FROM app_siem_config WHERE id=1");
       if (r.rows[0]) siem.applyConfig(r.rows[0]);
       const c = await pool.query("SELECT count(*)::int AS n FROM siem_outbox");
       siem.outboxDepth = c.rows[0]?.n || 0;
