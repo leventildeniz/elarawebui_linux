@@ -1,14 +1,29 @@
 import { useState } from "react";
 import { Check, Copy, Download } from "lucide-react";
+import katex from "katex";
 import { HighlightedCode } from "./code-highlight";
 import { MermaidBlock } from "./mermaid-block";
 import { cn } from "@/lib/utils";
+
+function renderMath(math: string, displayMode: boolean = false): string {
+  try {
+    return katex.renderToString(math.trim(), {
+      displayMode,
+      throwOnError: false,
+      output: "htmlAndMathml",
+      strict: false,
+    });
+  } catch {
+    return math;
+  }
+}
 
 /* ---------- tiny markdown-lite parser (code fences, tables, text) ---------- */
 
 type Block =
   | { type: "code"; lang: string; code: string; isComplete?: boolean | undefined }
   | { type: "table"; head: string[]; rows: string[][] }
+  | { type: "math"; math: string }
   | { type: "text"; text: string };
 
 export function parseBlocks(src: string): Block[] {
@@ -45,6 +60,53 @@ export function parseBlocks(src: string): Block[] {
         i++;
       }
       blocks.push({ type: "code", lang, code: code.join("\n"), isComplete });
+      continue;
+    }
+
+    // Multi-line LaTeX Environment (\begin{pmatrix}, \begin{matrix}, \begin{cases}, \begin{aligned}, etc.)
+    const beginMatch = line.trim().match(/(\\begin\{([a-zA-Z0-9*]+)\}|\\\[)/);
+    if (beginMatch && !line.trim().startsWith("```")) {
+      flush();
+      const envName = beginMatch[2];
+      const mathLines = [line];
+      let closed = envName ? line.includes(`\\end{${envName}}`) : line.includes("\\]");
+      if (!closed) {
+        i++;
+        while (i < lines.length) {
+          mathLines.push(lines[i]!);
+          if (envName && lines[i]!.includes(`\\end{${envName}}`)) {
+            closed = true;
+            break;
+          }
+          if (!envName && lines[i]!.includes("\\]")) {
+            closed = true;
+            break;
+          }
+          i++;
+        }
+      }
+      blocks.push({ type: "math", math: mathLines.join("\n") });
+      continue;
+    }
+
+    // Display Math ($$...$$)
+    if (line.trim().startsWith("$$") && !line.trim().startsWith("```")) {
+      flush();
+      const mathLines = [line.trim().slice(2)];
+      if (line.trim().length > 2 && line.trim().slice(2).includes("$$")) {
+        blocks.push({ type: "math", math: line.trim().replace(/^\$\$|\$\$$/g, "") });
+        continue;
+      }
+      i++;
+      while (i < lines.length) {
+        if (lines[i]!.trim().includes("$$")) {
+          mathLines.push(lines[i]!.trim().replace(/\$\$$/, ""));
+          break;
+        }
+        mathLines.push(lines[i]!);
+        i++;
+      }
+      blocks.push({ type: "math", math: mathLines.join("\n") });
       continue;
     }
 
@@ -235,9 +297,9 @@ function TableBlock({ head, rows }: { head: string[]; rows: string[][] }) {
   );
 }
 
-/** Inline `code`, **bold** and plain text. */
+/** Inline `code`, **bold**, LaTeX math (`$...$`, `\begin{...}`) and plain text. */
 function Inline({ text }: { text: string }) {
-  const parts = text.split(/(`[^`]+`|\*\*[^*]+\*\*)/g).filter(Boolean);
+  const parts = text.split(/(`[^`]+`|\*\*[^*]+\*\*|\$\$[\s\S]+?\$\$|\$[^\$\n]+?\$|\\begin\{[a-zA-Z0-9*]+\}[\s\S]*?\\end\{[a-zA-Z0-9*]+\}|\\\[[\s\S]*?\\\])/g).filter(Boolean);
   return (
     <>
       {parts.map((p, i) => {
@@ -255,6 +317,30 @@ function Inline({ text }: { text: string }) {
             <strong key={i} className="font-semibold text-foreground">
               {p.slice(2, -2)}
             </strong>
+          );
+        if (p.startsWith("$$") && p.endsWith("$$") && p.length >= 4)
+          return (
+            <span
+              key={i}
+              className="my-1.5 block overflow-x-auto text-center"
+              dangerouslySetInnerHTML={{ __html: renderMath(p.slice(2, -2), true) }}
+            />
+          );
+        if (p.startsWith("\\begin{") || p.startsWith("\\["))
+          return (
+            <span
+              key={i}
+              className="my-1.5 block overflow-x-auto text-center"
+              dangerouslySetInnerHTML={{ __html: renderMath(p, true) }}
+            />
+          );
+        if (p.startsWith("$") && p.endsWith("$") && p.length >= 2)
+          return (
+            <span
+              key={i}
+              className="inline-math mx-0.5 align-baseline"
+              dangerouslySetInnerHTML={{ __html: renderMath(p.slice(1, -1), false) }}
+            />
           );
         // Streaming unclosed bold fallback at tail (e.g. "**Durum: ") to prevent jumping
         if (p.startsWith("**") && !p.slice(2).includes("**")) {
@@ -307,7 +393,7 @@ function TextBlock({ text }: { text: string }) {
   );
 }
 
-/** Renders an agent message with code blocks and tables. */
+/** Renders an agent message with code blocks, tables, and math expressions. */
 export function RichMessage({ text }: { text: string }) {
   const blocks = parseBlocks(text);
   return (
@@ -317,6 +403,12 @@ export function RichMessage({ text }: { text: string }) {
           <CodeBlock key={i} lang={b.lang} code={b.code} isComplete={b.isComplete} />
         ) : b.type === "table" ? (
           <TableBlock key={i} head={b.head} rows={b.rows} />
+        ) : b.type === "math" ? (
+          <div
+            key={i}
+            className="my-2.5 overflow-x-auto py-1 text-center text-foreground"
+            dangerouslySetInnerHTML={{ __html: renderMath(b.math, true) }}
+          />
         ) : (
           <TextBlock key={i} text={b.text} />
         ),
