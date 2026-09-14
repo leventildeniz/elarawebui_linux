@@ -1244,10 +1244,39 @@ Bu aşamada ELARA Sovereign Studio'nun Chat ekleri, görseller, PDF ve belge iş
 
 ---
 
-## 62. UP NEXT — MULTI-NODE BENCHMARKING, LIVE AGENT STRESS TESTS & DEAD CODE CLEANUP (PHASE 62)
+## 62. IN EXECUTION — PHASE 62: 360° END-TO-END (UI ↔ BACKEND ↔ DB) MODULAR AUDIT, DEAD CODE PURGE & INTERNATIONAL STANDARDIZATION
 
-1. **Çoklu Düğüm Yük Testleri & Load Balancer Doğrulaması:**
-   - Load Balancer `/health` probe'ları altında eşzamanlı multi-agent stres testleri.
-   - Yüksek yük altında Redis semantik önbellek isabet oranı (Hit Rate) analitiği.
-2. **Lovable Artıklarının Temizlenmesi & Ölü Kod Ayıklama:**
-   - Lovable legacy artıklarının taranıp temizlenmesi, ölü kodların ayıklanması ve kod içi yorum satırlarının uluslararası standartlara (İngilizce) getirilmesi.
+**Branch:** `refactor/phase-62-core-hygiene`
+
+Bu aşamada ELARA Sovereign Studio'nun tüm menü ve modülleri, Levent İldeniz'in belirlediği 360° Uçtan Uca (UI ↔ Backend ↔ DB) denetim zinciriyle modül modül taranacak; ölü kodlar temizlenecek, mock verilerden tamamen arındırılacak ve uluslararası kurumsal İngilizce standartlarına getirilecektir:
+
+### 🛡️ 360° Modüler Denetim Standardı (Her Menü İçin 5 Adımlı Doğrulama Zinciri):
+1. **UI Katmanı:** Butonlar, formlar, state akışları (`store.ts`), `undefined` defansif kontrolleri (`(arr || []).length`), kullanılmayan ölü bileşenler ve mock verilerden arındırma.
+2. **API & Wire Katmanı:** `api-v2.mjs` router'ları, parametre doğrulamaları, standart hata yanıtları (`{ ok, code, error }`), gereksiz/ölü uç noktaların ayıklanması.
+3. **DB & Veri Bütünlüğü:** `v2_master_schema.sql` uyumluluğu, yabancı anahtarlar (FK), tenant izolasyonu, orphan kayıt temizliği ve indeks sağlığı.
+4. **Kod & Dokümantasyon Standardı:** Tüm yorum satırlarının, fonksiyon tanımlarının ve şema açıklamalarının kurumsal teknik İngilizceye (`JSDoc/TSDoc`) getirilmesi.
+5. **0-Error Build Doğrulaması:** Her modül sonrasında `npx tsc --noEmit` tam derleme kontrolü.
+
+---
+
+### 🏛️ Modüler Halka Uygulama Sıralaması:
+
+#### 📍 Halka 1 (Sistemin Kalbi): Identity, Tenants, RBAC & Authentication
+* **Menüler / Rotalar:** `Settings › Users & Tenants` (`users.tsx`), `Settings › RBAC & Roles` (`rbac.tsx`), `Settings › Authentication & Federation` (`authentication.tsx`), `Settings › API Tokens` (`api-tokens.tsx`), `Account` (`account.tsx`).
+* **Backend:** `identity.mjs`, `identity-groups.mjs`, `identity-roles.mjs`, `identity-templates.mjs`, `rbac.mjs`, `federation.mjs`, `api-keys.mjs`, `actor.mjs`.
+* **Store & Lib:** `ownership.ts`, `credential-store.ts`, `auth-provider-store.ts`.
+
+#### 📍 Halka 2: 4-Katmanlı Bellek Motoru & Knowledge Hub (Agentic RAG)
+* **Menüler / Rotalar:** `Memory` (`memory.tsx`), `Knowledge` (`knowledge.tsx`), `RAG Documents` (`rag-documents.tsx`).
+* **Backend:** `memory.mjs`, `knowledge-*.mjs`, `rag-*.mjs`, `retrieval.mjs`, `onnx-pipeline.mjs`.
+* **Store & Lib:** `memory-store.ts`, `knowledge-store.ts`, `rag-preview.ts`.
+
+#### 📍 Halka 3: Chat Orkestratörü, MetaForge, DAG Workflows, Chains & MCP
+* **Menüler / Rotalar:** `Chat / Index` (`index.tsx`), `Flows / Workflows` (`flows.tsx`), `Orchestration / Chains` (`orchestration.tsx`), `MetaForge` (`meta-forge.tsx`), `Planner` (`planner.tsx`), `Tools` (`tools.tsx`), `Skills` (`skills.tsx`), `MCP` (`mcp.tsx`).
+* **Backend:** `chat-orchestrate.mjs`, `tool-dispatcher.mjs`, `stream-bridge.mjs`, `directives.mjs`, `workflows.mjs`, `meta-forge/`, `tools.mjs`, `skills.mjs`, `mcp.mjs`.
+* **Store & Lib:** `chat-store.ts`, `workflow-store.ts`, `orchestration-store.ts`, `agent-store.ts`.
+
+#### 📍 Halka 4: FinOps, Raporlama, SIEM, Filo & Altyapı Servisleri
+* **Menüler / Rotalar:** `Reporting` (`reporting.*.tsx`), `SIEM` (`siem.tsx`), `Settings › Services` (`services.tsx`), `Fleet` (`fleet.tsx`), `Runtime` (`runtime.tsx`), `Converter` (`converter.tsx`), `Backup` (`backup.tsx`).
+* **Backend:** `reporting.mjs`, `siem-*.mjs`, `infra.mjs`, `telemetry*.mjs`, `storage-engine.mjs`, `backup.mjs`.
+* **Store & Lib:** `report-store.ts`, `report-pdf.ts`, `chat-export.ts`.
