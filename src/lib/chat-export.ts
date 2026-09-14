@@ -1,435 +1,273 @@
 import type { ChatThread } from "./chat-store";
+import { ensureUnicodeFont } from "./pdf-fonts";
+
+function parseSafeDate(d: any): Date {
+  if (!d) return new Date();
+  if (d instanceof Date && !isNaN(d.getTime())) return d;
+  const parsed = new Date(d);
+  if (!isNaN(parsed.getTime())) return parsed;
+  const num = Number(d);
+  if (!isNaN(num) && num > 0) {
+    const numDate = new Date(num);
+    if (!isNaN(numDate.getTime())) return numDate;
+  }
+  return new Date();
+}
 
 function transcript(chat: ChatThread) {
-  if (!chat.messages.length) return "_No messages recorded in this thread yet._";
-  return chat.messages
-    .map((m) => `**${m.role === "user" ? "You" : "Elara"}**\n\n${m.text}`)
+  const msgs = chat?.messages || [];
+  if (!msgs.length) return "_No messages recorded in this thread yet._";
+  return msgs
+    .map((m) => `**${m.role === "user" ? "You" : "Elara"}**\n\n${m.text || ""}`)
     .join("\n\n---\n\n");
 }
 
 export function chatToMarkdown(chat: ChatThread) {
-  const date = new Date(chat.createdAt).toISOString();
-  return `# ${chat.title}\n\n> Elara Sovereign Studio — exported ${date}\n\n${transcript(chat)}\n`;
+  const date = parseSafeDate(chat?.createdAt).toISOString();
+  return `# ${chat?.title || "Untitled Conversation"}\n\n> Elara Sovereign Studio — exported ${date}\n\n${transcript(chat)}\n`;
 }
 
 function slug(title: string) {
-  return title.replace(/[^\w-]+/g, "-").toLowerCase();
+  return String(title || "chat").replace(/[^\w-]+/g, "-").toLowerCase();
 }
 
 export function downloadMarkdown(chat: ChatThread) {
+  const titleStr = chat?.title || "chat";
   const blob = new Blob([chatToMarkdown(chat)], { type: "text/markdown;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `${slug(chat.title)}.md`;
+  a.download = `${slug(titleStr)}.md`;
   a.click();
   URL.revokeObjectURL(url);
 }
 
-function escapeHtml(str: string): string {
-  return String(str || "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
-
-/** Converts chat Markdown text into structured, publication-grade HTML for PDF generation. */
-function markdownToHtml(md: string): string {
-  if (!md) return "";
-
-  // 1. Extract and preserve code blocks
-  const codeBlocks: string[] = [];
-  let html = md.replace(/```([a-zA-Z0-9_+-]*)\n([\s\S]*?)```/g, (_, lang, code) => {
-    const idx = codeBlocks.length;
-    const escaped = escapeHtml(code);
-    codeBlocks.push(
-      `<div class="pdf-code-block"><div class="pdf-code-header">${escapeHtml(lang || "code")}</div><pre><code>${escaped}</code></pre></div>`
-    );
-    return `__CODE_BLOCK_${idx}__`;
-  });
-
-  // 2. Parse Markdown Tables
-  html = html.replace(/((?:\|[^\n]+\|\r?\n)+)/g, (tableMatch) => {
-    const rows = tableMatch.trim().split(/\r?\n/).map((r) => r.trim()).filter(Boolean);
-    if (rows.length < 2) return tableMatch;
-
-    const isTable = rows[1]?.includes("-");
-    if (!isTable) return tableMatch;
-
-    const parseRow = (r: string) => r.replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
-    const headerCells = parseRow(rows[0] ?? "");
-    const bodyRows = rows.slice(2);
-
-    const thead = `<thead><tr>${headerCells.map((c) => `<th>${formatInline(c)}</th>`).join("")}</tr></thead>`;
-    const tbody = `<tbody>${bodyRows
-      .map((r) => {
-        const cells = parseRow(r);
-        return `<tr>${cells.map((c) => `<td>${formatInline(c)}</td>`).join("")}</tr>`;
-      })
-      .join("")}</tbody>`;
-
-    return `<table class="pdf-table">${thead}${tbody}</table>`;
-  });
-
-  // 3. Helper for inline formatting
-  function formatInline(text: string): string {
-    return text
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/`([^`]+)`/g, '<code class="pdf-inline-code">$1</code>')
-      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-      .replace(/\*([^*]+)\*/g, "<em>$1</em>")
-      .replace(/__([^_]+)__/g, "<strong>$1</strong>")
-      .replace(/_([^_]+)_/g, "<em>$1</em>");
-  }
-
-  // 4. Block-level parsing
-  const lines = html.split(/\r?\n/);
-  const outLines: string[] = [];
-  let inList = false;
-  let inOrderedList = false;
-
-  for (let i = 0; i < lines.length; i++) {
-    let line = lines[i] ?? "";
-
-    // Restore Code Block
-    if (line.includes("__CODE_BLOCK_")) {
-      if (inList) { outLines.push("</ul>"); inList = false; }
-      if (inOrderedList) { outLines.push("</ol>"); inOrderedList = false; }
-      line = line.replace(/__CODE_BLOCK_(\d+)__/g, (_, idx) => codeBlocks[Number(idx)] || "");
-      outLines.push(line);
-      continue;
-    }
-
-    // Tables
-    if (line.includes("<table") || line.includes("</table>") || line.includes("<thead") || line.includes("<tbody") || line.includes("<tr")) {
-      if (inList) { outLines.push("</ul>"); inList = false; }
-      if (inOrderedList) { outLines.push("</ol>"); inOrderedList = false; }
-      outLines.push(line);
-      continue;
-    }
-
-    // Headings
-    if (line.startsWith("#### ")) {
-      if (inList) { outLines.push("</ul>"); inList = false; }
-      if (inOrderedList) { outLines.push("</ol>"); inOrderedList = false; }
-      outLines.push(`<h4 class="pdf-h4">${formatInline(line.slice(5))}</h4>`);
-      continue;
-    }
-    if (line.startsWith("### ")) {
-      if (inList) { outLines.push("</ul>"); inList = false; }
-      if (inOrderedList) { outLines.push("</ol>"); inOrderedList = false; }
-      outLines.push(`<h3 class="pdf-h3">${formatInline(line.slice(4))}</h3>`);
-      continue;
-    }
-    if (line.startsWith("## ")) {
-      if (inList) { outLines.push("</ul>"); inList = false; }
-      if (inOrderedList) { outLines.push("</ol>"); inOrderedList = false; }
-      outLines.push(`<h2 class="pdf-h2">${formatInline(line.slice(3))}</h2>`);
-      continue;
-    }
-    if (line.startsWith("# ")) {
-      if (inList) { outLines.push("</ul>"); inList = false; }
-      if (inOrderedList) { outLines.push("</ol>"); inOrderedList = false; }
-      outLines.push(`<h1 class="pdf-h1">${formatInline(line.slice(2))}</h1>`);
-      continue;
-    }
-
-    // Horizontal Rule
-    if (/^(\*\*\*|---|___)$/.test(line.trim())) {
-      if (inList) { outLines.push("</ul>"); inList = false; }
-      if (inOrderedList) { outLines.push("</ol>"); inOrderedList = false; }
-      outLines.push('<hr class="pdf-hr" />');
-      continue;
-    }
-
-    // Blockquote
-    if (line.startsWith("> ")) {
-      if (inList) { outLines.push("</ul>"); inList = false; }
-      if (inOrderedList) { outLines.push("</ol>"); inOrderedList = false; }
-      outLines.push(`<blockquote class="pdf-quote">${formatInline(line.slice(2))}</blockquote>`);
-      continue;
-    }
-
-    // Unordered List
-    if (/^[\*\-]\s+/.test(line)) {
-      if (inOrderedList) { outLines.push("</ol>"); inOrderedList = false; }
-      if (!inList) { outLines.push('<ul class="pdf-list">'); inList = true; }
-      outLines.push(`<li>${formatInline(line.replace(/^[\*\-]\s+/, ""))}</li>`);
-      continue;
-    }
-
-    // Ordered List
-    if (/^\d+\.\s+/.test(line)) {
-      if (inList) { outLines.push("</ul>"); inList = false; }
-      if (!inOrderedList) { outLines.push('<ol class="pdf-ordered-list">'); inOrderedList = true; }
-      outLines.push(`<li>${formatInline(line.replace(/^\d+\.\s+/, ""))}</li>`);
-      continue;
-    }
-
-    // Empty line / paragraph break
-    if (!line.trim()) {
-      if (inList) { outLines.push("</ul>"); inList = false; }
-      if (inOrderedList) { outLines.push("</ol>"); inOrderedList = false; }
-      continue;
-    }
-
-    // Regular paragraph
-    if (inList) { outLines.push("</ul>"); inList = false; }
-    if (inOrderedList) { outLines.push("</ol>"); inOrderedList = false; }
-    outLines.push(`<p class="pdf-p">${formatInline(line)}</p>`);
-  }
-
-  if (inList) outLines.push("</ul>");
-  if (inOrderedList) outLines.push("</ol>");
-
-  return outLines.join("\n");
-}
-
-/** Generates a publication-grade, high-resolution PDF file with full UTF-8 (Turkish) support and sleek Obsidian/Studio styling. */
+/** Generates a vector PDF file with 100% full UTF-8 Turkish support and executive styling. */
 export async function exportPdf(chat: ChatThread) {
   const { jsPDF } = await import("jspdf");
+  const doc = new jsPDF({ unit: "pt", format: "a4" });
+  const fontFamily = await ensureUnicodeFont(doc);
 
-  const container = document.createElement("div");
-  container.className = "pdf-export-root";
-  container.style.position = "fixed";
-  container.style.left = "-9999px";
-  container.style.top = "-9999px";
-  container.style.width = "750px";
-  container.style.zIndex = "-1000";
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const margin = 44;
+  const width = pageW - margin * 2;
+  let y = 0;
+  let page = 0;
+
+  const SAPPHIRE = [15, 82, 186] as const;
+  const DARK = [15, 23, 42] as const;
+  const MUTED = [100, 116, 139] as const;
+  const BORDER = [226, 232, 240] as const;
+  const TEXT = [30, 41, 59] as const;
+
+  const header = () => {
+    page += 1;
+    doc.setFillColor(...DARK);
+    doc.rect(0, 0, pageW, 76, "F");
+    doc.setFillColor(...SAPPHIRE);
+    doc.rect(0, 74, pageW, 2.5, "F");
+
+    doc.setFont(fontFamily, "bold");
+    doc.setFontSize(8.5);
+    doc.setTextColor(147, 197, 253);
+    doc.text("ELARA SOVEREIGN STUDIO · EXECUTIVE TRANSCRIPT", margin, 28);
+
+    doc.setFont(fontFamily, "bold");
+    doc.setFontSize(15);
+    doc.setTextColor(255, 255, 255);
+    const titleLines = doc.splitTextToSize(chat.title || "Untitled Conversation", width);
+    doc.text(titleLines[0] || "", margin, 48);
+
+    doc.setFont(fontFamily, "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(148, 163, 184);
+    doc.text(
+      `Exported: ${parseSafeDate(chat?.createdAt).toLocaleString("tr-TR")} · Messages: ${chat?.messages?.length || 0} · Thread: ${chat?.id || "live"}`,
+      margin,
+      64
+    );
+
+    y = 96;
+  };
+
+  const footer = () => {
+    doc.setDrawColor(...BORDER);
+    doc.setLineWidth(0.5);
+    doc.line(margin, pageH - 36, pageW - margin, pageH - 36);
+    doc.setFont(fontFamily, "normal");
+    doc.setFontSize(7.5);
+    doc.setTextColor(...MUTED);
+    doc.text("ELARA Sovereign Studio — Confidential", margin, pageH - 22);
+    doc.text(`PAGE ${page}`, pageW - margin, pageH - 22, { align: "right" });
+  };
+
+  const need = (h: number) => {
+    if (y + h > pageH - 52) {
+      footer();
+      doc.addPage();
+      header();
+    }
+  };
+
+  header();
 
   const entries = chat.messages.length
     ? chat.messages
     : [{ role: "agent" as const, text: "No messages recorded in this thread yet." }];
 
-  const dateStr = new Date(chat.createdAt).toLocaleString("tr-TR");
-  const titleStr = chat.title || "Untitled Conversation";
+  for (const m of entries) {
+    const isUser = m.role === "user";
+    const roleLabel = isUser ? "YOU" : "ELARA SOVEREIGN ENGINE";
+    need(40);
 
-  const styles = `
-    .pdf-export-root {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-      color: #1e293b;
-      background: #ffffff;
-      padding: 32px 36px;
-      width: 750px;
-      font-size: 13px;
-      line-height: 1.6;
-      box-sizing: border-box;
-    }
-    .pdf-header {
-      border-bottom: 2px solid #0f52ba;
-      padding-bottom: 14px;
-      margin-bottom: 22px;
-    }
-    .pdf-brand {
-      font-size: 10.5px;
-      font-weight: 700;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-      color: #0f52ba;
-      margin-bottom: 4px;
-    }
-    .pdf-title {
-      font-size: 20px;
-      font-weight: 700;
-      color: #0f172a;
-      margin: 0 0 6px 0;
-      letter-spacing: -0.01em;
-    }
-    .pdf-meta {
-      font-size: 10px;
-      color: #64748b;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    }
-    .pdf-message {
-      margin-bottom: 20px;
-      padding-bottom: 16px;
-      border-bottom: 1px solid #e2e8f0;
-    }
-    .pdf-message:last-child {
-      border-bottom: none;
-    }
-    .pdf-role-badge {
-      display: inline-block;
-      font-size: 9.5px;
-      font-weight: 700;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      padding: 3px 8px;
-      border-radius: 4px;
-      margin-bottom: 8px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    }
-    .pdf-role-user {
-      background: #f1f5f9;
-      color: #334155;
-      border: 1px solid #cbd5e1;
-    }
-    .pdf-role-agent {
-      background: #eef2ff;
-      color: #0f52ba;
-      border: 1px solid #c7d2fe;
-    }
-    .pdf-p {
-      margin: 0 0 8px 0;
-      color: #1e293b;
-      word-break: break-word;
-    }
-    .pdf-h1 { font-size: 17px; font-weight: 700; margin: 14px 0 6px 0; color: #0f172a; }
-    .pdf-h2 { font-size: 15px; font-weight: 700; margin: 12px 0 6px 0; color: #0f172a; }
-    .pdf-h3 { font-size: 13.5px; font-weight: 600; margin: 10px 0 4px 0; color: #1e293b; }
-    .pdf-h4 { font-size: 12.5px; font-weight: 600; margin: 8px 0 4px 0; color: #334155; }
-    .pdf-list, .pdf-ordered-list {
-      margin: 4px 0 10px 20px;
-      padding: 0;
-      color: #1e293b;
-    }
-    .pdf-list li, .pdf-ordered-list li {
-      margin-bottom: 3px;
-    }
-    .pdf-inline-code {
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      font-size: 11px;
-      background: #f1f5f9;
-      color: #0f52ba;
-      padding: 1px 5px;
-      border-radius: 4px;
-      border: 1px solid #e2e8f0;
-    }
-    .pdf-code-block {
-      background: #0f172a;
-      color: #f8fafc;
-      border-radius: 6px;
-      margin: 10px 0;
-      overflow: hidden;
-    }
-    .pdf-code-header {
-      background: #1e293b;
-      color: #94a3b8;
-      font-size: 9.5px;
-      padding: 4px 10px;
-      font-family: ui-monospace, SFMono-Regular, monospace;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-    }
-    .pdf-code-block pre {
-      margin: 0;
-      padding: 8px 12px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
-      font-size: 10.5px;
-      line-height: 1.45;
-      white-space: pre-wrap;
-      word-break: break-all;
-    }
-    .pdf-table {
-      width: 100%;
-      border-collapse: collapse;
-      margin: 12px 0;
-      font-size: 11px;
-      border: 1px solid #cbd5e1;
-    }
-    .pdf-table th {
-      background: #f8fafc;
-      color: #334155;
-      font-weight: 600;
-      text-align: left;
-      padding: 7px 10px;
-      border: 1px solid #cbd5e1;
-    }
-    .pdf-table td {
-      padding: 6px 10px;
-      border: 1px solid #e2e8f0;
-      color: #1e293b;
-    }
-    .pdf-table tr:nth-child(even) {
-      background: #f8fafc;
-    }
-    .pdf-quote {
-      border-left: 3px solid #0f52ba;
-      margin: 8px 0;
-      padding: 4px 10px;
-      background: #f8fafc;
-      color: #475569;
-      font-style: italic;
-    }
-    .pdf-hr {
-      border: none;
-      border-top: 1px dashed #cbd5e1;
-      margin: 14px 0;
-    }
-    .pdf-footer {
-      margin-top: 24px;
-      padding-top: 12px;
-      border-top: 1px solid #e2e8f0;
-      font-size: 9.5px;
-      color: #94a3b8;
-      text-align: center;
-      font-family: ui-monospace, SFMono-Regular, monospace;
-    }
-  `;
+    // Role badge pill
+    doc.setFillColor(isUser ? 241 : 238, isUser ? 245 : 242, isUser ? 249 : 255);
+    doc.setDrawColor(isUser ? 203 : 199, isUser ? 213 : 210, isUser ? 225 : 254);
+    doc.roundedRect(margin, y, 160, 18, 4, 4, "FD");
 
-  const messagesHtml = entries
-    .map((m) => {
-      const isUser = m.role === "user";
-      const roleLabel = isUser ? "YOU" : "ELARA SOVEREIGN ENGINE";
-      const badgeClass = isUser ? "pdf-role-user" : "pdf-role-agent";
-      const contentHtml = markdownToHtml(m.text || "");
-      return `
-        <div class="pdf-message">
-          <div class="pdf-role-badge ${badgeClass}">${roleLabel}</div>
-          <div class="pdf-body">${contentHtml}</div>
-        </div>
-      `;
-    })
-    .join("");
+    doc.setFont(fontFamily, "bold");
+    doc.setFontSize(8);
+    doc.setTextColor(isUser ? 51 : 15, isUser ? 65 : 82, isUser ? 85 : 186);
+    doc.text(roleLabel, margin + 8, y + 12);
+    y += 26;
 
-  container.innerHTML = `
-    <style>${styles}</style>
-    <div class="pdf-header">
-      <div class="pdf-brand">ELARA SOVEREIGN STUDIO · EXECUTIVE TRANSCRIPT</div>
-      <h1 class="pdf-title">${escapeHtml(titleStr)}</h1>
-      <div class="pdf-meta">Exported: ${dateStr} · Messages: ${entries.length} · Thread: ${escapeHtml(chat.id || "live")}</div>
-    </div>
-    <div class="pdf-content">
-      ${messagesHtml}
-    </div>
-    <div class="pdf-footer">
-      ELARA Sovereign Studio — Enterprise Autonomous AI Operating System — Confidential
-    </div>
-  `;
+    // Parse message content lines
+    const rawLines = (m.text || "").split(/\r?\n/);
+    let inCodeBlock = false;
+    let codeBuffer: string[] = [];
 
-  document.body.appendChild(container);
+    for (let i = 0; i < rawLines.length; i++) {
+      let line = rawLines[i] ?? "";
 
-  try {
-    const doc = new jsPDF({
-      unit: "pt",
-      format: "a4",
-      orientation: "portrait",
-    });
+      // Handle Code Block start/end
+      if (line.trim().startsWith("```")) {
+        if (!inCodeBlock) {
+          inCodeBlock = true;
+          codeBuffer = [];
+          continue;
+        } else {
+          inCodeBlock = false;
+          // Render accumulated code block
+          const codeText = codeBuffer.join("\n");
+          const codeLines = doc.splitTextToSize(codeText, width - 20) as string[];
+          const blockH = codeLines.length * 11 + 14;
+          need(blockH + 8);
+          doc.setFillColor(15, 23, 42);
+          doc.roundedRect(margin, y, width, blockH, 4, 4, "F");
+          doc.setFont(fontFamily, "normal");
+          doc.setFontSize(8.5);
+          doc.setTextColor(248, 250, 252);
+          codeLines.forEach((cl, ci) => {
+            doc.text(cl, margin + 10, y + 12 + ci * 11);
+          });
+          y += blockH + 8;
+          continue;
+        }
+      }
 
-    await doc.html(container, {
-      callback: (pdf) => {
-        pdf.save(`${slug(titleStr)}.pdf`);
-      },
-      x: 18,
-      y: 18,
-      width: 559, // 595.28 - 36 (margin)
-      windowWidth: 750,
-      html2canvas: {
-        scale: 2, // High-res retina scale for razor-sharp vector text
-        useCORS: true,
-        logging: false,
-      },
-      autoPaging: "text",
-    });
-  } catch (err) {
-    console.error("[exportPdf] Error rendering PDF:", err);
-  } finally {
-    if (container.parentNode) {
-      container.parentNode.removeChild(container);
+      if (inCodeBlock) {
+        codeBuffer.push(line);
+        continue;
+      }
+
+      // Skip empty lines with minimal spacing
+      if (!line.trim()) {
+        y += 4;
+        continue;
+      }
+
+      // Horizontal rule
+      if (/^(\*\*\*|---|___)$/.test(line.trim())) {
+        need(14);
+        doc.setDrawColor(...BORDER);
+        doc.setLineWidth(0.5);
+        doc.line(margin, y + 4, pageW - margin, y + 4);
+        y += 12;
+        continue;
+      }
+
+      // Markdown Table Row
+      if (line.trim().startsWith("|") && line.trim().endsWith("|")) {
+        if (line.includes("---")) {
+          // Separator row, skip
+          continue;
+        }
+        const cells = line
+          .replace(/^\||\|$/g, "")
+          .split("|")
+          .map((c) => c.trim().replace(/\*\*/g, ""));
+        const colW = width / Math.max(1, cells.length);
+        need(18);
+        doc.setFillColor(248, 250, 252);
+        doc.rect(margin, y, width, 16, "F");
+        doc.setDrawColor(...BORDER);
+        doc.setLineWidth(0.4);
+        doc.rect(margin, y, width, 16, "S");
+        doc.setFont(fontFamily, "normal");
+        doc.setFontSize(8.5);
+        doc.setTextColor(...TEXT);
+        cells.forEach((cell, ci) => {
+          const splitCell = doc.splitTextToSize(cell, colW - 8) as string[];
+          doc.text(splitCell[0] || "", margin + ci * colW + 4, y + 11);
+        });
+        y += 16;
+        continue;
+      }
+
+      // Headings
+      let isHeading = false;
+      let headingSize = 10;
+      if (line.startsWith("#### ")) {
+        line = line.slice(5);
+        isHeading = true;
+        headingSize = 11;
+      } else if (line.startsWith("### ")) {
+        line = line.slice(4);
+        isHeading = true;
+        headingSize = 12;
+      } else if (line.startsWith("## ")) {
+        line = line.slice(3);
+        isHeading = true;
+        headingSize = 13;
+      } else if (line.startsWith("# ")) {
+        line = line.slice(2);
+        isHeading = true;
+        headingSize = 14.5;
+      }
+
+      // Clean inline bold/italic marks for clean vector rendering
+      const cleanLine = line
+        .replace(/\*\*([^*]+)\*\*/g, "$1")
+        .replace(/`([^`]+)`/g, "$1");
+
+      const isBullet = /^[\*\-]\s+/.test(cleanLine);
+      const displayText = isBullet ? "• " + cleanLine.replace(/^[\*\-]\s+/, "") : cleanLine;
+
+      doc.setFont(fontFamily, isHeading ? "bold" : "normal");
+      doc.setFontSize(isHeading ? headingSize : 9.5);
+      doc.setTextColor(isHeading ? DARK[0] : TEXT[0], isHeading ? DARK[1] : TEXT[1], isHeading ? DARK[2] : TEXT[2]);
+
+      const wrapWidth = isBullet ? width - 14 : width;
+      const wrapped = doc.splitTextToSize(displayText, wrapWidth) as string[];
+
+      for (let wIdx = 0; wIdx < wrapped.length; wIdx++) {
+        need(14);
+        const xOffset = isBullet && wIdx > 0 ? margin + 10 : margin;
+        doc.text(wrapped[wIdx] || "", xOffset, y + 10);
+        y += isHeading ? 14 : 12.5;
+      }
     }
+
+    // Message separator line
+    y += 10;
+    need(12);
+    doc.setDrawColor(...BORDER);
+    doc.setLineWidth(0.5);
+    doc.line(margin, y, pageW - margin, y);
+    y += 14;
   }
+
+  footer();
+  doc.save(`${slug(chat.title || "chat")}.pdf`);
 }

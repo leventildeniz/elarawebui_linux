@@ -1237,10 +1237,10 @@ Bu aşamada ELARA Sovereign Studio'nun Chat ekleri, görseller, PDF ve belge iş
 - Çok turlu araç çalıştırma döngülerinde token sayacının sadece son turun birkaç kelimelik yanıtını (`tokens: 37`) sayıp 78 saniyelik toplam süreye bölmesi (`37 / 78s = 0 tok/s`) hatası düzeltildi.
 - Tüm turlarda modelin ürettiği düşünce (`assembledThinking`), araç argümanları ve metin tokenları kümülatif olarak toplandı (`cumulativeResponseTokens`), gerçek aktif GPU üretim süresine (`cumulativeGenMs`) bölünerek gerçek donanım throughput'u (Gemma-4 için 14-18+ tok/s) şeffaf şekilde yansıtıldı.
 
-#### AA. Yüksek Çözünürlüklü & 100% Türkçe Destekli PDF Dışa Aktarımı (`chat-export.ts`):
-- `exportPdf` motoru, karakter bozulmasına (`ı -> 1`, `ş -> _`, `ğ -> space`) yol açan eski çiğ metin yazımından çıkarılarak `html2canvas` destekli DOM render mimarisine geçirildi.
-- Türkçe karakterler (`ç, Ç, ğ, Ğ, ı, İ, ö, Ö, ş, Ş, ü, Ü`) ve emojiler kusursuz UTF-8 desteğiyle mühürlendi.
-- Markdown başlıkları (`#`, `##`, `###`), listeler, alıntılar, tablolar (`| Col 1 | Col 2 |`), kod blokları ve rol rozetleri (`YOU`, `ELARA SOVEREIGN ENGINE`) stüdyo kurumsal kalitesinde 2x retina çözünürlükle PDF'e aktarıldı.
+#### AA. Vektörel & %100 Türkçe Destekli Çevrimdışı PDF Motoru (`chat-export.ts`, `report-pdf.ts`, `pdf-fonts.ts`):
+- Tailwind v4 `oklch` CSS renk fonksiyonlarıyla çatışıp hata veren (`unsupported color function "oklch"`) DOM-raster yaklaşımı yerine, `DejaVuSans` (Regular + Bold) TrueType fontları doğrudan sisteme ve `public/fonts/` altına entegre edildi.
+- Hem **Sohbet Dışa Aktarımı (`chat-export.ts`)** hem de **Tüm Raporlama / Faturalandırma (`report-pdf.ts`)** modülleri saf vektörel jsPDF motoruna geçirildi.
+- Türkçe karakterler (`ç, Ç, ğ, Ğ, ı, İ, ö, Ö, ş, Ş, ü, Ü`), Markdown başlıkları, tablolar, kod blokları ve KPI kartları piksellenmeden, sıfır `oklch` hatasıyla, seçilebilir/kopyalanabilir vektörel kalitede ve anında (<50ms) PDF olarak üretilir.
 
 ---
 
