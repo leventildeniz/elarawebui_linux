@@ -1218,6 +1218,10 @@ Bu aşamada ELARA Sovereign Studio'nun Chat ekleri, görseller, PDF ve belge iş
 - `directives.mjs` içine `[TOOL EXECUTION & MULTI-TURN PROTOCOL]` direktifi eklendi; yerel modellerin (Gemma-4 vb.) 1. turda gevezelik yapmadan doğrudan aracı çağırması, sentezlenen tablo, şema ve onay kartı yönlendirmesini 2. turda sunması sağlandı.
 - MetaForge onay kartının mesaj metni ve diyagram tamamlandıktan sonra mesajın hemen altında pürüzsüz biçimde belirmesi güvenceye alındı.
 
+#### V. Orkestrasyon Zincirlerinde Workflow Silme Bağımlılık Koruması (Dependency Guard — `workflows.mjs`, `workflow-store.ts`):
+- `DELETE /api/workflows/:id` uç noktasına referans bütünlüğü denetimi eklendi. Silinmek istenen workflow herhangi bir Orchestration Chain (`orchestrations`) içerisinde kullanımda ise silme işlemi `HTTP 409 Conflict` ile engellenir ve bağlı zincir isimleri döndürülür.
+- `src/lib/workflow-store.ts` içerisindeki `remove` fonksiyonu `confirmAction` obsidian modalı ile entegre edildi; zincirde kullanılan iş akışlarının arayüzden veya yerel hafızadan yanlışlıkla silinmesi (split-brain) engellendi. İş akışı zincirden çıkarıldığında veya zincir silindiğinde bağımsız silme işlemi serbest kalır.
+
 ---
 
 ## 62. UP NEXT — MULTI-NODE BENCHMARKING, LIVE AGENT STRESS TESTS & DEAD CODE CLEANUP (PHASE 62)

@@ -147,8 +147,62 @@ export function mountWorkflowRoutes(app, deps) {
     } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
   });
   app.delete("/api/workflows/:id", async (req, res) => {
-    try { await pool.query("DELETE FROM workflows WHERE id=$1", [req.params.id]); res.status(204).end(); }
-    catch (e) { res.status(500).json({ error: String(e.message || e) }); }
+    const wfId = req.params.id;
+    try {
+      // 1. Fetch workflow details to get ID and Name
+      const wfRes = await pool.query("SELECT id, name FROM workflows WHERE id=$1", [wfId]);
+      if (!wfRes.rows[0]) {
+        return res.status(404).json({ error: "Workflow not found" });
+      }
+      const wf = wfRes.rows[0];
+      const wfNameLower = String(wf.name || "").trim().toLowerCase();
+
+      // 2. Inspect all active Orchestration Chains for references to this workflow
+      const { rows: chainRows } = await pool.query("SELECT id, name, nodes FROM orchestrations");
+      const dependentChains = [];
+
+      for (const chain of chainRows) {
+        const nodes = Array.isArray(chain.nodes) ? chain.nodes : [];
+        const isReferenced = nodes.some((n) => {
+          if (!n || typeof n !== "object") return false;
+          if (n.kind !== "workflow" && n.type !== "workflow") return false;
+
+          const nodeLabelLower = String(n.label || n.name || "").trim().toLowerCase();
+          const nodeMeta = String(n.meta || "");
+          const nodeWfId = String(n.workflowId || n.config?.workflowId || n.data?.workflowId || "");
+
+          return (
+            (wfNameLower && nodeLabelLower === wfNameLower) ||
+            nodeMeta === wf.id ||
+            nodeMeta.includes(wf.id) ||
+            nodeWfId === wf.id ||
+            n.id === wf.id
+          );
+        });
+
+        if (isReferenced) {
+          dependentChains.push({ id: chain.id, name: chain.name });
+        }
+      }
+
+      // 3. If in use, block deletion with 409 Conflict
+      if (dependentChains.length > 0) {
+        const chainNames = dependentChains.map((c) => `"${c.name}"`).join(", ");
+        return res.status(409).json({
+          ok: false,
+          code: "workflow_in_use",
+          error: `This workflow is currently used in Orchestration Chain(s): ${chainNames}. You must remove it from the chain(s) or delete the chain(s) before deleting this workflow.`,
+          chains: dependentChains,
+        });
+      }
+
+      // 4. Safe to delete
+      await pool.query("DELETE FROM workflows WHERE id=$1", [wfId]);
+      res.status(200).json({ ok: true });
+    } catch (e) {
+      console.error("[workflows] Delete error:", e);
+      res.status(500).json({ error: String(e.message || e) });
+    }
   });
 
   // --- Workflow DAG run engine (chains v2) --------------------------------

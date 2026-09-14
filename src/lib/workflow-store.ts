@@ -21,6 +21,7 @@ const EVT = "sovereign:workflows";
 import { scopeOwned, stampOwner, useOwnerCtx, type Owned } from "@/lib/ownership";
 import { workflowDrafts, type WorkflowDraft } from "@/mocks/workflows";
 import { fetchApi } from "@/lib/api";
+import { confirmAction } from "@/components/sovereign/confirm-dialog";
 
 const seedTones: JewelName[] = ["sapphire", "emerald", "amethyst", "topaz", "ruby", "platinum"];
 
@@ -260,15 +261,24 @@ export function useWorkflows() {
 
   const remove = useCallback(
     async (id: string) => {
-      const next = read().filter((w) => w.id !== id);
-      write(next);
-      setWorkflows(next);
-      if (readActive() === id) setActiveId(next[0]?.id ?? "");
-
       try {
         await fetchApi(`/api/workflows/${id}`, { method: "DELETE" });
-      } catch (e) {
+        const next = read().filter((w) => w.id !== id);
+        write(next);
+        setWorkflows(next);
+        if (readActive() === id) setActiveId(next[0]?.id ?? "");
+        return true;
+      } catch (e: any) {
         console.error("Failed to delete workflow API record", e);
+        const errMsg = e?.data?.error || e?.message || "Failed to delete workflow.";
+        await confirmAction({
+          title: "Workflow In Use — Cannot Delete",
+          body: errMsg,
+          confirmLabel: "Understood",
+          cancelLabel: "Close",
+          tone: "ruby",
+        });
+        return false;
       }
     },
     [setActiveId],
