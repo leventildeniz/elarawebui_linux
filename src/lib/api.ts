@@ -14,7 +14,7 @@ export class ApiError extends Error {
  * Standard fetch wrapper for ELARA Sovereign Studio.
  * Automatically injects the `x-session-id` header if present in localStorage.
  */
-export async function fetchApi(endpoint: string, options: RequestInit = {}): Promise<any> {
+export async function fetchApi<T = any>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers);
   headers.set("Content-Type", "application/json");
 

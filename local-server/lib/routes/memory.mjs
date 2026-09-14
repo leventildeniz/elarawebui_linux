@@ -35,6 +35,7 @@ export async function mountMemoryRoutes(app, deps) {
     try {
       const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
       const tenantId = req.session?.tenant_id || ctx.tenantId || "default";
+      const userMatches = [req.session?.userId, ctx.userId, req.session?.username, ctx.username, ctx.actor].filter(Boolean);
 
       const [workingRes, episodicRes, factsRes, policyRes] = await Promise.all([
         ctx.isSuperAdmin
@@ -42,16 +43,29 @@ export async function mountMemoryRoutes(app, deps) {
           : pool.query(`
               SELECT w.id, w.thread_id, w.label, w.origin, w.tokens, w.pinned, w.tone, w.updated_at 
               FROM memory_working w 
-              LEFT JOIN chat_threads t ON t.id = w.thread_id 
-              WHERE (w.tenant_id = $1 OR t.tenant_id = $1 OR w.is_global = true OR w.tenant_id = 'default')
+              INNER JOIN chat_threads t ON t.id = w.thread_id 
+              WHERE (w.tenant_id = $1 OR t.tenant_id = $1)
+                AND (t.owner_id = ANY($2) OR lower(t.owner_id) = ANY($2))
               ORDER BY w.updated_at DESC LIMIT 100
-            `, [tenantId]),
+            `, [tenantId, userMatches]),
         ctx.isSuperAdmin
           ? pool.query("SELECT id, at, actor, summary, thread_id as thread, tokens, outcome FROM memory_episodic ORDER BY at DESC LIMIT 100")
-          : pool.query("SELECT id, at, actor, summary, thread_id as thread, tokens, outcome FROM memory_episodic WHERE (tenant_id = $1 OR is_global = true OR tenant_id = 'default') ORDER BY at DESC LIMIT 100", [tenantId]),
+          : pool.query(`
+              SELECT id, at, actor, summary, thread_id as thread, tokens, outcome 
+              FROM memory_episodic 
+              WHERE (tenant_id = $1 OR is_global = true)
+                AND (actor = ANY($2) OR lower(actor) = ANY($2))
+              ORDER BY at DESC LIMIT 100
+            `, [tenantId, userMatches]),
         ctx.isSuperAdmin
           ? pool.query("SELECT id, key, value, scope, confidence, source, locked, updated_at FROM memory_facts ORDER BY updated_at DESC LIMIT 200")
-          : pool.query("SELECT id, key, value, scope, confidence, source, locked, updated_at FROM memory_facts WHERE (tenant_id = $1 OR scope = 'system' OR is_global = true OR tenant_id = 'default') ORDER BY updated_at DESC LIMIT 200", [tenantId]),
+          : pool.query(`
+              SELECT id, key, value, scope, confidence, source, locked, updated_at 
+              FROM memory_facts 
+              WHERE (tenant_id = $1 OR is_global = true)
+                AND (scope = 'system' OR scope = 'workspace' OR scope_ref = ANY($2) OR lower(scope_ref) = ANY($2))
+              ORDER BY updated_at DESC LIMIT 200
+            `, [tenantId, userMatches]),
         pool.query("SELECT * FROM memory_policy WHERE id='singleton'")
       ]);
 

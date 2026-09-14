@@ -15,11 +15,13 @@ export async function mountRagFoldersRoutes(app, deps) {
         ON CONFLICT (id) DO NOTHING
       `);
 
+      const userMatches = [req.session?.userId, ctx.userId, req.session?.username, ctx.username, ctx.actor].filter(Boolean);
+
       let query = "SELECT * FROM rag_folders";
       const params = [];
       if (!ctx.isSuperAdmin) {
-        query += " WHERE (tenant_id = $1 OR is_global = true OR builtin = true OR tenant_id = 'default')";
-        params.push(tenantId);
+        query += " WHERE (tenant_id = $1 OR is_global = true OR tenant_id = 'default') AND (builtin = true OR owner_id = ANY($2) OR lower(owner_id) = ANY($2))";
+        params.push(tenantId, userMatches);
       }
       query += " ORDER BY created_at ASC";
 
@@ -42,13 +44,15 @@ export async function mountRagFoldersRoutes(app, deps) {
   app.post("/api/rag-folders", requireSession(), async (req, res) => {
     const { name, autoTags, color } = req.body;
     const id = createPrefixedId("fld.");
-    const tenantId = req.session?.tenant_id || "default";
+    const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
+    const tenantId = req.session?.tenant_id || ctx.tenantId || "default";
+    const ownerId = req.session?.userId || ctx.userId || ctx.actor || null;
 
     try {
       await pool.query(
         `INSERT INTO rag_folders (id, name, auto_tags, builtin, color, owner_id, tenant_id)
          VALUES ($1, $2, $3::jsonb, false, $4, $5, $6)`,
-        [id, name, JSON.stringify(autoTags || []), color || "sapphire", req.session?.userId || null, tenantId]
+        [id, name, JSON.stringify(autoTags || []), color || "sapphire", ownerId, tenantId]
       );
       res.json({ ok: true, id });
     } catch (e) {

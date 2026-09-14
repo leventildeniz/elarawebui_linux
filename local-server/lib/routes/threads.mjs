@@ -65,14 +65,13 @@ export function mountThreadRoutes(app, deps) {
       let query = "SELECT id, title, pinned, color, context, branched_from as \"branchedFrom\", title_locked as \"titleLocked\", EXTRACT(EPOCH FROM created_at)*1000 as \"createdAt\" FROM chat_threads";
       const params = [];
 
-      if (!ctx.isSuperAdmin) {
-        if (userMatches.length > 0) {
-          query += ` WHERE (tenant_id = $1 OR is_global = true OR tenant_id IS NULL) AND (owner_id = ANY(ARRAY[$2]::text[]) OR lower(owner_id) = ANY(ARRAY[$2]::text[]) OR owner_id IS NULL)`;
-          params.push(tenantId, userMatches);
-        } else {
-          query += ` WHERE (tenant_id = $1 OR is_global = true OR tenant_id IS NULL)`;
-          params.push(tenantId);
-        }
+      // Chat threads are strictly personal per-desk: each operator sees only their own authored threads
+      if (userMatches.length > 0) {
+        query += ` WHERE (tenant_id = $1 OR tenant_id IS NULL) AND (owner_id = ANY($2) OR lower(owner_id) = ANY($2))`;
+        params.push(tenantId, userMatches);
+      } else {
+        query += ` WHERE (tenant_id = $1 OR tenant_id IS NULL) AND owner_id = $2`;
+        params.push(tenantId, ctx.userId || "anonymous");
       }
       query += " ORDER BY updated_at DESC LIMIT 50";
 
@@ -138,7 +137,11 @@ export function mountThreadRoutes(app, deps) {
       const { rows } = await pool.query(
         `INSERT INTO chat_threads(id, title, owner_id, tenant_id) 
          VALUES ($1, $2, $3, $4) 
-         ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, updated_at = now()
+         ON CONFLICT (id) DO UPDATE SET 
+           title = EXCLUDED.title, 
+           owner_id = COALESCE(chat_threads.owner_id, EXCLUDED.owner_id),
+           tenant_id = COALESCE(chat_threads.tenant_id, EXCLUDED.tenant_id),
+           updated_at = now()
          RETURNING id, title, pinned, color, context, branched_from as "branchedFrom", title_locked as "titleLocked", EXTRACT(EPOCH FROM created_at)*1000 as "createdAt"`,
         [id, title, ownerId, tenantId]
       );
@@ -193,15 +196,22 @@ export function mountThreadRoutes(app, deps) {
   app.put("/api/threads/:id/messages", async (req, res) => {
     const threadId = req.params.id;
     const messages = req.body?.messages || [];
+    const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default", actor: "admin" };
+    const tenantId = ctx.tenantId || "default";
+    let ownerId = ctx.userId || null;
+    if (!ownerId && ctx.actor) {
+      const uRow = await pool.query("SELECT id FROM app_users WHERE lower(username) = lower($1) LIMIT 1", [ctx.actor]);
+      ownerId = uRow.rows[0]?.id || null;
+    }
     
     try {
       await pool.query('BEGIN');
       
-      // Auto-create thread if missing (upsert)
+      // Auto-create thread if missing (upsert) with owner_id and tenant_id
       await pool.query(
-         `INSERT INTO chat_threads (id, title) VALUES ($1, 'New chat') 
-          ON CONFLICT (id) DO NOTHING`,
-         [threadId]
+         `INSERT INTO chat_threads (id, title, owner_id, tenant_id) VALUES ($1, 'New chat', $2, $3) 
+          ON CONFLICT (id) DO UPDATE SET updated_at = now()`,
+         [threadId, ownerId, tenantId]
       );
       
       // 1. Array'in dışında kalan eski/artık mesajları sil (Trim işlemi)
@@ -264,15 +274,20 @@ export function mountThreadRoutes(app, deps) {
     const files = req.body?.files || [];
     const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default", actor: "admin" };
     const tenantId = ctx.tenantId || "default";
+    let ownerId = ctx.userId || null;
+    if (!ownerId && ctx.actor) {
+      const uRow = await pool.query("SELECT id FROM app_users WHERE lower(username) = lower($1) LIMIT 1", [ctx.actor]);
+      ownerId = uRow.rows[0]?.id || null;
+    }
     
     try {
       await pool.query('BEGIN');
       
-      // Auto-create thread if missing (upsert)
+      // Auto-create thread if missing (upsert) with owner_id and tenant_id
       await pool.query(
-         `INSERT INTO chat_threads (id, title, tenant_id) VALUES ($1, 'New chat', $2) 
-          ON CONFLICT (id) DO NOTHING`,
-         [threadId, tenantId]
+         `INSERT INTO chat_threads (id, title, owner_id, tenant_id) VALUES ($1, 'New chat', $2, $3) 
+          ON CONFLICT (id) DO UPDATE SET updated_at = now()`,
+         [threadId, ownerId, tenantId]
       );
       
       // Physical cleanup: remove unreferenced files on disk

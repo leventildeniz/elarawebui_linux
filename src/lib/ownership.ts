@@ -225,7 +225,8 @@ export function deskKey(base: string): string {
 
 /** Legacy (pre-ownership) buckets belong to the founding admin only. */
 function legacyOwner(): boolean {
-  return readOwnerCtx().userId === "usr.admin";
+  const ctx = readOwnerCtx();
+  return ctx.userId === "00000000-0000-0000-0000-000000000000" || ctx.userId === "usr.admin" || ctx.name.toLowerCase() === "admin";
 }
 
 export function readDesk<T>(base: string, fallback: T): T {

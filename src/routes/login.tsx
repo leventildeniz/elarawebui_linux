@@ -157,6 +157,11 @@ function LoginPage() {
 
         sessionStorage.setItem("sovereign.operator", data.user.username);
         sessionStorage.setItem("sovereign.sidebar.closed", "1");
+        
+        // Notify all in-memory stores that principal context has switched
+        window.dispatchEvent(new CustomEvent("sovereign:identity"));
+        window.dispatchEvent(new CustomEvent("sovereign:rbac"));
+        window.dispatchEvent(new CustomEvent("sovereign:groups"));
       } catch {
         /* ignore */
       }

@@ -1,26 +1,24 @@
 // local-server/lib/actor.mjs
-// Block D — actor resolution + RBAC visibility + loopback gate helpers.
-// 2026-05-30 monolit-avı: server.mjs'ten ayrıldı.
-//
-// Saf util'ler (zero-dep): _isLoopbackReq, _hasLoopbackAdminToken,
+// Actor resolution, RBAC visibility filtering and loopback gate helpers.
+// Pure utility functions (zero-dep): _isLoopbackReq, _hasLoopbackAdminToken,
 //   _isAdminTokenKnowledgePath, _isLoopbackAgentRunPath, buildVisibility
-// Pool-bağımlı (DI): resolveDefaultActor, resolveActor, resolveActorContext
+// Pool-bound resolvers (DI): resolveDefaultActor, resolveActor, resolveActorContext
 //
-// Kullanım:
+// Usage:
 //   import { initActorRegistry, resolveActor, _isLoopbackReq, ... } from "./lib/actor.mjs";
-//   initActorRegistry({ pool });  // pool kurulduktan sonra, bir kez
+//   initActorRegistry({ pool });  // Once after pool connection is established
 
 let _pool = null;
 
 export function initActorRegistry({ pool }) {
-  if (!pool) throw new Error("[actor] initActorRegistry: pool gerekli");
+  if (!pool) throw new Error("[actor] initActorRegistry: database pool required");
   _pool = pool;
 }
 
 // ---- pool-bound resolvers --------------------------------------------------
 
 export async function resolveDefaultActor() {
-  if (!_pool) throw new Error("[actor] resolveDefaultActor: registry init edilmedi");
+  if (!_pool) throw new Error("[actor] resolveDefaultActor: registry not initialized");
   const { rows } = await _pool.query(
     "SELECT username FROM app_users ORDER BY created_at ASC LIMIT 1"
   );
@@ -110,12 +108,10 @@ export async function resolveActorContext(req) {
   };
 }
 
-// 2026-05-30 R-2: Legacy ownerless satırların owner_user_id'sini default
-// actor (ilk kayıtlı user = Mimar) ile geri yamala. Idempotent; boot'ta
-// migrateReady çözüldükten sonra bir kez çağrılır. agents / app_agents /
-// models tabloları kesin; runtimes_config opsiyonel (varsa yamalanır).
+// Link legacy ownerless rows with default actor (first registered operator).
+// Idempotent: called once after database bootstrap.
 export async function autoLinkLegacyOwnership({ migrateReady } = {}) {
-  if (!_pool) throw new Error("[actor] autoLinkLegacyOwnership: registry init edilmedi");
+  if (!_pool) throw new Error("[actor] autoLinkLegacyOwnership: registry not initialized");
   try {
     if (migrateReady) await migrateReady;
     const defaultActor = await resolveDefaultActor();
@@ -203,8 +199,7 @@ export function _hasLoopbackAdminToken(req) {
   return !!expected && !!sent && sent === expected;
 }
 
-// Set'i dışarıdan geçiyoruz ki server.mjs'teki FAZ2_ADMIN_TOKEN_MUTATION_PATHS
-// tek mercii kalsın (path konfigürasyonu mutation guard ile birlikte yaşıyor).
+// External path set passed to maintain single authority from server.mjs
 export function _isAdminTokenKnowledgePath(reqPath, adminTokenPaths) {
   if (adminTokenPaths && adminTokenPaths.has(reqPath)) return true;
   const parts = String(reqPath || "").split("/").filter(Boolean);
@@ -216,9 +211,8 @@ export function _isAdminTokenKnowledgePath(reqPath, adminTokenPaths) {
 }
 
 export function _isLoopbackAgentRunPath(reqPath) {
-  // /api/agents/:id/run veya /api/agents/:id/stop — loopback dispatch
-  // (diagnostic script, agent→agent bridge). Handler body validation +
-  // agent existence check'ini kendi içinde yapıyor.
+  // /api/agents/:id/run or /api/agents/:id/stop — loopback dispatch
+  // (diagnostic script, agent-to-agent bridge). Handler validates body and existence.
   const parts = String(reqPath || "").split("/").filter(Boolean);
   return parts.length === 4
     && parts[0] === "api"

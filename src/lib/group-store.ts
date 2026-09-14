@@ -186,7 +186,7 @@ export function useIdentity() {
   const [accounts, setAccounts] = useState<Account[]>(defaultAccounts);
 
   useEffect(() => {
-    // 1. Sayfa ilk açıldığında gerçek veritabanından (API) verileri 1 kez çek.
+    // 1. Initial hydration from live database API
     const fetchInitial = async () => {
       try {
         const usersData = await fetchApi("/api/identity/users");
@@ -243,7 +243,7 @@ export function useIdentity() {
 
     fetchInitial();
 
-    // 2. Olay (EVENT) geldiğinde API'ye gitme, sadece güncel localStorage'dan oku!
+    // 2. Synchronize from local storage on internal change events without extra API round-trips
     const syncLocal = () => {
       setGroups(read(G_KEY, defaultGroups));
       setAccounts(read(A_KEY, defaultAccounts));

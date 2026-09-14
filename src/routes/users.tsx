@@ -43,7 +43,7 @@ import {
   fetchDirectoryUsers,
   type DirectoryGroup,
   type DirectoryUser,
-} from "@/mocks/directory";
+} from "@/lib/directory-client";
 
 import { useAuthProviders, PROVIDER_SPECS } from "@/lib/auth-provider-store";
 import { useModels } from "@/lib/model-store";
