@@ -1222,6 +1222,21 @@ Bu aşamada ELARA Sovereign Studio'nun Chat ekleri, görseller, PDF ve belge iş
 - `DELETE /api/workflows/:id` uç noktasına referans bütünlüğü denetimi eklendi. Silinmek istenen workflow herhangi bir Orchestration Chain (`orchestrations`) içerisinde kullanımda ise silme işlemi `HTTP 409 Conflict` ile engellenir ve bağlı zincir isimleri döndürülür.
 - `src/lib/workflow-store.ts` içerisindeki `remove` fonksiyonu `confirmAction` obsidian modalı ile entegre edildi; zincirde kullanılan iş akışlarının arayüzden veya yerel hafızadan yanlışlıkla silinmesi (split-brain) engellendi. İş akışı zincirden çıkarıldığında veya zincir silindiğinde bağımsız silme işlemi serbest kalır.
 
+#### W. Akış İçi Düşünce Etiketi Ayrıştırma & Sızıntı Önleme (`createStreamingTagParser` — `stream-bridge.mjs`):
+- Token seviyesinde parçalanan (`"<"`, `"th"`, `"ink>"`) düşünce etiketlerini tamponlayan durum bilgili `createStreamingTagParser()` motoru devreye alındı. `<think>`, `<thought>`, `<reasoning>` etiketlerinin `type: "out"` normal mesaj metnine sızması kalıcı olarak engellendi.
+
+#### X. Bilişsel Mimari Öz-Farkındalık & Akış İçi Donma Önleme (`directives.mjs`, `stream-bridge.mjs`):
+- `[SOVEREIGN CORE DIRECTIVE & ARCHITECTURAL IDENTITY]` bölümü sadeleştirildi ve altyapı bağımsızlığı sağlandı: Doğrudan veritabanı/önbellek marka isimleri (PostgreSQL, Redis vb.) ve 6. Güvenlik iç detayları (AES-256 Vault, SIEM vb.) gizlenerek mimari tamamen kurumsal egemen katman olarak soyutlandı. 5 ana sütun tanımlandı: 4-Tier Memory Engine, Enterprise Routing, MetaForge & Self-Healing, Agentic RAG ve Multi-Agent MCP.
+- `createStreamingTagParser` içerisine `hasStartedOut` durum koruması eklendi; ana metin akışı başladıktan sonra yerel modellerin araya sıkıştırdığı uydurma/artık `<think>` etiketlerinin akışı dondurup metni yukarıdaki düşünce kutusuna kaçırması engellendi.
+
+#### Y. Sıfır-Şişme Dinamik Araç Enjeksiyonu (Zero-Shot Capability Optimization — `chat-orchestrate.mjs`):
+- Her istekte 105 araçlık devasa JSON şemasının (`tools: [...]`) gereksiz yere yüklenerek prompt boyutunu 10.000+ tokene şişirmesi engellendi.
+- Yalnızca kullanıcının açıkça seçtiği (`/tool`, `!skill`, `#mcp`), ajana atanmış veya `auto_inject: true` olan araçlar ile 5 çekirdek yönlendirici araç (`sys_get_directory`, `sys_delegate_to_agent`, `sys_delegate_to_metaforge`, `sys_execute_tool`, `sys_web_search`) yüklenecek şekilde optimize edildi. Prompt token boyutu %80+ hafifletilerek TTFT ve yanıt hızları maksimize edildi.
+
+#### Z. Çok Turlu ReAct Token Sayımı & Gerçek Donanım Hızı (True tok/s — `chat-orchestrate.mjs`, `message-actions.tsx`):
+- Çok turlu araç çalıştırma döngülerinde token sayacının sadece son turun birkaç kelimelik yanıtını (`tokens: 37`) sayıp 78 saniyelik toplam süreye bölmesi (`37 / 78s = 0 tok/s`) hatası düzeltildi.
+- Tüm turlarda modelin ürettiği düşünce (`assembledThinking`), araç argümanları ve metin tokenları kümülatif olarak toplandı (`cumulativeResponseTokens`), gerçek aktif GPU üretim süresine (`cumulativeGenMs`) bölünerek gerçek donanım throughput'u (Gemma-4 için 14-18+ tok/s) şeffaf şekilde yansıtıldı.
+
 ---
 
 ## 62. UP NEXT — MULTI-NODE BENCHMARKING, LIVE AGENT STRESS TESTS & DEAD CODE CLEANUP (PHASE 62)

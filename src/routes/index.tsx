@@ -590,6 +590,7 @@ function SovereignChat() {
           finalTelemetry = {
             firstTokenMs: e.latency.ttftMs || 0,
             totalMs: e.latency.totalMs,
+            ...(e.latency.activeGenMs !== undefined ? { activeGenMs: e.latency.activeGenMs } : {}),
             tokens: e.latency.tokensOut || 1,
             model: e.latency.modelOut || activeModel?.name || model,
             effort,

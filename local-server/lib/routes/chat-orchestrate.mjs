@@ -177,7 +177,7 @@ export async function mountChatOrchestrateRoutes(app, deps) {
         thread_id
           ? pool.query("SELECT label, origin FROM memory_working WHERE thread_id = $1 AND pinned = true ORDER BY updated_at ASC", [thread_id]).catch(() => ({ rows: [] }))
           : Promise.resolve({ rows: [] }),
-        pool.query("SELECT id FROM action_library WHERE (visibility = 'workspace' OR is_system = true) AND COALESCE((runtime->>'orphan')::boolean, false) = false").catch(() => ({ rows: [] })),
+        pool.query("SELECT id FROM action_library WHERE is_system = true AND COALESCE((runtime->>'orphan')::boolean, false) = false").catch(() => ({ rows: [] })),
         pool.query("SELECT slug, name, tools_cache, auto_inject FROM mcp_client_servers WHERE enabled = true AND last_status = 'ready'").catch(() => ({ rows: [] })),
       ]);
 
@@ -723,7 +723,7 @@ export async function mountChatOrchestrateRoutes(app, deps) {
       const toolMap = {};
 
       const systemToolIds = (systemToolsRes?.rows || []).map((r) => r.id);
-      let finalToolIds = [...new Set([...requestedTools, ...requestedMcp, ...systemToolIds])];
+      let finalToolIds = [...new Set([...requestedTools, ...systemToolIds])];
 
       if (capabilities || finalToolIds.length > 0) {
         try {
@@ -828,7 +828,7 @@ export async function mountChatOrchestrateRoutes(app, deps) {
           for (const server of mcpServerRes?.rows || []) {
             const serverMcpId = `mcp.${server.slug}`;
             const isExplicitlyRequested = requestedMcp && requestedMcp.length > 0 && (requestedMcp.includes(serverMcpId) || requestedMcp.some((x) => x.startsWith(`mcp.${server.slug}.`)));
-            const shouldInject = server.auto_inject || isExplicitlyRequested || !requestedMcp || requestedMcp.length === 0;
+            const shouldInject = Boolean(server.auto_inject) || isExplicitlyRequested;
 
             const tools = Array.isArray(server.tools_cache) ? server.tools_cache : [];
             for (const t of tools) {
@@ -951,6 +951,8 @@ export async function mountChatOrchestrateRoutes(app, deps) {
       let iteration = 0;
       let isDone = false;
       let finalProviderUsed = prov;
+      let cumulativeResponseTokens = 0;
+      let cumulativeGenMs = 0;
 
       // === RE-ACT AGENTIC LOOP START ===
       while (iteration < maxIterations && !isDone) {
@@ -1044,6 +1046,7 @@ export async function mountChatOrchestrateRoutes(app, deps) {
         let assembledThinking = "";
         let chunkCount = 0;
         let toolCallsBuffer = {};
+        const tStreamStart = Date.now();
 
         console.log(`[Orchestrate] Stream reading started (Turn ${iteration})...`);
 
@@ -1108,6 +1111,15 @@ export async function mountChatOrchestrateRoutes(app, deps) {
             throw streamError;
           }
         }
+
+        const turnStreamMs = Math.max(1, Date.now() - tStreamStart);
+        cumulativeGenMs += turnStreamMs;
+
+        const turnOutText = (assembled || "") + (assembledThinking || "");
+        const turnTokens = approxTokens ? approxTokens(turnOutText) : Math.max(1, Math.round(turnOutText.length / 4));
+        const toolArgsText = Object.values(toolCallsBuffer).map(t => (t.function?.name || "") + (t.function?.arguments || "")).join("");
+        const toolArgsTokens = approxTokens && toolArgsText ? approxTokens(toolArgsText) : Math.round(toolArgsText.length / 4);
+        cumulativeResponseTokens += (turnTokens + toolArgsTokens);
 
         const rawToolCalls = Object.values(toolCallsBuffer);
         const finalToolCalls = [];
@@ -1271,7 +1283,8 @@ export async function mountChatOrchestrateRoutes(app, deps) {
             latency: {
               ttftMs: tFirstToken ? tFirstToken - t0 : 0,
               totalMs,
-              tokensOut: responseTokens,
+              activeGenMs: Math.max(50, cumulativeGenMs),
+              tokensOut: Math.max(1, cumulativeResponseTokens),
               modelOut: usedModelStr,
             },
           });

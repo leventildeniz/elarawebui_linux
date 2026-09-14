@@ -57,7 +57,7 @@ export type OrchestrateEvent =
   /** Assistant answer delta. */
   | { kind: "out"; text: string }
   /** Telemetry emitted at the end. */
-  | { kind: "telemetry"; latency: { ttftMs: number; totalMs: number; tokensOut: number; modelOut?: string } }
+  | { kind: "telemetry"; latency: { ttftMs: number; totalMs: number; activeGenMs?: number; tokensOut: number; modelOut?: string } }
   | { kind: "rag"; rag: any }
   | { kind: "forge_plan"; plan: any }
   | { kind: "error"; message: string }

@@ -16,6 +16,122 @@ export function mapJsonSchemaType(t) {
   return "string";
 }
 
+/**
+ * Stateful Streaming Tag Parser.
+ * Seamlessly isolates <think>...</think>, <thought>...</thought>, and <reasoning>...</reasoning> blocks
+ * across arbitrary chunk and token boundaries without leaking tags or think content to `type: "out"`.
+ */
+export function createStreamingTagParser() {
+  let inThought = false;
+  let hasStartedOut = false;
+  let tagBuffer = "";
+
+  function* processChunk(chunk) {
+    if (!chunk || chunk === "null") return;
+    tagBuffer += chunk;
+
+    while (tagBuffer.length > 0) {
+      if (!hasStartedOut) {
+        if (!inThought) {
+          // Look for start of thinking tag: <think>, <thought>, <reasoning>
+          const match = tagBuffer.match(/<(think|thought|reasoning)>/i);
+          if (match) {
+            const idx = match.index;
+            const prefix = tagBuffer.slice(0, idx);
+            if (prefix) {
+              yield JSON.stringify({ type: "out", delta: prefix });
+              hasStartedOut = true;
+            }
+            inThought = true;
+            tagBuffer = tagBuffer.slice(idx + match[0].length);
+            continue;
+          }
+
+          // Check if buffer ends with a potential partial opening tag
+          const partialMatch = tagBuffer.match(/<\/?(?:t(?:h(?:i(?:n(?:k)?)?)?|h(?:o(?:u(?:g(?:h(?:t)?)?)?)?)?)?|r(?:e(?:a(?:s(?:o(?:n(?:i(?:n(?:g)?)?)?)?)?)?)?)?)?$/i);
+          if (partialMatch && partialMatch.index !== -1) {
+            const safeOut = tagBuffer.slice(0, partialMatch.index);
+            if (safeOut) {
+              yield JSON.stringify({ type: "out", delta: safeOut });
+              hasStartedOut = true;
+            }
+            tagBuffer = tagBuffer.slice(partialMatch.index);
+            break; // Wait for next token chunk
+          }
+
+          // Non-tag content received -> Output mode started
+          yield JSON.stringify({ type: "out", delta: tagBuffer });
+          hasStartedOut = true;
+          tagBuffer = "";
+        } else {
+          // Inside thinking mode: Look for closing tag
+          const match = tagBuffer.match(/<\/(think|thought|reasoning)>/i);
+          if (match) {
+            const idx = match.index;
+            const thinkText = tagBuffer.slice(0, idx);
+            if (thinkText) {
+              yield JSON.stringify({ type: "think", delta: thinkText });
+            }
+            inThought = false;
+            hasStartedOut = true;
+            tagBuffer = tagBuffer.slice(idx + match[0].length);
+            continue;
+          }
+
+          // Check if buffer ends with a potential partial closing tag
+          const partialMatch = tagBuffer.match(/<\/(?:t(?:h(?:i(?:n(?:k)?)?)?|h(?:o(?:u(?:g(?:h(?:t)?)?)?)?)?)?|r(?:e(?:a(?:s(?:o(?:n(?:i(?:n(?:g)?)?)?)?)?)?)?)?)?$/i);
+          if (partialMatch && partialMatch.index !== -1) {
+            const safeThink = tagBuffer.slice(0, partialMatch.index);
+            if (safeThink) {
+              yield JSON.stringify({ type: "think", delta: safeThink });
+            }
+            tagBuffer = tagBuffer.slice(partialMatch.index);
+            break; // Wait for next token chunk
+          }
+
+          // No closing tag yet, emit chunk as thinking
+          yield JSON.stringify({ type: "think", delta: tagBuffer });
+          tagBuffer = "";
+        }
+      } else {
+        // Output mode active: Strip stray mid-stream thinking tags to prevent stream freeze/divert
+        tagBuffer = tagBuffer.replace(/<\/?(think|thought|reasoning)>/gi, "");
+
+        const partialMatch = tagBuffer.match(/<\/?(?:t(?:h(?:i(?:n(?:k)?)?)?|h(?:o(?:u(?:g(?:h(?:t)?)?)?)?)?)?|r(?:e(?:a(?:s(?:o(?:n(?:i(?:n(?:g)?)?)?)?)?)?)?)?)?$/i);
+        if (partialMatch && partialMatch.index !== -1) {
+          const safeOut = tagBuffer.slice(0, partialMatch.index);
+          if (safeOut) {
+            yield JSON.stringify({ type: "out", delta: safeOut });
+          }
+          tagBuffer = tagBuffer.slice(partialMatch.index);
+          break;
+        }
+
+        if (tagBuffer) {
+          yield JSON.stringify({ type: "out", delta: tagBuffer });
+        }
+        tagBuffer = "";
+      }
+    }
+  }
+
+  function* flush() {
+    if (tagBuffer.length > 0) {
+      if (inThought && !hasStartedOut) {
+        yield JSON.stringify({ type: "think", delta: tagBuffer });
+      } else {
+        const clean = tagBuffer.replace(/<\/?(think|thought|reasoning)>?/gi, "");
+        if (clean) {
+          yield JSON.stringify({ type: "out", delta: clean });
+        }
+      }
+      tagBuffer = "";
+    }
+  }
+
+  return { processChunk, flush };
+}
+
 // --- NATIVE STREAM REQUEST (TCP KILLER) ---
 // Standard Node.js fetch does not immediately tear down sockets on abort due to draining.
 // Local engines (Llama.cpp / vLLM / Ollama) continue token generation unless the TCP socket is forcefully killed.
@@ -260,6 +376,9 @@ export async function fetchAnthropicStream(provider, baseUrl, apiKey, targetMode
                 try {
                   const parsed = JSON.parse(dataStr);
                   if (parsed.type === "message_stop") return;
+                  if (parsed.type === "content_block_delta" && parsed.delta?.type === "thinking_delta" && parsed.delta?.thinking) {
+                    yield JSON.stringify({ type: "think", delta: parsed.delta.thinking });
+                  }
                   if (parsed.type === "content_block_delta" && parsed.delta?.text) {
                     yield JSON.stringify({ type: "out", delta: parsed.delta.text });
                   }
@@ -295,6 +414,9 @@ export async function fetchAnthropicStream(provider, baseUrl, apiKey, targetMode
                 try {
                   const parsed = JSON.parse(dataStr);
                   if (parsed.type === "message_stop") return;
+                  if (parsed.type === "content_block_delta" && parsed.delta?.type === "thinking_delta" && parsed.delta?.thinking) {
+                    yield JSON.stringify({ type: "think", delta: parsed.delta.thinking });
+                  }
                   if (parsed.type === "content_block_delta" && parsed.delta?.text) {
                     yield JSON.stringify({ type: "out", delta: parsed.delta.text });
                   }
@@ -431,40 +553,7 @@ export async function fetchOpenAIStream(provider, baseUrl, apiKey, targetModel, 
   return (async function* () {
     const decoder = new TextDecoder();
     const reader = res.body?.getReader?.();
-    let inThought = false;
-
-    function* handleContent(content) {
-      if (!content || content === "null") return;
-
-      if (content.includes("<think>")) {
-        inThought = true;
-        content = content.replace("<think>", "");
-      }
-      if (content.includes("</think>")) {
-        inThought = false;
-        const parts = content.split("</think>");
-        if (parts[0]) yield JSON.stringify({ type: "think", delta: parts[0] });
-        if (parts[1]) yield JSON.stringify({ type: "out", delta: parts[1] });
-        return;
-      }
-      if (content.includes("<thought>")) {
-        inThought = true;
-        content = content.replace("<thought>", "");
-      }
-      if (content.includes("</thought>")) {
-        inThought = false;
-        const parts = content.split("</thought>");
-        if (parts[0]) yield JSON.stringify({ type: "think", delta: parts[0] });
-        if (parts[1]) yield JSON.stringify({ type: "out", delta: parts[1] });
-        return;
-      }
-
-      if (inThought) {
-        yield JSON.stringify({ type: "think", delta: content });
-      } else {
-        yield JSON.stringify({ type: "out", delta: content });
-      }
-    }
+    const tagParser = createStreamingTagParser();
 
     try {
       if (reader) {
@@ -479,7 +568,10 @@ export async function fetchOpenAIStream(provider, baseUrl, apiKey, targetModel, 
             const trimmed = line.trim();
             if (trimmed.startsWith("data: ")) {
               const dataStr = trimmed.slice(6).trim();
-              if (dataStr === "[DONE]") return;
+              if (dataStr === "[DONE]") {
+                yield* tagParser.flush();
+                return;
+              }
               if (dataStr) {
                 try {
                   const parsed = JSON.parse(dataStr);
@@ -498,13 +590,14 @@ export async function fetchOpenAIStream(provider, baseUrl, apiKey, targetModel, 
 
                   const content = deltaObj.content || parsed.message?.content || parsed.content || "";
                   if (content && content !== "null") {
-                    yield* handleContent(content);
+                    yield* tagParser.processChunk(content);
                   }
                 } catch (e) {}
               }
             }
           }
         }
+        yield* tagParser.flush();
       } else {
         let buffer = "";
         for await (const chunk of res.body) {
@@ -516,7 +609,10 @@ export async function fetchOpenAIStream(provider, baseUrl, apiKey, targetModel, 
             const trimmed = line.trim();
             if (trimmed.startsWith("data: ")) {
               const dataStr = trimmed.slice(6).trim();
-              if (dataStr === "[DONE]") return;
+              if (dataStr === "[DONE]") {
+                yield* tagParser.flush();
+                return;
+              }
               if (dataStr) {
                 try {
                   const parsed = JSON.parse(dataStr);
@@ -535,13 +631,14 @@ export async function fetchOpenAIStream(provider, baseUrl, apiKey, targetModel, 
 
                   const content = deltaObj.content || parsed.message?.content || parsed.content || "";
                   if (content && content !== "null") {
-                    yield* handleContent(content);
+                    yield* tagParser.processChunk(content);
                   }
                 } catch (e) {}
               }
             }
           }
         }
+        yield* tagParser.flush();
       }
     } finally {
       if (reader) {
