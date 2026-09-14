@@ -318,6 +318,7 @@ export async function dispatchToolCall({
   // 4. METAFORGE SYNTHESIS WITH SELF-HEALING RETRY
   else if (realToolId === "sys_delegate_to_metaforge") {
     const intentText = parsedArgs.intent;
+    send({ type: "tool_status", name: "sys_delegate_to_metaforge", status: "running", detail: "Synthesizing DAG plan..." });
     send({ phase: "meta_forge_planning", stage: "spawn" });
 
     let inventory = { agents: [], tools: [], skills: [], packs: [], counts: {} };
@@ -397,6 +398,8 @@ export async function dispatchToolCall({
         // Self-Healing Retry Loop
         if (!validated) {
           console.warn(`[MetaForge] Validation failed (${validationError}). Initiating self-healing retry...`);
+          send({ type: "tool_status", name: "sys_delegate_to_metaforge", status: "running", detail: "Self-healing plan schema..." });
+          send({ phase: "meta_forge_planning", stage: "self_healing" });
           const retryPrompt =
             obj && obj.plan
               ? `Your proposed JSON plan failed architectural validation: ${validationError}\n\nREMINDER: Orchestration Chains cannot directly contain 'tool' nodes. If creating an Orchestration Chain, you MUST synthesize each independent 'workflow' (DAG) FIRST in the 'create' array, and then connect them in the 'chain' object. Output the corrected, full JSON object now.`

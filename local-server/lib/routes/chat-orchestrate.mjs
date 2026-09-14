@@ -1146,6 +1146,7 @@ export async function mountChatOrchestrateRoutes(app, deps) {
             const funcArgs = tc.function.arguments;
             const realToolId = toolMap[funcName] || funcName;
 
+            send({ type: "tool_status", name: realToolId, status: "running" });
             send({ phase: "tool_running", tool: realToolId });
             const tStart = Date.now();
             emitDebug("info", "tool.exec", `invoking ${realToolId} · turn ${iteration}`, { tool: realToolId, stream: "skills" }, thread_id);

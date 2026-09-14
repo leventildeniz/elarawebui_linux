@@ -1213,6 +1213,11 @@ Bu aşamada ELARA Sovereign Studio'nun Chat ekleri, görseller, PDF ve belge iş
 - `katex` paketi ve `@types/katex` doğrudan projeye yüklendi, `styles.css` içerisine KaTeX font ve stil kütüphanesi bağlandı.
 - `rich-message.tsx` içerisindeki `parseBlocks` ve `Inline` ayrıştırıcıları; satır içi `$ ... $`, blok `$$ ... $$`, çok satırlı matris ortamları (`\begin{pmatrix}`, `\begin{matrix}`, `\begin{bmatrix}`), karar dallanmaları (`\begin{cases}`) ve denklemleri (`\begin{aligned}`, `\[ ... \]`) otomatik algılayıp pürüzsüz KaTeX Display Math formatında render edecek şekilde mühürlendi.
 
+#### U. Canlı Tool & MetaForge SSE Akışı ve Çok Turlu Yerel Model Protokolü (`orchestrate-stream.ts`, `directives.mjs`, `chat-orchestrate.mjs`):
+- `src/lib/orchestrate-stream.ts` SSE ayrıştırıcısına `phase === "tool_running"`, `phase === "tool_start"` ve `phase === "meta_forge_planning"` durumları eklendi. Araç veya MetaForge çağrıldığı anda UI üzerinde dönen çark ile canlı `⚡ Running sys_delegate_to_metaforge…` animasyonu anında tetiklendi.
+- `directives.mjs` içine `[TOOL EXECUTION & MULTI-TURN PROTOCOL]` direktifi eklendi; yerel modellerin (Gemma-4 vb.) 1. turda gevezelik yapmadan doğrudan aracı çağırması, sentezlenen tablo, şema ve onay kartı yönlendirmesini 2. turda sunması sağlandı.
+- MetaForge onay kartının mesaj metni ve diyagram tamamlandıktan sonra mesajın hemen altında pürüzsüz biçimde belirmesi güvenceye alındı.
+
 ---
 
 ## 62. UP NEXT — MULTI-NODE BENCHMARKING, LIVE AGENT STRESS TESTS & DEAD CODE CLEANUP (PHASE 62)

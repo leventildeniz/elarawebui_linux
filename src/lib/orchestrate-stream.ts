@@ -85,10 +85,27 @@ export function parseOrchestrateFrame(raw: string): OrchestrateEvent | null {
     const list = Array.isArray(data["tools"]) ? (data["tools"] as { name?: string }[]) : [];
     return { kind: "tool_execution", tools: list.map((t) => ({ name: String(t?.name ?? "tool") })) };
   }
+  if (phase === "tool_running" || phase === "tool_start" || (type === "tool_status" && data["status"] === "running")) {
+    const toolName = String(data["tool"] ?? data["name"] ?? "tool");
+    return {
+      kind: "tool_status",
+      name: toolName,
+      status: "running",
+      ...(typeof data["detail"] === "string" ? { detail: data["detail"] } : {}),
+    };
+  }
+  if (phase === "meta_forge_planning") {
+    return {
+      kind: "tool_status",
+      name: "sys_delegate_to_metaforge",
+      status: "running",
+      detail: typeof data["stage"] === "string" ? `MetaForge: ${data["stage"]}` : "Synthesizing DAG plan...",
+    };
+  }
   if (type === "tool_status") {
     return {
       kind: "tool_status",
-      name: String(data["name"] ?? "tool"),
+      name: String(data["name"] ?? data["tool"] ?? "tool"),
       status: (data["status"] as ToolStatus) ?? "running",
       ...(typeof data["detail"] === "string" ? { detail: data["detail"] } : {}),
       ...(typeof data["ms"] === "number" ? { ms: data["ms"] } : {}),
