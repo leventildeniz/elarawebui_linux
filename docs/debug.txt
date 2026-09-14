@@ -1,32 +1,38 @@
-VM249:2
- Uncaught TypeError: Cannot read properties of undefined (reading 'startTime')
-    at et.reportAllChanges (<anonymous>:2:19429)
-    at <anonymous>:2:13070
-    at <anonymous>:2:331
-    at d (<anonymous>:2:6141)
-    at <anonymous>:2:6326
-    at <anonymous>:2:2895
-    at n.timeout (<anonymous>:2:5652)
-[NEW] Explain Console errors by using Copilot in Edge: click 
- to explain an error. Learn more
-Don’t show again
-VM249:2
- Uncaught TypeError: Cannot read properties of undefined (reading 'startTime')
-    at et.reportAllChanges (<anonymous>:2:19429)
-    at <anonymous>:2:13070
-    at <anonymous>:2:331
-    at d (<anonymous>:2:6141)
-    at <anonymous>:2:6326
-    at <anonymous>:2:2895
-    at n.timeout (<anonymous>:2:5652)
-et.reportAllChanges	@	VM249:2
-(anonymous)	@	VM249:2
-(anonymous)	@	VM249:2
-d	@	VM249:2
-(anonymous)	@	VM249:2
-(anonymous)	@	VM249:2
-n.timeout	@	VM249:2
-requestIdleCallback		
-x	@	VM249:2
-g	@	VM249:2
-(anonymous)	@	VM249:2
+196.16.628.838 I slot print_timing: id  0 | task 41841 | prompt processing, n_tokens =   1466, progress = 1.00, t =   3.25 s / 451.44 tokens per second
+196.22.734.388 I slot print_timing: id  0 | task 41841 | n_gen =    100, tg =  17.23 t/s, tg_3s =  17.41 t/s
+196.25.747.948 I slot print_timing: id  0 | task 41841 | n_gen =    151, tg =  17.13 t/s, tg_3s =  16.92 t/s
+196.28.752.950 I slot print_timing: id  0 | task 41841 | n_gen =    202, tg =  17.09 t/s, tg_3s =  16.97 t/s
+196.31.810.223 I slot print_timing: id  0 | task 41841 | n_gen =    254, tg =  17.07 t/s, tg_3s =  17.01 t/s
+196.34.863.616 I slot print_timing: id  0 | task 41841 | n_gen =    306, tg =  17.06 t/s, tg_3s =  17.03 t/s
+196.37.909.593 I slot print_timing: id  0 | task 41841 | n_gen =    358, tg =  17.06 t/s, tg_3s =  17.07 t/s
+196.40.958.734 I slot print_timing: id  0 | task 41841 | n_gen =    410, tg =  17.06 t/s, tg_3s =  17.05 t/s
+196.44.001.922 I slot print_timing: id  0 | task 41841 | n_gen =    462, tg =  17.07 t/s, tg_3s =  17.09 t/s
+196.47.048.990 I slot print_timing: id  0 | task 41841 | n_gen =    514, tg =  17.07 t/s, tg_3s =  17.07 t/s
+196.50.103.365 I slot print_timing: id  0 | task 41841 | n_gen =    566, tg =  17.06 t/s, tg_3s =  17.02 t/s
+196.53.156.062 I slot print_timing: id  0 | task 41841 | n_gen =    618, tg =  17.06 t/s, tg_3s =  17.03 t/s
+196.56.210.166 I slot print_timing: id  0 | task 41841 | n_gen =    670, tg =  17.06 t/s, tg_3s =  17.03 t/s
+196.59.210.706 I slot print_timing: id  0 | task 41841 | n_gen =    721, tg =  17.05 t/s, tg_3s =  17.00 t/s
+197.02.269.169 I slot print_timing: id  0 | task 41841 | n_gen =    773, tg =  17.05 t/s, tg_3s =  17.00 t/s
+197.05.271.668 I slot print_timing: id  0 | task 41841 | n_gen =    824, tg =  17.05 t/s, tg_3s =  16.99 t/s
+197.08.314.167 I slot print_timing: id  0 | task 41841 | n_gen =    876, tg =  17.05 t/s, tg_3s =  17.09 t/s
+197.11.368.967 I slot print_timing: id  0 | task 41841 | n_gen =    928, tg =  17.05 t/s, tg_3s =  17.02 t/s
+197.14.410.931 I slot print_timing: id  0 | task 41841 | n_gen =    980, tg =  17.05 t/s, tg_3s =  17.09 t/s
+197.17.457.302 I slot print_timing: id  0 | task 41841 | n_gen =   1032, tg =  17.05 t/s, tg_3s =  17.07 t/s
+197.20.461.656 I slot print_timing: id  0 | task 41841 | n_gen =   1083, tg =  17.05 t/s, tg_3s =  16.98 t/s
+197.23.467.351 I slot print_timing: id  0 | task 41841 | n_gen =   1134, tg =  17.04 t/s, tg_3s =  16.97 t/s
+197.26.471.022 I slot print_timing: id  0 | task 41841 | n_gen =   1185, tg =  17.04 t/s, tg_3s =  16.98 t/s
+197.29.485.934 I slot print_timing: id  0 | task 41841 | n_gen =   1236, tg =  17.04 t/s, tg_3s =  16.92 t/s
+197.32.503.445 I slot print_timing: id  0 | task 41841 | n_gen =   1287, tg =  17.03 t/s, tg_3s =  16.90 t/s
+197.35.531.441 I slot print_timing: id  0 | task 41841 | n_gen =   1338, tg =  17.02 t/s, tg_3s =  16.84 t/s
+197.38.562.941 I slot print_timing: id  0 | task 41841 | n_gen =   1389, tg =  17.02 t/s, tg_3s =  16.82 t/s
+197.41.611.021 I slot print_timing: id  0 | task 41841 | n_gen =   1440, tg =  17.01 t/s, tg_3s =  16.73 t/s
+197.44.645.096 I slot print_timing: id  0 | task 41841 | n_gen =   1491, tg =  17.00 t/s, tg_3s =  16.81 t/s
+197.47.676.185 I slot print_timing: id  0 | task 41841 | n_gen =   1542, tg =  16.99 t/s, tg_3s =  16.83 t/s
+197.50.726.703 I slot print_timing: id  0 | task 41841 | n_gen =   1593, tg =  16.98 t/s, tg_3s =  16.72 t/s
+197.53.776.273 I slot print_timing: id  0 | task 41841 | n_gen =   1644, tg =  16.98 t/s, tg_3s =  16.72 t/s
+197.56.782.269 I slot print_timing: id  0 | task 41841 | n_gen =   1694, tg =  16.97 t/s, tg_3s =  16.63 t/s
+197.59.428.778 I slot print_timing: id  0 | task 41841 | prompt eval time =    3607.64 ms /  1470 tokens (    2.45 ms per token,   407.47 tokens per second)
+197.59.428.780 I slot print_timing: id  0 | task 41841 |        eval time =  102439.66 ms /  1738 tokens (   58.98 ms per token,    16.96 tokens per second)
+197.59.428.781 I slot print_timing: id  0 | task 41841 |       total time =  106047.30 ms /  3208 tokens
+197.59.428.781 I slot print_timing: id  0 | task 41841 |    graphs reused =      42884
+197.59.428.912 I slot      release: id  0 | task 41841 | stop processing: n_tokens = 4425, truncated = 0
