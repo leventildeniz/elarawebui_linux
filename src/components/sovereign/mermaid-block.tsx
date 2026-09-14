@@ -72,10 +72,10 @@ function downloadFile(name: string, content: string, mime: string) {
   URL.revokeObjectURL(url);
 }
 
-export function MermaidBlock({ code }: { code: string }) {
+export function MermaidBlock({ code, isComplete = true }: { code: string; isComplete?: boolean | undefined }) {
   const rawId = useId();
   const id = `mm_${rawId.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
-  const [view, setView] = useState<"diagram" | "code">("diagram");
+  const [view, setView] = useState<"diagram" | "code">(isComplete ? "diagram" : "code");
   const [svg, setSvg] = useState<string | null>(null);
   const [renderError, setRenderError] = useState<string | null>(null);
   const { copy, done } = useCopy();
@@ -85,9 +85,11 @@ export function MermaidBlock({ code }: { code: string }) {
     let active = true;
     const cleanCode = code.trim();
 
-    if (!cleanCode) {
-      setSvg(null);
-      setRenderError(null);
+    // If code is empty or still actively streaming line-by-line, defer full diagram rendering
+    if (!cleanCode || !isComplete) {
+      if (!isComplete) {
+        setView("code");
+      }
       return;
     }
 
@@ -101,6 +103,7 @@ export function MermaidBlock({ code }: { code: string }) {
           if (active) {
             setSvg(renderedSvg);
             setRenderError(null);
+            setView("diagram");
           }
         } catch (err: any) {
           if (active) {
@@ -120,7 +123,7 @@ export function MermaidBlock({ code }: { code: string }) {
     return () => {
       active = false;
     };
-  }, [code, id]);
+  }, [code, id, isComplete]);
 
   const hasDiagram = !!svg && !renderError;
 
@@ -132,6 +135,12 @@ export function MermaidBlock({ code }: { code: string }) {
           <span className="font-mono text-[10.5px] font-semibold uppercase tracking-[0.2em] text-sapphire">
             mermaid diagram
           </span>
+          {!isComplete && (
+            <span className="flex items-center gap-1.5 font-mono text-[10px] tracking-wide text-amber-400/90">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-400" />
+              generating diagram...
+            </span>
+          )}
           {hasDiagram && (
             <div className="flex items-center gap-1 rounded-md border border-border/60 bg-canvas/60 p-0.5">
               <button

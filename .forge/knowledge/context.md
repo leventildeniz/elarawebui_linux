@@ -1201,6 +1201,14 @@ Bu aşamada ELARA Sovereign Studio'nun Chat ekleri, görseller, PDF ve belge iş
   4. `lib/orchestrator/finops-meter.mjs`: Token sayımı, FinOps tarife maliyeti hesaplama ve `provider_usage` / `memory_working` veritabanı kayıtları.
 - **Sonuç:** `chat-orchestrate.mjs` ~600 satırlık temiz, hafif ve bakımı kolay bir Gateway Router'a dönüştürüldü; Time-to-First-Token (TTFT) gecikmesi ve SSE JSON sözleşmeleri %100 korundu.
 
+#### R. Canlı Web Arama Zorunluluğu & Vault Destekli Multi-Engine Fallback (`directives.mjs`, `tool-dispatcher.mjs`):
+- Web search butonu aktif olduğunda modele `[LIVE WEB SEARCH MANDATE (ACTIVE)]` direktifi enjekte edilerek yerel modelin (Gemma 4 vb.) eski eğitim hafızasından uydurma yapması engellendi; canlı fiyat, ürün ve haber sorgularında `sys_web_search` çağırması zorunlu kılındı.
+- `tool-dispatcher.mjs` içindeki arama köprüsü Tavily (Vault anahtarlı), SearXNG ve DuckDuckGo HTML/Instant katmanlı arama yedeklemesiyle donatıldı.
+
+#### S. Akış Halindeki Mermaid Diyagramlarında Titreme Önleme (Zero-Jitter Mermaid — `rich-message.tsx`, `mermaid-block.tsx`):
+- `parseBlocks` ayrıştırıcısına `isComplete` bayrağı eklendi. Model diyagram kodunu satır satır akıtırken (`isComplete === false`) yarım kodların render edilip ekranı sallaması engellendi; şık bir `generating diagram...` rozetiyle sabit kod gösterimi sağlandı.
+- Kapanış backtick'leri (` ``` `) geldiği anda tam diyagram SVG'si pürüzsüzce render edilerek interaktif diyagram görünümüne geçiş sağlandı.
+
 ---
 
 ## 62. UP NEXT — MULTI-NODE BENCHMARKING, LIVE AGENT STRESS TESTS & DEAD CODE CLEANUP (PHASE 62)

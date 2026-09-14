@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 /* ---------- tiny markdown-lite parser (code fences, tables, text) ---------- */
 
 type Block =
-  | { type: "code"; lang: string; code: string }
+  | { type: "code"; lang: string; code: string; isComplete?: boolean | undefined }
   | { type: "table"; head: string[]; rows: string[][] }
   | { type: "text"; text: string };
 
@@ -35,11 +35,16 @@ export function parseBlocks(src: string): Block[] {
       const lang = line.trim().slice(3).trim() || "text";
       const code: string[] = [];
       i++;
-      while (i < lines.length && !lines[i]!.trimStart().startsWith("```")) {
+      let isComplete = false;
+      while (i < lines.length) {
+        if (lines[i]!.trimStart().startsWith("```")) {
+          isComplete = true;
+          break;
+        }
         code.push(lines[i]!);
         i++;
       }
-      blocks.push({ type: "code", lang, code: code.join("\n") });
+      blocks.push({ type: "code", lang, code: code.join("\n"), isComplete });
       continue;
     }
 
@@ -133,9 +138,9 @@ function IconAction({
 
 /* ---------------------------- blocks ---------------------------- */
 
-function CodeBlock({ lang, code }: { lang: string; code: string }) {
+function CodeBlock({ lang, code, isComplete }: { lang: string; code: string; isComplete?: boolean | undefined }) {
   if (lang.trim().toLowerCase() === "mermaid") {
-    return <MermaidBlock code={code} />;
+    return <MermaidBlock code={code} isComplete={isComplete} />;
   }
 
   const { copy, done } = useCopy();
@@ -309,7 +314,7 @@ export function RichMessage({ text }: { text: string }) {
     <div className="space-y-1">
       {blocks.map((b, i) =>
         b.type === "code" ? (
-          <CodeBlock key={i} lang={b.lang} code={b.code} />
+          <CodeBlock key={i} lang={b.lang} code={b.code} isComplete={b.isComplete} />
         ) : b.type === "table" ? (
           <TableBlock key={i} head={b.head} rows={b.rows} />
         ) : (
