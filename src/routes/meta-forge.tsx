@@ -9,6 +9,7 @@ import { useForgePlans, type ForgeActionKind, type ForgePlan } from "@/lib/metaf
 import { useApprovalAuthority } from "@/lib/approver-gate";
 import { ApproverBanner } from "@/components/sovereign/approver-banner";
 import { confirmAction } from "@/components/sovereign/confirm-dialog";
+import { useOwnerCtx } from "@/lib/ownership";
 
 export const Route = createFileRoute("/meta-forge")({
   head: () => ({
@@ -52,6 +53,7 @@ const FILTERS = ["all", "pending", "applied", "rejected", "rolled_back"] as cons
 function MetaForge() {
   const { plans, trash, hydrated, approve, reject, rollback, reapply, reset, restore, fetchTrash, restoreTrash, purgeTrash, emptyTrash } = useForgePlans();
   const auth = useApprovalAuthority();
+  const ownerCtx = useOwnerCtx();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   const [trashOpen, setTrashOpen] = useState(false);
@@ -121,16 +123,19 @@ function MetaForge() {
               <Archive className="h-3 w-3 text-amethyst" strokeWidth={1.6} />
               trash ({trash.length})
             </button>
-            <button
-              onClick={() => setConfirmReset(true)}
-              className="flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 transition-colors hover:text-foreground"
-            >
-              <RotateCcw className="h-3 w-3" strokeWidth={1.6} /> reset ledger
-            </button>
+            {ownerCtx.sovereign && (
+              <button
+                onClick={() => setConfirmReset(true)}
+                className="flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 transition-colors hover:text-foreground hover:border-ruby/50"
+                title="SuperAdmin: Reset Meta-Forge Ledger"
+              >
+                <RotateCcw className="h-3 w-3 text-ruby/70" strokeWidth={1.6} /> reset ledger
+              </button>
+            )}
           </div>
         </header>
 
-        {confirmReset && (
+        {confirmReset && ownerCtx.sovereign && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
             <div className="w-[min(480px,94vw)] rounded-[14px] border border-border bg-panel p-6 shadow-2xl">
               <h2 className="font-mono text-[13px] uppercase tracking-[0.2em] text-foreground">
