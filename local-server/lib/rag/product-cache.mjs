@@ -1,6 +1,6 @@
 // lib/rag/product-cache.mjs — DB-driven {brand → Set<product>} catalog cache.
-// 2026-06-26 — Powers RAG productFilter knob. Pure data layer + token matcher.
-// No regex/whitelist — catalog comes from knowledge_chunks DISTINCT.
+// Powers RAG productFilter knob. Pure data layer and token matcher.
+// Dynamic catalog derived from knowledge_chunks distinct records.
 
 let _CACHE = { ts: 0, byBrand: null, allProducts: null };
 

@@ -1,6 +1,5 @@
-// Stateful RAG retrieval core (Tur 1b, 2026-05-30).
-// Extracted from server.mjs: ragProbeAndFetch + semanticSearch + FTS helpers.
-// Pure scoring/token utils stay in ./scoring.mjs.
+// Stateful RAG retrieval core.
+// Pure scoring and token utilities reside in ./scoring.mjs.
 //
 // All external dependencies are injected via initRagRetrieval({deps}).
 // Module-level state (LRU/FTS error cache) lives here as in the original.
@@ -319,8 +318,7 @@ export async function ragProbeAndFetch({ q, allowedLevels, agentId = null, bindi
     getLastRerankError, getLastEmbedError,
   } = DEPS;
   const RAG_SETTINGS = getRagSettings();
-  // PROBE-2026-06-03: per-stage wall-clock telemetry; surfaced via rag.probe.done trace.
-  // 2026-06-03 v2: gap-hunt — extractorMs + hydeMs + prepMs (pre-embed glue) + totalMs (entry→return).
+  // Per-stage wall-clock telemetry; surfaced via rag.probe.done trace.
   const _tStages0 = Date.now();
   const stages = { embedMs: 0, probeSqlMs: 0, ftsMs: 0, vectorFetchMs: 0, rerankMs: 0, extractorMs: 0, hydeMs: 0, prepMs: 0, totalMs: 0 };
 
@@ -417,7 +415,7 @@ export async function ragProbeAndFetch({ q, allowedLevels, agentId = null, bindi
     }
   } catch (e) { console.warn("[BRAND-LOCK] failed (non-fatal):", e.message); }
 
-  // 2026-06-26 — Product-aware retrieval filter (knob: RAG_SETTINGS.productFilter).
+  // Product-aware retrieval filter (knob: RAG_SETTINGS.productFilter).
   // "off"   → skip entirely.
   // "boost" → detect product, apply small score boost after rerank.
   // "hard"  → detect product, SQL WHERE adds `(product=$X OR product IS NULL)`.
@@ -433,11 +431,9 @@ export async function ragProbeAndFetch({ q, allowedLevels, agentId = null, bindi
       }
     } catch (e) { console.warn("[PRODUCT-LOCK] detect failed (non-fatal):", e?.message || e); }
   }
-  // 2026-06-05 — product alias fallback for unscoped chat/orchestrate calls.
-  // If the query names a live product token (fortimanager, fortianalyzer, ...)
-  // but no brand context was passed, infer the dominant product row from DB and
-  // turn it into the same product/brand lock the agent path already gets.
-  // No static product dictionary: token must exist in knowledge_chunks.product.
+  // Product alias fallback for unscoped chat/orchestrate calls.
+  // If query names a live product token but no brand context was passed,
+  // infer dominant product row from DB and establish product/brand lock.
   if (!_productLock && (_productMode === "boost" || _productMode === "hard") && RAG_SETTINGS.productAutoExtract !== false) {
     try {
       const _prodTokens = Array.from(new Set(String(`${q} ${cleanQuery}` || "").toLowerCase().match(/[a-z][a-z0-9_-]{2,}/g) || [])).slice(0, 16);
@@ -564,11 +560,8 @@ export async function ragProbeAndFetch({ q, allowedLevels, agentId = null, bindi
     let _libGateInfo = { matched: null, boost: 0, applied: false };
     try {
       const _boost = Math.max(0, Number(RAG_SETTINGS.outOfLibraryTauBoost) || 0);
-      // 2026-06-05 — Skip the out-of-library tau boost when brand or product
-      // is already explicitly locked (alias match, agent binding, or product
-      // detector hit). In those cases we are demonstrably IN-library; the
-      // string-match gate was false-negative on queries like
-      // "fortimanager 7.6 vlan" where the lib brand is "Fortigate".
+      // Skip the out-of-library tau boost when brand or product
+      // is already explicitly locked (alias match, agent binding, or product detector hit).
       const _alreadyLocked = !!_explicitBrandLock || !!_productHardArg || !!(_effectiveBrandsArg && _effectiveBrandsArg.length) || !!(_bindingFileIds && _bindingFileIds.length) || _caller === 'agent-rag' || _caller === 'agent';
       if (_boost > 0 && !_alreadyLocked) {
         const _libBrands = await getLibraryBrands();
@@ -684,8 +677,8 @@ export async function ragProbeAndFetch({ q, allowedLevels, agentId = null, bindi
         console.log(`[RAG-PACK-FILTER/vector] agent=${agentId} kw=${_packKeywords.length} kept=${vectorRows.length}`);
       }
 
-      // 2026-06-05 — Version-aware candidate fetch (additive, before rerank).
-      // If version tokens (7.6, R81.20) are present and versionPathBoost is active,
+      // Version-aware candidate fetch (additive, before rerank).
+      // If version tokens are present and versionPathBoost is active,
       // pull a slice with PATH ILIKE %version% and union into vectorRows.
       try {
         const _vBoost = Math.min(0.50, Math.max(0, Number(RAG_SETTINGS.versionPathBoost) || 0));
@@ -738,10 +731,8 @@ export async function ragProbeAndFetch({ q, allowedLevels, agentId = null, bindi
 
 
 
-      // 2026-06-04 — Multi-version query split (default OFF, additive).
-      // When query mentions ≥2 distinct major.minor version tokens (e.g. "7.4 vs 7.6"),
-      // strip opposing version tokens and run separate lightweight embedding fetches,
-      // then union into vectorRows before RRF and diversity caps.
+      // Multi-version query split: when query mentions ≥2 distinct major.minor version tokens,
+      // run separate lightweight embedding fetches and union into vectorRows before RRF.
       if (RAG_SETTINGS.multiVersionSplit && vectorOK) {
         try {
           const _verRe = /\b(\d+)\.(\d+)(?:\.\d+)?\b/g;

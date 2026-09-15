@@ -1,4 +1,4 @@
-// Intent classifier — extracted from server.mjs Tur B (2026-05-30).
+// Intent classifier — multi-modal semantic and LLM-based intent routing.
 // Pure module: static imports from sibling lib modules + init({deps}) DI for
 // stateful refs (pool, pushLog, RAG_SETTINGS, mlxEmbed, _currentModelRender, cosine).
 //
@@ -92,7 +92,7 @@ export function isAssistantMetaQuestion(text) {
   return /\b(?:who are you|what are you|what can you do|who made you|who created you|who built you|about yourself|introduce yourself|tell me about yourself|list agents|list your agents|describe your agents|show agents|your capabilities|your tools|your skills|kimsin|nesin|ne yapabilirsin|kendini tanit|ajanlarini tanit|yeteneklerin neler)\b/.test(t);
 }
 
-// Meta-forge lane detection — semantic confirmation (2026-07-04):
+// Meta-forge lane detection — semantic confirmation:
 //   (1) Semantic anchor similarity may only mark a Meta-Forge CANDIDATE.
 //   (2) The LLM classifier must explicitly return FORGE for that candidate.
 //   (3) Timeout / ambiguity / LLM-only FORGE without an anchor candidate fails
@@ -126,14 +126,11 @@ let _anchorVecs = null;
 let _anchorVecsPromise = null;
 let _anchorsReady = false; // true once embed worker successfully returned anchor vecs
 let _lastClassifySuccessAt = 0; // last time refineIntentSemantically reached a decision
-// PROBE-2026-06-03: lastAnchorInitMs is the wall-clock ms spent on the
-// one-time anchor embed; reused across decisions. Surfaced via gate result so
-// the chat trace can show why a cold turn falls back to length-heuristic.
+// lastAnchorInitMs is the wall-clock ms spent on the one-time anchor embed; reused across decisions.
 let _lastAnchorInitMs = 0;
 
-// TELEMETRY-2026-07-03 (Tur 4): rolling counters for cold-classifier
-// diagnostics + Meta-Forge lane retry outcomes. Read-only; exposed via
-// /api/rag/intent-telemetry and consumed by the RAG panel telemetry chip.
+// Rolling counters for cold-classifier diagnostics + Meta-Forge lane retry outcomes.
+// Exposed via /api/rag/intent-telemetry and consumed by the RAG panel telemetry chip.
 const _tel = {
   decisions: 0,          // total refineIntentSemantically successful decisions
   coldDecisions: 0,      // decisions where classifierWarm === false at gate time
@@ -299,18 +296,9 @@ export async function refineIntentSemantically(text, base, cfg = RUNTIME_INTENT_
     out.intentClassifyReason = "greeting_stop_terms";
     return out;
   }
-  // Meta-forge deterministic keyword gate REMOVED (Tur 6B, 2026-07-04).
-  // Semantic anchor similarity + LLM adjudication + orchestrate safety-net
-  // retry combo (see chat-orchestrate.mjs `meta_forge.lane.retry_*`) is now
-  // stable across 4/4 cold+warm turns. Strict dynamic model routing is respected.
-
-
-
-
   // Elastic warmup budget: provide more time when embed worker is warming up
   const RAG_SETTINGS_NOW = _getRagSettings() || {};
-  // Warm budget bumped 900→1800ms (C-plan 2026-07-03) so LLM adjudication
-  // on rag-classified turns has room to complete without timing out.
+  // Warm budget allows LLM adjudication on rag-classified turns to complete without timing out.
   const warmBudgetMs = Math.max(0, Number(process.env.INTENT_ROUTER_BUDGET_MS ?? 1800));
   const coldBudgetMs = Math.max(warmBudgetMs, Number(RAG_SETTINGS_NOW.warmupIntentBudgetMs ?? 3500));
   const classifierWarm = _anchorsReady && (Date.now() - _lastClassifySuccessAt) < 60_000;
@@ -365,23 +353,13 @@ export async function refineIntentSemantically(text, base, cfg = RUNTIME_INTENT_
   const forgeProbeFloor = Math.min(1, Math.max(0.20, Number(RAG_SETTINGS_NOW.metaForgeIntentThreshold ?? 0.30)));
   const forgeProbeRatio = Math.min(1, Math.max(0.40, Number(RAG_SETTINGS_NOW.metaForgeIntentRatio ?? 0.55)));
   const forgeVsRagProbeRatio = Math.min(1, Math.max(0.40, Number(RAG_SETTINGS_NOW.metaForgeVsRagRatio ?? 0.50)));
-  // C-plan (2026-07-03): absolute floor dropped — LLM adjudicates whenever
-  // metaForgeSim is even soft-competitive with ragSim. Clean tech queries
-  // (metaForgeSim ≪ ragSim) still skip the LLM call via the ratio guard, so
-  // latency for pure RAG turns is preserved. forgeProbeFloor kept as knob for
-  // ops but no longer part of the gate.
+  // LLM adjudicates whenever metaForgeSim is competitive with ragSim. Clean tech queries
+  // (metaForgeSim ≪ ragSim) still skip the LLM call via the ratio guard to preserve latency.
   void forgeProbeFloor;
-  // 2026-07-05 — Model-declare gate: skip forge adjudication entirely when
-  // the operator has switched to "model-declare" mode. In that mode the LLM
-  // itself emits <forge> tags in its reply and the backend sniffs the stream
-  // (see lib/meta-forge/tag-parser.mjs). Legacy "pre-classify" still runs the
-  // semantic + LLM adjudicator; "off" disables Meta-Forge entirely.
+  // Model-declare gate: skip forge adjudication when operator selects "model-declare" mode.
+  // In that mode the LLM emits <forge> tags in reply and backend sniffs the stream.
   const forgeGateMode = String(RAG_SETTINGS_NOW.metaForgeGateMode || "pre-classify").toLowerCase();
-  // 2026-07-06 — Adjudicate on BOTH "rag" and "smalltalk" decisions. Short
-  // creation requests like "Elara, yeni tool yap: X" land as smalltalk on the
-  // embedding gate (short + chatty salutation), so gating the adjudicator on
-  // decision==="rag" starved the meta_forge lane. Semantic floor + ratio
-  // guards still keep pure chit-chat out of the LLM call.
+  // Adjudicate on both "rag" and "smalltalk" decisions so short creation requests are handled.
   const shouldAdjudicateForge = forgeGateMode === "pre-classify"
     && mode === "hybrid"
     && (decision === "rag" || decision === "smalltalk")

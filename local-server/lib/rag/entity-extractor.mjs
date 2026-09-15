@@ -1,7 +1,5 @@
-// lib/rag/entity-extractor.mjs — NER Upsert / Edge Linker
-// Extracted from server.mjs.
-// 2026-08: S.A.R.P. Operation - Hardcoded vendor/brand regex lists removed.
-// System relies strictly on HyDE + Semantic Vectors + Agent Delegation as architected.
+// lib/rag/entity-extractor.mjs — NER Upsert and Edge Linker.
+// System relies strictly on HyDE, semantic vectors, and agent delegation without hardcoded vendor lists.
 
 let _pool = null;
 

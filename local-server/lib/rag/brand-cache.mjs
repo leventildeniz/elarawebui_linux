@@ -1,5 +1,5 @@
-// lib/rag/brand-cache.mjs — Dynamic library brand cache + pack/agent brand filters
-// Extracted from server.mjs (2026-05-30, Batch A turn-1). DI: pool, getRagSettings.
+// lib/rag/brand-cache.mjs — Dynamic library brand cache and pack/agent brand filters.
+// Dependency injected: pool, getRagSettings.
 
 const PACK_FILTER_TTL_MS = 5 * 60 * 1000;
 
@@ -19,8 +19,8 @@ export function initBrandCache({ pool, getRagSettings }) {
 export async function getLibraryBrands() {
   const RAG_SETTINGS = _getRagSettings();
   const ttl = Math.max(30_000, Number(RAG_SETTINGS?.libraryBrandCacheTtlMs) || 300_000);
-  // Minimum chunk threshold — noise brand'leri (cisco/huawei tek-satırlık
-  // mention'lar) library'den filtrele. 0 = kapalı (her brand sayılır).
+  // Minimum chunk threshold — filter noise brands (e.g. single-line
+  // mentions) from the library. 0 = disabled (all brands counted).
   const minChunks = Math.max(0, Number(RAG_SETTINGS?.libraryBrandMinChunks) || 0);
   const now = Date.now();
   if (_libBrandCache.brands.length

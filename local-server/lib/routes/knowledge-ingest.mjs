@@ -55,7 +55,7 @@ export function mountKnowledgeIngestRoutes(app, deps) {
 
   app.post("/api/knowledge/fetch", async (req, res) => {
     const { url, username, password, cookie, token } = req.body ?? {};
-    if (!url || !/^https?:\/\//i.test(url)) return res.status(400).json({ error: "invalid url" });
+    if (!url || !/^https?:\/\//i.test(url)) return res.status(400).json({ ok: false, error: "invalid url" });
 
     // ---- YouTube branch: pull transcript instead of HTML ----------------------
     const ytMatch = url.match(/(?:youtube\.com\/watch\?[^#]*v=|youtu\.be\/|youtube\.com\/shorts\/|youtube\.com\/embed\/)([A-Za-z0-9_-]{11})/);

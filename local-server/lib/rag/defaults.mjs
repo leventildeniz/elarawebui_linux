@@ -1,5 +1,5 @@
-// lib/rag/defaults.mjs — RAG knob defaults + disk overlay loader.
-// Extracted from server.mjs (Tur 1, 2026-05-30) — pure config + clamp.
+// lib/rag/defaults.mjs — RAG knob defaults and disk overlay loader.
+// Pure configuration definitions and validation clamps.
 // server.mjs retains: RAG_SETTINGS_FILE path, one-shot threshold migration,
 // createRagUtil DI block (those touch fs/file write + module symbols).
 
@@ -21,13 +21,13 @@ export function buildRagDefaults({ envNumber, TIMEOUT_BUDGETS }) {
     perBrandCap:      Math.max(1, envNumber("RAG_PER_BRAND_CAP",    8)),
     diversityPool:    Math.max(24, envNumber("RAG_DIVERSITY_POOL", 240)),
     minChunkChars:    Math.max(0, envNumber("RAG_MIN_CHUNK_CHARS", 100)),
-    // 2026-06-04 — Multi-version query split. When user query mentions ≥2
-    // distinct major.minor version tokens (e.g. "7.4 ile 7.6 farkları"),
-    // run an extra mini vector fetch per version with the OTHER version
+    // Multi-version query split: when user query mentions ≥2
+    // distinct major.minor version tokens (e.g. "7.4 and 7.6 differences"),
+    // run an extra mini vector fetch per version with the other version
     // tokens stripped, union into vectorRows before RRF. Diversity caps
-    // still apply downstream. Default OFF (additive, safe to flip live).
-    // multiVersionMaxSplits: hard cap on per-turn extra embed calls (latency
-    // budget). multiVersionPerLimit: rows pulled per version sub-fetch.
+    // still apply downstream. Default OFF (additive, safe to toggle live).
+    // multiVersionMaxSplits: hard cap on per-turn extra embed calls (latency budget).
+    // multiVersionPerLimit: rows pulled per version sub-fetch.
     multiVersionSplit:    String(process.env.RAG_MULTI_VERSION_SPLIT ?? "0") === "1",
     multiVersionMaxSplits: Math.max(2, Math.min(5, envNumber("RAG_MULTI_VERSION_MAX_SPLITS", 3))),
     multiVersionPerLimit:  Math.max(2, Math.min(12, envNumber("RAG_MULTI_VERSION_PER_LIMIT", 6))),
@@ -130,41 +130,30 @@ export function buildRagDefaults({ envNumber, TIMEOUT_BUDGETS }) {
     // Manifest anchor must dominate other anchors (meta/rag/smalltalk) by this
     // ratio to flip subKind. Keeps generic "sen kimsin" (metaSim high) safe.
     agentManifestIntentRatio: Math.min(1, Math.max(0.50, Number(process.env.AGENT_MANIFEST_INTENT_RATIO ?? 0.95))),
-    // Meta-forge lane knobs — semantic anchor + LLM classifier only (no regex).
-    // Defaults loosened 2026-07-05 after deterministic keyword pre-gate removal:
-    // threshold 0.50→0.35, verb-ratio 0.85→0.65, vs-rag 0.75→0.55.
+    // Meta-forge lane knobs — semantic anchor + LLM classifier evaluation (no regex).
     metaForgeIntentThreshold: Math.min(1, Math.max(0.20, Number(process.env.META_FORGE_INTENT_THRESHOLD ?? 0.30))),
     metaForgeIntentRatio:     Math.min(1, Math.max(0.40, Number(process.env.META_FORGE_INTENT_RATIO ?? 0.55))),
     metaForgeVsRagRatio:      Math.min(1, Math.max(0.40, Number(process.env.META_FORGE_VS_RAG_RATIO ?? 0.50))),
     // Auto-apply approved plans inline (no admin approval card). Failure
     // (lint/disk/db) falls back to a 'failed' plan row the admin UI can review.
     metaForgeAutoApply:       String(process.env.META_FORGE_AUTO_APPLY ?? "1") !== "0",
-    // 2026-07-05/06 — Auto-Creator hattı (Meta-Forge v2).
-    //   autoForgeRouting: outer chat LLM'ine `capabilityGapDirective` enjekte
-    //     et → model eksik capability sezerse `@[meta-forge-master]` çağırır.
-    //   metaForgeMaxItemsPerTurn: applyForgePlan tek turda kaç item yazsın.
-    //   metaForgeRequireConfirm: dry-run preview. ON: forge_preview frame + apply
-    //     için ikinci turda "onayla". OFF: preview + apply aynı turda.
-    //   metaForgeConfirmExecute: apply sonrası agent varsa `forge_run_prompt`
-    //     kartı; kullanıcı UI'dan "Çalıştır" deyince spawn.
-    // (Eski Capability Agent proposal/gap-detector hattı 2026-07-06'da tamamen
-    //  söküldü — hook, gap-detector, proposals CRUD, HTTP route, UI kartı.)
+    // Auto-Creator pipeline (Meta-Forge):
+    //   autoForgeRouting: injects `capabilityGapDirective` into outer chat LLM
+    //     → model invokes `@[meta-forge-master]` upon sensing missing capabilities.
+    //   metaForgeMaxItemsPerTurn: maximum items applyForgePlan writes per turn.
+    //   metaForgeRequireConfirm: dry-run preview. ON: forge_preview frame + require confirmation
+    //     in second turn. OFF: preview + apply in the same turn.
+    //   metaForgeConfirmExecute: presents `forge_run_prompt` card after apply if an agent exists;
+    //     spawns when user clicks "Run".
     autoForgeRouting:                 String(process.env.AUTO_FORGE_ROUTING ?? "1") !== "0",
     metaForgeMaxItemsPerTurn:         Math.max(1, Math.min(10, Number(process.env.META_FORGE_MAX_ITEMS_PER_TURN ?? 3))),
     metaForgeIdempotencyWindowMs:     Math.max(0, Number(process.env.META_FORGE_IDEMPOTENCY_WINDOW_MS ?? 86_400_000)),
     metaForgeRequireConfirm:          String(process.env.META_FORGE_REQUIRE_CONFIRM ?? "1") !== "0",
     metaForgeConfirmExecute:          String(process.env.META_FORGE_CONFIRM_EXECUTE ?? "1") !== "0",
     capabilityGapDirective:           "",
-    // metaForgeKeywordGate REMOVED (Tur 6B, 2026-07-04) — semantic anchor + LLM
-    // adjudication + orchestrate safety-net retry proved stable 4/4.
-    //
-    // 2026-07-05 rollback note — "model-declare" injected a Forge protocol
-    // system hint into every normal chat turn and regressed trivial smalltalk
-    // first-token behavior. Default stays on the semantic+LLM adjudicator path;
-    // regex/keyword pre-gates STAY REMOVED.
-    //   "pre-classify" (default): semantic anchor + LLM adjudicator + cold-retry.
-    //   "model-declare": experimental; model emits <forge .../> and backend
-    //      sniffs/strips it. Keep opt-in only.
+    // Meta-Forge gate modes:
+    //   "pre-classify" (default): semantic anchor + LLM adjudicator.
+    //   "model-declare": experimental; model emits `<forge .../>` protocol tags.
     //   "off": disable Meta-Forge entirely (no lane, no sniffer, no hint).
     metaForgeGateMode: (() => {
       const raw = String(process.env.META_FORGE_GATE_MODE ?? "pre-classify").toLowerCase();
@@ -216,12 +205,12 @@ export function buildRagDefaults({ envNumber, TIMEOUT_BUDGETS }) {
     productFilterBoost:    Math.min(0.50, Math.max(0, envNumber("RAG_PRODUCT_FILTER_BOOST", 0.05))),
     productAutoExtract:    String(process.env.RAG_PRODUCT_AUTO_EXTRACT ?? "1") !== "0",
     productCacheTtlMs:     Math.max(30_000, envNumber("RAG_PRODUCT_CACHE_TTL_MS", 300_000)),
-    // 2026-06-05 — Version-aware rerank boost. If the query contains a
+    // Version-aware rerank boost: if the query contains a
     // major.minor token (e.g. "7.6", "R81.20"), rerank rows whose path
     // contains that token get a small additive bonus. Pure path/token
     // matching, no static product/brand dictionary. 0 disables.
     versionPathBoost:      Math.min(0.50, Math.max(0, envNumber("RAG_VERSION_PATH_BOOST", 0.10))),
-    // 2026-06-05 — Per-version candidate pull limit (PATH ILIKE %ver%) before rerank.
+    // Per-version candidate pull limit (PATH ILIKE %ver%) before rerank.
     versionCandidateLimit: Math.max(2, Math.min(20, Math.floor(envNumber("RAG_VERSION_CANDIDATE_LIMIT", 6)))),
   };
 }
@@ -326,8 +315,7 @@ export function applyRagSettingsOverlay(target, j) {
   if (Number.isFinite(Number(j.metaForgeSnifferWindowChars))) {
     target.metaForgeSnifferWindowChars = Math.min(8000, Math.max(200, Math.floor(Number(j.metaForgeSnifferWindowChars))));
   }
-  // metaForgeKeywordGate reader REMOVED (Tur 6B, 2026-07-04) — stale UI JSON
-  // that still carries the key is silently ignored.
+  // Stale keyword gate keys in UI JSON are safely ignored.
 
   if (Number.isFinite(j.agentRagContextChars))        target.agentRagContextChars = Math.min(24000, Math.max(3000, Math.floor(Number(j.agentRagContextChars))));
   if (Number.isFinite(j.agentExecTimeoutMs))           target.agentExecTimeoutMs = Math.min(300_000, Math.max(30_000, Math.floor(Number(j.agentExecTimeoutMs))));
@@ -361,8 +349,8 @@ export function applyRagSettingsOverlay(target, j) {
   if (Number.isFinite(j.productFilterBoost)) target.productFilterBoost = Math.min(0.50, Math.max(0, Number(j.productFilterBoost)));
   if (typeof j.productAutoExtract === "boolean") target.productAutoExtract = j.productAutoExtract;
   if (Number.isFinite(j.productCacheTtlMs)) target.productCacheTtlMs = Math.min(3_600_000, Math.max(30_000, Math.floor(Number(j.productCacheTtlMs))));
-  // 2026-06-03 UI tek mercii prompt overrides. String knobs, opsiyonel.
-  // Boş string ("") → kodda default'a düş (lib/system-prompts.mjs).
+  // UI prompt overrides: string knobs, optional.
+  // Empty string ("") falls back to code defaults (lib/system-prompts.mjs).
   for (const k of [
     "inspectorDirective","inspectorBrandLock","extractorSystemPrompt","hydeSystemPrompt",
     "plannerSystemPrompt",
@@ -370,7 +358,7 @@ export function applyRagSettingsOverlay(target, j) {
   ]) {
     if (typeof j[k] === "string") target[k] = j[k].slice(0, 8000);
   }
-  // 2026-06-03 (Tur 2) — `/no_think` prefix knob (kısa, max 64 char).
+  // Optional `/no_think` prefix knob (max 64 chars).
   if (typeof j.thinkOffPrefix === "string") target.thinkOffPrefix = j.thinkOffPrefix.slice(0, 64);
   return target;
 }
