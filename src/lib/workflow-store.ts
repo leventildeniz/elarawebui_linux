@@ -19,7 +19,7 @@ const KEY = "sovereign.workflows";
 const ACTIVE_KEY = "sovereign.workflows.active";
 const EVT = "sovereign:workflows";
 import { readDesk, writeDesk, readDeskRaw, writeDeskRaw, scopeOwned, stampOwner, useOwnerCtx, type Owned } from "@/lib/ownership";
-import { workflowDrafts, type WorkflowDraft } from "@/mocks/workflows";
+import { workflowDrafts, type WorkflowDraft } from "@/types/workflow";
 import { fetchApi } from "@/lib/api";
 import { confirmAction } from "@/components/sovereign/confirm-dialog";
 

@@ -17,7 +17,7 @@ const KEY = "sovereign.chains";
 const ACTIVE_KEY = "sovereign.chains.active";
 const EVT = "sovereign:chains";
 import { readDesk, writeDesk, readDeskRaw, writeDeskRaw, scopeOwned, stampOwner, useOwnerCtx, type Owned } from "@/lib/ownership";
-import { orchestrationPlans, type OrchestrationPlan } from "@/mocks/orchestrations";
+import { orchestrationPlans, type OrchestrationPlan } from "@/types/workflow";
 import { fetchApi } from "@/lib/api";
 
 const tones: JewelName[] = ["amethyst", "sapphire", "emerald", "topaz", "ruby", "platinum"];

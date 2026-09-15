@@ -222,7 +222,7 @@ export function mountWorkflowRoutes(app, deps) {
   });
 
   // --- Workflow DAG run engine (chains v2) --------------------------------
-  // Faz 14.2 — chain id validator: alfanumerik + - _ . sınırlı, max 128 char.
+  // Chain ID validator: alphanumeric, dashes, underscores, dots, max 128 chars.
   app.post("/api/workflow-chains/:id/run", requireSession(), async (req, res) => {
     const chainId = req.params.id;
     if (!CHAIN_ID_RE.test(chainId)) {

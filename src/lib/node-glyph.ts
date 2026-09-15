@@ -44,7 +44,7 @@ import {
   Zap,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import type { WorkflowNodeKind } from "@/mocks/workflows";
+import type { WorkflowNodeKind } from "@/types/workflow";
 
 export type NodeFamily = "trigger" | "agent" | "skill" | "tool" | "mcp" | "logic" | "output" | "workflow";
 

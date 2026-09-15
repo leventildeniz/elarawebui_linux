@@ -1,18 +1,14 @@
 // local-server/lib/meta-forge/apply.mjs
-// v2 (2026-07-05) — Auto-Creator ajan hattı.
+// v2 — Autonomous capability synthesis engine.
 //
-// Değişiklikler:
-//   • Hybrid approval: kind=tool auto-live (smoke ok + confidence≥0.7);
-//     kind=agent|skill|pack → pending_review (disk yazılır, live=false).
-//   • Idempotency: intent_hash = sha256(kind:normalized(intent)); DB unique
-//     index + preflight check → aynı niyet iki kez yazılmaz (deduped döner).
-//   • Budget guard: opts.maxItems (default 3) → fazlası deferred listesine.
-//   • Sandbox smoke (kind=tool): tools/<slug>.py __probe → 5s timeout.
-//     Fail → auto-live iptal, pending_review'a düşer.
-//   • Rollback zinciri: forge_plans.applied_files jsonb (disk + capability id
-//     izleri) her başarılı yazımda güncellenir.
-//   • Rozet: capabilities.origin='auto_forge' + forged_by + forged_at +
-//     confidence + intent_hash + reasoning her item için işlenir.
+// Key architectural mechanisms:
+//   • Hybrid approval: kind=tool auto-live (smoke ok + confidence >= 0.7);
+//     kind in {agent, skill, pack, workflow, chain} → pending_review (persisted to disk/DB, live=false).
+//   • Idempotency: intent_hash = sha256(kind:normalized(intent)); preflight uniqueness check prevents duplicate creations.
+//   • Budget cap: maxItems per turn enforced, excessive items deferred.
+//   • Sandbox smoke test: tools/<slug>.py probe with 5s timeout; failure revokes auto-live.
+//   • Rollback ledger: forge_plans.applied_files tracked for atomic unapply/clean sweep.
+//   • Provenance stamp: capabilities.origin='auto_forge' + forged_by + forged_at + confidence + intent_hash + reasoning.
 
 import fs from "node:fs";
 import path from "node:path";

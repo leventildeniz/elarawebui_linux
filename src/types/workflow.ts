@@ -79,43 +79,37 @@ export type WorkflowDraft = {
 
 export const workflowDrafts: WorkflowDraft[] = [];
 
-/** Sealed procedures available to drop onto the canvas. */
-export const workflowSkills: { id: string; level: "read" | "critical" }[] = [
-  { id: "!hook-formula", level: "read" },
-  { id: "!adc-tuning", level: "read" },
-  { id: "!network-design", level: "read" },
-  { id: "!analytics-report", level: "read" },
-  { id: "!live-internet-harvester", level: "read" },
-  { id: "!caption-localize", level: "read" },
-  { id: "!community-reply", level: "read" },
-  { id: "!cta-microcopy", level: "read" },
-  { id: "!db-hardening", level: "read" },
-  { id: "!ddos-runbook", level: "read" },
-  { id: "!change-request", level: "read" },
-  { id: "!dns-hardening", level: "read" },
-  { id: "!visual-brief", level: "read" },
-  { id: "!safe-refuse", level: "read" },
-  { id: "!vuln-write-up", level: "read" },
-  { id: "!firewall-rule-review", level: "read" },
-  { id: "!firewall-deploy", level: "critical" },
-  { id: "!hashtag-strategy", level: "read" },
-  { id: "!crisis-response", level: "read" },
-  { id: "!brand-voice", level: "read" },
-  { id: "!markdown-report", level: "read" },
-  { id: "!incident-triage", level: "read" },
-  { id: "!pcap-narrate", level: "read" },
-  { id: "!policy-export", level: "read" },
-  { id: "!cite-sources", level: "read" },
-  { id: "!shell-runbook", level: "critical" },
+/** Control nodes available between workflows in orchestrations. */
+export type OrchestrationPlan = WorkflowDraft;
+
+export const orchestrationPlans: OrchestrationPlan[] = [];
+
+export const orchestrationLogic = [
+  "if · condition",
+  "else-if · condition",
+  "else",
+  "end-if",
+  "switch",
+  "case",
+  "default-case",
+  "end-switch",
+  "for-each",
+  "while",
+  "end-loop",
+  "break",
+  "continue",
+  "try",
+  "catch",
+  "finally",
+  "end-try",
+  "guard · assert",
 ];
 
-export const workflowActions = [
-  "http-request",
-  "transform-json",
+export const orchestrationControls = [
   "branch-condition",
+  "merge-artifacts",
+  "fan-out",
+  "await-approval",
   "delay",
-  "dispatch-agent",
-  "persist-artifact",
+  "retry-policy",
 ];
-
-export const workflowsMeta = "3 pipelines · magnetic graph · trigger → action → output";

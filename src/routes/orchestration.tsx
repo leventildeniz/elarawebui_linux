@@ -20,8 +20,7 @@ import { SignatureBadge } from "@/components/sovereign/signature-badge";
 import { useChains, type StudioChain } from "@/lib/orchestration-store";
 import { useWorkflows } from "@/lib/workflow-store";
 import { jewelPalette } from "@/lib/avatar-library";
-import { orchestrationControls, orchestrationLogic } from "@/mocks/orchestrations";
-import type { WorkflowNodeKind } from "@/mocks/workflows";
+import { orchestrationControls, orchestrationLogic, type WorkflowNodeKind } from "@/types/workflow";
 
 export const Route = createFileRoute("/orchestration")({
   head: () => ({

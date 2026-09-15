@@ -3,7 +3,7 @@ import { motion } from "motion/react";
 import { Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { nodeGlyph } from "@/lib/node-glyph";
-import type { WorkflowEdge, WorkflowNode, WorkflowNodeKind } from "@/mocks/workflows";
+import type { WorkflowEdge, WorkflowNode, WorkflowNodeKind } from "@/types/workflow";
 
 export const NODE_W = 236;
 export const NODE_H = 66;

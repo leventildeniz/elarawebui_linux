@@ -1,6 +1,6 @@
 // =============================================================================
-// workflow-engine.mjs — Faz 6
-// Durable DAG orchestrator. Graph şeması:
+// workflow-engine.mjs — Durable DAG Orchestrator
+// Graph schema:
 //   {
 //     start: "n1",
 //     nodes: [
@@ -8,7 +8,7 @@
 //     ]
 //   }
 //
-// Node tipleri:
+// Node types:
 //   - skill_call    : { skill_id, params }
 //   - tool_call     : { tool_id, agent_id?, params }
 //   - agent_call    : { agent_id, prompt }
@@ -19,8 +19,8 @@
 //   - transform     : { set: { key: "ctx.path" | literal } }
 //   - rbi_isolated  : { target, params }
 //
-// Her step `workflow_steps`'e yazılır. `human_input` veya hata → run pause.
-// Resume: token + payload ile aynı runId, kaldığı yerden devam eder.
+// Each step is persisted to workflow_steps. human_input or error pauses run.
+// Resume: continues with matching runId, token, and payload.
 // =============================================================================
 
 import { randomUUID } from "node:crypto";
@@ -55,7 +55,7 @@ function resolveParams(params, ctx) {
   }
   return resolveValue(params, ctx);
 }
-// Çok küçük safe-eval: { op:"eq"|"neq"|"gt"|"lt"|"truthy", left, right }
+// Safe expression evaluator: { op: "eq"|"neq"|"gt"|"lt"|"gte"|"lte"|"truthy", left, right }
 function evalExpr(expr, ctx) {
   if (typeof expr === "boolean") return expr;
   if (typeof expr === "string") return !!resolveValue(expr, ctx);
@@ -117,7 +117,7 @@ async function runNode(node, ctx, runInfo, signal) {
     let output = null;
     switch (node.type) {
       case "skill_call": {
-        // forge adapter ile loopback; tool_adapters üstünden geçer (audit + ACL).
+        // Loopback via forge adapter; passes through tool_adapters with audit and ACL.
         const params = resolveParams(node.params || {}, ctx);
         const r = await invokeTool({
           toolId: node.skill_id, agentId: node.agent_id || null,
@@ -138,8 +138,7 @@ async function runNode(node, ctx, runInfo, signal) {
         break;
       }
       case "agent_call": {
-        // Agent prompt'ı şu an placeholder; gerçek agent runner Faz 5+ ile zaten
-        // mevcut. Buradan agent execution sonucunu bekleyecek bir köprü açılır.
+        // Agent prompt invocation bridge for DAG execution
         output = { agent_id: node.agent_id, prompt: resolveValue(node.prompt || "", ctx), todo: "agent-runner-bridge" };
         break;
       }
@@ -157,7 +156,7 @@ async function runNode(node, ctx, runInfo, signal) {
       case "parallel": {
         const branches = node.branches || [];
         const results = await Promise.all(branches.map(async (entry) => {
-          // Her branch ayrı bir alt-bağlam çalıştırır (mini-DAG)
+          // Each parallel branch executes in a sub-context (mini-DAG)
           const sub = await walkFrom(entry, ctx, runInfo, signal);
           return sub;
         }));

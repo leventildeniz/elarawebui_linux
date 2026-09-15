@@ -13,7 +13,7 @@ import {
 import { useKnowledge } from "@/lib/knowledge-store";
 import { useWebhooks, webhookUrl } from "@/lib/webhook-store";
 import { reportTemplates } from "@/lib/report-templates";
-import type { OutputBinding, WorkflowNode } from "@/mocks/workflows";
+import type { OutputBinding, WorkflowNode } from "@/types/workflow";
 export type OutputSinkKind = OutputBinding["kind"];
 
 /**

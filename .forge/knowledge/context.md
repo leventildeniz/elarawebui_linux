@@ -1605,10 +1605,15 @@ ELARA Sovereign Studio genelinde **Zero-Trust Çoklu Kiracı (Multi-Tenancy) ve 
 
    * **Modül 5 — Workflows, DAG Canvas & MetaForge Synthesis:**
      - Rotalar: `workflows.mjs`, `chains.mjs`, `meta-forge.mjs`, `meta-forge/apply.mjs`, `meta-forge/planner.mjs`, `meta-forge/seed.mjs`, `trigger-sync.mjs`, `self-healing.mjs`
-     - UI: `src/routes/workflows.tsx`, `src/routes/orchestration.tsx`, `src/routes/meta-forge.tsx`, `src/routes/approvals.tsx`, `src/lib/workflow-store.ts`, `src/lib/metaforge-store.ts`, `src/lib/approval-store.ts`
+     - UI: `src/routes/workflows.tsx`, `src/routes/orchestration.tsx`, `src/routes/flows.tsx`, `src/routes/meta-forge.tsx`, `src/routes/approvals.tsx`, `src/lib/workflow-store.ts`, `src/lib/orchestration-store.ts`, `src/lib/metaforge-store.ts`, `src/lib/approval-store.ts`
      - DB Tabloları: `workflows`, `orchestrations`, `forge_plans`, `forge_artifacts`, `approval_requests`, `approval_config`, `trigger_schedules`
-     - Şüpheli Tablolar: `trigger_schedules` vs eski `schedules` çakışması kontrolü.
-     - Durum: Beklemede.
+     - Yapılan Temizlik & Standardizasyon:
+       * `src/types/workflow.ts` oluşturuldu; DAG Canvas tipleri ve kontrol katalogları (`WorkflowNode`, `WorkflowEdge`, `OutputBinding`, `TriggerSchedule`, `OrchestrationPlan`, `orchestrationLogic`, `orchestrationControls`) kurumsal tip katmanına taşındı.
+       * `src/mocks/workflows.ts` ve `src/mocks/orchestrations.ts` dosyaları silindi (`src/mocks/index.ts` temizlendi).
+       * 7 adet canlı arayüz bileşeninin import yolları `@/types/workflow` standardına bağlandı.
+       * `workflows.mjs`, `meta-forge/apply.mjs` ve `workflow-engine.mjs` içerisindeki Türkçe yorum satırları profesyonel İngilizceye çevrildi.
+       * `schedules` (Raporlama) ile `trigger_schedules` (Workflow DAG) tablolarının fonksiyonel bağımsızlığı doğrulandı.
+     - Durum: Doğrulandı ve mühürlendi (0 TypeScript hatası, servis aktif).
 
    * **Modül 6 — Chat, Threads & Core Orchestration:**
      - Rotalar: `chat-orchestrate.mjs`, `threads.mjs`, `storage-engine.mjs`, `lib/orchestrator/*`

@@ -20,11 +20,10 @@ import { useWorkflows, type StudioWorkflow } from "@/lib/workflow-store";
 import { useAgents } from "@/lib/agent-store";
 import { useSkills } from "@/lib/skill-store";
 import { useForge } from "@/lib/forge-store";
-import { orchestrationLogic } from "@/mocks/orchestrations";
+import { orchestrationLogic, type WorkflowNodeKind } from "@/types/workflow";
 import { useMcp } from "@/lib/mcp-store";
 import { jewelPalette } from "@/lib/avatar-library";
 import { familyIcon, nodeGlyph, type NodeFamily } from "@/lib/node-glyph";
-import type { WorkflowNodeKind } from "@/mocks/workflows";
 
 export const Route = createFileRoute("/flows")({
   head: () => ({

@@ -7,7 +7,7 @@ import type {
   TriggerBinding,
   TriggerSchedule,
   WorkflowNode,
-} from "@/mocks/workflows";
+} from "@/types/workflow";
 export type TriggerSourceKind = TriggerBinding["kind"];
 
 /**
