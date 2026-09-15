@@ -136,20 +136,29 @@ export async function mountReportingRoutes(app, deps) {
 
   function resolveReportingScope(req) {
     const sessionTenant = req.session?.tenant_id || req.headers["x-tenant-id"] || null;
-    const isSuperAdmin = req.session?.role === "admin" && (!sessionTenant || sessionTenant === "default");
+    const isSuperAdmin = (req.session?.role === "admin" || req.session?.role === "sovereign") && (!sessionTenant || sessionTenant === "default");
+    const isTenantAdmin = !isSuperAdmin && (req.session?.role === "admin" || req.session?.role === "tenant-admin");
     
     let tenantId = null;
     if (isSuperAdmin) {
       const requested = req.query?.tenant_id || null;
       tenantId = (requested && requested !== "all") ? String(requested).trim() : null;
     } else {
+      // Non-superadmins are strictly locked to their own company/tenant
       tenantId = sessionTenant || "default";
     }
 
     const requestedUser = req.query?.user_id || req.query?.user || null;
-    const userId = (requestedUser && requestedUser !== "all") ? String(requestedUser).toLowerCase().trim() : null;
+    let userId = null;
+    if (isSuperAdmin || isTenantAdmin) {
+      // SuperAdmin and TenantAdmin can inspect all operators in their tenant or filter by user
+      userId = (requestedUser && requestedUser !== "all") ? String(requestedUser).toLowerCase().trim() : null;
+    } else {
+      // Regular operators can ONLY see their own personal usage/telemetry
+      userId = String(req.session?.username || req.session?.userId || "").toLowerCase().trim() || null;
+    }
 
-    return { tenantId, userId, isSuperAdmin };
+    return { tenantId, userId, isSuperAdmin, isTenantAdmin };
   }
 
   // =========================================================================
@@ -324,18 +333,23 @@ export async function mountReportingRoutes(app, deps) {
   app.get("/api/reporting/usage", async (req, res) => {
     try {
       const { days, startDate, endDate, label, slug } = parseDateRange(req.query);
+      const { tenantId, userId } = resolveReportingScope(req);
 
       // Usage aggregate
       const usageRes = await pool.query(
         `SELECT 
            COALESCE(COUNT(*), 0)::bigint as total_runs,
-           COALESCE(SUM(prompt_tokens + response_tokens), 0)::bigint as total_tokens,
-           COALESCE(SUM(cost_usd), 0)::numeric as total_cost,
-           COALESCE(COUNT(CASE WHEN status != 'ok' THEN 1 END), 0)::bigint as total_errors,
-           COALESCE(AVG(latency_ms), 0)::int as avg_latency
-         FROM provider_usage
-         WHERE created_at >= $1 AND created_at <= $2`,
-        [startDate, endDate]
+           COALESCE(SUM(u.prompt_tokens + u.response_tokens), 0)::bigint as total_tokens,
+           COALESCE(SUM(u.cost_usd), 0)::numeric as total_cost,
+           COALESCE(COUNT(CASE WHEN u.status != 'ok' THEN 1 END), 0)::bigint as total_errors,
+           COALESCE(AVG(u.latency_ms), 0)::int as avg_latency
+         FROM provider_usage u
+         LEFT JOIN chat_threads ct ON u.thread_id = ct.id
+         LEFT JOIN tenant_api_keys k ON u.api_key_id = k.id::text
+         WHERE u.created_at >= $1 AND u.created_at <= $2
+           AND ($3::text IS NULL OR u.tenant_id = $3)
+           AND ($4::text IS NULL OR lower(COALESCE(ct.owner_id, ct.owner_name, '')) = $4 OR lower(COALESCE(k.user_id, '')) = $4)`,
+        [startDate, endDate, tenantId, userId]
       );
 
       const uRow = usageRes.rows[0];
@@ -351,17 +365,21 @@ export async function mountReportingRoutes(app, deps) {
       // Daily trend
       const dailyRes = await pool.query(
         `SELECT 
-           TO_CHAR(DATE_TRUNC('day', created_at), 'YYYY-MM-DD') as day,
+           TO_CHAR(DATE_TRUNC('day', u.created_at), 'YYYY-MM-DD') as day,
            COUNT(*)::bigint as runs,
-           COALESCE(SUM(prompt_tokens + response_tokens), 0)::bigint as tokens,
-           COALESCE(SUM(cost_usd), 0)::numeric as cost,
-           COUNT(CASE WHEN status != 'ok' THEN 1 END)::bigint as errors,
-           COALESCE(AVG(latency_ms), 0)::int as latency
-         FROM provider_usage
-         WHERE created_at >= $1 AND created_at <= $2
-         GROUP BY DATE_TRUNC('day', created_at)
+           COALESCE(SUM(u.prompt_tokens + u.response_tokens), 0)::bigint as tokens,
+           COALESCE(SUM(u.cost_usd), 0)::numeric as cost,
+           COUNT(CASE WHEN u.status != 'ok' THEN 1 END)::bigint as errors,
+           COALESCE(AVG(u.latency_ms), 0)::int as latency
+         FROM provider_usage u
+         LEFT JOIN chat_threads ct ON u.thread_id = ct.id
+         LEFT JOIN tenant_api_keys k ON u.api_key_id = k.id::text
+         WHERE u.created_at >= $1 AND u.created_at <= $2
+           AND ($3::text IS NULL OR u.tenant_id = $3)
+           AND ($4::text IS NULL OR lower(COALESCE(ct.owner_id, ct.owner_name, '')) = $4 OR lower(COALESCE(k.user_id, '')) = $4)
+         GROUP BY DATE_TRUNC('day', u.created_at)
          ORDER BY day ASC`,
-        [startDate, endDate]
+        [startDate, endDate, tenantId, userId]
       );
 
       const dailyMap = new Map();
@@ -408,10 +426,14 @@ export async function mountReportingRoutes(app, deps) {
            COALESCE(SUM(u.prompt_tokens + u.response_tokens), 0)::bigint as tokens,
            COALESCE(SUM(u.cost_usd), 0)::numeric as cost
          FROM provider_usage u
+         LEFT JOIN chat_threads ct ON u.thread_id = ct.id
+         LEFT JOIN tenant_api_keys k ON u.api_key_id = k.id::text
          WHERE u.created_at >= $1 AND u.created_at <= $2
+           AND ($3::text IS NULL OR u.tenant_id = $3)
+           AND ($4::text IS NULL OR lower(COALESCE(ct.owner_id, ct.owner_name, '')) = $4 OR lower(COALESCE(k.user_id, '')) = $4)
          GROUP BY 1
          ORDER BY tokens DESC`,
-        [startDate, endDate]
+        [startDate, endDate, tenantId, userId]
       );
 
       let workloads = workloadRes.rows.map((w) => ({
@@ -437,10 +459,14 @@ export async function mountReportingRoutes(app, deps) {
            COALESCE(SUM(u.cost_usd), 0)::numeric as cost
          FROM provider_usage u
          LEFT JOIN ai_providers p ON u.provider_id = p.id
+         LEFT JOIN chat_threads ct ON u.thread_id = ct.id
+         LEFT JOIN tenant_api_keys k ON u.api_key_id = k.id::text
          WHERE u.created_at >= $1 AND u.created_at <= $2
+           AND ($3::text IS NULL OR u.tenant_id = $3)
+           AND ($4::text IS NULL OR lower(COALESCE(ct.owner_id, ct.owner_name, '')) = $4 OR lower(COALESCE(k.user_id, '')) = $4)
          GROUP BY 1
          ORDER BY tokens DESC`,
-        [startDate, endDate]
+        [startDate, endDate, tenantId, userId]
       );
 
       let providers = providerRes.rows.map((p) => ({
@@ -467,10 +493,13 @@ export async function mountReportingRoutes(app, deps) {
          FROM provider_usage u
          LEFT JOIN chat_threads ct ON u.thread_id = ct.id
          LEFT JOIN agents a ON ct.agent_id = a.id
+         LEFT JOIN tenant_api_keys k ON u.api_key_id = k.id::text
          WHERE u.created_at >= $1 AND u.created_at <= $2
+           AND ($3::text IS NULL OR u.tenant_id = $3)
+           AND ($4::text IS NULL OR lower(COALESCE(ct.owner_id, ct.owner_name, '')) = $4 OR lower(COALESCE(k.user_id, '')) = $4)
          GROUP BY 1
          ORDER BY runs DESC`,
-        [startDate, endDate]
+        [startDate, endDate, tenantId, userId]
       );
 
       let squads = squadRes.rows.map((s) => ({
@@ -548,6 +577,7 @@ export async function mountReportingRoutes(app, deps) {
   app.get("/api/reporting/cost", async (req, res) => {
     try {
       const { days, startDate, endDate, label, slug } = parseDateRange(req.query);
+      const { tenantId, userId } = resolveReportingScope(req);
 
       // Read operator-defined infrastructure & storage tariffs from PostgreSQL (app_settings)
       let tariffs = { vectorStorageRate: 0, objectStorageRate: 0, gpuHourRate: 0, egressRate: 0 };
@@ -574,9 +604,13 @@ export async function mountReportingRoutes(app, deps) {
            COALESCE(SUM(cost_usd), 0)::numeric as total_cost,
            COALESCE(COUNT(CASE WHEN status != 'ok' THEN 1 END), 0)::bigint as total_errors,
            COALESCE(AVG(latency_ms), 0)::int as avg_latency
-         FROM provider_usage
-         WHERE created_at >= $1 AND created_at <= $2`,
-        [startDate, endDate]
+         FROM provider_usage u
+         LEFT JOIN chat_threads ct ON u.thread_id = ct.id
+         LEFT JOIN tenant_api_keys k ON u.api_key_id = k.id::text
+         WHERE u.created_at >= $1 AND u.created_at <= $2
+           AND ($3::text IS NULL OR u.tenant_id = $3)
+           AND ($4::text IS NULL OR lower(COALESCE(ct.owner_id, ct.owner_name, '')) = $4 OR lower(COALESCE(k.user_id, '')) = $4)`,
+        [startDate, endDate, tenantId, userId]
       );
 
       const uRow = usageRes.rows[0];
@@ -599,10 +633,14 @@ export async function mountReportingRoutes(app, deps) {
            COALESCE(SUM(u.cost_usd), 0)::numeric as cost
          FROM provider_usage u
          LEFT JOIN ai_providers p ON u.provider_id = p.id
+         LEFT JOIN chat_threads ct ON u.thread_id = ct.id
+         LEFT JOIN tenant_api_keys k ON u.api_key_id = k.id::text
          WHERE u.created_at >= $1 AND u.created_at <= $2
+           AND ($3::text IS NULL OR u.tenant_id = $3)
+           AND ($4::text IS NULL OR lower(COALESCE(ct.owner_id, ct.owner_name, '')) = $4 OR lower(COALESCE(k.user_id, '')) = $4)
          GROUP BY 1
          ORDER BY cost DESC`,
-        [startDate, endDate]
+        [startDate, endDate, tenantId, userId]
       );
 
       let providers = providerRes.rows.map((p) => ({
@@ -629,10 +667,13 @@ export async function mountReportingRoutes(app, deps) {
          FROM provider_usage u
          LEFT JOIN chat_threads ct ON u.thread_id = ct.id
          LEFT JOIN agents a ON ct.agent_id = a.id
+         LEFT JOIN tenant_api_keys k ON u.api_key_id = k.id::text
          WHERE u.created_at >= $1 AND u.created_at <= $2
+           AND ($3::text IS NULL OR u.tenant_id = $3)
+           AND ($4::text IS NULL OR lower(COALESCE(ct.owner_id, ct.owner_name, '')) = $4 OR lower(COALESCE(k.user_id, '')) = $4)
          GROUP BY 1
          ORDER BY cost DESC`,
-        [startDate, endDate]
+        [startDate, endDate, tenantId, userId]
       );
 
       let squads = squadRes.rows.map((s) => ({
@@ -793,14 +834,25 @@ export async function mountReportingRoutes(app, deps) {
   app.get("/api/reporting/operators", async (req, res) => {
     try {
       const { days, startDate, endDate, label, slug } = parseDateRange(req.query);
+      const { tenantId, userId, isSuperAdmin, isTenantAdmin } = resolveReportingScope(req);
       const topN = Number(req.query.topN || 0);
       const sortBy = String(req.query.sortBy || "tokens");
       const search = String(req.query.search || "").toLowerCase().trim();
       const onlyIds = req.query.userIds ? String(req.query.userIds).split(",").filter(Boolean) : [];
 
-      // Fetch all app users (local and federated) and directory users
+      // Fetch app users scoped to tenant boundary
       let usersRows = [];
       try {
+        const userParams = [];
+        let userFilter = "";
+        if (!isSuperAdmin) {
+          userParams.push(tenantId);
+          userFilter = `WHERE tenant_id = $${userParams.length}`;
+          if (!isTenantAdmin && userId) {
+            userParams.push(userId);
+            userFilter += ` AND (lower(username) = $${userParams.length} OR id = $${userParams.length})`;
+          }
+        }
         const usersRes = await pool.query(`
           SELECT 
             id, 
@@ -815,43 +867,12 @@ export async function mountReportingRoutes(app, deps) {
             last_seen, 
             created_at 
           FROM app_users
-          UNION ALL
-          SELECT 
-            id,
-            username,
-            COALESCE(NULLIF(name, ''), username) as name,
-            COALESCE(email, '') as email,
-            'Operator' as role,
-            'active' as status,
-            false as locked,
-            source_key as provider,
-            COALESCE(groups, '[]'::jsonb) as groups,
-            null as last_seen,
-            fetched_at as created_at
-          FROM directory_users
-          WHERE username NOT IN (SELECT username FROM app_users)
+          ${userFilter}
           ORDER BY name ASC
-        `);
+        `, userParams);
         usersRows = usersRes.rows;
       } catch (err) {
-        // Fallback for clean app_users query if directory_users table is empty
-        const fallbackRes = await pool.query(`
-          SELECT 
-            id, 
-            username, 
-            COALESCE(NULLIF(display_name, ''), username) as name, 
-            COALESCE(email, '') as email, 
-            COALESCE(role, 'Operator') as role, 
-            COALESCE(status, 'active') as status, 
-            COALESCE(locked, false) as locked, 
-            COALESCE(provider, 'local') as provider,
-            COALESCE(groups, '[]'::jsonb) as groups,
-            last_seen, 
-            created_at 
-          FROM app_users
-          ORDER BY username ASC
-        `);
-        usersRows = fallbackRes.rows;
+        usersRows = [];
       }
 
       // If no users in DB, provide standard admin and operator identities
@@ -1051,22 +1072,41 @@ export async function mountReportingRoutes(app, deps) {
   app.get("/api/reporting/rag", async (req, res) => {
     try {
       const { days, startDate, endDate, label, slug } = parseDateRange(req.query);
+      const { tenantId, userId, isSuperAdmin, isTenantAdmin } = resolveReportingScope(req);
 
-      // Fetch knowledge sources
+      // Fetch knowledge sources scoped by tenant
+      const sourceParams = [];
+      let sourceFilter = "";
+      if (!isSuperAdmin) {
+        sourceParams.push(tenantId);
+        sourceFilter = `WHERE (tenant_id = $1 OR is_global = true)`;
+      }
       const sourcesRes = await pool.query(
         `SELECT id, name, space_id, owner_id, owner_name, size_mb, chunks, status, added_at, metadata
          FROM knowledge_sources
-         ORDER BY added_at DESC`
+         ${sourceFilter}
+         ORDER BY added_at DESC`,
+        sourceParams
       );
 
-      // Fetch RAG retrieval queries
+      // Fetch RAG retrieval queries scoped by tenant/user
+      const queryParams = [startDate, endDate];
+      let queryFilter = "";
+      if (!isSuperAdmin) {
+        queryParams.push(tenantId);
+        queryFilter += ` AND (tenant_id = $${queryParams.length} OR tenant_id = 'default')`;
+        if (!isTenantAdmin && userId) {
+          queryParams.push(userId);
+          queryFilter += ` AND (lower(principal_id) = $${queryParams.length} OR lower(principal) = $${queryParams.length})`;
+        }
+      }
       const queriesRes = await pool.query(
         `SELECT id, at, query, principal, principal_id, agent, spaces, blocked, docs, chunks, hit
          FROM rag_queries
-         WHERE at >= $1 AND at <= $2
+         WHERE at >= $1 AND at <= $2 ${queryFilter}
          ORDER BY at DESC
          LIMIT 200`,
-        [startDate, endDate]
+        queryParams
       );
 
       // Knowledge spaces
@@ -1428,7 +1468,10 @@ export async function mountReportingRoutes(app, deps) {
   app.get("/api/reporting/invoicing", async (req, res) => {
     try {
       const { days, startDate, endDate, label, slug } = parseDateRange(req.query);
-      const targetTenant = req.query.tenant_id ? String(req.query.tenant_id).trim() : null;
+      const { tenantId, isSuperAdmin } = resolveReportingScope(req);
+      const targetTenant = isSuperAdmin
+        ? (req.query.tenant_id && req.query.tenant_id !== "all" ? String(req.query.tenant_id).trim() : null)
+        : tenantId;
 
       let tenantFilter = "";
       const params = [startDate, endDate];

@@ -1514,8 +1514,80 @@ ELARA Sovereign Studio genelinde **Zero-Trust Çoklu Kiracı (Multi-Tenancy) ve 
    1514	   * **Tüm Altyapı Hatlarının SuperAdmin İle Kilitlenmesi:** Sistemdeki 8 ana altyapı modülü (`providers.mjs`, `system-config.mjs`, `infra.mjs`, `backup.mjs`, `system-certs.mjs`, `siem-api.mjs`, `mail-time.mjs`, `fleet-services.mjs`) standart `isSuperAdmin` (`isSuperAdminFromSession` & `resolveActorContext`) denetimine bağlandı.
    1515	   * **Tenant Yetki İhlali Engellendi:** Kendi şirketinde `role = 'admin'` olan bir `TenantAdmin` veya operatörün sunucunun fiziksel HA veritabanı URI'sini değiştirmesi, yedek indirmesi, SSL sertifikaları üretmesi, systemd servislerini durdurması veya küresel AI Gateway sağlayıcılarını manipüle etmesi kökten engellendi (HTTP 403 `super_admin_required`).
    1516	   * **Arayüzde Global Rozetleme:** `/settings` paneline `GLOBAL PLATFORM GATEWAY` rozeti yerleştirilerek buranın tenant düzeyi değil, platformun küresel çıkarım omurgası olduğu tescillendi.
-   1517	
-   1518	#### 📊 2. Nihai Sistem Doğrulaması
-   1515	* `npx tsc --noEmit`: **0 hata**.
-   1516	* `elara-middleware.service` ve `elara-vite.service`: Aktif ve operasyonel.
-   1517	* Tüm entegrasyon zinciri (Vite UI ↔ api-v2.mjs ↔ Workers ↔ PostgreSQL) uçtan uca mühürlendi.
+   1517	9. **Multi-Tenant Raporlama & FinOps İzolasyon Mührü (Phase 70):**
+   1518	   * **Tüm Raporlama Uç Noktalarına Tenant Süzgeci:** `usage`, `cost`, `operators`, `rag` ve `invoicing` uç noktaları `resolveReportingScope` motoruna bağlandı.
+   1519	   * **B2B Faturalandırma & FinOps İzolasyonu:** `GET /api/reporting/invoicing` rotasındaki küme geneli şirket listesi sızıntısı kapatıldı. Bir kiracı giriş yaptığında yalnızca kendi şirketinin token defterini ve faturasını görebilir (`targetTenant = tenantId`).
+   1520	   * **Operatör & RAG Telemetrisi İzolasyonu:** `GET /api/reporting/operators` ve `/api/reporting/rag` uç noktaları kiracı filtrelerine bağlandı. Normal operatörler ise yalnızca kendi kişisel kullanım metriklerini görebilir.
+   1521	   * **SuperAdmin Küme Görünürlüğü Korundu:** SuperAdmin tüm şirketleri küresel olarak (`1=1`) raporlayabilmeye veya dilediği kiracıyı filtrelemeye devam eder.
+   1522	
+   #### 📊 2. Nihai Sistem Doğrulaması
+   * `npx tsc --noEmit`: **0 hata**.
+   * `elara-middleware.service` ve `elara-vite.service`: Aktif ve operasyonel.
+   * Tüm entegrasyon zinciri (Vite UI ↔ api-v2.mjs ↔ Workers ↔ PostgreSQL) uçtan uca mühürlendi.
+
+   ---
+
+   ## 🗺️ STRATEGIC ROADMAP: FAZ A, FAZ B, FAZ C (MAIN REFACTORING & CLEANUP PIPELINE)
+
+   Bu yol haritası, ELARA Sovereign Studio'nun bir sonraki aşamasında izlenecek ana mühendislik protokolüdür.
+
+   ### 🛡️ Kati İcra Kuralları & Metodoloji:
+   1. **Asla Acele Yok, Sıfır Heyecan:** Hiçbir faz tek seferde veya toptan körlemesine çalıştırılmayacaktır.
+   2. **Adım Adım İcra Protokolü (Step-by-Step Execution Protocol):**
+      * **1. Aşama — Tespit & Keşif:** Önce hangi dosyada/tabloda neyin ölü, mükerrer veya standart dışı olduğu tam listelenecek.
+      * **2. Aşama — Etki-Tepki Hesabı (Impact Analysis):** Değişikliğin UI (Vite) $\leftrightarrow$ API (`api-v2.mjs`) $\leftrightarrow$ Backend/Workers $\leftrightarrow$ DB (PostgreSQL) zincirine etkisi hesaplanacak.
+      * **3. Aşama — Raporlama & Açık Onay:** Kullanıcıya (Levent İldeniz) detaylı rapor sunulacak; açık onay alınmadan TEK BİR DOSYA dahi silinmeyecek/düzenlenmeyecektir.
+      * **4. Aşama — Cerrahi İcra & Doğrulama:** Onay sonrası değişiklik uygulanacak, `npx tsc --noEmit` ve servis testleriyle doğrulanacaktır.
+   3. **Standart:** Enterprise-Grade, Agnostic (Linux/macOS), Load Balancer hazır, sıfır mock, profesyonel İngilizce dokümantasyon.
+
+   ---
+
+   ### 📦 FAZ A: Backend & Frontend Dead Code & Schema Purge (Ölü Kod & Şema Temizliği)
+
+   **Odak:** Prototip/Lovable döneminden kalma, artık mount edilmeyen yetim dosyalar, mükerrer tablolar/kolonlar ve ölü frontend kodlarının ayıklanması.
+
+   #### 1. Backend & Rota Temizliği:
+   * `local-server/lib/routes/` altındaki 84 dosyanın taranması: `api-v2.mjs` tarafından mount EDİLMEYEN ölü dosyaların tespiti (örneğin eski `agents.mjs`, `python.mjs`, `rbac.mjs`, `webhooks.mjs`, `rag-settings.mjs` vb. legacy kalıntılar).
+   * Bu dosyaların başka bir worker veya servis tarafından import edilip edilmediğinin etki-tepki analizi.
+   * WSL/Windows transferinden kalma `Zone.Identifier` meta dosyalarının taranıp güvenle temizlenmesi.
+
+   #### 2. Veritabanı Şeması & Tablo Denetimi (PostgreSQL):
+   * `elara_db` içerisindeki tüm tabloların (`\dt`) listelenmesi ve aktif kod tabanı ile eşleştirilmesi.
+   * Mükerrer/yetim tabloların tespiti (Örn: `schedules` vs `trigger_schedules`, `system_config` vs `app_system_config`).
+   * Tablolardaki ölü/kullanılmayan kolonların tespiti.
+   * Foreign key kısıtları ve `ON DELETE CASCADE / SET NULL` zincirlerinin veri tutarlılığı denetimi.
+
+   #### 3. Frontend (Vite / React) Ölü Kod & Import Temizliği:
+   * `src/` altındaki kullanılmayan importlar, artık referans verilmeyen yardımcı fonksiyonlar ve eski mock dosyaları (`src/mocks/`).
+   * TanStack Router ağacındaki ölü veya birbiriyle çakışan rota kalıntıları.
+
+   ---
+
+   ### 📝 FAZ B: Kod Standartlaştırma & English Documentation (Uluslararası Kod Standardı)
+
+   **Odak:** Kodun içine başka bir yazılımcı girdiğinde "bu nasıl bir kod" demeyeceği, kurumsal seviyede temiz, tekdüze ve %100 İngilizce standardı.
+
+   #### 1. Yorum Satırları & Mesajların Standartlaştırılması:
+   * Backend (`local-server/`) ve Frontend (`src/`) genelinde kalan tüm Türkçe yorum satırlarının taranması ve profesyonel enterprise İngilizceye çevrilmesi.
+   * UI üzerindeki alert, confirm ve hata mesajlarının standartlaştırılması.
+   * Lovable zamanından kalan TUR, TUR-A, MLX gibi legacy etiketlerin raporlanıp temizlenmesi.
+
+   #### 2. API Yanıt & Hata Formatı Standardizasyonu:
+   * Tüm API uç noktalarında tekdüze yanıt formatı: `{ ok: true, data }` veya `{ ok: false, error: string }`.
+   * HTTP durum kodlarının (200, 201, 400, 401, 403, 404, 500) anlamsal tutarlılığı.
+   * Frontend store'larındaki camelCase ile PostgreSQL'deki snake_case eşleştirmelerinin (`rowTo...`) standart hale getirilmesi.
+
+   ---
+
+   ### 🔒 FAZ C: NetSec Güvenlik & Penetrasyon Denetimi (Kurumsal Güvenlik Mührü)
+
+   **Odak:** Sistemin ağ ve kimlik katmanının dış saldırılara, yetki aşımlarına ve sızıntılara karşı test edilmesi.
+
+   #### 1. Ağ & API Güvenliği:
+   * Endpoint bazında rate limiting (`rlLogin`, API token rate limits) ve brute-force koruması.
+   * CORS politikaları ve hassas endpoint'lerin loopback (127.0.0.1) sınırlarının doğrulanması.
+   * Input validation (Zod / JSON Schema) ve SQL Injection parametrizasyon denetimi.
+
+   #### 2. SSRF & Dış Servis Çağrı Güvenliği:
+   * Web Search, Webhook ve MCP Client bağlantılarında SSRF (Server-Side Request Forgery) koruması (dahili IP'lerin dial edilmesinin engellenmesi).
+   * Secret Vault AES-256-GCM çözülmüş sırların asla loglara (`agent_logs`) veya audit stream'e sızmadığının teyidi.
