@@ -120,11 +120,26 @@ export async function resolveActorContext(req) {
       effectiveRole = "security";
     }
     
+    let rbacGrantsMcpServer = false;
+    try {
+      const roleRes = await _pool.query(
+        "SELECT scopes FROM app_roles WHERE lower(name) = ANY($1::text[]) OR id = ANY($1::text[])",
+        [allRoles]
+      );
+      for (const rRow of roleRes.rows) {
+        const scopes = Array.isArray(rRow?.scopes) ? rRow.scopes : [];
+        if (scopes.includes("mcp-server") || scopes.includes("*")) {
+          rbacGrantsMcpServer = true;
+          break;
+        }
+      }
+    } catch {}
+
     const defaultActor = await resolveDefaultActor();
     const isFirstMimar = !!defaultActor && actor === defaultActor;
     const isSuperAdmin = (effectiveRole === "admin" || effectiveRole === "sovereign" || isFirstMimar) && userTenantId === "default";
     const isTenantAdmin = isSuperAdmin || ((effectiveRole === "admin" || effectiveRole === "sovereign" || effectiveRole === "tenant-admin") && userTenantId !== "default") || effectiveRole === "tenant-admin";
-    const canManageMcpServer = isSuperAdmin || templateGrantsMcpServer;
+    const canManageMcpServer = isSuperAdmin || rbacGrantsMcpServer || templateGrantsMcpServer;
     
     return {
       actor,

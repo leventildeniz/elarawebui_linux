@@ -1,23 +1,23 @@
-// Faz 2 — Bridge Auth / Session Gate.
+// Phase 2 — Bridge Auth / Session Gate.
 //
-// Sorun: `x-user` ve `x-user-role` başlıkları istemci tarafından serbestçe
-// gönderiliyor; LAN içindeki biri başlık üreterek admin yetkisi alabilir.
-// Çözüm: Login sırasında üretilen `app_sessions.id` (sid) tek gerçeklik
-// kaynağı olacak. Bu modül:
-//   - attachSessionContext: her istekte sid'i DB'de doğrular, gerçek rol
-//     ve username'i `req.session` içine koyar; rolü `req.actor`/`x-user-role`
-//     ile değil DB ile besler.
-//   - requireSession({ roles }): sid yoksa/sahteyse 401, rol yetmiyorsa 403.
-//   - isAdminFromSession: DB-temelli admin kontrolü için tek fonksiyon.
+// Security Architecture:
+// `x-user` and `x-user-role` headers are untrusted client-supplied values.
+// The cryptographically generated `app_sessions.id` (sid) verified in PostgreSQL
+// serves as the single source of truth.
+// This module provides:
+//   - attachSessionContext: Verifies sid against DB per request, populates req.session
+//     with authenticated role, user_id, tenant_id, and provider.
+//   - requireSession({ roles }): Enforces authentication (401) and RBAC authorization (403).
+//   - isAdminFromSession: Single authoritative check for admin/sovereign session status.
 //
-// İlke: sessizce kırmaz. attachSessionContext her zaman çağrılır ama hata
-// fırlatmaz; sadece doğrulanmış sid varsa `req.session` doldurur. Gerçek
-// kapı `requireSession` ile açılır — endpoint başına opt-in.
+// Principle: Fail-safe and non-disruptive. attachSessionContext is invoked globally
+// but only populates req.session when a valid, active session is verified.
+// Explicit route protection is opted in via `requireSession`.
 
 let _pool = null;
 let _initialized = false;
 
-/** Bir kere çağrılır; bridge DB pool'unu kapıya bağlar. */
+/** Invoked once on boot to bind the PostgreSQL connection pool. */
 export function initSessionGate(pool) {
   _pool = pool;
   _initialized = true;
@@ -34,11 +34,11 @@ function pickSid(req) {
 }
 
 /**
- * Express middleware. Her istekte:
- *   1) sid varsa app_sessions'tan doğrular,
- *   2) last_seen güncellenir,
- *   3) `req.session = { id, username, role, userId, provider }` olur,
- *   4) sid yoksa veya satır yoksa session=null olur (kapı KAPALI değil).
+ * Express middleware. On every request:
+ *   1) Verifies sid against app_sessions if present,
+ *   2) Updates last_seen timestamp,
+ *   3) Populates req.session = { id, username, role, userId, provider, tenant_id },
+ *   4) Sets req.session = null if sid is absent or invalid (open-by-default, guarded by requireSession).
  */
 export function attachSessionContext() {
   return async (req, _res, next) => {
@@ -126,10 +126,10 @@ export function attachSessionContext() {
 }
 
 /**
- * Express middleware. `requireSession()` → herhangi bir doğrulanmış sid yeter.
- * `requireSession({ roles: ["admin"] })` → rol kontrolü de yapar.
- * 401: sid yok ya da geçersiz.
- * 403: sid geçerli ama rol yetmiyor.
+ * Express middleware. `requireSession()` → requires any verified session.
+ * `requireSession({ roles: ["admin"] })` → enforces role requirement.
+ * 401: Missing or invalid session.
+ * 403: Session valid, but insufficient role permissions.
  */
 export function requireSession(opts = {}) {
   const requiredRoles = Array.isArray(opts.roles)
@@ -140,7 +140,7 @@ export function requireSession(opts = {}) {
       return res.status(401).json({
         ok: false,
         error: "auth_required",
-        message: "Geçerli oturum yok. Lütfen yeniden giriş yapın.",
+        message: "No valid session found. Please sign in again.",
       });
     }
     const userRole = String(req.session.role || "user").toLowerCase();
@@ -166,7 +166,7 @@ export function requireSession(opts = {}) {
       return res.status(403).json({
         ok: false,
         error: "role_required",
-        message: `Bu işlem için yetkiniz yok (gerekli roller: ${requiredRoles.join(", ")}).`,
+        message: `Insufficient permissions for this operation (required roles: ${requiredRoles.join(", ")}).`,
         required: requiredRoles,
         actual: req.session.role,
       });

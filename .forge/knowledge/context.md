@@ -1558,21 +1558,25 @@ ELARA Sovereign Studio genelinde **Zero-Trust Çoklu Kiracı (Multi-Tenancy) ve 
    #### 🧩 8 Dikey Dilim (Vertical Slices) İcra Takvimi:
 
    * **Adım 0 — Kod Dışı Meta Dosya Hijyeni (Sıfır Risk):**
-     - WSL2 / Windows dosya transferlerinden kalan `*:Zone.Identifier` meta çöplerinin taranıp temizlenmesi.
-     - Durum: Beklemede.
+     - WSL2 / Windows dosya transferlerinden kalan 217 adet `*:Zone.Identifier` meta çöpleri taranıp temizlendi.
+     - `local-server/lib/routes/` altındaki 15 adet unmounted/ölü legacy rota dosyası silindi.
+     - Durum: Tamamlandı & Remote commit edildi (`a1c11ab`).
 
    * **Modül 1 — Reporting & FinOps (Overview, Cost, Usage, Operators, RAG, Invoicing):**
      - Rotalar: `local-server/lib/routes/reporting.mjs`
      - UI: `src/routes/reporting.*.tsx`, `src/lib/report-store.ts`, `src/lib/rag-analytics-store.ts`, `src/lib/schedule-store.ts`
      - DB Tabloları: `provider_usage`, `usage_daily`, `schedules`, `schedule_deliveries`, `rag_queries`
-     - Durum: Doğrulandı ve mühürlendi (Phase 70 & status sütun nitelendirmesi tamamlandı).
+     - Durum: Doğrulandı ve mühürlendi (Phase 70 & ambiguous status sütun nitelendirmesi tamamlandı).
 
    * **Modül 2 — Identity, Users, Groups, Templates & RBAC:**
      - Rotalar: `identity.mjs`, `identity-groups.mjs`, `identity-roles.mjs`, `identity-templates.mjs`, `actor.mjs`, `session-gate.mjs`, `auth-utils.mjs`
      - UI: `src/routes/users.tsx`, `src/routes/rbac.tsx`, `src/routes/account.tsx`, `src/lib/rbac-store.ts`, `src/lib/group-store.ts`, `src/lib/user-template-store.ts`
      - DB Tabloları: `app_users`, `app_groups`, `app_roles`, `app_templates`, `app_sessions`, `app_tenants`
-     - Eski/Yetim Dosya Şüphelileri: `local-server/lib/routes/rbac.mjs` (api-v2.mjs'de mount edilmeyen eski dosya mı?), `local-server/lib/routes/users.mjs`.
-     - Durum: Beklemede.
+     - Yapılan Temizlik:
+       * `session-gate.mjs` ve `auth-utils.mjs` içerisindeki tüm Türkçe yorumlar ve 401/403 HTTP hata mesajları kurumsal İngilizceye çevrildi.
+       * `schema-identity.mjs` ölü legacy dosyası ve `server.mjs` içindeki `initIdentitySchema` çağrısı tamamen kaldırıldı.
+       * `app_groups` tablosundaki mükerrer ve ölü `default_role` ve `default_template` kolonları DROP edildi; `v2_master_schema.sql` ile tam birebir parite sağlandı.
+     - Durum: Doğrulandı ve mühürlendi (0 TypeScript hatası, servis aktif).
 
    * **Modül 3 — Knowledge Hub, Document Ingestion & Agentic RAG:**
      - Rotalar: `knowledge-spaces.mjs`, `rag-folders.mjs`, `knowledge-ingest.mjs`, `knowledge-retrieve.mjs`, `rag-ops.mjs`, `agent-rag.mjs`

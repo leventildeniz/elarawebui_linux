@@ -17,11 +17,15 @@ export async function mountRagFoldersRoutes(app, deps) {
 
       const userMatches = [req.session?.userId, ctx.userId, req.session?.username, ctx.username, ctx.actor].filter(Boolean);
 
-      let query = "SELECT * FROM rag_folders";
+      let query = "SELECT * FROM rag_folders WHERE ";
       const params = [];
-      if (!ctx.isSuperAdmin) {
-        query += " WHERE (tenant_id = $1 OR is_global = true OR tenant_id = 'default') AND (builtin = true OR owner_id = ANY($2) OR lower(owner_id) = ANY($2))";
+      if (ctx.isSuperAdmin && (req.query?.all === "true" || req.query?.scope === "all")) {
+        // SuperAdmin explicitly inspecting all desks across the cluster
+        query += "1=1";
+      } else {
+        // Strict Desk & Tenant Isolation
         params.push(tenantId, userMatches);
+        query += "(tenant_id = $1 OR is_global = true OR tenant_id = 'default') AND (builtin = true OR is_global = true OR owner_id = ANY($2) OR lower(owner_id) = ANY($2))";
       }
       query += " ORDER BY created_at ASC";
 
@@ -61,6 +65,18 @@ export async function mountRagFoldersRoutes(app, deps) {
   });
 
   app.patch("/api/rag-folders/:id", requireSession(), async (req, res) => {
+    const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
+    const tenantId = req.session?.tenant_id || ctx.tenantId || "default";
+    const userMatches = [req.session?.userId, ctx.userId, req.session?.username, ctx.username, ctx.actor].filter(Boolean);
+
+    if (!ctx.isSuperAdmin) {
+      const chk = await pool.query(
+        "SELECT id FROM rag_folders WHERE id = $1 AND builtin = false AND (owner_id = ANY($2) OR lower(owner_id) = ANY($2)) AND tenant_id = $3",
+        [req.params.id, userMatches, tenantId]
+      );
+      if (!chk.rows.length) return res.status(403).json({ ok: false, error: "Access denied to collection" });
+    }
+
     const { name, color } = req.body;
     const updates = [];
     const values = [];
@@ -85,7 +101,19 @@ export async function mountRagFoldersRoutes(app, deps) {
 
   app.delete("/api/rag-folders/:id", requireSession(), async (req, res) => {
     try {
-      await pool.query("DELETE FROM rag_folders WHERE id=$1 AND builtin=false", [req.params.id]);
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
+      const tenantId = req.session?.tenant_id || ctx.tenantId || "default";
+      const userMatches = [req.session?.userId, ctx.userId, req.session?.username, ctx.username, ctx.actor].filter(Boolean);
+
+      if (!ctx.isSuperAdmin) {
+        const delRes = await pool.query(
+          "DELETE FROM rag_folders WHERE id=$1 AND builtin=false AND (owner_id = ANY($2) OR lower(owner_id) = ANY($2)) AND tenant_id=$3",
+          [req.params.id, userMatches, tenantId]
+        );
+        if (delRes.rowCount === 0) return res.status(403).json({ ok: false, error: "Access denied or built-in collection" });
+      } else {
+        await pool.query("DELETE FROM rag_folders WHERE id=$1 AND builtin=false", [req.params.id]);
+      }
       res.status(204).end();
     } catch (e) {
       res.status(500).json({ ok: false, error: String(e.message || e) });

@@ -75,7 +75,6 @@ import { initEmbedWorkerRuntime, startEmbedWorkerIntervals, ensureWorker, kickWo
 import { initRagRetrieval, semanticSearch } from './lib/rag/retrieval.mjs';
 import { initToolAdapters, invokeTool, listPendingApprovals, decideApproval, ApprovalRequired, ToolPolicyError } from './lib/tool-adapters.mjs';
 import { initWorkflowEngine } from './lib/workflow-engine.mjs';
-import { initIdentitySchema } from './lib/schema-identity.mjs';
 import { initKnowledgeSchema } from './lib/schema-knowledge.mjs';
 import { initAdaptersSchema } from './lib/schema-adapters.mjs';
 import { normalizeAgentRow } from './lib/agents/runtime.mjs';
@@ -192,18 +191,12 @@ async function startServer() {
     const setStartedAt = (t) => { _workerStartedAt = t; };
     const getStartedAt = () => _workerStartedAt;
     
-    const ALL_TAB_IDS = [
-      "chat", "dashboard", "knowledge", "agents", "workflows", "tools", "skills", "models", 
-      "templates", "python", "forge", "telemetry", "reports", "policies", "security", "middleware", "debug",
-      "api-tokens", "invoicing"
-    ];
     const EMBED_DIM_TARGET = Math.max(64, Math.min(4096, Number(process.env.EMBED_DIM) || 1024));
 
     // =============================================================================
     // PHASE C: Schema Bootstrap
     // =============================================================================
     console.log(`[boot] Phase C: Schema Bootstrap...`);
-    initIdentitySchema({ pool, allTabIds: ALL_TAB_IDS });
     const { ensureKnowledgeFilesTable, ensureKnowledgeChunksTable } = initKnowledgeSchema({ pool, ftsCharLimit: 900000 });
     initAdaptersSchema({ pool });
     const { ensureAgentSquadsTable } = initAgentsSchema({ pool });

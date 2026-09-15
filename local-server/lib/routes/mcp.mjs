@@ -262,9 +262,14 @@ export function mountMcpRoutes(app, deps) {
     catch (e) { res.status(400).json({ error: e.message }); }
   });
 
-  app.get("/api/mcp/tokens", serverAdmin, async (_req, res) => {
-    try { res.json({ ok: true, tokens: await listTokens(pool) }); }
-    catch (e) { res.status(500).json({ error: e.message }); }
+  app.get("/api/mcp/tokens", anySession, async (req, res) => {
+    try {
+      const ctx = typeof deps.resolveActorContext === "function" ? await deps.resolveActorContext(req) : null;
+      if (!ctx?.isAdmin && !ctx?.canManageMcpServer) {
+        return res.json({ ok: true, tokens: [] });
+      }
+      res.json({ ok: true, tokens: await listTokens(pool) });
+    } catch (e) { res.status(500).json({ error: e.message }); }
   });
 
   app.post("/api/mcp/tokens", serverAdmin, async (req, res) => {

@@ -2144,6 +2144,7 @@ function GroupsTab() {
                   body="The group and its membership rules are removed. Accounts stay, but lose this group's inherited role and template."
                   onConfirm={() => {
                     removeGroup(active.id);
+                    setActiveId("");
                     toast.success("Group deleted", { description: active.name });
                   }}
                 >

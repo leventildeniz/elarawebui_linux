@@ -95,7 +95,7 @@ import { fetchApi } from "@/lib/api";
 
 const G_KEY = "sovereign:identity:groups:v1";
 const A_KEY = "sovereign:identity:accounts:v1";
-const EVENT = "sovereign:identity";
+const EVENT = "sovereign:groups";
 
 function read<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
@@ -111,8 +111,12 @@ function read<T>(key: string, fallback: T): T {
 
 function write(key: string, value: unknown) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(key, JSON.stringify(value));
-  window.dispatchEvent(new CustomEvent(EVENT));
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch {}
+  queueMicrotask(() => {
+    window.dispatchEvent(new CustomEvent(EVENT));
+  });
 }
 
 /** Non-hook read of the persisted group roster (SSR safe). */
@@ -344,11 +348,8 @@ export function useIdentity() {
     }
     try {
       await fetchApi(`/api/identity/groups/${id}`, { method: "DELETE" });
-      setGroups(prev => {
-        const next = prev.filter((g) => g.id !== id);
-        write(G_KEY, next);
-        return next;
-      });
+      const next = groups.filter((g) => g.id !== id);
+      commitGroups(next);
     } catch (err) {
       console.error("Failed to delete group", err);
     }
@@ -430,13 +431,9 @@ export function useIdentity() {
         avatarJewel: "sapphire"
       };
 
-      setAccounts(prev => {
-        const exists = prev.some(a => a.id === mappedAccount.id);
-        if (exists) return prev;
-        const next = [...prev, mappedAccount];
-        write(A_KEY, next);
-        return next;
-      });
+      if (!accounts.some((a) => a.id === mappedAccount.id)) {
+        commitAccounts([...accounts, mappedAccount]);
+      }
       return mappedAccount.id;
     } catch (err) {
       console.error("Failed to add account", err);
@@ -453,11 +450,8 @@ export function useIdentity() {
   const removeAccount = async (id: string) => {
     try {
       await fetchApi(`/api/identity/users/${id}`, { method: "DELETE" });
-      setAccounts(prev => {
-        const next = prev.filter((a) => a.id !== id);
-        write(A_KEY, next);
-        return next;
-      });
+      const next = accounts.filter((a) => a.id !== id);
+      commitAccounts(next);
 
       const stripped = groups.map((g) =>
         g.members.includes(id) ? { ...g, members: g.members.filter((m) => m !== id) } : g,

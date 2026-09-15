@@ -51,10 +51,17 @@ export function useRagFolders() {
 
   useEffect(() => {
     const sync = () => setFolders([...cachedFolders]);
+    const onIdentity = () => {
+      syncFoldersBackend();
+    };
     sync();
     window.addEventListener(EVT, sync);
+    window.addEventListener("sovereign:identity", onIdentity);
     syncFoldersBackend();
-    return () => window.removeEventListener(EVT, sync);
+    return () => {
+      window.removeEventListener(EVT, sync);
+      window.removeEventListener("sovereign:identity", onIdentity);
+    };
   }, []);
 
   const addFolder = useCallback(async (name: string) => {

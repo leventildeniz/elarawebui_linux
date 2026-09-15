@@ -103,12 +103,10 @@ export async function mountIdentityGroupsRoutes(app, deps) {
     if (g.description !== undefined) { updates.push(`description=$${i++}`); values.push(g.description); }
     if (g.defaultRole !== undefined) {
       updates.push(`role=$${i++}`); values.push(g.defaultRole);
-      updates.push(`default_role=$${i++}`); values.push(g.defaultRole);
     }
     if (g.provider !== undefined) { updates.push(`provider=$${i++}`); values.push(g.provider); }
     if (g.defaultTemplate !== undefined) {
       updates.push(`template_id=$${i++}`); values.push(g.defaultTemplate || null);
-      updates.push(`default_template=$${i++}`); values.push(g.defaultTemplate || null);
     }
     if (g.tone !== undefined) { updates.push(`tone=$${i++}`); values.push(g.tone); }
     if (g.tenant_id !== undefined || g.tenantId !== undefined) {

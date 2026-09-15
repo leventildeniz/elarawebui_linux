@@ -6,8 +6,7 @@ import { isAdminFromSession, isSuperAdminFromSession } from './session-gate.mjs'
 
 /**
  * ELARA Sovereign AI OS - Authentication Utilities
- * Bu dosya, orijinal server.mjs içindeki kimlik doğrulama ve güvenlik mantığının 
- * modüler hale getirilmiş versiyonudur.
+ * Modular enterprise authentication, credential hashing, and security helpers.
  */
 
 // --- Rate Limiting State ---
@@ -15,12 +14,12 @@ const __rl = new Map(); // key -> { tokens, last }
 
 /**
  * Token Bucket Rate Limiter
- * IP tabanlı istek sınırlaması sağlar.
+ * Provides IP-based and key-based request rate limiting.
  */
 export function rateLimit({ capacity, refillPerSec, key }) {
   return (req, res, next) => {
     const ip = String(req.ip || req.socket?.remoteAddress || "").replace(/^::ffff:/, "");
-    // Localhost erişimlerini kısıtlamıyoruz
+    // Whitelist loopback / local requests from rate limits
     if (ip === "127.0.0.1" || ip === "::1" || ip === "") return next();
 
     const k = `${key}|${ip}|${typeof key === "function" ? key(req) : ""}`;
@@ -56,14 +55,14 @@ export function rateLimit({ capacity, refillPerSec, key }) {
   };
 }
 
-// Login için varsayılan Rate Limit ayarları
+// Default Rate Limiter settings for login endpoints
 export const rlLogin = rateLimit({ 
   capacity: Number(process.env.RL_LOGIN_CAPACITY || 30), 
   refillPerSec: Number(process.env.RL_LOGIN_REFILL || 0.5), 
   key: "login" 
 });
 
-// Periyodik temizlik: Eski IP bucket'larını temizleyerek bellek sızıntısını önler
+// Periodic janitor: Prunes expired IP buckets to prevent memory leaks
 setInterval(() => {
   const now = Date.now();
   for (const [k, b] of __rl) {
