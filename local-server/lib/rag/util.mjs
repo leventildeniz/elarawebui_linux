@@ -150,7 +150,7 @@ export function createRagUtil(deps) {
       productCacheTtlMs:        Math.min(3_600_000, Math.max(30_000, Math.floor(_ragNumber(src.productCacheTtlMs, RAG_DEFAULTS.productCacheTtlMs)))),
       versionPathBoost:         Math.min(0.50, Math.max(0, _ragNumber(src.versionPathBoost, RAG_DEFAULTS.versionPathBoost))),
       versionCandidateLimit:    Math.max(2, Math.min(20, Math.floor(_ragNumber(src.versionCandidateLimit, RAG_DEFAULTS.versionCandidateLimit)))),
-      // 2026-06-03 — UI tek mercii system prompt overrides. Boş string → default fallback.
+      // System prompt overrides from configuration. Empty string falls back to default.
       inspectorDirective:    (typeof src.inspectorDirective    === "string") ? src.inspectorDirective.slice(0, 8000)    : (RAG_DEFAULTS.inspectorDirective    || ""),
       inspectorBrandLock:    (typeof src.inspectorBrandLock    === "string") ? src.inspectorBrandLock.slice(0, 8000)    : (RAG_DEFAULTS.inspectorBrandLock    || ""),
       extractorSystemPrompt: (typeof src.extractorSystemPrompt === "string") ? src.extractorSystemPrompt.slice(0, 8000) : (RAG_DEFAULTS.extractorSystemPrompt || ""),

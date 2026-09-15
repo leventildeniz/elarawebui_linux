@@ -22,7 +22,7 @@ export function extractEntities(text) {
   
   const t = String(text || "");
   
-  // Sadece temel ağ / güvenlik objeleri (opsiyonel tutuldu, vendor listesi SİLİNDİ)
+  // Base networking and security entities (IP, CIDR, CVE)
   for (const m of t.matchAll(/\b(?:\d{1,3}\.){3}\d{1,3}(?:\/\d{1,2})?\b/g)) add(m[0], "ip");
   for (const m of t.matchAll(/\bCVE-\d{4}-\d{4,7}\b/gi)) add(m[0].toUpperCase(), "cve");
   

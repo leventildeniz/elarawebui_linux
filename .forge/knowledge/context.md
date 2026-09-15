@@ -1582,9 +1582,14 @@ ELARA Sovereign Studio genelinde **Zero-Trust Çoklu Kiracı (Multi-Tenancy) ve 
      - Rotalar: `knowledge-spaces.mjs`, `rag-folders.mjs`, `knowledge-ingest.mjs`, `knowledge-retrieve.mjs`, `rag-ops.mjs`, `agent-rag.mjs`
      - Worker: In-process ONNX (`onnx-pipeline.mjs`) + Python Worker (`worker.py` port 8082)
      - UI: `src/routes/knowledge.tsx`, `src/routes/rag-documents.tsx`, `src/lib/knowledge-store.ts`, `src/lib/rag-folder-store.ts`
-     - DB Tabloları: `knowledge_sources`, `knowledge_chunks`, `knowledge_spaces`, `rag_folders`, `brand_aliases`
-     - Eski/Yetim Dosya Şüphelileri: `rag-settings.mjs` (82 knobs içeren eski dosya mı?).
-     - Durum: Beklemede.
+     - DB Tabloları: `knowledge_sources`, `knowledge_chunks`, `knowledge_spaces`, `rag_folders`
+     - Yapılan Temizlik & Standardizasyon:
+       * `src/mocks/knowledge.ts` ve `src/mocks/knowledge-seed.ts` ölü mock dosyaları repodan silindi (`src/mocks/index.ts` temizlendi).
+       * `knowledge-retrieve.mjs` içindeki Türkçe API notice mesajı kurumsal İngilizceye çevrildi (`Access denied: insufficient permissions to reach this document`).
+       * `brand-aliases.mjs`, `knowledge-sync.mjs`, `rag/defaults.mjs`, `entity-extractor.mjs`, `intent-classifier.mjs`, `util.mjs` ve `agent-rag.mjs` içerisindeki Türkçe yorum satırları İngilizceye çevrildi.
+       * `rag-folders.mjs` masa ve tenant bazında izole edildi; admin ekranına operatörlerin özel klasörlerinin sızması engellendi.
+       * `mcp.mjs` ve `mcp-store.ts` token/exposure okuma izinleri güvenli hale getirilerek 403 ve re-render döngüleri giderildi.
+     - Durum: Doğrulandı ve mühürlendi (0 TypeScript hatası, servis aktif).
 
    * **Modül 4 — Capabilities, Tools, Skills & MCP Engine:**
      - Rotalar: `tools.mjs`, `skills.mjs`, `capabilities.mjs`, `mcp.mjs`, `adapters.mjs`, `webhooks-crud.mjs`, `python-crud.mjs`, `tool-adapters.mjs`, `tools-scan.mjs`

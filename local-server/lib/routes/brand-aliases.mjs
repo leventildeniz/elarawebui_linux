@@ -9,7 +9,7 @@
 // Plus exported helpers: spawnBrandReenrich, maybeAutoReenrich,
 // triggerSyncAutoReenrich, _coerceBool — consumed by ingest routes.
 // Storage: local-server/data/brand-aliases.json (JSON file).
-// Hiçbir runtime sözlük lookup'ı YOK — alias yalnız enrichment preamble'a gömülür.
+// No runtime dictionary lookup — aliases are embedded directly into the enrichment preamble.
 // ----------------------------------------------------------------------------
 
 import fs from "node:fs";

@@ -1,11 +1,9 @@
-// agent-rag.mjs — Agent başına RAG context injection.
+// agent-rag.mjs — Per-agent RAG context injection.
 //
-// 2026-05-28: Unified with chat retrieval. Previously this module ran its
-// own FTS-only pipeline (websearch_to_tsquery) — no reranker, no brand-lock,
-// no diversity, no enrichment. Chat's `ragProbeAndFetch` is the canonical
+// Unified with chat retrieval. Chat's `ragProbeAndFetch` is the canonical
 // retrieval pipeline (vector probe + HyDE + FTS + reranker + per-source/
 // per-brand cap + dominant-brand gate + min-chunk filter + pack filter).
-// Agent now calls it directly → tek motor, tek bakım yüzeyi.
+// Agent calls it directly → unified engine, single maintenance surface.
 //
 // Modes (preserved from previous contract):
 //   1) meta.rag.enabled === false   → fully off.

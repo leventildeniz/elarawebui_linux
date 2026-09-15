@@ -484,7 +484,7 @@ export function mountKnowledgeRetrieveRoutes(app, deps) {
     try {
       if (!allowedLevels.length) {
         return res.json({ ok: true, context: "", sources: [], denied: 0, searchedKeywords,
-          notice: "Yetkiniz dahilinde bu dökümana ulaşılamadı" });
+          notice: "Access denied: insufficient permissions to reach this document" });
       }
       const brandRows = await pool.query("SELECT DISTINCT brand FROM knowledge_chunks WHERE brand IS NOT NULL").catch(() => ({ rows: [] }));
       const matchedBrand = typeof aliasMatchedBrand === "function" 

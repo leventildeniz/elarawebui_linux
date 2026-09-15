@@ -302,7 +302,7 @@ export async function refineIntentSemantically(text, base, cfg = RUNTIME_INTENT_
   // Meta-forge deterministic keyword gate REMOVED (Tur 6B, 2026-07-04).
   // Semantic anchor similarity + LLM adjudication + orchestrate safety-net
   // retry combo (see chat-orchestrate.mjs `meta_forge.lane.retry_*`) is now
-  // stable across 4/4 cold+warm turns. Rule "HER ŞEY DİNAMİK" respected.
+  // stable across 4/4 cold+warm turns. Strict dynamic model routing is respected.
 
 
 
@@ -473,9 +473,9 @@ export async function refineIntentSemantically(text, base, cfg = RUNTIME_INTENT_
     out.kind = "smalltalk"; out.useRag = false;
     out.mode = coldFallback ? "cold-fallback" : "semantic-bypass";
   } else if (decision === "meta") {
-    // Meta = asistanın kendisi hakkında soru. RAG bağlamı YOK,
-    // disableThinkOnSmalltalk burada da geçerli olsun diye kind=smalltalk.
-    // Mode="semantic-meta" → UI/log ayırt edebilir; agent bridge kapalı kalır.
+    // Meta query regarding assistant identity. RAG context is skipped,
+    // marked as kind=smalltalk to keep think/overhead disabled,
+    // with mode="semantic-meta" for log/audit observability.
     out.kind = "smalltalk"; out.useRag = false; out.mode = "semantic-meta";
   } else if (decision === "meta_forge") {
     out.kind = "query"; out.useRag = false; out.mode = "llm-meta-forge"; out.subKind = "meta_forge";

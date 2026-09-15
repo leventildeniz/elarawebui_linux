@@ -11,10 +11,8 @@ export * from "./workflows";
 export * from "./orchestrations";
 export * from "./composer";
 export * from "./services";
-export * from "./knowledge";
 
 export * from "./agents";
 export * from "./skills";
-export * from "./knowledge-seed";
 
 export * from "./snippets";

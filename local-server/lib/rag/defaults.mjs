@@ -110,19 +110,18 @@ export function buildRagDefaults({ envNumber, TIMEOUT_BUDGETS }) {
     agentAutoRouteMinScore:     Math.max(1, envNumber("AGENT_AUTO_ROUTE_MIN_SCORE", 2)),
     agentAutoRouteSkipSmalltalk: String(process.env.AGENT_AUTO_ROUTE_SKIP_SMALLTALK ?? "1") !== "0",
     agentMultiBrand:            String(process.env.AGENT_MULTI_BRAND ?? "1") !== "0",
-    // 2026-06-29 — Elara agent manifest injection mode.
-    //   off    = `{AGENTS}` placeholder hep boş (prompt en kısa).
-    //   lazy   = sadece kullanıcı niyeti "meta" (ajan listesi sorusu) ise dolu.
-    //   always = her turda dolu (legacy — TTFT'yi yer).
-    // System prompt'a `{AGENTS}` yazılırsa devreye girer; yazılmazsa no-op.
-    // Default lazy (kullanıcı sorduğunda otomatik gerçek liste, normal sohbette boş).
+    // Elara agent manifest injection mode:
+    //   off    = `{AGENTS}` placeholder is always empty (minimal prompt).
+    //   lazy   = populated only when user intent is "meta" (e.g. agent directory query).
+    //   always = populated on every turn (legacy — increases TTFT).
+    // Activated if `{AGENTS}` is present in system prompt; otherwise no-op.
+    // Default: lazy (dynamically loads actual agent list when requested, empty during standard chat).
     elaraAgentManifestMode: (() => {
       const v = String(process.env.ELARA_AGENT_MANIFEST_MODE ?? "lazy").toLowerCase();
       return (v === "off" || v === "always") ? v : "lazy";
     })(),
-    // Meta soruları ("ajanlarını detaylı tanıt") LLM'e göndermek yerine
-    // manifestten deterministik cevapla. Default ON: warmup/thinking/RAG yok,
-    // model squad seviyesinde özetleyip ajanları atlayamaz.
+    // Answer meta queries ("introduce your agents in detail") deterministically from the manifest.
+    // Default ON: eliminates warmup/thinking/RAG delay and guarantees full squad inventory presentation.
     elaraAgentManifestDirectAnswer: String(process.env.ELARA_AGENT_MANIFEST_DIRECT_ANSWER ?? "1") !== "0",
     // Semantic anchor threshold for `agent_manifest` intent. Higher = stricter
     // ("kadromu tanıt" hattı sadece net eşleşince açılır). No regex/whitelist;

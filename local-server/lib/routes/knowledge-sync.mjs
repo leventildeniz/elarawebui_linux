@@ -162,9 +162,9 @@ export function mountKnowledgeSyncRoutes(app, deps) {
     });
   });
 
-  // POST /api/knowledge/purge — CASCADE silmek için tek kapı.
+  // POST /api/knowledge/purge — Authoritative gateway for CASCADE deletions.
   // Body: { id?, root?, path?, sourceId?, dryRun? }
-  // 'dir:<root>' id'lerini de çözer. Hayalet (disk'te yok) yolları sessizce uçurur.
+  // Resolves 'dir:<root>' identifiers and purges phantom paths cleanly.
   app.post("/api/knowledge/purge", async (req, res) => {
     const { id, root, path: filePath, sourceId, dryRun } = req.body ?? {};
     try {
@@ -183,7 +183,7 @@ export function mountKnowledgeSyncRoutes(app, deps) {
           const r = await pool.query(`SELECT id FROM knowledge_sources WHERE ${where.join(" AND ")}`, params);
           return res.json({ ok: true, dryRun: true, candidates: r.rowCount });
         }
-        // BATCH delete — eski N+1 döngüsü 12k dosyada kağnıya çeviriyordu.
+        // Batch deletion — avoids N+1 queries on large directories.
         const client = await pool.connect();
         try {
           await client.query("BEGIN");
@@ -211,7 +211,7 @@ export function mountKnowledgeSyncRoutes(app, deps) {
       }
       const sId = typeof sourceId === "string" ? sourceId : (typeof id === "string" && !id.startsWith("dir:") ? id : null);
       if (sId) {
-        // FIX 2026-05-26: URL source delete leak — atomik aynı transaction'a alıyoruz.
+        // Atomic transaction: cascade delete chunks and source together
         const sclient = await pool.connect();
         try {
           await sclient.query("BEGIN");
@@ -229,7 +229,7 @@ export function mountKnowledgeSyncRoutes(app, deps) {
         }
       }
       // Orphan-chunk reaper now runs ASYNC — UI no longer waits on a full table scan.
-      // FIX 2026-05-26: aynı sources guard burada da şart.
+      // Guard source existence before sweeping orphan chunks
       setImmediate(() => {
         pool.query(`
           DELETE FROM knowledge_chunks c
