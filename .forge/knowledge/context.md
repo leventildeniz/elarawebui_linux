@@ -1615,11 +1615,16 @@ ELARA Sovereign Studio genelinde **Zero-Trust Çoklu Kiracı (Multi-Tenancy) ve 
        * `schedules` (Raporlama) ile `trigger_schedules` (Workflow DAG) tablolarının fonksiyonel bağımsızlığı doğrulandı.
      - Durum: Doğrulandı ve mühürlendi (0 TypeScript hatası, servis aktif).
 
-   * **Modül 6 — Chat, Threads & Core Orchestration:**
+   * **Modül 6 — Chat, Threads & Core Orchestration (En Baba Yer):**
      - Rotalar: `chat-orchestrate.mjs`, `threads.mjs`, `storage-engine.mjs`, `lib/orchestrator/*`
      - UI: `src/routes/index.tsx`, `src/components/sovereign/composer.tsx`, `src/lib/chat-store.ts`, `src/lib/orchestrate-stream.ts`
      - DB Tabloları: `chat_threads`, `chat_messages`, `chat_files`
-     - Durum: Beklemede.
+     - Mimari Not: `chat-orchestrate.mjs` ve 4 alt modülü (`directives.mjs`, `stream-bridge.mjs`, `tool-dispatcher.mjs`, `finops-meter.mjs`) kurumsal modüler yapısını tam korudu.
+     - Yapılan Temizlik & Standardizasyon:
+       * `src/mocks/` altındaki `chat.ts` ve `composer.ts` ölü mock dosyaları repodan silindi (`src/mocks/index.ts` temizlendi).
+       * `threads.mjs`, `retention.mjs` ve `composer.tsx` içerisindeki Türkçe yorum satırları profesyonel İngilizce standartlarına getirildi.
+       * PostgreSQL'deki eski ve yetim `chat_attachments` tablosu düşürüldü (`DROP TABLE chat_attachments CASCADE`); `storage-engine.mjs` içindeki ölü fallback kodları temizlendi.
+     - Durum: Doğrulandı ve mühürlendi (0 TypeScript hatası, servis aktif).
 
    * **Modül 7 — Policy, Security, GenGuard & Secret Vault:**
      - Rotalar: `security-policies.mjs`, `vault.mjs`, `cve.mjs`, `genguard-scanner.mjs`, `policy-engine-eval.mjs`

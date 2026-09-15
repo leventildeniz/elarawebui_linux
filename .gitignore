@@ -22,6 +22,8 @@ dist-ssr
 *.zip
 audit_results.json
 local-server/uploads/backups/
+uploads/
+uploads/**
 .cache
 local-server/.cache
 

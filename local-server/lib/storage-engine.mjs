@@ -146,16 +146,6 @@ export async function getAttachmentFile(idOrKey, { pool, tenantId = "default", i
 
   let row = rows[0];
 
-  // 2. Fallback to legacy chat_attachments if not found
-  if (!row) {
-    const { rows: legacyRows } = await pool.query(
-      `SELECT id::text, thread_id::text, filename as name, mime, size_bytes, stored as storage_key, path 
-       FROM chat_attachments WHERE id::text = $1 OR stored = $1 LIMIT 1`,
-      [idOrKey]
-    ).catch(() => ({ rows: [] }));
-    row = legacyRows[0];
-  }
-
   if (!row) {
     // If ID matches a direct file in storageDir
     const candidatePath = path.join(storageDir, path.basename(idOrKey));
@@ -210,7 +200,6 @@ export async function deleteAttachmentFile(idOrKey, { pool }) {
       await fsp.unlink(fileRes.absPath).catch(() => {});
     }
     await pool.query("DELETE FROM chat_files WHERE id = $1 OR storage_key = $1", [idOrKey]);
-    await pool.query("DELETE FROM chat_attachments WHERE id::text = $1 OR stored = $1", [idOrKey]).catch(() => {});
     return { ok: true };
   } catch (err) {
     console.warn("[StorageEngine] deleteAttachmentFile notice:", err.message);
@@ -233,14 +222,8 @@ export async function purgeThreadAttachments(threadId, { pool }) {
       [threadId]
     ).catch(() => ({ rows: [] }));
 
-    // 2. Find legacy chat_attachments
-    const { rows: legacyFiles } = await pool.query(
-      "SELECT id::text, stored as storage_key, path FROM chat_attachments WHERE thread_id::text = $1",
-      [threadId]
-    ).catch(() => ({ rows: [] }));
-
-    // 3. Unlink physical files from disk
-    for (const f of [...files, ...legacyFiles]) {
+    // 2. Unlink physical files from disk
+    for (const f of files) {
       const candidate1 = f.path && fs.existsSync(f.path) ? f.path : null;
       const candidate2 = f.storage_key ? path.join(storageDir, f.storage_key) : null;
       const candidate3 = f.id ? path.join(storageDir, `${f.id}${path.extname(f.name || "")}`) : null;
@@ -252,11 +235,10 @@ export async function purgeThreadAttachments(threadId, { pool }) {
       }
     }
 
-    // 4. Delete from tables
+    // 3. Delete from tables
     await pool.query("DELETE FROM chat_files WHERE thread_id = $1", [threadId]).catch(() => {});
-    await pool.query("DELETE FROM chat_attachments WHERE thread_id::text = $1", [threadId]).catch(() => {});
 
-    return { ok: true, purgedCount: files.length + legacyFiles.length };
+    return { ok: true, purgedCount: files.length };
   } catch (err) {
     console.warn("[StorageEngine] purgeThreadAttachments notice:", err.message);
     return { ok: false, error: err.message };

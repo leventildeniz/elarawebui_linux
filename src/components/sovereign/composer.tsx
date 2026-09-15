@@ -583,7 +583,7 @@ export function Composer({
       const recognition = new SpeechRecognition();
       recognition.continuous = true;
       recognition.interimResults = true;
-      recognition.lang = "tr-TR"; // Varsayılan dili Türkçe yaptık (ingilizce de yapılabilir)
+      recognition.lang = "tr-TR"; // Default speech dictation locale
 
       recognition.onresult = (event: any) => {
         let interimTranscript = "";

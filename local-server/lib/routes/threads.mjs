@@ -49,7 +49,7 @@ export function mountThreadRoutes(app, deps) {
       const tenantId = ctx.tenantId || "default";
       const userMatches = [ctx.userId, ctx.username, ctx.actor].filter(Boolean);
 
-      // 1. Temizlik: İçi boş ve varsayılan isimli (New chat vs) kullanılmayan eski chatleri temizle.
+      // Janitor: Prune empty orphan threads with default names ('New chat') that have no messages.
       await pool.query(`
         DELETE FROM chat_threads t
          WHERE (t.title = 'New chat' OR t.title = 'New conversation' OR t.title ~ '^Chat [0-9]+$')
@@ -193,9 +193,7 @@ export function mountThreadRoutes(app, deps) {
     res.json(rows);
   });
 
-  // Hard delete: thread'in tüm mesajlarını fiziksel olarak siler (thread'i tutar).
-  // Refresh sonrası geri gelmemesi için "Bağlam Temizle" buton'undan tetiklenir.
-  // Kutu C: Kalıcılık için PUT uçları
+  // Persist messages endpoint: syncs full thread message state with PostgreSQL
   app.put("/api/threads/:id/messages", async (req, res) => {
     const threadId = req.params.id;
     const messages = req.body?.messages || [];
@@ -217,15 +215,14 @@ export function mountThreadRoutes(app, deps) {
          [threadId, ownerId, tenantId]
       );
       
-      // 1. Array'in dışında kalan eski/artık mesajları sil (Trim işlemi)
+      // 1. Trim deleted/trailing messages outside the current message array bounds
       await pool.query("DELETE FROM chat_messages WHERE thread_id = $1 AND seq >= $2", [threadId, messages.length]);
       
-      // 2. Mevcut mesajları Upsert mantığıyla güncelle veya yeni ise Ekle (Tüm DB'yi yıkmamak için)
+      // 2. Upsert existing messages or insert new ones (preserves message sequences)
       for (let i = 0; i < messages.length; i++) {
         const m = messages[i];
 
-        // Sanitize bozuk unicode / yarım kalmış emojileri silmek için:
-        // Sadece PostgreSQL jsonb parser'ını bozacak olan izole (tek başına kalmış) surrogate'leri ayıklarız.
+        // Sanitize broken Unicode and isolated surrogates to prevent PostgreSQL JSONB parser crashes
         const cleanJSON = (obj) => {
             if (!obj) return null;
             let str = JSON.stringify(obj);

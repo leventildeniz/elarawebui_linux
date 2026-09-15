@@ -1,9 +1,9 @@
-// Faz 10 — Retention runner. Eski satırları belirlenmiş pencereye göre siler.
-// Yedek alındıktan SONRA çalıştırılır (operator akışı: backup → retention).
+// Data Retention Runner — Prunes expired records based on configured SLA policies.
+// Intended to run post-backup (operational sequence: backup → retention prune).
 //
-// Policy default'ları konservatif: agent_logs/runs/vault_audit gibi
-// audit'lerde 90 gün, geçici/sistem trafiği için kısa pencere.
-// Hepsi env override edilebilir: RETENTION_<TABLE>_DAYS
+// Conservative defaults: 90 days for audit tables (agent_logs/runs/vault_audit),
+// shorter windows for high-frequency ephemeral telemetry.
+// Configurable via environment variables: RETENTION_<TABLE>_DAYS
 
 import { purgeThreadAttachments } from "./storage-engine.mjs";
 
