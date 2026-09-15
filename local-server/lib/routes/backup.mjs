@@ -15,8 +15,18 @@ export function mountBackupRoutes(app, deps) {
   const {
     pool, enqueueWrite, spawnPg, initPgVersion, upload,
     UPLOAD_DIR, BACKUP_DIR, DATABASE_URL, __bootDir, startedAt,
-    brandSync, safeSlug,
+    brandSync, safeSlug, resolveActorContext,
   } = deps;
+
+  const requireSuperAdmin = async (req, res) => {
+    const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : null;
+    const isSuperAdmin = ctx?.isSuperAdmin || (req.session?.role === "admin" && (!req.session?.tenant_id || req.session?.tenant_id === "default"));
+    if (!isSuperAdmin) {
+      res.status(403).json({ ok: false, error: "super_admin_required" });
+      return false;
+    }
+    return true;
+  };
 
   const { getPgClientMajor, getPgServerMajor, ensurePgVersionsCompatible } = initPgVersion({ pool, spawnPg });
 
@@ -716,6 +726,7 @@ function listBackupFiles() {
 // Endpoints
 // ============================================================
 app.get("/api/backup/export", async (req, res) => {
+  if (!(await requireSuperAdmin(req, res))) return;
   try {
     const includeCode = req.query.code !== "0";
     const includeUploads = req.query.uploads !== "0";
@@ -739,6 +750,7 @@ app.get("/api/backup/export", async (req, res) => {
 });
 
 app.post("/api/backup/restore", upload.single("file"), async (req, res) => {
+  if (!(await requireSuperAdmin(req, res))) return;
   if (!req.file) return res.status(400).json({ ok: false, error: "file required (multipart 'file')" });
   const mode = String(req.body?.mode || req.query?.mode || "full").toLowerCase();
   if (!["full", "db", "files"].includes(mode)) return res.status(400).json({ ok: false, error: "mode must be full|db|files" });
@@ -758,6 +770,7 @@ app.post("/api/backup/restore", upload.single("file"), async (req, res) => {
 });
 
 app.post("/api/backup/rollback", async (req, res) => {
+  if (!(await requireSuperAdmin(req, res))) return;
   try {
     // Prefer most recent _pre-restore-*.dump; fall back to latest .eez/.eezpg
     const files = fs.readdirSync(BACKUP_DIR)
@@ -786,6 +799,7 @@ app.post("/api/backup/rollback", async (req, res) => {
 
 // ─── Cluster-wide PostgreSQL backup (pg_dumpall + per-DB pg_dump -Fc) ────────
 app.get("/api/backup/pg-dump", async (_req, res) => {
+  if (!(await requireSuperAdmin(_req, res))) return;
   try {
     await ensurePgVersionsCompatible();
     const stamp = new Date().toISOString().replace(/[:.]/g, "-");
@@ -832,6 +846,7 @@ app.get("/api/backup/pg-dump", async (_req, res) => {
 
 // POST /api/backup/pg-restore  multipart "file" — accepts .eezpg (cluster), .dump (single), .sql
 app.post("/api/backup/pg-restore", upload.single("file"), async (req, res) => {
+  if (!(await requireSuperAdmin(req, res))) return;
   if (!req.file) return res.status(400).json({ ok: false, error: "file required (multipart 'file')" });
   const ext = path.extname(req.file.originalname || req.file.path).toLowerCase();
   try {
@@ -890,15 +905,18 @@ app.post("/api/backup/pg-restore", upload.single("file"), async (req, res) => {
 });
 
 // ─── Catalog endpoints ──────────────────────────────────────────────────
-app.get("/api/backup/list", (_req, res) => {
+app.get("/api/backup/list", async (_req, res) => {
+  if (!(await requireSuperAdmin(_req, res))) return;
   res.json({ ok: true, dir: BACKUP_DIR, files: listBackupFiles() });
 });
 
-app.get("/api/backup/supervisor", (_req, res) => {
+app.get("/api/backup/supervisor", async (_req, res) => {
+  if (!(await requireSuperAdmin(_req, res))) return;
   res.json({ ok: true, supervisor: detectSupervisor(), pid: process.pid, ppid: process.ppid });
 });
 
-app.get("/api/backup/file/:name", (req, res) => {
+app.get("/api/backup/file/:name", async (req, res) => {
+  if (!(await requireSuperAdmin(req, res))) return;
   const name = String(req.params.name || "");
   if (!/^[\w.\-]+$/.test(name)) return res.status(400).json({ ok: false, error: "invalid name" });
   const abs = path.join(BACKUP_DIR, name);
@@ -908,7 +926,8 @@ app.get("/api/backup/file/:name", (req, res) => {
   fs.createReadStream(abs).pipe(res);
 });
 
-app.delete("/api/backup/file/:name", (req, res) => {
+app.delete("/api/backup/file/:name", async (req, res) => {
+  if (!(await requireSuperAdmin(req, res))) return;
   const name = String(req.params.name || "");
   if (!/^[\w.\-]+$/.test(name)) return res.status(400).json({ ok: false, error: "invalid name" });
   const abs = path.join(BACKUP_DIR, name);
@@ -925,6 +944,7 @@ app.delete("/api/backup/file/:name", (req, res) => {
 });
 
 app.post("/api/backup/restore-file", async (req, res) => {
+  if (!(await requireSuperAdmin(req, res))) return;
   const name = String(req.body?.name || "");
   const mode = String(req.body?.mode || "full").toLowerCase();
   if (!/^[\w.\-]+$/.test(name)) return res.status(400).json({ ok: false, error: "invalid name" });

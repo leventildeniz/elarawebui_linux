@@ -7,13 +7,23 @@ import os from "os";
 const execAsync = promisify(exec);
 
 export async function mountSystemCertsRoutes(app, deps) {
-  const { isAdminCaller } = deps;
+  const { isAdminCaller, resolveActorContext } = deps;
+
+  const requireSuperAdmin = async (req, res) => {
+    const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : null;
+    const isSuperAdmin = ctx?.isSuperAdmin || (req.session?.role === "admin" && (!req.session?.tenant_id || req.session?.tenant_id === "default"));
+    if (!isSuperAdmin) {
+      res.status(403).json({ ok: false, error: "super_admin_required" });
+      return false;
+    }
+    return true;
+  };
   
   // Use the absolute path to the local-server/certs directory
   const certsDir = path.resolve(process.cwd(), "certs");
 
   app.get("/api/system/certs/config", async (req, res) => {
-    if (!await isAdminCaller(req)) return res.status(403).json({ok: false, error: "admin required"});
+    if (!(await requireSuperAdmin(req, res))) return;
     
     // Ensure the directory exists
     try { await fs.mkdir(certsDir, { recursive: true }); } catch (e) {}
@@ -31,7 +41,7 @@ export async function mountSystemCertsRoutes(app, deps) {
   });
 
   app.post("/api/system/certs/generate", async (req, res) => {
-    if (!await isAdminCaller(req)) return res.status(403).json({ok: false, error: "admin required"});
+    if (!(await requireSuperAdmin(req, res))) return;
     
     const { domain, san, days, trust } = req.body;
     
@@ -79,7 +89,7 @@ export async function mountSystemCertsRoutes(app, deps) {
   });
 
   app.post("/api/system/certs/validate", async (req, res) => {
-    if (!await isAdminCaller(req)) return res.status(403).json({ok: false, error: "admin required"});
+    if (!(await requireSuperAdmin(req, res))) return;
     const { certPath, keyPath } = req.body;
     try {
       await fs.access(certPath);
@@ -95,7 +105,7 @@ export async function mountSystemCertsRoutes(app, deps) {
   });
 
   app.post("/api/system/certs/bind", async (req, res) => {
-    if (!await isAdminCaller(req)) return res.status(403).json({ok: false, error: "admin required"});
+    if (!(await requireSuperAdmin(req, res))) return;
     const { certPath, keyPath } = req.body;
     try {
       await fs.copyFile(certPath, path.join(certsDir, "elara.pem"));

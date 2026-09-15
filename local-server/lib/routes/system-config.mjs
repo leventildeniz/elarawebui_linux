@@ -1,5 +1,15 @@
 export async function mountSystemConfigRoutes(app, deps) {
-  const { pool, isAdminCaller } = deps;
+  const { pool, isAdminCaller, resolveActorContext } = deps;
+
+  const requireSuperAdmin = async (req, res) => {
+    const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : null;
+    const isSuperAdmin = ctx?.isSuperAdmin || (req.session?.role === "admin" && (!req.session?.tenant_id || req.session?.tenant_id === "default"));
+    if (!isSuperAdmin) {
+      res.status(403).json({ ok: false, error: "super_admin_required" });
+      return false;
+    }
+    return true;
+  };
 
   app.get("/api/system/config", async (req, res) => {
     if (!await isAdminCaller(req)) return res.status(403).json({ ok: false, error: "admin required" });
@@ -20,7 +30,7 @@ export async function mountSystemConfigRoutes(app, deps) {
   });
 
   app.put("/api/system/config/:key", async (req, res) => {
-    if (!await isAdminCaller(req)) return res.status(403).json({ ok: false, error: "admin required" });
+    if (!(await requireSuperAdmin(req, res))) return;
     try {
       await pool.query(
         `INSERT INTO app_system_config (key, value) VALUES ($1, $2::jsonb)

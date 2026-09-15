@@ -1,5 +1,15 @@
 export function mountProvidersRoutes(app, deps) {
-  const { pool, isAdminCaller, createPrefixedId } = deps;
+  const { pool, isAdminCaller, createPrefixedId, resolveActorContext } = deps;
+
+  const requireSuperAdmin = async (req, res) => {
+    const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : null;
+    const isSuperAdmin = ctx?.isSuperAdmin || (req.session?.role === "admin" && (!req.session?.tenant_id || req.session?.tenant_id === "default"));
+    if (!isSuperAdmin) {
+      res.status(403).json({ ok: false, error: "super_admin_required" });
+      return false;
+    }
+    return true;
+  };
 
   app.get("/api/system/providers", async (req, res) => {
     try {
@@ -24,7 +34,7 @@ export function mountProvidersRoutes(app, deps) {
   });
 
   app.post("/api/system/providers", async (req, res) => {
-    if (!await isAdminCaller(req)) return res.status(403).json({ ok: false, error: "admin required" });
+    if (!(await requireSuperAdmin(req, res))) return;
     const p = req.body ?? {};
     const id = p.id || createPrefixedId("prov_");
     try {
@@ -63,7 +73,7 @@ export function mountProvidersRoutes(app, deps) {
   });
 
   app.put("/api/system/providers/:id", async (req, res) => {
-    if (!await isAdminCaller(req)) return res.status(403).json({ ok: false, error: "admin required" });
+    if (!(await requireSuperAdmin(req, res))) return;
     const id = req.params.id;
     const p = req.body ?? {};
     
@@ -108,7 +118,7 @@ export function mountProvidersRoutes(app, deps) {
   });
 
   app.delete("/api/system/providers/:id", async (req, res) => {
-    if (!await isAdminCaller(req)) return res.status(403).json({ ok: false, error: "admin required" });
+    if (!(await requireSuperAdmin(req, res))) return;
     try {
       await pool.query("DELETE FROM ai_providers WHERE id=$1", [req.params.id]);
       res.status(204).end();

@@ -12,7 +12,17 @@ import { getRabbitBrokerStats, initRabbitBroker } from "../infra/rabbitmq-broker
 import { getSecretAllFields } from "../vault.mjs";
 
 export async function mountInfraRoutes(app, deps) {
-  const { pool, isAdminCaller, resolveActor } = deps;
+  const { pool, isAdminCaller, resolveActor, resolveActorContext } = deps;
+
+  const requireSuperAdmin = async (req, res) => {
+    const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : null;
+    const isSuperAdmin = ctx?.isSuperAdmin || (req.session?.role === "admin" && (!req.session?.tenant_id || req.session?.tenant_id === "default"));
+    if (!isSuperAdmin) {
+      res.status(403).json({ ok: false, error: "super_admin_required" });
+      return false;
+    }
+    return true;
+  };
 
   // Resolves a secret from PostgreSQL vault_secrets (AES-256-GCM decrypted)
   async function resolveVaultSecret(ref) {
@@ -178,7 +188,7 @@ export async function mountInfraRoutes(app, deps) {
 
   // GET /api/infra/overview — Global cluster & infrastructure health overview (SuperAdmin only)
   app.get("/api/infra/overview", async (req, res) => {
-    if (!await isAdminCaller(req)) return res.status(403).json({ ok: false, error: "admin required" });
+    if (!(await requireSuperAdmin(req, res))) return;
     try {
       // 1. Database status & active pool metrics
       let dbLatency = 0;
@@ -277,7 +287,7 @@ export async function mountInfraRoutes(app, deps) {
 
   // POST /api/infra/db/test — Real probe for candidate PostgreSQL connection
   app.post("/api/infra/db/test", async (req, res) => {
-    if (!await isAdminCaller(req)) return res.status(403).json({ ok: false, error: "admin required" });
+    if (!(await requireSuperAdmin(req, res))) return;
     const { authMode, vaultRef, targetHost, connectionString } = req.body || {};
 
     try {
@@ -329,7 +339,7 @@ export async function mountInfraRoutes(app, deps) {
 
   // POST /api/infra/db/save — Save database configuration
   app.post("/api/infra/db/save", async (req, res) => {
-    if (!await isAdminCaller(req)) return res.status(403).json({ ok: false, error: "admin required" });
+    if (!(await requireSuperAdmin(req, res))) return;
     const { authMode, vaultRef, targetHost, connectionString } = req.body || {};
 
     try {
@@ -359,7 +369,7 @@ export async function mountInfraRoutes(app, deps) {
 
   // POST /api/infra/redis/test — Test Redis connectivity & RESP ping
   app.post("/api/infra/redis/test", async (req, res) => {
-    if (!await isAdminCaller(req)) return res.status(403).json({ ok: false, error: "admin required" });
+    if (!(await requireSuperAdmin(req, res))) return;
     const { authMode, vaultRef, targetHost, uri } = req.body || {};
 
     try {
@@ -409,7 +419,7 @@ export async function mountInfraRoutes(app, deps) {
 
   // POST /api/infra/redis/save — Save Redis configuration
   app.post("/api/infra/redis/save", async (req, res) => {
-    if (!await isAdminCaller(req)) return res.status(403).json({ ok: false, error: "admin required" });
+    if (!(await requireSuperAdmin(req, res))) return;
     const { enabled, authMode, vaultRef, targetHost, uri, semanticCache, ttlSeconds } = req.body || {};
 
     try {
@@ -442,7 +452,7 @@ export async function mountInfraRoutes(app, deps) {
 
   // POST /api/infra/rabbitmq/test — Test RabbitMQ AMQP handshake
   app.post("/api/infra/rabbitmq/test", async (req, res) => {
-    if (!await isAdminCaller(req)) return res.status(403).json({ ok: false, error: "admin required" });
+    if (!(await requireSuperAdmin(req, res))) return;
     const { authMode, vaultRef, targetHost, uri } = req.body || {};
 
     try {
@@ -478,7 +488,7 @@ export async function mountInfraRoutes(app, deps) {
 
   // POST /api/infra/rabbitmq/save — Save RabbitMQ configuration
   app.post("/api/infra/rabbitmq/save", async (req, res) => {
-    if (!await isAdminCaller(req)) return res.status(403).json({ ok: false, error: "admin required" });
+    if (!(await requireSuperAdmin(req, res))) return;
     const { enabled, authMode, vaultRef, targetHost, uri, prefetch } = req.body || {};
 
     try {
@@ -510,6 +520,7 @@ export async function mountInfraRoutes(app, deps) {
 
   // POST /api/infra/storage/test — Test local directory writability or S3 endpoint reachability
   app.post("/api/infra/storage/test", async (req, res) => {
+    if (!(await requireSuperAdmin(req, res))) return;
     const { mode, localPath, authMode, vaultRef, s3 } = req.body || {};
     const t0 = performance.now();
 
@@ -560,7 +571,7 @@ export async function mountInfraRoutes(app, deps) {
 
   // POST /api/infra/storage/save — Save Storage configuration
   app.post("/api/infra/storage/save", async (req, res) => {
-    if (!await isAdminCaller(req)) return res.status(403).json({ ok: false, error: "admin required" });
+    if (!(await requireSuperAdmin(req, res))) return;
     const { mode, localPath, authMode, vaultRef, s3 } = req.body || {};
 
     try {

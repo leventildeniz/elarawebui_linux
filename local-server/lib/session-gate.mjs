@@ -175,7 +175,15 @@ export function requireSession(opts = {}) {
   };
 }
 
-/** DB temelli admin kontrolü — header değil, doğrulanmış sid'e bakar. */
+/** DB-based admin check from verified session. */
 export function isAdminFromSession(req) {
-  return !!(req?.session && req.session.role === "admin");
+  return !!(req?.session && (req.session.role === "admin" || req.session.role === "sovereign"));
+}
+
+/** DB-based SuperAdmin check (cluster-wide sovereign principal in default tenant). */
+export function isSuperAdminFromSession(req) {
+  if (!req?.session) return false;
+  const role = String(req.session.role || "").toLowerCase();
+  const tenant = String(req.session.tenant_id || "default").toLowerCase();
+  return (role === "admin" || role === "sovereign") && (tenant === "default" || !tenant);
 }

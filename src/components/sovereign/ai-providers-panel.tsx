@@ -140,9 +140,14 @@ export function AiProvidersPanel() {
           <h2 className="font-mono text-[11.5px] uppercase tracking-[0.18em] text-foreground/80">
             Multi-provider routing
           </h2>
-          <span className="ml-auto rounded-md border border-white/[0.08] px-2 py-1 font-mono text-[10.5px] text-muted-foreground/70">
-            {counts.llm} LLM · {counts.active} active
-          </span>
+          <div className="ml-auto flex items-center gap-2">
+            <span className="rounded border border-sapphire/35 bg-sapphire/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-sapphire">
+              GLOBAL PLATFORM GATEWAY
+            </span>
+            <span className="rounded-md border border-white/[0.08] px-2 py-1 font-mono text-[10.5px] text-muted-foreground/70">
+              {counts.llm} LLM · {counts.active} active
+            </span>
+          </div>
         </div>
         <p className="mt-3 max-w-3xl font-mono text-[11.5px] leading-relaxed text-muted-foreground/70">
           Decides which provider(s) serve a request. When user override is on, the chat dropdown has

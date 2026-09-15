@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import dgram from 'dgram';
 import radius from 'radius';
 import { Client as LdapClient } from 'ldapts';
-import { isAdminFromSession } from './session-gate.mjs';
+import { isAdminFromSession, isSuperAdminFromSession } from './session-gate.mjs';
 
 /**
  * ELARA Sovereign AI OS - Authentication Utilities
@@ -142,6 +142,16 @@ export function rowToUser(r) {
 
 export async function isAdminCaller(req) {
   return await isAdminFromSession(req);
+}
+
+export async function isSuperAdminCaller(req, resolveActorContext) {
+  if (typeof resolveActorContext === "function") {
+    try {
+      const ctx = await resolveActorContext(req);
+      if (ctx?.isSuperAdmin) return true;
+    } catch {}
+  }
+  return isSuperAdminFromSession(req);
 }
 
 /**

@@ -1510,8 +1510,12 @@ ELARA Sovereign Studio genelinde **Zero-Trust Çoklu Kiracı (Multi-Tenancy) ve 
    1510	   * **Granüler RBAC Sekmesi:** RBAC `Governance Settings` altına `web-search` ("Web Search Engine") sekmesi eklendi; rotalar ve menüler `access.allows("web-search")` ile mühürlendi. PostgreSQL'deki Admin rolüne 73. sekme olarak tanımlandı. Artık TenantAdmin'ler altyapı ayarlarına dokunmadan sadece arama motoru sağlayıcılarını bağımsızca yönetebilir.
    1511	7. **Kayıt Bildirimi (Toast) Çiftleme Temizliği:**
    1512	   * `UsersTab` ve `GroupsTab` içindeki manuel `toast.success` çağrıları ayıklandı; bildirim kontrolü `SaveButton`'a devredilerek üst üste binen çift bildirim sorunu çözüldü.
-   1513	
-   1514	#### 📊 2. Nihai Sistem Doğrulaması
+   1513	8. **Tier 1 Küresel Altyapı Mührü (Phase 69 — 8-Modül SuperAdmin Koruması):**
+   1514	   * **Tüm Altyapı Hatlarının SuperAdmin İle Kilitlenmesi:** Sistemdeki 8 ana altyapı modülü (`providers.mjs`, `system-config.mjs`, `infra.mjs`, `backup.mjs`, `system-certs.mjs`, `siem-api.mjs`, `mail-time.mjs`, `fleet-services.mjs`) standart `isSuperAdmin` (`isSuperAdminFromSession` & `resolveActorContext`) denetimine bağlandı.
+   1515	   * **Tenant Yetki İhlali Engellendi:** Kendi şirketinde `role = 'admin'` olan bir `TenantAdmin` veya operatörün sunucunun fiziksel HA veritabanı URI'sini değiştirmesi, yedek indirmesi, SSL sertifikaları üretmesi, systemd servislerini durdurması veya küresel AI Gateway sağlayıcılarını manipüle etmesi kökten engellendi (HTTP 403 `super_admin_required`).
+   1516	   * **Arayüzde Global Rozetleme:** `/settings` paneline `GLOBAL PLATFORM GATEWAY` rozeti yerleştirilerek buranın tenant düzeyi değil, platformun küresel çıkarım omurgası olduğu tescillendi.
+   1517	
+   1518	#### 📊 2. Nihai Sistem Doğrulaması
    1515	* `npx tsc --noEmit`: **0 hata**.
    1516	* `elara-middleware.service` ve `elara-vite.service`: Aktif ve operasyonel.
    1517	* Tüm entegrasyon zinciri (Vite UI ↔ api-v2.mjs ↔ Workers ↔ PostgreSQL) uçtan uca mühürlendi.

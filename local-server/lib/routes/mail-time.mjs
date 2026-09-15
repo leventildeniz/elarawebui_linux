@@ -3,10 +3,20 @@ import ntpClient from "ntp-client";
 import { decryptSecret } from "../vault.mjs";
 
 export async function mountMailTimeRoutes(app, deps) {
-  const { pool, isAdminCaller } = deps;
+  const { pool, isAdminCaller, resolveActorContext } = deps;
+
+  const requireSuperAdmin = async (req, res) => {
+    const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : null;
+    const isSuperAdmin = ctx?.isSuperAdmin || (req.session?.role === "admin" && (!req.session?.tenant_id || req.session?.tenant_id === "default"));
+    if (!isSuperAdmin) {
+      res.status(403).json({ ok: false, error: "super_admin_required" });
+      return false;
+    }
+    return true;
+  };
 
   app.get("/api/system/mail", async (req, res) => {
-    if (!await isAdminCaller(req)) return res.status(403).json({ ok: false, error: "admin required" });
+    if (!(await requireSuperAdmin(req, res))) return;
     try {
       const { rows } = await pool.query("SELECT * FROM mail_config WHERE id='singleton'");
       if (!rows.length) {
@@ -40,7 +50,7 @@ export async function mountMailTimeRoutes(app, deps) {
   });
 
   app.put("/api/system/mail", async (req, res) => {
-    if (!await isAdminCaller(req)) return res.status(403).json({ ok: false, error: "admin required" });
+    if (!(await requireSuperAdmin(req, res))) return;
     const p = req.body;
     try {
       await pool.query(
@@ -59,7 +69,7 @@ export async function mountMailTimeRoutes(app, deps) {
   });
 
   app.post("/api/system/mail/test", async (req, res) => {
-    if (!await isAdminCaller(req)) return res.status(403).json({ ok: false, error: "admin required" });
+    if (!(await requireSuperAdmin(req, res))) return;
     
     const cfg = req.body;
     let password = "";
@@ -103,7 +113,7 @@ export async function mountMailTimeRoutes(app, deps) {
 
       const transporter = nodemailer.createTransport(transportOpts);
 
-      // Sadece Test Connection mu (testTo boş) yoksa Probe Mail mi?
+      // Verify connection and send probe email if target address provided
       await transporter.verify();
 
       if (cfg.testTo && cfg.testTo.includes("@")) {
@@ -123,7 +133,7 @@ export async function mountMailTimeRoutes(app, deps) {
   });
 
   app.get("/api/system/time", async (req, res) => {
-    if (!await isAdminCaller(req)) return res.status(403).json({ ok: false, error: "admin required" });
+    if (!(await requireSuperAdmin(req, res))) return;
     try {
       const { rows } = await pool.query("SELECT value FROM app_system_config WHERE key='time_config'");
       if (rows.length > 0) {
@@ -137,7 +147,7 @@ export async function mountMailTimeRoutes(app, deps) {
   });
 
   app.put("/api/system/time", async (req, res) => {
-    if (!await isAdminCaller(req)) return res.status(403).json({ ok: false, error: "admin required" });
+    if (!(await requireSuperAdmin(req, res))) return;
     try {
       await pool.query(
         "INSERT INTO app_system_config (key, value) VALUES ('time_config', $1::jsonb) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
@@ -149,8 +159,8 @@ export async function mountMailTimeRoutes(app, deps) {
     }
   });
 
-  app.post("/api/system/time/ntp", async (req, res) => {
-    if (!await isAdminCaller(req)) return res.status(403).json({ ok: false, error: "admin required" });
+  app.post("/api/system/time/sync", async (req, res) => {
+    if (!(await requireSuperAdmin(req, res))) return;
     const { server } = req.body || { server: "time.cloudflare.com" };
 
     ntpClient.getNetworkTime(server, 123, (err, date) => {

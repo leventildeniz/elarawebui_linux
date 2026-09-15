@@ -8,7 +8,17 @@ import dns from "node:dns/promises";
 import { siem } from "../../siem-forwarder.mjs";
 
 export async function mountSiemRoutes(app, deps) {
-  const { pool, isAdminCaller } = deps;
+  const { pool, isAdminCaller, resolveActorContext } = deps;
+
+  const requireSuperAdmin = async (req, res) => {
+    const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : null;
+    const isSuperAdmin = ctx?.isSuperAdmin || (req.session?.role === "admin" && (!req.session?.tenant_id || req.session?.tenant_id === "default"));
+    if (!isSuperAdmin) {
+      res.status(403).json({ ok: false, error: "super_admin_required" });
+      return false;
+    }
+    return true;
+  };
 
   // GET /api/system/config/siem_config or /api/system/siem — Load SIEM forwarder config & status
   const getSiemConfigHandler = async (req, res) => {
@@ -42,9 +52,7 @@ export async function mountSiemRoutes(app, deps) {
 
   // PUT /api/system/config/siem_config or /api/system/siem — Save SIEM forwarder config
   const saveSiemConfigHandler = async (req, res) => {
-    if (isAdminCaller && !await isAdminCaller(req)) {
-      return res.status(403).json({ ok: false, error: "admin required" });
-    }
+    if (!(await requireSuperAdmin(req, res))) return;
     const b = req.body || {};
     try {
       const enabled = !!b.enabled;
@@ -97,6 +105,7 @@ export async function mountSiemRoutes(app, deps) {
 
   // POST /api/system/siem/test — Real network socket reachability test probe
   app.post("/api/system/siem/test", async (req, res) => {
+    if (!(await requireSuperAdmin(req, res))) return;
     const cfg = req.body || {};
     const host = String(cfg.host || "").trim();
     const port = Number(cfg.port) || 514;
