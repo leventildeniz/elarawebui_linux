@@ -126,6 +126,8 @@ export async function mountIdentityTemplatesRoutes(app, deps) {
   app.delete("/api/identity/templates/:id", async (req, res) => {
     if (!await isAdminCaller(req)) return res.status(403).json({ ok: false, error: "admin required" });
     try {
+      await pool.query("UPDATE app_users SET template_id = NULL WHERE template_id = $1", [req.params.id]);
+      await pool.query("UPDATE app_groups SET template_id = NULL WHERE template_id = $1", [req.params.id]);
       await pool.query("DELETE FROM app_templates WHERE id=$1", [req.params.id]);
       res.status(204).end();
     } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }

@@ -158,6 +158,15 @@ export async function mountIdentityGroupsRoutes(app, deps) {
           return res.status(403).json({ ok: false, error: "Access denied to group outside your organization" });
         }
       }
+      await pool.query(`
+        UPDATE app_users 
+        SET groups = (
+          SELECT COALESCE(jsonb_agg(elem), '[]'::jsonb)
+          FROM jsonb_array_elements(groups) AS elem 
+          WHERE elem::text != ('"' || $1 || '"')
+        ) 
+        WHERE groups @> jsonb_build_array($1::text);
+      `, [id]);
       await pool.query("DELETE FROM app_groups WHERE id=$1", [id]);
       res.status(204).end();
     } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }

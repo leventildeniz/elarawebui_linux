@@ -1410,6 +1410,12 @@ ELARA Sovereign Studio genelinde **Zero-Trust Çoklu Kiracı (Multi-Tenancy) ve 
    * Tool İzolasyonundaki eksik sistem çekirdek profili (`iso.01` - `Default tool sandbox`, `fallback = true`, `is_global = true`) veritabanına eklendi ve tüm profiller standartlaştırıldı (`Default tool sandbox`, `Default skill sandbox`, `Default MCP client sandbox`).
    * `CrudSection` bileşeninde sistem fallback profillerindeki yanıltıcı kırmızı "Delete" butonu kaldırılarak `<Lock /> SYSTEM DEFAULT` etiketi getirildi.
    * Meta-Forge evrim defteri sıfırlama butonu (`reset ledger`), `meta-forge.tsx` arayüzünde sadece `SuperAdmin` (`ownerCtx.sovereign`) için görünür kılındı.
-9. **Sistem Doğrulaması:**
+9. **Kurumsal Kimlik Hijyeni & Root Admin Koruma Mührü (`identity.mjs`, `identity-groups.mjs`, `identity-roles.mjs`, `identity-templates.mjs`, `users.tsx`):**
+   * **Root Admin Dokunulmazlığı:** Birincil sistem yöneticisinin (`00000000-0000-0000-0000-000000000000` / `admin`) kazara veya bilerek silinmesi hem backend'de HTTP 400 ile engellendi hem de UI üzerinde kırmızı Delete butonu kaldırılarak `<Lock /> SYSTEM ROOT ADMIN` mührü yerleştirildi.
+   * **Self-Deletion Kilidi:** Giriş yapmış olan bir yöneticinin kendi aktif hesabını silmesi engellendi (`<Lock /> ACTIVE ACCOUNT`).
+   * **Oturum İptali:** Bir kullanıcı silindiğinde `app_sessions` tablosundaki aktif oturumları anında düşürülmektedir.
+   * **Şablon & Rol Öksüz Temizliği:** Silinen bir şablona bağlı kullanıcı ve grupların `template_id` alanı güvenle temizlenir (`NULL`); silinen özel bir role sahip kullanıcı ve gruplar otomatik olarak temel `Viewer` rolüne devredilir.
+   * **Grup Tasfiyesi:** Silinen özel gruplar, kullanıcıların `app_users.groups` JSON dizilerinden otomatik olarak ayıklanır.
+10. **Sistem Doğrulaması:**
    * `npx tsc --noEmit` 0 hata ile doğrulandı.
    * `elara-middleware.service` ve `elara-vite.service` aktif çalışıyor.

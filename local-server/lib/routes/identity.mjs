@@ -318,9 +318,17 @@ export async function mountIdentityRoutes(app, deps) {
       const before = (await pool.query("SELECT * FROM app_users WHERE id=$1", [req.params.id])).rows[0];
       if (!before) return res.status(404).json({ ok: false, error: "User not found" });
 
+      if (before.id === "00000000-0000-0000-0000-000000000000" || String(before.username).toLowerCase() === "admin") {
+        return res.status(400).json({ ok: false, error: "The primary system root administrator cannot be deleted." });
+      }
+      if (ctx.userId && String(before.id) === String(ctx.userId)) {
+        return res.status(400).json({ ok: false, error: "You cannot delete your own active account." });
+      }
+
       if (!ctx.isSuperAdmin && before.tenant_id !== ctx.tenantId) {
         return res.status(403).json({ ok: false, error: "Access denied to user outside your organization" });
       }
+      await pool.query("DELETE FROM app_sessions WHERE username = $1 OR user_id = $2", [before.username, before.id]);
       await pool.query("DELETE FROM app_users WHERE id=$1", [req.params.id]);
       res.status(204).end();
     } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }

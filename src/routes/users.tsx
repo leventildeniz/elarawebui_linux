@@ -35,7 +35,7 @@ import { Surface, Row } from "@/components/sovereign/surface";
 import { Tag, JewelButton, StatusDot } from "@/components/sovereign/primitives";
 import { ObsidianSelect } from "@/components/sovereign/obsidian-select";
 import { SCOPE_LABELS, TAB_SCOPES, roleActions, useRoles } from "@/lib/rbac-store";
-import { useIdentity, isSystemGroup, type Account } from "@/lib/group-store";
+import { useIdentity, isSystemGroup, currentAccount, type Account } from "@/lib/group-store";
 import type { JewelTone } from "@/lib/rbac-store";
 import {
   DIRECTORY_KINDS,
@@ -1694,17 +1694,29 @@ function UsersTab() {
               {active.locked ? "Unlock" : "Lock"}
             </JewelButton>
             <SaveButton label="Account" entity={`@${active.username}`} onSave={handleAccountSave} />
-            <DeleteButton
-              title={`Delete ${active.name}?`}
-              body={`@${active.username} is removed from the roster and from every group membership. This cannot be undone.`}
-              onConfirm={() => {
-                removeAccount(active.id);
-                setActiveId("");
-                toast.success("Account deleted", { description: `@${active.username}` });
-              }}
-            >
-              Delete
-            </DeleteButton>
+            {active.id === "00000000-0000-0000-0000-000000000000" || String(active.username).toLowerCase() === "admin" ? (
+              <span className="flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground/75 border border-white/[0.08] px-2.5 py-1.5 rounded-md bg-raised/40">
+                <Lock className="h-3 w-3 text-topaz" />
+                SYSTEM ROOT ADMIN
+              </span>
+            ) : currentAccount()?.id === active.id || currentAccount()?.username?.toLowerCase() === active.username?.toLowerCase() ? (
+              <span className="flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground/75 border border-white/[0.08] px-2.5 py-1.5 rounded-md bg-raised/40" title="Cannot delete your active session account">
+                <Lock className="h-3 w-3 text-sapphire" />
+                ACTIVE ACCOUNT
+              </span>
+            ) : (
+              <DeleteButton
+                title={`Delete ${active.name}?`}
+                body={`@${active.username} is removed from the roster and from every group membership. This cannot be undone.`}
+                onConfirm={() => {
+                  removeAccount(active.id);
+                  setActiveId("");
+                  toast.success("Account deleted", { description: `@${active.username}` });
+                }}
+              >
+                Delete
+              </DeleteButton>
+            )}
           </header>
 
           <div className="grid gap-4 md:grid-cols-2">

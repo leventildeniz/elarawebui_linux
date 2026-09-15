@@ -118,6 +118,8 @@ export async function mountIdentityRolesRoutes(app, deps) {
         return res.status(403).json({ ok: false, error: "Access denied to role outside your organization." });
       }
 
+      await pool.query("UPDATE app_users SET role = 'Viewer' WHERE lower(role) = lower($1) OR lower(role) = lower($2)", [existing.name, existing.id]);
+      await pool.query("UPDATE app_groups SET role = 'Viewer' WHERE lower(role) = lower($1) OR lower(role) = lower($2)", [existing.name, existing.id]);
       await pool.query("DELETE FROM app_roles WHERE id=$1", [req.params.id]);
       res.status(204).end();
     } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
