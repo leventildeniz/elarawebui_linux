@@ -16,6 +16,8 @@ import {
   type GuardOverride,
   type RagMode,
 } from "@/lib/engine-store";
+import { useAccess } from "@/lib/rbac-store";
+import { readOwnerCtx } from "@/lib/ownership";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/engine")({
@@ -52,18 +54,34 @@ const field =
 
 function EnginePage() {
   const { view } = Route.useSearch();
+  const access = useAccess();
+  const ownerCtx = readOwnerCtx();
+  const isAdmin = ownerCtx.sovereign;
+
+  const canSeeIntent = isAdmin || access.allows("engine-intent");
+  const canSeeBridge = isAdmin || access.allows("engine-bridge");
+
+  const allowedViews: Array<"intent" | "bridge"> = [];
+  if (canSeeIntent) allowedViews.push("intent");
+  if (canSeeBridge) allowedViews.push("bridge");
+
+  const activeView = allowedViews.includes(view) ? view : (allowedViews[0] ?? view);
 
   return (
     <Surface title="System Engine" meta="semantic intent router · orchestrator bridge" wide>
       <AnimatePresence mode="wait">
         <motion.div
-          key={view}
+          key={activeView}
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -6 }}
           transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
         >
-          {view === "bridge" ? <OrchestratorBridge /> : <IntentRouter />}
+          {activeView === "bridge" && canSeeBridge ? (
+            <OrchestratorBridge />
+          ) : canSeeIntent ? (
+            <IntentRouter />
+          ) : null}
         </motion.div>
       </AnimatePresence>
     </Surface>

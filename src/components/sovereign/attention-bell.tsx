@@ -6,6 +6,7 @@ import { sinceLabel, usePendingApprovals, useQueueSwitch } from "@/lib/approval-
 import { useApprovalAuthority } from "@/lib/approver-gate";
 import { useForgePlans } from "@/lib/metaforge-store";
 import { useOutbox } from "@/lib/notify-store";
+import { useAccess } from "@/lib/rbac-store";
 import { cn } from "@/lib/utils";
 
 type Item = {
@@ -31,6 +32,8 @@ export function AttentionBell() {
   const auth = useApprovalAuthority();
   const { plans } = useForgePlans();
   const outbox = useOutbox();
+  const access = useAccess();
+  const canMail = access.allows("mail");
 
   const items = useMemo<Item[]>(() => {
     const approvals: Item[] = (queue.enabled ? pending : []).map((r) => ({
@@ -156,20 +159,32 @@ export function AttentionBell() {
                 )}
               </div>
 
-              <Link
-                to="/mail"
-                onClick={() => setOpen(false)}
-                className="flex items-center gap-2 border-t border-white/[0.06] px-3.5 py-2.5 font-mono text-[10.5px] text-muted-foreground/65 transition-colors hover:text-foreground"
-              >
-                {failedMail ? (
-                  <MailWarning className="h-[13px] w-[13px] text-ruby" strokeWidth={1.7} />
-                ) : (
-                  <Mail className="h-[13px] w-[13px] text-sapphire/80" strokeWidth={1.7} />
-                )}
-                {failedMail
-                  ? `${failedMail} notice${failedMail === 1 ? "" : "s"} could not leave the relay`
-                  : "approver notice template"}
-              </Link>
+              {canMail ? (
+                <Link
+                  to="/mail"
+                  onClick={() => setOpen(false)}
+                  className="flex items-center gap-2 border-t border-white/[0.06] px-3.5 py-2.5 font-mono text-[10.5px] text-muted-foreground/65 transition-colors hover:text-foreground"
+                >
+                  {failedMail ? (
+                    <MailWarning className="h-[13px] w-[13px] text-ruby" strokeWidth={1.7} />
+                  ) : (
+                    <Mail className="h-[13px] w-[13px] text-sapphire/80" strokeWidth={1.7} />
+                  )}
+                  {failedMail
+                    ? `${failedMail} notice${failedMail === 1 ? "" : "s"} could not leave the relay`
+                    : "approver notice template"}
+                </Link>
+              ) : (
+                <Link
+                  to="/approvals"
+                  search={{ view: "queue" as any }}
+                  onClick={() => setOpen(false)}
+                  className="flex items-center gap-2 border-t border-white/[0.06] px-3.5 py-2.5 font-mono text-[10.5px] text-muted-foreground/65 transition-colors hover:text-foreground"
+                >
+                  <ShieldCheck className="h-[13px] w-[13px] text-sapphire/80" strokeWidth={1.7} />
+                  view approval queue
+                </Link>
+              )}
             </motion.div>
           </>
         )}

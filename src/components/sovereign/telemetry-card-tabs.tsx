@@ -22,10 +22,10 @@ export function TelemetryCardTabs({ view }: { view: FleetView }) {
   const { boards, active, setActive, create, update, remove } = useTelemetryBoards();
   const access = useAccess();
   const ownerCtx = readOwnerCtx();
-  const isSuperAdmin = ownerCtx.sovereign;
+  const isSuperAdmin = !access.previewing && ownerCtx.sovereign;
 
-  const allowedFixed = fixedViews.filter(t => isSuperAdmin || access.allows(t.scope) || access.allows("fleet"));
-  const canSeeAgents = isSuperAdmin || access.allows("fleet-agents") || access.allows("fleet");
+  const allowedFixed = fixedViews.filter(t => isSuperAdmin || access.allows(t.scope));
+  const canSeeAgents = isSuperAdmin || access.allows("fleet-agents");
 
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);

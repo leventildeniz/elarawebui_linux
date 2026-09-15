@@ -183,15 +183,15 @@ function FleetView() {
   const { view } = Route.useSearch();
   const access = useAccess();
   const ownerCtx = useOwnerCtx();
-  const isSuperAdmin = ownerCtx.sovereign;
+  const isSuperAdmin = !access.previewing && ownerCtx.sovereign;
 
   const allowedViews: View[] = useMemo(() => {
     return views.filter((v) => {
       if (isSuperAdmin) return true;
-      if (v === "system") return access.allows("fleet-general") || access.allows("fleet");
-      if (v === "operators") return access.allows("fleet-operators") || access.allows("fleet");
-      if (v === "database") return access.allows("fleet-database") || access.allows("fleet");
-      if (v === "agents") return access.allows("fleet-agents") || access.allows("fleet");
+      if (v === "system") return access.allows("fleet-general");
+      if (v === "operators") return access.allows("fleet-operators");
+      if (v === "database") return access.allows("fleet-database");
+      if (v === "agents") return access.allows("fleet-agents");
       return false;
     });
   }, [access, isSuperAdmin]);

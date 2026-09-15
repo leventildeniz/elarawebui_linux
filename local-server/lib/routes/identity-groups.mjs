@@ -101,10 +101,22 @@ export async function mountIdentityGroupsRoutes(app, deps) {
     
     if (g.name !== undefined) { updates.push(`name=$${i++}`); values.push(g.name); }
     if (g.description !== undefined) { updates.push(`description=$${i++}`); values.push(g.description); }
-    if (g.defaultRole !== undefined) { updates.push(`role=$${i++}`); values.push(g.defaultRole); }
+    if (g.defaultRole !== undefined) {
+      updates.push(`role=$${i++}`); values.push(g.defaultRole);
+      updates.push(`default_role=$${i++}`); values.push(g.defaultRole);
+    }
     if (g.provider !== undefined) { updates.push(`provider=$${i++}`); values.push(g.provider); }
-    if (g.defaultTemplate !== undefined) { updates.push(`template_id=$${i++}`); values.push(g.defaultTemplate || null); }
+    if (g.defaultTemplate !== undefined) {
+      updates.push(`template_id=$${i++}`); values.push(g.defaultTemplate || null);
+      updates.push(`default_template=$${i++}`); values.push(g.defaultTemplate || null);
+    }
     if (g.tone !== undefined) { updates.push(`tone=$${i++}`); values.push(g.tone); }
+    if (g.tenant_id !== undefined || g.tenantId !== undefined) {
+      updates.push(`tenant_id=$${i++}`); values.push(g.tenant_id || g.tenantId || "default");
+    }
+    if (g.members !== undefined) {
+      updates.push(`members=$${i++}::jsonb`); values.push(JSON.stringify(Array.isArray(g.members) ? g.members : []));
+    }
     if (g.approvers !== undefined) { updates.push(`approvers=$${i++}::jsonb`); values.push(JSON.stringify(g.approvers)); }
     if (g.directoryGroups !== undefined) { updates.push(`directory_groups=$${i++}::jsonb`); values.push(JSON.stringify(g.directoryGroups)); }
     if (g.approverDirectoryGroups !== undefined) { updates.push(`approver_directory_groups=$${i++}::jsonb`); values.push(JSON.stringify(g.approverDirectoryGroups)); }

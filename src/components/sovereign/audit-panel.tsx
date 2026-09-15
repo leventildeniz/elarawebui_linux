@@ -23,6 +23,9 @@ import {
 } from "@/lib/audit-store";
 import { exportReportPdf } from "@/lib/report-pdf";
 import { cn } from "@/lib/utils";
+import { confirmAction } from "@/components/sovereign/confirm-dialog";
+import { useAccess } from "@/lib/rbac-store";
+import { readOwnerCtx } from "@/lib/ownership";
 
 function useOutside(open: boolean, close: () => void) {
   const ref = useRef<HTMLDivElement>(null);
@@ -117,6 +120,10 @@ export function AuditPanel({
   initialQuery?: string | undefined;
 } = {}) {
   const { events, live, setLive, retention, setRetention, purge } = useAuditLog();
+  const access = useAccess();
+  const ownerCtx = readOwnerCtx();
+  const isSuperAdmin = ownerCtx.sovereign;
+  const canExport = access.can("export");
   const [f, setF] = useState<AuditFilter>(() => ({
     ...defaultFilter,
     streams: initialStream ? [initialStream] : defaultFilter.streams,
@@ -287,83 +294,97 @@ export function AuditPanel({
           ) : null,
         )}
         <span className="ml-auto flex items-center gap-2">
-          <JewelButton
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              download(`audit-${f.window}.csv`, toCsv(rows), "text/csv");
-              toast.success(`${rows.length} records exported · CSV`);
-            }}
-          >
-            <Download className="mr-1.5 inline h-4 w-4" />
-            CSV
-          </JewelButton>
-          <JewelButton
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              download(`audit-${f.window}.ndjson`, toNdjson(rows), "application/x-ndjson");
-              toast.success(`${rows.length} records exported · NDJSON`);
-            }}
-          >
-            NDJSON
-          </JewelButton>
-          <JewelButton
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              download(`audit-${f.window}.txt`, toTxt(rows), "text/plain");
-              toast.success(`${rows.length} records exported · TXT`);
-            }}
-          >
-            TXT
-          </JewelButton>
-          <JewelButton
-            size="sm"
-            variant="outline"
-            onClick={async () => {
-              const capped = rows.slice(0, 800);
-              await exportReportPdf({
-                title: "Logs / Audit",
-                subtitle: "Elara Sovereign Studio — append-only audit journal",
-                period: `${win.label} · ${capped.length} of ${rows.length} records`,
-                filename: `audit-${f.window}.pdf`,
-                kpis: severities
-                  .filter((s) => stats[s])
-                  .map((s) => ({ label: s, value: String(stats[s]) })),
-                sections: [
-                  {
-                    kind: "table",
-                    title: "Journal",
-                    columns: ["Timestamp", "Level", "Stream", "Actor", "Action", "Detail"],
-                    widths: [2.1, 1, 1.1, 1.8, 1.8, 4.4],
-                    rows: capped.map((e) => [
-                      fmtTs(e.at),
-                      e.severity,
-                      e.stream,
-                      e.actor,
-                      e.action,
-                      `${e.target} — ${e.detail}`,
-                    ]),
-                  },
-                ],
-              });
-              toast.success(`${capped.length} records exported · PDF`);
-            }}
-          >
-            PDF
-          </JewelButton>
-          <JewelButton
-            size="sm"
-            variant="danger"
-            onClick={() => {
-              purge();
-              toast.success("Journal buffer purged");
-            }}
-          >
-            <Trash2 className="mr-1.5 inline h-4 w-4" />
-            Purge
-          </JewelButton>
+          {canExport && (
+            <>
+              <JewelButton
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  download(`audit-${f.window}.csv`, toCsv(rows), "text/csv");
+                  toast.success(`${rows.length} records exported · CSV`);
+                }}
+              >
+                <Download className="mr-1.5 inline h-4 w-4" />
+                CSV
+              </JewelButton>
+              <JewelButton
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  download(`audit-${f.window}.ndjson`, toNdjson(rows), "application/x-ndjson");
+                  toast.success(`${rows.length} records exported · NDJSON`);
+                }}
+              >
+                NDJSON
+              </JewelButton>
+              <JewelButton
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  download(`audit-${f.window}.txt`, toTxt(rows), "text/plain");
+                  toast.success(`${rows.length} records exported · TXT`);
+                }}
+              >
+                TXT
+              </JewelButton>
+              <JewelButton
+                size="sm"
+                variant="outline"
+                onClick={async () => {
+                  const capped = rows.slice(0, 800);
+                  await exportReportPdf({
+                    title: "Logs / Audit",
+                    subtitle: "Elara Sovereign Studio — append-only audit journal",
+                    period: `${win.label} · ${capped.length} of ${rows.length} records`,
+                    filename: `audit-${f.window}.pdf`,
+                    kpis: severities
+                      .filter((s) => stats[s])
+                      .map((s) => ({ label: s, value: String(stats[s]) })),
+                    sections: [
+                      {
+                        kind: "table",
+                        title: "Journal",
+                        columns: ["Timestamp", "Level", "Stream", "Actor", "Action", "Detail"],
+                        widths: [2.1, 1, 1.1, 1.8, 1.8, 4.4],
+                        rows: capped.map((e) => [
+                          fmtTs(e.at),
+                          e.severity,
+                          e.stream,
+                          e.actor,
+                          e.action,
+                          `${e.target} — ${e.detail}`,
+                        ]),
+                      },
+                    ],
+                  });
+                  toast.success(`${capped.length} records exported · PDF`);
+                }}
+              >
+                PDF
+              </JewelButton>
+            </>
+          )}
+          {isSuperAdmin && (
+            <JewelButton
+              size="sm"
+              variant="danger"
+              onClick={async () => {
+                const ok = await confirmAction({
+                  title: "Purge audit journal?",
+                  body: "This permanently deletes all audit and system log records in PostgreSQL. This action is irreversible.",
+                  confirmLabel: "Purge all records",
+                  tone: "ruby",
+                });
+                if (ok) {
+                  await purge();
+                  toast.success("Journal buffer purged");
+                }
+              }}
+            >
+              <Trash2 className="mr-1.5 inline h-4 w-4" />
+              Purge
+            </JewelButton>
+          )}
         </span>
       </div>
 

@@ -166,12 +166,6 @@ export const grantMeta: {
   tone: JewelName;
 }[] = [
   {
-    key: "roles",
-    label: "Bound RBAC Roles",
-    hint: "The baseline RBAC role provisioned to users bound to this template.",
-    tone: "ruby",
-  },
-  {
     key: "models",
     label: "Allowed AI Models",
     hint: "AI models available to this template. Empty = all tenant models.",
@@ -182,18 +176,6 @@ export const grantMeta: {
     label: "LLM Providers",
     hint: "Allowed upstream LLM providers. Empty = global routing across all active providers.",
     tone: "sapphire",
-  },
-  {
-    key: "ragSpaces",
-    label: "Allowed Knowledge Spaces",
-    hint: "RAG spaces bound users may query and ingest into. Empty = resolved from group membership.",
-    tone: "emerald",
-  },
-  {
-    key: "mcpServer",
-    label: "MCP Server Gateway",
-    hint: "Grant permission to host studio tools over MCP, issue tokens and manage exposures.",
-    tone: "amethyst",
   },
 ];
 

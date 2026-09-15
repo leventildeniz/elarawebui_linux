@@ -4,6 +4,7 @@ import { resolveSpan, spanSlug, type Span } from "@/lib/report-users";
 import { motion } from "motion/react";
 import { FileDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAccess } from "@/lib/rbac-store";
 
 export function KpiGrid({
   items,
@@ -188,11 +189,20 @@ export function ExportButton({
   onClick: () => void;
   label?: string;
 }) {
+  const access = useAccess();
+  const canExport = access.can("export");
   return (
     <button
       type="button"
-      onClick={onClick}
-      className="inline-flex items-center gap-1.5 rounded-lg border border-emerald/40 bg-emerald/10 px-3.5 py-2 text-[13px] font-medium text-emerald transition-colors hover:bg-emerald/20"
+      disabled={!canExport}
+      onClick={canExport ? onClick : undefined}
+      title={canExport ? label : "Export verb is not granted to this role"}
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-[13px] font-medium transition-colors",
+        canExport
+          ? "border-emerald/40 bg-emerald/10 text-emerald hover:bg-emerald/20"
+          : "border-white/[0.05] bg-raised/20 text-muted-foreground/40 cursor-not-allowed",
+      )}
     >
       <FileDown className="h-3.5 w-3.5" strokeWidth={1.8} />
       {label}

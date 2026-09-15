@@ -72,9 +72,8 @@ Rules:
 export const compactContextWithModel = createServerFn({ method: "POST" })
   .validator((input: unknown) => Input.parse(input))
   .handler(async ({ data }): Promise<CompactionBrief> => {
-    // API endpointimiz olan "/api/memory/compact" kısmına gideceğiz.
-    // Ancak createServerFn (TanStack) sunucu tarafında (Node) çalıştığı için 
-    // fetch URL'si olarak localhost portunu kullanmalıyız. Vite SSR dev veya prod portu 3005 varsayalım.
+    // Target endpoint is "/api/memory/compact".
+    // Because createServerFn runs on the server side (Node), use localhost with active port.
     const port = process.env['PORT'] || 3005;
     const baseUrl = `http://127.0.0.1:${port}`;
 

@@ -22,6 +22,7 @@ import {
 
 import { Surface } from "@/components/sovereign/surface";
 import { JewelButton, Sheen, StatusDot, Tag } from "@/components/sovereign/primitives";
+import { toast } from "sonner";
 import {
   guardSeed,
   isolationSeed,
@@ -38,6 +39,7 @@ import {
   type SecretEntry,
   type SignedWorkflow,
 } from "@/lib/security-store";
+import { useAccess, type TabScope } from "@/lib/rbac-store";
 import {
   actionLabel,
   actionTone,
@@ -776,6 +778,23 @@ function SigningMasterSwitch() {
 
 function PolicyView() {
   const { view: tab } = Route.useSearch();
+  const access = useAccess();
+  const ownerCtx = useOwnerCtx();
+  const isAdmin = ownerCtx.sovereign;
+
+  const tabScopes: Record<PolicyTab, TabScope> = {
+    vault: "policy-vault",
+    genguard: "policy-genguard",
+    isolation: "policy-isolation",
+    "skill-isolation": "policy-skill-isolation",
+    "mcp-isolation": "policy-mcp-isolation",
+    signed: "policy-signed",
+    engine: "policy-engine",
+  };
+  const allowedTabs = (POLICY_TABS as readonly PolicyTab[]).filter(
+    (t) => isAdmin || access.allows(tabScopes[t]),
+  );
+  const activeTab = allowedTabs.includes(tab) ? tab : (allowedTabs[0] ?? tab);
 
   const vault = useVaultStore();
 
@@ -825,7 +844,6 @@ function PolicyView() {
   };
   const mcpName = (id: string) => mcp.clients.find((c) => c.id === id)?.name ?? id;
 
-  const ownerCtx = useOwnerCtx();
   const visibleVaultItems = useMemo(() => scopeOwned(vault.items, ownerCtx), [vault.items, ownerCtx]);
   const visibleIsolation = useMemo(() => scopeOwned(isolation.items, ownerCtx), [isolation.items, ownerCtx]);
   const visibleSkillIsolation = useMemo(() => scopeOwned(skillIsolation.items, ownerCtx), [skillIsolation.items, ownerCtx]);
@@ -844,7 +862,7 @@ function PolicyView() {
   return (
     <Surface title="Policy & Security" meta={meta} wide crumb="Policy & Security">
       <div>
-        {tab === "vault" && (
+        {activeTab === "vault" && (
           <CrudSection
             heading="Secret Vault · encrypted at rest"
             blurb="Credentials are sealed on the local middleware and never leave the sovereign boundary."
@@ -864,7 +882,7 @@ function PolicyView() {
           />
         )}
 
-        {tab === "genguard" && (
+        {activeTab === "genguard" && (
           <FirewallSection<GenGuardRule>
             heading="GenGuard · INPUT chain"
             blurb="Prompt-injection defence evaluated top-down before inference. The first rule whose blacklist or output pattern matches wins — the rest of the chain is never reached."
@@ -908,7 +926,7 @@ function PolicyView() {
           />
         )}
 
-        {tab === "isolation" && (
+        {activeTab === "isolation" && (
           <CrudSection
             heading="Tool Isolation · sandbox"
             blurb="Each tool executes under a declared network posture and filesystem allow list. Bind a profile to the tools it governs — unbound tools inherit the fallback profile."
@@ -964,7 +982,7 @@ function PolicyView() {
           />
         )}
 
-        {tab === "skill-isolation" && (
+        {activeTab === "skill-isolation" && (
           <CrudSection
             heading="Skill Isolation · sandbox"
             blurb="Sealed procedures (! triggers) execute inside their own scoped filesystem and syscall deny list. Bind a profile to the skills it governs — unbound skills inherit the fallback profile."
@@ -1020,7 +1038,7 @@ function PolicyView() {
           />
         )}
 
-        {tab === "mcp-isolation" && (
+        {activeTab === "mcp-isolation" && (
           <CrudSection
             heading="MCP Isolation · client sandbox"
             blurb="Outbound MCP client connections are boxed: only allow-listed hosts are dialable and the transport runs under a scoped filesystem. Unbound clients inherit the fallback profile."
@@ -1076,8 +1094,8 @@ function PolicyView() {
           />
         )}
 
-        {tab === "signed" && <SigningMasterSwitch />}
-        {tab === "signed" && (
+        {activeTab === "signed" && <SigningMasterSwitch />}
+        {activeTab === "signed" && (
           <CrudSection
             heading="Signed Workflows"
             blurb="All workflow commits are signed; unverified flows are rejected at runtime."
@@ -1105,7 +1123,7 @@ function PolicyView() {
             }}
           />
         )}
-        {tab === "engine" && (
+        {activeTab === "engine" && (
           <FirewallSection<PolicyRule>
             heading="Policy Engine · ROUTING / OUTPUT chain"
             blurb="The brain of the boundary. Rules carry an explicit sequence number and are walked top-down — the first match decides the verdict and terminates the chain."
@@ -1845,16 +1863,32 @@ function secretRows(s: SecretEntry): [string, ReactNode][] {
 
 function MaskedValue({ value }: { value: string }) {
   const [shown, setShown] = useState(false);
+  const access = useAccess();
+  const canReveal = access.can("vault");
   return (
     <button
-      onClick={() => setShown((s) => !s)}
-      className="inline-flex max-w-full items-center gap-2 text-foreground/85 transition-colors hover:text-sapphire"
+      onClick={() => {
+        if (!canReveal) {
+          toast.error("Vault reveal action is not granted to this role");
+          return;
+        }
+        setShown((s) => !s);
+      }}
+      title={canReveal ? (shown ? "Hide secret" : "Reveal secret") : "Locked: Vault reveal action required"}
+      className={cn(
+        "inline-flex max-w-full items-center gap-2 transition-colors",
+        canReveal ? "text-foreground/85 hover:text-sapphire" : "cursor-not-allowed opacity-60 text-muted-foreground",
+      )}
     >
-      <span className="truncate">{shown ? value || "—" : "••••••••••••"}</span>
-      {shown ? (
-        <EyeOff className="h-3.5 w-3.5 shrink-0" strokeWidth={1.6} />
+      <span className="truncate">{shown && canReveal ? value || "—" : "••••••••••••"}</span>
+      {canReveal ? (
+        shown ? (
+          <EyeOff className="h-3.5 w-3.5 shrink-0" strokeWidth={1.6} />
+        ) : (
+          <Eye className="h-3.5 w-3.5 shrink-0" strokeWidth={1.6} />
+        )
       ) : (
-        <Eye className="h-3.5 w-3.5 shrink-0" strokeWidth={1.6} />
+        <Lock className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" strokeWidth={1.6} />
       )}
     </button>
   );

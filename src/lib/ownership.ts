@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { currentAccount, readGroups } from "@/lib/group-store";
 import { isGodPrincipal } from "@/lib/knowledge-space-store";
-import { readEnforcement, readRoleActions } from "@/lib/rbac-store";
+import { readEnforcement, readRoleActions, readCan } from "@/lib/rbac-store";
 
 /**
  * Elara Sovereign Studio — Ownership Plane.
@@ -129,6 +129,7 @@ export function canSee(rec: Owned | undefined | null, ctx: OwnerCtx): boolean {
 export function canEdit(rec: Owned | undefined | null, ctx: OwnerCtx): boolean {
   if (!rec) return false;
   if (ctx.sovereign) return true;
+  if (!readCan("write")) return false;
   if (visibilityOf(rec) === "system") return false;
   /* Sharing widens reading, never writing — a shared object stays the author's. */
   return isMine(rec, ctx);
@@ -137,9 +138,30 @@ export function canEdit(rec: Owned | undefined | null, ctx: OwnerCtx): boolean {
 /** Why an edit is refused, for the tooltip on a locked control. */
 export function editRefusal(rec: Owned | undefined | null, ctx: OwnerCtx): string {
   if (canEdit(rec, ctx)) return "";
+  if (!ctx.sovereign && !readCan("write"))
+    return "Write action verb is not granted to this role — desk is read-only.";
   if (visibilityOf(rec) === "system")
     return "System object — shipped with the studio, not editable from this desk.";
   return `Owned by ${rec?.ownerName || "another principal"} — shared with you as read-only.`;
+}
+
+/** May this principal delete the record? */
+export function canDelete(rec: Owned | undefined | null, ctx: OwnerCtx): boolean {
+  if (!rec) return false;
+  if (ctx.sovereign) return true;
+  if (!readCan("delete")) return false;
+  if (visibilityOf(rec) === "system") return false;
+  return isMine(rec, ctx);
+}
+
+/** Why a delete action is refused. */
+export function deleteRefusal(rec: Owned | undefined | null, ctx: OwnerCtx): string {
+  if (canDelete(rec, ctx)) return "";
+  if (!ctx.sovereign && !readCan("delete"))
+    return "Delete action verb is not granted to this role.";
+  if (visibilityOf(rec) === "system")
+    return "System object cannot be deleted.";
+  return `Owned by ${rec?.ownerName || "another principal"}.`;
 }
 
 /** Stamp a freshly authored draft with the signed-in owner. Private by default. */

@@ -23,6 +23,7 @@ import {
   FileDown,
   FileStack,
   GitBranch,
+  Globe,
   Hammer,
   KeyRound,
   Layers,
@@ -163,6 +164,7 @@ const groups = [
 const SETTINGS_PAGES = [
   { icon: FileStack, label: "Global Converter", to: "/converter" },
   { icon: Blocks, label: "Services", to: "/services" },
+  { icon: Globe, label: "Web Search", to: "/web-search" },
   { icon: ShieldCheck, label: "Certificates", to: "/certificates" },
   { icon: Settings, label: "Mail & Time", to: "/mail" },
   { icon: Radar, label: "SIEM", to: "/siem" },
@@ -207,16 +209,21 @@ export function Shell({ children, crumb }: { children: ReactNode; crumb?: string
   const navigate = useNavigate();
   const active = allItems.find((t) => t.to === pathname);
   const ownerCtx = readOwnerCtx();
-  const isAdmin = ownerCtx.sovereign;
   const access = useAccess();
+  // In preview mode, evaluate the studio through the simulated role instead of sovereign override
+  const isEffectiveAdmin = !access.previewing && ownerCtx.sovereign;
+  const isAdmin = isEffectiveAdmin;
   const spaceAccess = useSpaceAccess();
-  const scopeAllowed = isAdmin || access.allows(pathname);
+  // / and /rbac always remain accessible during preview so the architect can navigate and exit preview
+  const isPreviewEscape = access.previewing && (pathname === "/" || pathname === "/rbac");
+  const scopeAllowed = isPreviewEscape || isEffectiveAdmin || access.allows(pathname);
   const knowledgeOk = spaceAccess.enabled;
 
   const firstAllowedSetting = [
     "/settings",
     "/converter",
     "/services",
+    "/web-search",
     "/certificates",
     "/mail",
     "/siem",
@@ -629,7 +636,7 @@ export function Shell({ children, crumb }: { children: ReactNode; crumb?: string
             </button>
           </div>
         ) : null}
-        <main className="relative z-10 min-h-0 min-w-0 flex-1">
+        <main className="relative z-10 min-h-0 min-w-0 flex-1 overflow-hidden">
           {scopeAllowed ? children : <ScopeDenied path={pathname} role={access.role?.name} />}
         </main>
       </div>
@@ -706,6 +713,9 @@ const TAB_TONES = ["sapphire", "emerald", "amethyst", "topaz"] as const;
 /** Four template module cards sitting next to the workspace title. */
 function ModuleTabs() {
   const access = useAccess();
+  const ownerCtx = readOwnerCtx();
+  const isAdmin = !access.previewing && ownerCtx.sovereign;
+  const isSuperAdmin = !access.previewing && ownerCtx.sovereign;
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const search = useRouterState({ select: (s) => s.location.search }) as { view?: string };
   if (pathname === "/" || pathname === "/login" || pathname === "/account") return null;
@@ -784,15 +794,13 @@ function ModuleTabs() {
 
   // Memory: context layers.
   if (pathname === "/memory") {
-    const ownerCtx = readOwnerCtx();
-    const isAdmin = ownerCtx.sovereign;
     const mv = search?.view;
     const availableTabs = [
       { id: "working", label: "Working Set", tone: "sapphire", scope: "memory-working" },
       { id: "episodic", label: "Episodic", tone: "amethyst", scope: "memory-episodic" },
       { id: "semantic", label: "Semantic", tone: "emerald", scope: "memory-semantic" },
       { id: "policy", label: "Policy", tone: "topaz", scope: "memory-policy" },
-    ].filter((t) => isAdmin || access.allows(t.scope) || access.allows("memory"));
+    ].filter((t) => isAdmin || access.allows(t.scope));
     const firstAllowed = availableTabs[0]?.id ?? "working";
     const view = availableTabs.some((t) => t.id === mv) ? mv : firstAllowed;
     return (
@@ -821,8 +829,6 @@ function ModuleTabs() {
 
   // Users & Groups: identity surfaces.
   if (pathname === "/users") {
-    const ownerCtx = readOwnerCtx();
-    const isSuperAdmin = ownerCtx.sovereign;
     const uv = search?.view;
     const availableTabs = [
       { id: "users", label: "Users", tone: "sapphire", scope: "users-users" },
@@ -830,7 +836,7 @@ function ModuleTabs() {
       { id: "templates", label: "Templates", tone: "amethyst", scope: "users-templates" },
       { id: "compliance", label: "RBAC Compliance", tone: "topaz", scope: "users-compliance" },
       ...(isSuperAdmin ? [{ id: "tenants", label: "Tenants", tone: "ruby", scope: "users-tenants" }] : []),
-    ].filter((t) => isSuperAdmin || access.allows(t.scope) || access.allows("users"));
+    ].filter((t) => isSuperAdmin || access.allows(t.scope));
     const firstAllowed = availableTabs[0]?.id ?? "users";
     const view = availableTabs.some((t) => t.id === uv) ? uv : firstAllowed;
 
@@ -860,15 +866,13 @@ function ModuleTabs() {
 
   // Knowledge Hub surfaces: control (health + sources + retrieval + webhooks), aliases, vector forge.
   if (pathname === "/knowledge") {
-    const ownerCtx = readOwnerCtx();
-    const isAdmin = ownerCtx.sovereign;
     const kv = search?.view;
     const availableTabs = [
       { id: "control", label: "RAG Control", tone: "sapphire", scope: "knowledge-control" },
       { id: "spaces", label: "Access Spaces", tone: "sapphire", scope: "knowledge-spaces" },
       { id: "aliases", label: "Brand Aliases", tone: "amethyst", scope: "knowledge-aliases" },
       { id: "tuning", label: "Advanced Tuning", tone: "topaz", scope: "knowledge-tuning" },
-    ].filter((t) => isAdmin || access.allows(t.scope) || access.allows("knowledge"));
+    ].filter((t) => isAdmin || access.allows(t.scope));
     const firstAllowed = availableTabs[0]?.id ?? "control";
     const view = availableTabs.some((t) => t.id === kv) ? kv : firstAllowed;
     return (
@@ -904,8 +908,6 @@ function ModuleTabs() {
 
   // Policy & Security surfaces, driven from the header.
   if (pathname === "/policy") {
-    const ownerCtx = readOwnerCtx();
-    const isAdmin = ownerCtx.sovereign;
     const pv = search?.view;
     const availableTabs = [
       { id: "vault", label: "Secret Vault", tone: "sapphire", scope: "policy-vault" },
@@ -915,7 +917,7 @@ function ModuleTabs() {
       { id: "mcp-isolation", label: "MCP Isolation", tone: "sapphire", scope: "policy-mcp-isolation" },
       { id: "signed", label: "Signed Workflows", tone: "topaz", scope: "policy-signed" },
       { id: "engine", label: "Policy Engine", tone: "ruby", scope: "policy-engine" },
-    ].filter((t) => isAdmin || access.allows(t.scope) || access.allows("policy"));
+    ].filter((t) => isAdmin || access.allows(t.scope));
     const firstAllowed = availableTabs[0]?.id ?? "vault";
     const view = availableTabs.some((t) => t.id === pv) ? pv : firstAllowed;
     return (
@@ -944,10 +946,8 @@ function ModuleTabs() {
 
   // MCP: server + client surfaces.
   if (pathname === "/mcp") {
-    const ownerCtx = readOwnerCtx();
-    const isAdmin = ownerCtx.sovereign;
-    const canSeeServer = isAdmin || access.allows("mcp-server") || (canManageMcpServer() && access.allows("mcp"));
-    const canSeeClient = isAdmin || access.allows("mcp-client") || access.allows("mcp");
+    const canSeeServer = isAdmin || access.allows("mcp-server");
+    const canSeeClient = isAdmin || access.allows("mcp-client");
     const availableTabs = [
       ...(canSeeServer ? [{ id: "server", label: "MCP Server", tone: "sapphire" }] : []),
       ...(canSeeClient ? [{ id: "client", label: "MCP Client", tone: "emerald" }] : []),
@@ -981,10 +981,8 @@ function ModuleTabs() {
 
   // Adapters: adapters + webhooks surfaces.
   if (pathname === "/adapters") {
-    const ownerCtx = readOwnerCtx();
-    const isAdmin = ownerCtx.sovereign;
     const canSeeAdapters = isAdmin || access.allows("adapters");
-    const canSeeWebhooks = isAdmin || access.allows("webhooks") || access.allows("adapters");
+    const canSeeWebhooks = isAdmin || access.allows("webhooks");
     const availableTabs = [
       ...(canSeeAdapters ? [{ id: "adapters", label: "Adapters", tone: "sapphire" }] : []),
       ...(canSeeWebhooks ? [{ id: "webhooks", label: "Webhooks", tone: "topaz" }] : []),
@@ -1017,14 +1015,12 @@ function ModuleTabs() {
 
   // Planner planes: tool · skill · mcp orchestration.
   if (pathname === "/planner") {
-    const ownerCtx = readOwnerCtx();
-    const isAdmin = ownerCtx.sovereign;
     const pv = (search as { plane?: string } | undefined)?.plane;
     const availableTabs = [
       { id: "tool", label: "Tool Planner", tone: "emerald", scope: "planner-tool" },
       { id: "skill", label: "Skill Planner", tone: "sapphire", scope: "planner-skill" },
       { id: "mcp", label: "MCP Planner", tone: "amethyst", scope: "planner-mcp" },
-    ].filter((t) => isAdmin || access.allows(t.scope) || access.allows("planner"));
+    ].filter((t) => isAdmin || access.allows(t.scope));
     const firstAllowed = availableTabs[0]?.id ?? "tool";
     const plane = availableTabs.some((t) => t.id === pv) ? pv : firstAllowed;
     return (
@@ -1053,12 +1049,10 @@ function ModuleTabs() {
 
   // System Engine surfaces: intent router + orchestrator bridge.
   if (pathname === "/engine") {
-    const ownerCtx = readOwnerCtx();
-    const isAdmin = ownerCtx.sovereign;
     const availableTabs = [
       { id: "intent", label: "Intent Router", tone: "sapphire", scope: "engine-intent" },
       { id: "bridge", label: "Orchestrator Bridge", tone: "amethyst", scope: "engine-bridge" },
-    ].filter((t) => isAdmin || access.allows(t.scope) || access.allows("engine"));
+    ].filter((t) => isAdmin || access.allows(t.scope));
     const firstAllowed = availableTabs[0]?.id ?? "intent";
     const view = availableTabs.some((t) => t.id === search?.view) ? search?.view : firstAllowed;
 
@@ -1090,8 +1084,6 @@ function ModuleTabs() {
 
   // Reporting: analytics surfaces.
   if (pathname.startsWith("/reporting")) {
-    const ownerCtx = readOwnerCtx();
-    const isAdmin = ownerCtx.sovereign;
     const reportTabs = [
       { to: "/reporting/overview", label: "Overview", tone: "sapphire" },
       { to: "/reporting/usage", label: "Usage Analytics", tone: "emerald" },
@@ -1131,6 +1123,7 @@ function ModuleTabs() {
     "authentication",
     "converter",
     "services",
+    "web-search",
     "certificates",
     "mail",
     "siem",
@@ -1159,6 +1152,7 @@ function ModuleTabs() {
     { to: "/authentication", label: "Authentication", tone: "emerald" },
     { to: "/converter", label: "Global Converter", tone: "amethyst" },
     { to: "/services", label: "Services", tone: "topaz" },
+    { to: "/web-search", label: "Web Search", tone: "sapphire" },
     { to: "/certificates", label: "Certificates", tone: "emerald" },
     { to: "/mail", label: "Mail & Time", tone: "sapphire" },
     { to: "/siem", label: "SIEM", tone: "amethyst" },

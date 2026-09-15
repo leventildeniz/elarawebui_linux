@@ -25,6 +25,8 @@ import {
   type MemoryPolicy,
   type MemoryScope,
 } from "@/lib/memory-store";
+import { useAccess } from "@/lib/rbac-store";
+import { readOwnerCtx } from "@/lib/ownership";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/memory")({
@@ -63,10 +65,27 @@ const ago = (t: number) => {
 
 function MemoryPage() {
   const search = useRouterState({ select: (s) => s.location.search }) as { view?: string };
-  const view =
+  const requestedView =
     search?.view === "episodic" || search?.view === "semantic" || search?.view === "policy"
       ? search.view
       : "working";
+
+  const access = useAccess();
+  const ownerCtx = readOwnerCtx();
+  const isAdmin = ownerCtx.sovereign;
+
+  const viewScopes: Record<string, string> = {
+    working: "memory-working",
+    episodic: "memory-episodic",
+    semantic: "memory-semantic",
+    policy: "memory-policy",
+  };
+
+  const allowedViews = (["working", "episodic", "semantic", "policy"] as const).filter(
+    (v) => isAdmin || access.allows(viewScopes[v] as any),
+  );
+
+  const view = allowedViews.includes(requestedView as any) ? requestedView : (allowedViews[0] ?? requestedView);
 
   const mem = useMemoryStore();
   const used = useMemo(

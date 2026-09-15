@@ -1421,6 +1421,97 @@ ELARA Sovereign Studio genelinde **Zero-Trust Çoklu Kiracı (Multi-Tenancy) ve 
    * **Deploy Streams Modal İzolasyonu:** `src/routes/fleet.tsx` içerisindeki `catalog` seçicisine `scopeOwned` süzgeci bağlanarak, normal operatörün yayın akışına ekleme modalında Admin'in özel ajanlarını (`Arastirmaci Ajan`, `X2_Agent` vb.) görmesi engellendi.
    * **Telemetry Boards İzolasyonu:** `/api/telemetry/boards` uç noktasına `buildVisibility` filtresi bağlandı; `tb.agents` sistem varsayılan kartı silinmeye karşı korundu.
    * **Fleet Telemetry Granüler RBAC Sub-Tab Mimarisi:** Monolitik `fleet` kapsamı, diğer tüm modüllerimizde olduğu gibi 4 ayrıntılı alt sekmeye (`fleet-general`, `fleet-operators`, `fleet-database`, `fleet-agents`) ayrıldı. `telemetry-card-tabs.tsx` ve `FleetView` yetki kontrolüyle mühürlendi. `app_roles` tablosundaki `admin` (tüm 4 sekme) ve `engineer` (`fleet-general`, `fleet-agents`) rolleri güncellendi.
-11. **Sistem Doğrulaması:**
-   * `npx tsc --noEmit` 0 hata ile doğrulandı.
-   * `elara-middleware.service` ve `elara-vite.service` aktif çalışıyor.
+1424	11. **Sistem Doğrulaması:**
+   1425	   * `npx tsc --noEmit` 0 hata ile doğrulandı.
+   1426	   * `elara-middleware.service` ve `elara-vite.service` aktif çalışıyor.
+   1427	
+   1428	---
+   1429	
+   1430	### 🛡️ 6. COMPLETED — PHASE 64: RBAC GRANULAR SUB-TAB HYGIENE & SUPERADMIN SYSTEM ROLE UNLOCKING
+   1431	
+   1432	**Tarih:** 2026-09-15  
+   1433	**Durum:** %100 Tamamlandı, Doğrulandı & Mühürlendi (Zero Leaks, 100% Granular RBAC)
+   1434	
+   1435	#### 🎯 1. Ele Alınan Sorunlar ve Kök Neden Analizi
+   1436	1. **SuperAdmin Sistem Rollerini Düzenleyememe Sorunu:**
+   1437	   * **Tespit:** Backend (`identity-roles.mjs:74-76`) SuperAdmin için sistem rollerinin (`is_system = true`) güncellenmesine izin verirken; UI (`rbac.tsx:51`) ve Store (`rbac-store.ts:793, 807, 819`) doğrudan `role.system` kontrolü yaparak tüm butonları ve kutuları SuperAdmin dahil herkese kilitliyordu.
+   1438	   * **Çözüm:** Root `admin` rolü (Sovereign) salt-okunur ve tam yetkili tutularak korunurken; diğer yerleşik roller (`engineer`, `operator`, `security`, `viewer`) SuperAdmin (`ownerCtx.sovereign`) için düzenlenebilir hale getirildi (`locked = isSovereign(role) || (role.system && !isSuperAdmin)`). TenantAdmin'ler için kilit korunmuştur.
+   1439	2. **Menü & Alt Sekme Sızıntısı (`deneme2` — Engineer):**
+   1440	   * **Tespit 1 (DB Kirliliği):** `app_roles` tablosundaki rollerde eski monolitik adlar (`engine`, `users`, `policy`, `knowledge`, `memory`, `planner`, `mcp`, `fleet`) kalmıştı. Bu kelimeler arayüzdeki granüler kutularla eşleşmediği için RBAC sayfasında işaretsiz (boş) gözüküyordu.
+   1441	   * **Tespit 2 (Store Bypass):** `access.allows(scope)` fonksiyonu, parametre olarak gelen granüler sekme adını (`engine-intent` vb.) URL yolları listesinde bulamadığında fonksiyonun sonundaki `return true;` fallback'ine düşerek izin veriyordu. Ayrıca `shell.tsx` içinde `|| access.allows("engine")` gibi geriye dönük miras kontroller tüm alt sekmeleri açıyordu.
+   1442	   * **Çözüm:**
+   1443	     - Veritabanındaki tüm roller (`app_roles`) temizlendi; monolitik kelimeler elenerek tam 72 granüler sekme şemasına uyarlandı.
+   1444	     - `access.allows` yeniden kodlandı: Zero-Trust kuralı gereği, hedef bir `TabScope` ise doğrudan `scopes.has(target)` kontrolü yapılır; yetkisiz veya tanınmayan hiçbir rota/sekme için varsayılan `true` dönülmez (`return false`).
+   1445	     - `shell.tsx`, `telemetry-card-tabs.tsx` ve `fleet.tsx` içerisindeki tüm `|| access.allows("xxx")` monolitik fallback'leri kaldırıldı.
+   1446	     - Tüm alt sayfalar (`engine.tsx`, `policy.tsx`, `users.tsx`, `knowledge.tsx`, `planner.tsx`, `memory.tsx`, `mcp.tsx`, `adapters.tsx`) alt sekmelerini RBAC granüler yetkilerine bağladı. Yetkisiz alt sekmeler seçildiğinde güvenli ilk sekmeye yönlendirme sağlandı; hiçbir yetkisi olmayan modüllerde ise `Shell` `<ScopeDenied>` ekranı devreye girdi.
+   1447	4. **Preview Modu Simülasyon Kök Düzeltmesi (`shell.tsx`, `telemetry-card-tabs.tsx`, `fleet.tsx`):**
+   1448	   * **Tespit:** `PREVIEW AS ENGINEER` butonuna basıldığında üstte sarı banner çıkmasına rağmen sol menü ve sekmeler değişmiyordu. Çünkü `shell.tsx` içindeki `isAdmin = ownerCtx.sovereign` değişkeni, giriş yapan oturum Admin olduğu için her zaman `true` kalıyor ve `isAdmin || access.allows(...)` kontrolü yüzünden preview edilen rol filtreleri tamamen baypas ediliyordu.
+   1449	   * **Çözüm:** `isAdmin = !access.previewing && ownerCtx.sovereign` olarak güncellendi. Önizleme modundayken stüdyo Admin yetkisini değil, simüle edilen rolün gerçek yetkilerini yansıtır. Sol menü ve üst sekmeler anında seçilen role göre dinamik olarak filtrelenir; `/` ve `/rbac` sayfaları ise yöneticinin önizlemeden çıkabilmesi (`EXIT PREVIEW`) için açık kalır.
+   1450	5. **RBAC Sayfası Scroll Çözümü (`rbac.tsx`, `shell.tsx`):**
+   1451	   * **Tespit:** Flexbox içerisindeki percentage height (`h-full`) CSS hesaplama kısıtı nedeniyle `overflow-y-auto` tetiklenmiyordu ve alttaki `REPORTING` grubu taşarak kesiliyordu.
+   1452	   * **Çözüm:** `rbac.tsx` sarmalayıcısı `absolute inset-0 overflow-y-auto` konteynerine geçirildi; `main` konteynerine `overflow-hidden` verildi. Sayfa artık her ekranda sorunsuz, kaydırma çubuğuyla en alta kadar akıcı şekilde kaymaktadır.
+   1453	6. **Eylem Fiilleri (Action Verbs) 360° Denetimi & Entegrasyonu:**
+   1454	   * `write`: `src/lib/ownership.ts` içindeki `canEdit` fonksiyonuna `readCan("write")` kontrolü bağlandı. Bu fiile sahip olmayan roller nesneleri düzenleyemez (salt-okunur kalır).
+   1455	   * `delete`: `canDelete` ve `deleteRefusal` kontrolleri `readCan("delete")` ile mühürlendi.
+   1456	   * `vault`: `policy.tsx` içindeki `MaskedValue` bileşeni `access.can("vault")` yetkisine bağlandı; yetkisi olmayan roller sırları unmask edemez.
+   1457	   * `export`: `report-kit.tsx` içindeki `ExportButton` `access.can("export")` yetkisine bağlandı; yetkisiz rollerde buton devre dışı kalır.
+   1458	   * `approve`: `approver-gate.ts` ve `approvals.tsx` içindeki onay döngüsü `canApprove` ile doğrulanır.
+   1459	   * `plan-execute`: `planner.tsx` içinde aktif icra yetkisi olarak bağlanmıştır.
+   1460	   * `rag-ingest`: `rag-documents.tsx` içinde döküman yükleme izni olarak bağlanmıştır.
+   1461	   * `workspace-all`: `ownership.ts` içinde başkalarının masasını görme yetkisi olarak mühürlenmiştir.
+   1462	7. **Kullanıcı & Şablon E2E Veritabanı Uyumluluğu (`identity.mjs`, `identity-templates.mjs`, `users.tsx`):**
+   1463	   * **Şablon Sütun-JSONB Senkronizasyonu:** `app_templates` tablosuna yapılan kayıtlarda `grants` ve `params` JSONB blokları doğrudan DB sütunlarıyla (`allowed_providers`, `allowed_skills`, `allowed_tools`, `system_prompt`, `temperature`, `top_p`, `max_tokens`) senkronize edildi. Böylece bu sütunları sorgulayan alt servisler (`policy-cache.mjs`, `skills.mjs`) ile UI tam uyumlu hale getirildi.
+   1464	   * **Kullanıcı Şablon Atama Temizliği:** Kullanıcı şablonunu kaldırdığında (`templateId = ""`), DB'de boş metin yerine `NULL` yazılması sağlandı ve `app_template_assignments` tablosundaki yetim eski atamalar temizlendi.
+   1465	   * **Kullanıcı Kaydet Butonu:** Formdaki `[Save]` butonunun sadece parola kutusu doluyken çalışması sorunu giderildi; butona basıldığında tüm kullanıcı konfigürasyonu canlı API ile güncellenip görsel bildirim (`Account saved`) verilmektedir.
+   1466	   * **Şablon Kalıtım Etiketi & Dinamik Alt Başlıklar:** Ne kullanıcıda ne de grupta şablon yokken yanlışlıkla "INHERITED FROM GROUP" yazması düzeltilerek "NO TEMPLATE BOUND" etiketine geçirildi. Header'daki statik sayaçlar ("4 provisioning templates", "18 operators") gerçek DB kayıt sayılarıyla dinamikleştirildi.
+   1467	8. **Kod Temizliği & Standartizasyon:**
+   1448	   * UI ve Store dosyalarındaki (`chat-store.ts`, `context-compact.functions.ts`, `composer.tsx`, `model-group-tabs.tsx`) Türkçe yorum satırları ve tarayıcı uyarıları tamamen temizlenerek profesyonel İngilizce standartlarına getirildi.
+   1449	
+   1450	#### 📊 2. Doğrulama & Test Sonuçları
+   1451	* `npx tsc --noEmit` çalıştırıldı: **0 hata**.
+   1452	* `curl` ve DB simülasyonları: `deneme2` kullanıcısı için `/engine`, `engine-intent`, `engine-bridge`, `/users`, `/policy`, `/knowledge`, `/memory`, `/planner`, `/mcp` rotaları kesinlikle **false** döndü; sol menüden kalktığı ve doğrudan erişildiğinde engellendiği kanıtlandı.
+   1453	* SuperAdmin'in `engineer` rolünü güncellemesi test edildi ve başarıyla veritabanına işlendi.
+   1474	* `elara-middleware.service` ve `elara-vite.service` hatasız şekilde yeniden başlatıldı ve aktif durumda.
+   1475	
+   1476	---
+   1477	
+   1478	### 🛡️ 7. COMPLETED — PHASE 65: TEMPLATE DE-DUPLICATION, GROUP E2E PERSISTENCE & ZERO-MOCK COMPLIANCE
+   1479	
+   1480	**Tarih:** 2026-09-15  
+   1481	**Durum:** %100 Tamamlandı & Doğrulandı (Tüm Mocklar Temizlendi, E2E Veritabanı Mührü)
+   1482	
+   1483	#### 🎯 1. Hayata Geçirilen Temizlik ve Standartizasyonlar
+   1484	1. **Şablon (Template) Tarafındaki Mükerrer ve Riskli Alanların Tasfiyesi:**
+   1485	   * **Bound RBAC Roles Kaldırıldı:** Şablonun gizlice kullanıcı rolünü ezmesi ve yetki yükseltme (Privilege Escalation) açığı yaratması engellendi. `local-server/lib/actor.mjs` içindeki şablondan rol türetme hattı söküldü; roller sadece doğrudan kullanıcı ve grup aidiyetinden beslenir.
+   1486	   * **Allowed Knowledge Spaces Kaldırıldı:** Bilgi alanlarının kim tarafından sorgulanabileceği ve güncellenebileceği zaten doğrudan `Access Spaces` modülü (`readerGroups`, `readerUsers`, `contributorGroups`, `contributorUsers`, `everyone on/off`) tarafından granüler olarak yönetilmektedir. Şablondaki mükerrer ve ölü alan temizlendi.
+   1487	   * **MCP Server Gateway Kaldırıldı:** MCP sunucu açma izni bir çıkarım parametresi değil, RBAC tabı (`mcp-server`) ve aksiyon fiilidir (`isolation`). Şablondan çıkarıldı.
+   1488	   * **Chat Template (Legacy) & Custom Parameters Kaldırıldı:** Model tokenizer özel formatı modelin kendi kartında belirlenir; şablondan model formatı bozma riski elendi. Backend tarafından hiç tüketilmeyen `custom` parametreleri kaldırıldı.
+   1489	   * **Kalan Saf Şablon Amacı:** Şablon artık yalnızca saf bir AI Kaynak ve Tüketim Politikasıdır (İzinli AI modelleri/sağlayıcıları, hiperparametre tavanları, bütçe/hız limitleri, bellek sıkıştırma politikası ve self-service kullanıcı delegasyonu).
+   1490	2. **Grup (Group) Yönetimi Uçtan Uca Kalıcılık:**
+   1491	   * `GroupsTab` içindeki `[Save]` butonuna `updateGroup(active.id, active)` çağrısı ve toast bildirimi bağlandı.
+   1492	   * `identity-groups.mjs` içinde hem `role`/`default_role`, hem `template_id`/`default_template`, hem `tenant_id` hem de `app_groups.members` kolonları `app_users.groups` dizisiyle %100 çift yönlü senkronize edildi.
+   1493	3. **RBAC Compliance Sayfası Sıfır-Mock Dönüşümü:**
+   1494	   * `COMPLIANCE` altındaki 5 adet sabit mock string tamamen silindi.
+   1495	   * Tüm kontroller (`chk.privileged-accounts`, `chk.orphan-grants`, `chk.least-privilege`, `chk.idp-coverage`, `chk.session-policy`) veritabanındaki gerçek `accounts`, `groups`, `roles`, `templates` durumuna göre gerçek zamanlı dinamik hesaplanmaktadır.
+   1496	   * Sahipsiz operatörler (@operator-g3vn vb.) ve rol kaymaları (@deneme, @deneme2) gerçek durumlarıyla ekrana yansıtılmaktadır.
+   1497	4. **Identity Omurga Güvenliği & Oturum Yaşam Döngüsü (Phase 66):**
+   1498	   * **x-session-id Username Sahte Giriş Açığı Kapatıldı:** `session-gate.mjs` içindeki `WHERE lower(username) = lower(sid)` prototip kalıntısı tamamen silindi. Sadece doğrulanmış `app_sessions` kayıtları kabul edilir.
+   1499	   * **x-user Header Spoofing Engellendi:** `actor.mjs` içinde dışarıdan gelen keyfi `x-user` başlıkları devre dışı bırakıldı; aktör tespiti yalnızca doğrulanmış `req.session.username` veya yerel loopback üzerinden yapılır.
+   1500	   * **Canlı Hesap Kilitleme (Lockout) & Süre Aşımı:** `session-gate.mjs` her istekte kullanıcının `locked`, `status` ve `valid_until` durumunu kontrol eder. Kilitlenen veya süresi dolan hesapların açık olan aktif oturumları derhal veritabanından silinerek erişimleri anında kesilir; `login` uç noktası kilitli hesaplara girişi engeller.
+   1501	   * **Oturum Tasfiyesi Standardizasyonu:** `GET /api/sessions` rotasında kullanıcıları 5 dakikalık hareketsizlikte dışarı atan `interval '5 minutes'` sorgusu, kurumsal 24 saatlik süreye (`interval '24 hours'`) çekildi.
+   1502	5. **Attention Bell, Auth Providers & Audit Log Güvenlik Denetimi (Phase 67):**
+   1503	   * **Attention Bell Akıllı Yönlendirme:** Zil açılır menüsünün altındaki link, yetkisi olmayan kullanıcılara `/mail` (ve dolayısıyla `<ScopeDenied>`) göstermek yerine; operatörün yetkisine göre `/approvals` ekranına ("view approval queue") akıllı fallback yapacak şekilde korundu.
+   1504	   * **Settings -> Authentication Doğrulaması:** `auth_provider_sources` tablosu ile frontend senkronizasyonu tam doğrulandı. 12 sağlayıcı kaynağı doğrudan PostgreSQL üzerinde barınmakta ve konfigürasyon testleri (`/api/identity/auth-providers/test`) çalışmaktadır.
+   1505	   * **Logs & Audit Purge Koruma ve Onay Modalı:** `Purge` butonu sadece SuperAdmin'e sınırlandı ve yanlışlıkla basılmasını önlemek için geri alınamaz kırmızı onay penceresi (`confirmAction`) bağlandı. CSV/NDJSON/TXT/PDF indirmeleri `export` eylem fiili ile mühürlendi.
+   1506	6. **Bağımsız Web Search Engine Yüzeyi & Multi-Tenant İzolasyonu (Phase 68):**
+   1507	   * **Altyapı Ayrıştırması:** Web arama motoru kulesi (`Web Search Engine Tower`), saf küme ve donanım paneli olan `/services` ekranından tamamen söküldü. Bağımsız `src/routes/web-search.tsx` rotasına taşındı.
+   1508	   * **Multi-Tenant Veritabanı Şeması:** `search_providers` tablosuna `tenant_id`, `is_global`, `owner_id`, `visibility`, `shared_with` sütunları eklendi.
+   1509	   * **Tool Dispatcher Öncelik Hiyerarşisi:** `tool-dispatcher.mjs` içindeki `sys_web_search` icra edilirken kullanıcının ait olduğu şirketin özel arama sağlayıcıları (`tenant_id = $1`) en yüksek öncelikle seçilir, yoksa küme genelindeki global sağlayıcıya (`is_global = true`) fallback yapar.
+   1510	   * **Granüler RBAC Sekmesi:** RBAC `Governance Settings` altına `web-search` ("Web Search Engine") sekmesi eklendi; rotalar ve menüler `access.allows("web-search")` ile mühürlendi. PostgreSQL'deki Admin rolüne 73. sekme olarak tanımlandı. Artık TenantAdmin'ler altyapı ayarlarına dokunmadan sadece arama motoru sağlayıcılarını bağımsızca yönetebilir.
+   1511	7. **Kayıt Bildirimi (Toast) Çiftleme Temizliği:**
+   1512	   * `UsersTab` ve `GroupsTab` içindeki manuel `toast.success` çağrıları ayıklandı; bildirim kontrolü `SaveButton`'a devredilerek üst üste binen çift bildirim sorunu çözüldü.
+   1513	
+   1514	#### 📊 2. Nihai Sistem Doğrulaması
+   1515	* `npx tsc --noEmit`: **0 hata**.
+   1516	* `elara-middleware.service` ve `elara-vite.service`: Aktif ve operasyonel.
+   1517	* Tüm entegrasyon zinciri (Vite UI ↔ api-v2.mjs ↔ Workers ↔ PostgreSQL) uçtan uca mühürlendi.

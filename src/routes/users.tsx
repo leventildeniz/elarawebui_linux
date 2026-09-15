@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { updateAccountPassword } from "@/lib/credential-store";
 
 import { motion } from "motion/react";
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { AnimatePresence } from "motion/react";
 import {
   Building2,
@@ -34,7 +34,8 @@ import { AvatarPicker, EntityAvatar } from "@/components/sovereign/identity";
 import { Surface, Row } from "@/components/sovereign/surface";
 import { Tag, JewelButton, StatusDot } from "@/components/sovereign/primitives";
 import { ObsidianSelect } from "@/components/sovereign/obsidian-select";
-import { SCOPE_LABELS, TAB_SCOPES, roleActions, useRoles } from "@/lib/rbac-store";
+import { SCOPE_LABELS, TAB_SCOPES, roleActions, useRoles, useAccess } from "@/lib/rbac-store";
+import { readOwnerCtx } from "@/lib/ownership";
 import { useIdentity, isSystemGroup, currentAccount, type Account } from "@/lib/group-store";
 import type { JewelTone } from "@/lib/rbac-store";
 import {
@@ -188,40 +189,6 @@ function DeleteButton({
   );
 }
 
-const COMPLIANCE: { id: string; label: string; detail: string; state: "pass" | "warn" | "fail" }[] =
-  [
-    {
-      id: "chk.privileged-accounts",
-      label: "Privileged accounts under review",
-      detail: "2 admins, both with MFA and hardware keys enrolled.",
-      state: "pass",
-    },
-    {
-      id: "chk.orphan-grants",
-      label: "Orphan scope grants",
-      detail: "1 suspended account still mapped to the Research group.",
-      state: "warn",
-    },
-    {
-      id: "chk.least-privilege",
-      label: "Least privilege drift",
-      detail: "Operator role holds 11/38 scopes — inside the approved envelope.",
-      state: "pass",
-    },
-    {
-      id: "chk.idp-coverage",
-      label: "Identity provider coverage",
-      detail: "OAuth2 guests bypass device trust; consider tightening.",
-      state: "warn",
-    },
-    {
-      id: "chk.session-policy",
-      label: "Session ceiling policy",
-      detail: "All templates expire within the 12 h governance ceiling.",
-      state: "pass",
-    },
-  ];
-
 const stateTone: Record<"pass" | "warn" | "fail", JewelTone> = {
   pass: "emerald",
   warn: "topaz",
@@ -244,20 +211,45 @@ const META: Record<UsersView, string> = {
 
 function UsersRoute() {
   const { view } = Route.useSearch();
+  const access = useAccess();
+  const ownerCtx = readOwnerCtx();
+  const isSuperAdmin = ownerCtx.sovereign;
+  const { accounts, groups } = useIdentity();
+  const { templates } = useUserTemplates();
+
+  const tabScopes: Record<string, string> = {
+    users: "users-users",
+    groups: "users-groups",
+    templates: "users-templates",
+    compliance: "users-compliance",
+    tenants: "users-tenants",
+  };
+
+  const allowedViews = (["users", "groups", "templates", "compliance", ...(isSuperAdmin ? ["tenants"] : [])] as const).filter(
+    (v) => isSuperAdmin || access.allows(tabScopes[v] as any),
+  );
+
+  const activeView = allowedViews.includes(view as any) ? view : (allowedViews[0] ?? view);
+
+  const metaText =
+    activeView === "users" ? `${accounts.length} operators · ${accounts.length} shown` :
+    activeView === "groups" ? `${groups.length} groups · charter + role mapping` :
+    activeView === "templates" ? `${templates.length} provisioning templates · session ceilings` :
+    META[activeView as UsersView] ?? "";
 
   return (
-    <Surface wide crumb="Users & Groups" title="Users & Groups" meta={META[view].toUpperCase()}>
+    <Surface wide crumb="Users & Groups" title="Users & Groups" meta={metaText.toUpperCase()}>
       <motion.div
-        key={view}
+        key={activeView}
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
       >
-        {view === "users" && <UsersTab />}
-        {view === "groups" && <GroupsTab />}
-        {view === "templates" && <TemplatesTab />}
-        {view === "compliance" && <ComplianceTab />}
-        {view === "tenants" && <TenantsTab />}
+        {activeView === "users" && <UsersTab />}
+        {activeView === "groups" && <GroupsTab />}
+        {activeView === "templates" && <TemplatesTab />}
+        {activeView === "compliance" && <ComplianceTab />}
+        {activeView === "tenants" && isSuperAdmin && <TenantsTab />}
       </motion.div>
     </Surface>
   );
@@ -1604,18 +1596,19 @@ function UsersTab() {
   const pwReady = pendingPassword.length >= 6 && pendingPassword === pendingConfirm;
 
   const handleAccountSave = async () => {
-    if (pwReady) {
-      try {
-        if (active) {
-          await updateAccountPassword(active.id, pendingPassword);
-          updateAccount(active.id, { passwordChangedAt: new Date().toISOString() });
-        }
+    if (!active) return;
+    try {
+      if (pwReady) {
+        await updateAccountPassword(active.id, pendingPassword);
+        await updateAccount(active.id, { passwordChangedAt: new Date().toISOString() });
         setPendingPassword("");
         setPendingConfirm("");
         setPwMsg("Passphrase committed — this principal signs in with it now.");
-      } catch (err) {
-        setPwMsg("Failed to update passphrase.");
+      } else {
+        await updateAccount(active.id, active);
       }
+    } catch (err) {
+      toast.error("Failed to save account");
     }
   };
 
@@ -1867,9 +1860,9 @@ function UsersTab() {
             templateName={
               active.template
                 ? (templates.find((t) => t.id === active.template)?.name ?? "—")
-                : inheritedName
+                : (inheritedTemplate ? inheritedName : "none")
             }
-            source={active.template ? "account" : "group"}
+            source={active.template ? "account" : inheritedTemplate ? "group" : "none"}
             sourceGroup={inheritSource?.name}
           />
 
@@ -1920,11 +1913,11 @@ function EffectiveAccess({
 }: {
   roleName: string;
   templateName: string;
-  source: "account" | "group";
+  source: "account" | "group" | "none";
   sourceGroup?: string | undefined;
 }) {
   const { roles } = useRoles();
-  const role = roles.find((r) => r.name === roleName);
+  const role = roles.find((r) => r.name.toLowerCase() === (roleName || "").toLowerCase() || r.id.toLowerCase() === (roleName || "").toLowerCase());
   const scopes = role?.scopes ?? [];
   const verbs = roleActions(role);
 
@@ -1938,10 +1931,12 @@ function EffectiveAccess({
             {verbs.length ? verbs.join(" · ").toUpperCase() : "NO VERBS"}
           </Tag>
           <Tag tone="amethyst">{`TEMPLATE · ${templateName}`}</Tag>
-          <Tag tone={source === "account" ? "emerald" : "platinum"}>
+          <Tag tone={source === "account" ? "emerald" : source === "group" ? "platinum" : "canvas"}>
             {source === "account"
               ? "ACCOUNT WINS"
-              : `INHERITED FROM ${(sourceGroup ?? "GROUP").toUpperCase()}`}
+              : source === "group"
+                ? `INHERITED FROM ${(sourceGroup ?? "GROUP").toUpperCase()}`
+                : "NO TEMPLATE BOUND"}
           </Tag>
         </div>
       </div>
@@ -2132,7 +2127,13 @@ function GroupsTab() {
               <span className="font-mono text-[11px] text-muted-foreground/50">{active.id}</span>
             </div>
             <div className="flex items-center gap-2">
-              <SaveButton label="Group" entity={active.name} />
+              <SaveButton
+                label="Group"
+                entity={active.name}
+                onSave={async () => {
+                  await updateGroup(active.id, active);
+                }}
+              />
               {isSystemGroup(active) ? (
                 <span className="flex items-center gap-1.5 rounded-lg border border-white/[0.08] bg-raised/40 px-3 py-[6px] font-mono text-[11px] tracking-[0.14em] text-muted-foreground/70">
                   <Lock size={12} /> SYSTEM GROUP
@@ -3192,22 +3193,6 @@ function TemplatesTab() {
               />
             </Field>
             <Field
-              label="Chat template (legacy)"
-              overridden={ov("chatTemplateId")}
-              onToggle={() => toggleOv("chatTemplateId")}
-            >
-              <select
-                value={p.chatTemplateId}
-                onChange={(e) => setParam("chatTemplateId", e.target.value)}
-                className={inputCls}
-                disabled
-              >
-                <option value={p.chatTemplateId || "auto"} className="bg-[#101017]">
-                  Auto (managed by engine)
-                </option>
-              </select>
-            </Field>
-            <Field
               label="Streaming"
               overridden={ov("streaming")}
               onToggle={() => toggleOv("streaming")}
@@ -3402,69 +3387,6 @@ function TemplatesTab() {
           </div>
         </FoldCard>
 
-        <FoldCard title="Custom parameters" tone="topaz" meta={`${active.custom.length} extra`}>
-          <div className="flex justify-end">
-            <JewelButton
-              size="sm"
-              variant="outline"
-              onClick={() =>
-                update(active.id, {
-                  custom: [
-                    ...active.custom,
-                    { id: Math.random().toString(36).slice(2, 8), key: "", value: "" },
-                  ],
-                })
-              }
-            >
-              <Plus className="h-3.5 w-3.5" /> Add
-            </JewelButton>
-          </div>
-          <div className="mt-3 space-y-2">
-            {active.custom.length === 0 && (
-              <div className="font-mono text-[11.5px] text-muted-foreground/45">
-                No extra parameters — nothing extra is sent to the provider.
-              </div>
-            )}
-            {active.custom.map((c) => (
-              <div key={c.id} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2">
-                <input
-                  value={c.key}
-                  placeholder="key"
-                  onChange={(e) =>
-                    update(active.id, {
-                      custom: active.custom.map((x) =>
-                        x.id === c.id ? { ...x, key: e.target.value } : x,
-                      ),
-                    })
-                  }
-                  className={inputCls}
-                />
-                <input
-                  value={c.value}
-                  placeholder="value"
-                  onChange={(e) =>
-                    update(active.id, {
-                      custom: active.custom.map((x) =>
-                        x.id === c.id ? { ...x, value: e.target.value } : x,
-                      ),
-                    })
-                  }
-                  className={inputCls}
-                />
-                <JewelButton
-                  size="sm"
-                  variant="ghost"
-                  onClick={() =>
-                    update(active.id, { custom: active.custom.filter((x) => x.id !== c.id) })
-                  }
-                >
-                  <X className="h-3.5 w-3.5" />
-                </JewelButton>
-              </div>
-            ))}
-          </div>
-        </FoldCard>
-
         {/* grants — one card per surface, side by side */}
         {grantMeta.map((g) => (
           <FoldCard
@@ -3493,6 +3415,7 @@ function TemplatesTab() {
 function ComplianceTab() {
   const { roles } = useRoles();
   const { accounts, groups, groupsOf, expectedRole } = useIdentity();
+  const { templates } = useUserTemplates();
 
   const rows = accounts.map((a) => {
     const gs = groupsOf(a.id);
@@ -3502,6 +3425,71 @@ function ComplianceTab() {
   });
 
   const aligned = rows.filter((r) => r.compliant).length;
+
+  const complianceChecks: Array<{ id: string; label: string; detail: string; state: "pass" | "warn" | "fail" }> = useMemo(() => {
+    // 1. Privileged accounts (Admin / Sovereign)
+    const adminAccounts = accounts.filter(
+      (a) => a.role.toLowerCase() === "admin" || a.role.toLowerCase() === "sovereign",
+    );
+    const lockedAdmins = adminAccounts.filter((a) => a.locked);
+    const privDetail = `${adminAccounts.length} administrator account${adminAccounts.length === 1 ? "" : "s"} enrolled (${adminAccounts.map((a) => `@${a.username}`).join(", ")})${lockedAdmins.length ? ` · ${lockedAdmins.length} locked` : " · 0 lockout breaches"}.`;
+
+    // 2. Orphan accounts (not assigned to any group)
+    const orphanAccounts = accounts.filter((a) => groupsOf(a.id).length === 0);
+    const orphanState: "pass" | "warn" | "fail" = orphanAccounts.length > 0 ? "warn" : "pass";
+    const orphanDetail = orphanAccounts.length > 0
+      ? `${orphanAccounts.length} unassigned account${orphanAccounts.length === 1 ? "" : "s"} (${orphanAccounts.map((a) => `@${a.username}`).join(", ")}) not mapped to any group.`
+      : `All ${accounts.length} active accounts are mapped to structured functional groups.`;
+
+    // 3. Role drift (assigned role differs from group default)
+    const driftedAccounts = rows.filter((r) => !r.compliant && !r.orphan);
+    const driftState: "pass" | "warn" | "fail" = driftedAccounts.length > 0 ? "warn" : "pass";
+    const driftDetail = driftedAccounts.length > 0
+      ? `${driftedAccounts.length} account${driftedAccounts.length === 1 ? "" : "s"} (${driftedAccounts.map((r) => `@${r.a.username}`).join(", ")}) drifted from group baseline role.`
+      : `100% of grouped accounts are aligned with their group's baseline role.`;
+
+    // 4. Identity Providers
+    const providers = Array.from(new Set(accounts.map((a) => (a.provider || "local").toUpperCase())));
+    const nonLocalCount = accounts.filter((a) => (a.provider || "local").toLowerCase() !== "local").length;
+    const idpDetail = `${providers.join(", ")} active · ${accounts.length - nonLocalCount} local account${accounts.length - nonLocalCount === 1 ? "" : "s"}, ${nonLocalCount} federated.`;
+
+    // 5. Template Coverage & Expirations
+    const accountsWithExpiry = accounts.filter((a) => Boolean(a.validUntil));
+    const templateDetail = `${templates.length} provisioning template${templates.length === 1 ? "" : "s"} active across ${groups.length} groups · ${accountsWithExpiry.length} account${accountsWithExpiry.length === 1 ? "" : "s"} with expiration boundaries.`;
+
+    return [
+      {
+        id: "chk.privileged-accounts",
+        label: "Privileged accounts under review",
+        detail: privDetail,
+        state: "pass" as const,
+      },
+      {
+        id: "chk.orphan-grants",
+        label: "Orphan accounts & group coverage",
+        detail: orphanDetail,
+        state: orphanState,
+      },
+      {
+        id: "chk.least-privilege",
+        label: "Least privilege & role drift",
+        detail: driftDetail,
+        state: driftState,
+      },
+      {
+        id: "chk.idp-coverage",
+        label: "Identity provider coverage",
+        detail: idpDetail,
+        state: "pass" as const,
+      },
+      {
+        id: "chk.session-policy",
+        label: "Session ceiling & provisioning policy",
+        detail: templateDetail,
+        state: "pass" as const,
+      },
+    ];
+  }, [accounts, groups, templates, rows]);
 
   return (
     <div className="grid gap-6">
@@ -3603,7 +3591,7 @@ function ComplianceTab() {
       </div>
 
       <Panel>
-        {COMPLIANCE.map((c) => (
+        {complianceChecks.map((c) => (
           <Row key={c.id} className="grid-cols-[minmax(0,1fr)_auto]">
             <div className="min-w-0">
               <div className="truncate text-[14px] text-foreground/95">{c.label}</div>

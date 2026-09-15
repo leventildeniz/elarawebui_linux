@@ -111,8 +111,8 @@ async function pull() {
     remote = true;
     const remoteMap = new Map(remoteList.map((t) => [t.id, t]));
     for (const t of state) {
-      // SADECE son 5 dakika içinde açılmış, içi dolu ve server'da olmayan taze chat'leri yukarı it (Offline kurtarma).
-      // Aksi halde silinmiş eski chat'lerin "hortlamasına" (Split-brain) sebep olur!
+      // ONLY push populated, fresh chats created in the last 5 minutes that are missing on the server (offline recovery).
+      // Otherwise deleted chats could resurrect and cause split-brain issues.
       const isFresh = Date.now() - t.createdAt < 5 * 60 * 1000;
       if (!remoteMap.has(t.id) && isFresh && (t.messages.length > 0 || t.title !== "New chat")) {
         void apiCreateThread(t);
@@ -122,7 +122,7 @@ async function pull() {
     state = remoteList;
     writeDesk(KEY, state);
     
-    // Eğer activeId boşsa veya DB'den gelen listede yoksa, en yeni (en üstteki) chat'i aktif yap
+    // If activeId is empty or not present in the list returned from DB, select the newest (topmost) chat
     if (!activeId || !state.some((c) => c.id === activeId)) {
       activeId = state[0]?.id ?? "";
       rememberActive();
@@ -200,7 +200,7 @@ function debouncedWriteDesk(key: string, data: any, delayMs = 350) {
 }
 
 function commit(next: ChatThread[], sync?: "create" | "messages" | "files" | "patch" | "delete", syncId?: string) {
-  // Asla sıfır chat durumuna izin verme! Kullanıcı son chati silerse anında yepyeni, boş bir chat üret.
+  // Never permit a zero-chat state. If the user deletes the last chat, immediately spawn a blank chat.
   if (next.length === 0) {
     const fallbackChat = blankChat();
     next = [fallbackChat];

@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { emitRbac } from "./rbac-events";
 
 import { fetchApi } from "@/lib/api";
+import { currentAccount, readGroups } from "@/lib/group-store";
+import { isGodPrincipal } from "@/lib/knowledge-space-store";
 
 export type JewelTone = "sapphire" | "emerald" | "amethyst" | "ruby" | "topaz" | "canvas";
 
@@ -102,6 +104,7 @@ export const SCOPE_GROUPS = [
       { id: "settings", label: "Multi-Provider Routing" },
       { id: "converter", label: "Global Converter" },
       { id: "services", label: "Services Infrastructure" },
+      { id: "web-search", label: "Web Search Engine" },
       { id: "certificates", label: "Certificates & TLS" },
       { id: "mail", label: "Mail & Time Sync" },
       { id: "siem", label: "SIEM Forwarder" },
@@ -208,7 +211,6 @@ export const SCOPE_ROUTES: Record<string, string> = {
   "fleet-operators": "/fleet",
   "fleet-database": "/fleet",
   "fleet-agents": "/fleet",
-  fleet: "/fleet",
   vision: "/vision",
   runtime: "/runtime",
   targets: "/targets",
@@ -236,6 +238,7 @@ export const SCOPE_ROUTES: Record<string, string> = {
   settings: "/settings",
   converter: "/converter",
   services: "/services",
+  "web-search": "/web-search",
   certificates: "/certificates",
   mail: "/mail",
   siem: "/siem",
@@ -253,15 +256,6 @@ export const SCOPE_ROUTES: Record<string, string> = {
   "reporting-users": "/reporting/users",
   "reporting-rag": "/reporting/rag",
   "reporting-exports": "/reporting/exports",
-
-  // Legacy mappings for backward compatibility
-  memory: "/memory",
-  planner: "/planner",
-  mcp: "/mcp",
-  engine: "/engine",
-  knowledge: "/knowledge",
-  policy: "/policy",
-  users: "/users",
 };
 
 /** Reverse map: route path → scope id. */
@@ -319,6 +313,25 @@ export function roleActions(role: Role | undefined): RoleAction[] {
   if (!role) return [];
   if (isSovereign(role)) return [...ROLE_ACTIONS.map((a) => a.id)];
   return role.actions ?? DEFAULT_ACTIONS[role.id] ?? ["read"];
+}
+
+/** Check if the active signed-in principal has cluster-wide SuperAdmin rights. */
+function isCallerSuperAdmin(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const acc = currentAccount();
+    if (!acc) return false;
+    const directGroups = (acc as any)?.groups || [];
+    const groupIds = Array.from(
+      new Set([
+        ...directGroups,
+        ...readGroups().filter((g) => g.members.includes(acc.id)).map((g) => g.id),
+      ]),
+    );
+    return isGodPrincipal(acc.id, acc.role, groupIds);
+  } catch {
+    return false;
+  }
 }
 
 const ALL = [...TAB_SCOPES];
@@ -790,7 +803,9 @@ export function useRoles() {
 
   const toggleScope = async (id: string, scope: TabScope) => {
     const role = roles.find((r) => r.id === id);
-    if (!role || role.system) return;
+    if (!role) return;
+    if (isSovereign(role)) return; // Root admin is immutable sovereign
+    if (role.system && !isCallerSuperAdmin()) return; // Baseline system roles can only be edited by SuperAdmin
     const has = role.scopes.includes(scope);
     const newScopes = has ? role.scopes.filter((s) => s !== scope) : [...role.scopes, scope];
     await updateRole(id, { scopes: newScopes });
@@ -804,7 +819,9 @@ export function useRoles() {
 
   const setAll = async (id: string, enable: boolean) => {
     const role = roles.find((r) => r.id === id);
-    if (!role || role.system) return;
+    if (!role) return;
+    if (isSovereign(role)) return; // Root admin is immutable sovereign
+    if (role.system && !isCallerSuperAdmin()) return;
     await updateRole(id, { scopes: enable ? [...ALL] : [] });
     emitRbac({
       action: enable ? "rbac.grant" : "rbac.revoke",
@@ -816,7 +833,9 @@ export function useRoles() {
 
   const toggleAction = async (id: string, action: RoleAction) => {
     const role = roles.find((r) => r.id === id);
-    if (!role || role.system) return;
+    if (!role) return;
+    if (isSovereign(role)) return; // Root admin is immutable sovereign
+    if (role.system && !isCallerSuperAdmin()) return;
     const current = role.actions ?? [];
     const has = current.includes(action);
     const newActions = has ? current.filter((a) => a !== action) : [...current, action];
@@ -893,17 +912,29 @@ export function useAccess() {
     previewRole: previewId ? roles.find((r) => r.id === previewId) : undefined,
     sovereign: isSovereign(role),
     can: (a: RoleAction) => isSovereign(role) || actions.includes(a),
-    allows: (path: string) => {
+    allows: (pathOrScope: string) => {
       if (!role || isSovereign(role)) return true;
-      if (path === "/" || path === "/account" || path === "/theme") return true;
-      if (scopes.has(path)) return true;
-      const scope = ROUTE_SCOPES[path];
-      if (scope && scopes.has(scope)) return true;
-      const matchingScopes = Object.entries(SCOPE_ROUTES).filter(([_, p]) => p === path).map(([s]) => s);
+      if (pathOrScope === "/" || pathOrScope === "/account" || pathOrScope === "/theme") return true;
+
+      // 1. If checking a specific tab scope (e.g. "engine-intent", "policy-vault", "fleet-agents")
+      if (TAB_SCOPES.includes(pathOrScope as TabScope)) {
+        return scopes.has(pathOrScope);
+      }
+
+      // 2. If checking a surface route path (e.g. "/engine", "/policy", "/users")
+      const matchingScopes = Object.entries(SCOPE_ROUTES)
+        .filter(([scope, path]) => path === pathOrScope && TAB_SCOPES.includes(scope as TabScope))
+        .map(([scope]) => scope);
+
       if (matchingScopes.length > 0) {
         return matchingScopes.some((s) => scopes.has(s));
       }
-      return true;
+
+      // 3. Direct match if identifier is explicitly contained in scopes
+      if (scopes.has(pathOrScope)) return true;
+
+      // 4. Zero-Trust deny by default for unmapped or unauthorized routes/scopes
+      return false;
     },
   };
 }

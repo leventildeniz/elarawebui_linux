@@ -42,8 +42,8 @@ export function ModelGroupTabs() {
     setEditing(null);
     if (!clean || clean === oldName) return;
     await renameGroup(id, clean);
-    // Mimari not: Tab ismi (name) değiştiğinde, modellerin içinde kayıtlı olan 'group' alanı ID tuttuğu için (name tutmadığı için) 
-    // tüm modelleri forEach ile update etmeye gerek kalmadı!
+    // Architectural note: When tab name changes, models store group by ID rather than name,
+    // so batch model updates are unnecessary.
   };
 
   const deleteGroup = async (id: string, groupName: string, n: number) => {

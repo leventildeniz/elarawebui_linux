@@ -12,6 +12,7 @@ import {
   useAccess,
   useRoles,
 } from "@/lib/rbac-store";
+import { readOwnerCtx } from "@/lib/ownership";
 import { confirmAction } from "@/components/sovereign/confirm-dialog";
 import { cn } from "@/lib/utils";
 import { Shell } from "@/components/sovereign/shell";
@@ -45,15 +46,19 @@ function RbacPage() {
   const { roles, active, updateRole, toggleScope, setAll, toggleAction, cloneRole } = useRoles();
   const { enforced, previewing, previewRole } = useAccess();
   const role = roles.find((r) => r.id === active) ?? roles[0];
+  const ownerCtx = readOwnerCtx();
+  const isSuperAdmin = ownerCtx.sovereign;
 
   if (!role) return null;
 
-  const locked = role.system;
+  // Root admin is sovereign and immutable; system baseline roles can be modified by SuperAdmin
+  const locked = isSovereign(role) || (role.system && !isSuperAdmin);
 
   return (
     <Shell crumb="RBAC">
-      <div className="mx-auto w-full max-w-[1180px] px-6 pb-24 pt-6">
-        <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
+      <div className="absolute inset-0 overflow-y-auto">
+        <div className="mx-auto w-full max-w-[1180px] px-6 pb-8 pt-3.5">
+        <header className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <span
               className="grid h-9 w-9 place-items-center rounded-xl border"
@@ -122,7 +127,11 @@ function RbacPage() {
                     : `ARMED · AS ${role.name.toUpperCase()}`
                   : `PREVIEW AS ${role.name.toUpperCase()}`}
             </button>
-            {locked ? (
+            {isSovereign(role) ? (
+              <span className="flex items-center gap-1.5 rounded-lg border border-white/[0.08] bg-raised/40 px-3 py-[6px] font-mono text-[11px] tracking-[0.14em] text-muted-foreground/70">
+                <Lock size={12} /> SYSTEM ROOT ADMIN
+              </span>
+            ) : role.system && !isSuperAdmin ? (
               <span className="flex items-center gap-1.5 rounded-lg border border-white/[0.08] bg-raised/40 px-3 py-[6px] font-mono text-[11px] tracking-[0.14em] text-muted-foreground/70">
                 <Lock size={12} /> SYSTEM ROLE
               </span>
@@ -152,8 +161,8 @@ function RbacPage() {
           </div>
         </header>
 
-        {!locked && (
-          <section className="mb-5 grid gap-4 rounded-xl border border-white/[0.07] bg-white/[0.015] p-5 md:grid-cols-2">
+        {!role.system && (
+          <section className="mb-3 grid gap-3 rounded-xl border border-white/[0.07] bg-white/[0.015] p-3.5 md:grid-cols-2">
             <div>
               <span className={label}>ROLE NAME</span>
               <input
@@ -173,14 +182,14 @@ function RbacPage() {
           </section>
         )}
 
-        <section className="mb-5 rounded-xl border border-white/[0.07] bg-white/[0.015] p-5">
-          <header className="mb-4 flex items-center gap-2">
+        <section className="mb-3 rounded-xl border border-white/[0.07] bg-white/[0.015] p-3.5">
+          <header className="mb-2.5 flex items-center gap-2">
             <ShieldCheck size={14} className="text-emerald/80" />
-            <h2 className="font-mono text-[11.5px] tracking-[0.16em] text-muted-foreground/80">
+            <h2 className="font-mono text-[11px] tracking-[0.16em] text-muted-foreground/80">
               ACTION VERBS · WHAT THIS ROLE MAY DO
             </h2>
           </header>
-          <div className="grid gap-x-6 gap-y-1.5 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-x-6 gap-y-1 sm:grid-cols-2 lg:grid-cols-3">
             {ROLE_ACTIONS.map((a) => (
               <ScopeRow
                 key={a.id}
@@ -193,24 +202,24 @@ function RbacPage() {
               />
             ))}
           </div>
-          <p className="mt-4 font-mono text-[11px] tracking-[0.1em] text-muted-foreground/50">
+          <p className="mt-2.5 font-mono text-[10.5px] tracking-[0.08em] text-muted-foreground/50">
             Verbs gate mutations inside a granted tab — a role may read a surface without writing to
             it.
           </p>
         </section>
 
-        <section className="rounded-xl border border-white/[0.07] bg-white/[0.015] p-5">
-          <header className="mb-4 flex items-center gap-2">
+        <section className="rounded-xl border border-white/[0.07] bg-white/[0.015] p-3.5">
+          <header className="mb-2.5 flex items-center gap-2">
             <ShieldCheck size={14} className="text-sapphire/80" />
-            <h2 className="font-mono text-[11.5px] tracking-[0.16em] text-muted-foreground/80">
+            <h2 className="font-mono text-[11px] tracking-[0.16em] text-muted-foreground/80">
               TAB PERMISSIONS · ARCHITECT DECIDES
             </h2>
           </header>
 
-          <div className="space-y-5">
+          <div className="space-y-2.5">
             {SCOPE_GROUPS.map((g) => (
               <div key={g.id}>
-                <div className="mb-2 flex items-center gap-2">
+                <div className="mb-1 flex items-center gap-2">
                   <span
                     className="h-1.5 w-1.5 rounded-full"
                     style={{
@@ -218,15 +227,15 @@ function RbacPage() {
                       boxShadow: `0 0 8px -1px var(--${g.tone})`,
                     }}
                   />
-                  <span className="font-mono text-[10.5px] uppercase tracking-[0.18em] text-muted-foreground/60">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground/60">
                     {g.label}
                   </span>
                   <span className="h-px flex-1 bg-white/[0.06]" />
-                  <span className="font-mono text-[10.5px] text-muted-foreground/45">
+                  <span className="font-mono text-[10px] text-muted-foreground/45">
                     {isSovereign(role) ? g.items.length : g.items.filter((i) => role.scopes.includes(i.id)).length}/{g.items.length}
                   </span>
                 </div>
-                <div className="grid gap-x-6 gap-y-1.5 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="grid gap-x-6 gap-y-0.5 sm:grid-cols-2 lg:grid-cols-4">
                   {g.items.map((item) => (
                     <ScopeRow
                       key={item.id}
@@ -242,7 +251,7 @@ function RbacPage() {
             ))}
           </div>
 
-          <p className="mt-5 font-mono text-[11px] tracking-[0.1em] text-muted-foreground/50">
+          <p className="mt-3 font-mono text-[10.5px] tracking-[0.08em] text-muted-foreground/50">
             Admin role always sees every tab · unregistered scope = chat only ·
             {previewing
               ? " preview active — you are rendering as another principal; your own grants are untouched."
@@ -252,8 +261,9 @@ function RbacPage() {
           </p>
         </section>
       </div>
-    </Shell>
-  );
+    </div>
+  </Shell>
+);
 }
 
 function ScopeRow({

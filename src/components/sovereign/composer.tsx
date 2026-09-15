@@ -514,7 +514,7 @@ export function Composer({
   // --- Live Camera Capture Logic ---
   const startCamera = async () => {
     try {
-      // Önce UI'ı (Modalı ve video etiketini) açıyoruz ki DOM'a yerleşsin
+      // Open UI (modal and video tag) first so it mounts into the DOM
       setCameraOpen(true);
       
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -523,7 +523,7 @@ export function Composer({
       });
       streamRef.current = stream;
       
-      // DOM'un render olması için kısa bir gecikme verip stream'i bağlıyoruz
+      // Allow brief delay for DOM to settle before attaching stream
       setTimeout(() => {
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
@@ -531,7 +531,7 @@ export function Composer({
       }, 50);
     } catch (err) {
       console.error("Failed to access camera", err);
-      alert("Kameraya erişilemedi. Lütfen tarayıcı izinlerini kontrol edin.");
+      alert("Camera access failed. Please check browser permissions.");
       setCameraOpen(false);
     }
   };
@@ -610,7 +610,7 @@ export function Composer({
 
       recognition.onend = () => {
         if (recording) {
-           // continuous true olduğu için durmaması lazım, ama durursa tekrar başlat (Keep-alive)
+           // Keep-alive: restart recognition if it unexpectedly halts while recording is active
            try { recognition.start(); } catch(e) {}
         }
       };
@@ -628,7 +628,7 @@ export function Composer({
 
   const toggleRecording = () => {
     if (!recognitionRef.current) {
-      alert("Tarayıcınız sesli dikte (Speech-to-Text) özelliğini desteklemiyor. (Brave veya Safari/Chrome kullanın).");
+      alert("Your browser does not support Speech-to-Text dictation. Please use Chrome, Edge, or Safari.");
       return;
     }
     
@@ -637,7 +637,7 @@ export function Composer({
       setRecording(false);
     } else {
       try {
-        // Eski kayıttan kalan interim parçaları temizlemek için yeniden oluşturmak daha sağlıklı
+        // Start recognition session
         recognitionRef.current.start();
         setRecording(true);
       } catch(e) {

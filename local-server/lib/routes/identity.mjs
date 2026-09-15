@@ -270,7 +270,7 @@ export async function mountIdentityRoutes(app, deps) {
         provider: u.provider !== undefined ? u.provider : before.provider,
         role: u.role !== undefined ? u.role : before.role,
         groups: u.groups !== undefined ? JSON.stringify(u.groups) : JSON.stringify(before.groups || []),
-        template_id: u.templateId !== undefined ? u.templateId : before.template_id,
+        template_id: u.templateId !== undefined ? (u.templateId ? u.templateId : null) : before.template_id,
         status: u.status !== undefined ? u.status : before.status,
         valid_until: u.validUntil !== undefined ? (u.validUntil === "" ? null : u.validUntil) : before.valid_until,
         must_change_password: u.mustChangePassword !== undefined ? !!u.mustChangePassword : before.must_change_password,
@@ -299,6 +299,7 @@ export async function mountIdentityRoutes(app, deps) {
          fields.must_change_password, fields.avatar_style, fields.avatar_jewel, fields.avatar_seed, fields.allowed_providers, fields.can_override_provider,
          fields.allowed_agents, fields.allowed_tools, fields.allowed_skills, fields.locked, fields.tenant_id]
       );
+      await pool.query("DELETE FROM app_template_assignments WHERE username=$1", [fields.username]);
       if (fields.template_id) {
         await pool.query(
           `INSERT INTO app_template_assignments(id,username,template_id)
@@ -518,6 +519,7 @@ export async function mountIdentityRoutes(app, deps) {
           );
           if (rows[0]) {
             u = rows[0];
+            if (u.locked) { lastError = "account locked"; u = null; continue; }
             if (u.status !== "active") { lastError = `account ${u.status}`; u = null; continue; }
             if (u.valid_until && new Date(u.valid_until) < new Date()) { lastError = "account expired"; u = null; continue; }
             if (!verifyPassword(password, u.password_hash, u.password_salt)) {
@@ -588,7 +590,7 @@ export async function mountIdentityRoutes(app, deps) {
   // ---------- Sessions ----------
   app.get("/api/sessions", async (req, res) => {
     try {
-      await pool.query("DELETE FROM app_sessions WHERE last_seen < now() - interval '5 minutes'").catch(()=>{});
+      await pool.query("DELETE FROM app_sessions WHERE last_seen < now() - interval '24 hours'").catch(()=>{});
       const callerSid = String(req.headers["x-session-id"] || "").trim();
       if (callerSid) {
         await pool.query("UPDATE app_sessions SET last_seen=now() WHERE id=$1", [callerSid]).catch(()=>{});

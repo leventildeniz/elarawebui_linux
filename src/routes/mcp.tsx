@@ -43,6 +43,7 @@ import {
 import { gateAction } from "@/lib/approval-gate";
 import { cn, fmtDate, fmtTime } from "@/lib/utils";
 import { useAuthProviders } from "@/lib/auth-provider-store";
+import { useAccess } from "@/lib/rbac-store";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/mcp")({
@@ -79,8 +80,18 @@ type Entity = { id: string; name: string; hint: string };
 
 function McpPage() {
   const { view: tab } = Route.useSearch();
-  const canSeeServer = canManageMcpServer();
-  const effectiveTab = canSeeServer ? tab : "client";
+  const access = useAccess();
+  const ownerCtx = useOwnerCtx();
+  const isAdmin = ownerCtx.sovereign;
+
+  const canSeeServer = isAdmin || access.allows("mcp-server");
+  const canSeeClient = isAdmin || access.allows("mcp-client");
+
+  const allowedTabs: Array<"server" | "client"> = [];
+  if (canSeeServer) allowedTabs.push("server");
+  if (canSeeClient) allowedTabs.push("client");
+
+  const effectiveTab = allowedTabs.includes(tab) ? tab : (allowedTabs[0] ?? tab);
 
   return (
     <Surface title="MCP" meta="model context protocol · server + client" wide>
@@ -92,7 +103,11 @@ function McpPage() {
           exit={{ opacity: 0, y: -6 }}
           transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
         >
-          {effectiveTab === "server" ? <ServerTab /> : <ClientTab />}
+          {effectiveTab === "server" && canSeeServer ? (
+            <ServerTab />
+          ) : canSeeClient ? (
+            <ClientTab />
+          ) : null}
         </motion.div>
       </AnimatePresence>
     </Surface>

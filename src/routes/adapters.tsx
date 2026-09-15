@@ -35,6 +35,7 @@ import {
 import { useVaultStore } from "@/lib/vault-store";
 import { gateAction } from "@/lib/approval-gate";
 import { useWebhooks, emptyWebhook, type Webhook } from "@/lib/webhook-store";
+import { useAccess } from "@/lib/rbac-store";
 import { cn } from "@/lib/utils";
 
 const field =
@@ -1178,6 +1179,7 @@ function WebhooksTab() {
 
 function AdaptersPage() {
   const { view: tab } = Route.useSearch();
+  const access = useAccess();
   const {
     dict,
     adapters,
@@ -1188,6 +1190,16 @@ function AdaptersPage() {
     testAdapter,
     resetAll,
   } = useAdapters();
+
+  const canSeeAdapters = ownerCtx.sovereign || access.allows("adapters");
+  const canSeeWebhooks = ownerCtx.sovereign || access.allows("webhooks");
+
+  const allowedTabs: Array<"adapters" | "webhooks"> = [];
+  if (canSeeAdapters) allowedTabs.push("adapters");
+  if (canSeeWebhooks) allowedTabs.push("webhooks");
+
+  const effectiveTab = allowedTabs.includes(tab) ? tab : (allowedTabs[0] ?? tab);
+
   const [dictOpen, setDictOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [cat, setCat] = useState("all");
@@ -1210,15 +1222,15 @@ function AdaptersPage() {
   return (
     <Surface
       wide
-      title={tab === "webhooks" ? "Webhooks" : "Adapters"}
+      title={effectiveTab === "webhooks" ? "Webhooks" : "Adapters"}
       meta={
-        tab === "webhooks"
+        effectiveTab === "webhooks"
           ? "inbound channel adapters · slug · secret · routing"
           : `${adapters.length} adapters · ${adapters.filter((a) => a.enabled).length} enabled · ${dict.category.length} categories`
       }
-      crumb={tab === "webhooks" ? "Webhooks" : "Adapters"}
+      crumb={effectiveTab === "webhooks" ? "Webhooks" : "Adapters"}
       action={
-        tab === "webhooks" ? (
+        effectiveTab === "webhooks" ? (
           <div className="flex items-center gap-2">
             <MiniButton
               tone="platinum"
@@ -1267,13 +1279,13 @@ function AdaptersPage() {
     >
       <AnimatePresence mode="wait">
         <motion.div
-          key={tab}
+          key={effectiveTab}
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -6 }}
           transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
         >
-          {tab === "webhooks" ? (
+          {effectiveTab === "webhooks" ? (
             <>
               <p className="max-w-[760px] text-[13.5px] leading-relaxed text-muted-foreground/75">
                 One registry for inbound webhooks — every entry gets its own slug, secret and URL.

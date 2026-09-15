@@ -32,6 +32,8 @@ import {
 import { Surface } from "@/components/sovereign/surface";
 import { JewelButton, StatusDot, Tag } from "@/components/sovereign/primitives";
 import { confirmAction } from "@/components/sovereign/confirm-dialog";
+import { useAccess } from "@/lib/rbac-store";
+import { readOwnerCtx } from "@/lib/ownership";
 import {
   topEntities,
   useKnowledge,
@@ -83,6 +85,22 @@ const label = "mono-label mb-1.5 block";
 function KnowledgePage() {
   const { view: tab } = Route.useSearch();
   const [addOpen, setAddOpen] = useState(false);
+  const access = useAccess();
+  const ownerCtx = readOwnerCtx();
+  const isAdmin = ownerCtx.sovereign;
+
+  const tabScopes = {
+    control: "knowledge-control",
+    spaces: "knowledge-spaces",
+    aliases: "knowledge-aliases",
+    tuning: "knowledge-tuning",
+  } as const;
+
+  const allowedTabs = (["control", "spaces", "aliases", "tuning"] as const).filter(
+    (t) => isAdmin || access.allows(tabScopes[t]),
+  );
+
+  const activeTab = allowedTabs.includes(tab as any) ? tab : (allowedTabs[0] ?? tab);
 
   return (
     <Surface
@@ -91,7 +109,7 @@ function KnowledgePage() {
       wide
       action={
         <div className="flex items-center gap-1.5">
-          {tab === "control" && (
+          {activeTab === "control" && (
             <JewelButton size="sm" onClick={() => setAddOpen(true)}>
               <Plus size={13} /> Add Source
             </JewelButton>
@@ -101,16 +119,16 @@ function KnowledgePage() {
     >
       <AnimatePresence mode="wait">
         <motion.div
-          key={tab}
+          key={activeTab}
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -6 }}
           transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
         >
-          {tab === "control" && <ControlTab />}
-          {tab === "spaces" && <KnowledgeSpacesTab />}
-          {tab === "aliases" && <BrandAliasesTab />}
-          {tab === "tuning" && <AdvancedTuningTab />}
+          {activeTab === "control" && <ControlTab />}
+          {activeTab === "spaces" && <KnowledgeSpacesTab />}
+          {activeTab === "aliases" && <BrandAliasesTab />}
+          {activeTab === "tuning" && <AdvancedTuningTab />}
         </motion.div>
       </AnimatePresence>
 

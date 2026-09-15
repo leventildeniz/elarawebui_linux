@@ -36,27 +36,6 @@ const fieldCls =
 type Manager = "systemd" | "launchd" | "custom";
 type Transport = "local-agent" | "ssh";
 
-type SearchProviderType = "duckduckgo" | "tavily" | "searxng" | "brave";
-
-type SearchProvider = {
-  id: string;
-  name: string;
-  provider_type: SearchProviderType;
-  base_url: string;
-  api_key_ref: string;
-  priority: number;
-  active: boolean;
-};
-
-const emptySearchDraft: Omit<SearchProvider, "id"> = {
-  name: "",
-  provider_type: "tavily",
-  base_url: "",
-  api_key_ref: "",
-  priority: 5,
-  active: true,
-};
-
 type Service = {
   id: string;
   key: string;
@@ -163,14 +142,6 @@ function ServicesPage() {
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft>({ ...emptyDraft });
 
-  // Web Search Providers State
-  const [providers, setProviders] = useState<SearchProvider[]>([]);
-  const [addingProvider, setAddingProvider] = useState(false);
-  const [editingProvider, setEditingProvider] = useState<string | null>(null);
-  const [draftProvider, setDraftProvider] = useState<Omit<SearchProvider, "id">>({
-    ...emptySearchDraft,
-  });
-
   const fetchServices = useCallback(async () => {
     try {
       const data = await fetchApi("/api/system/services");
@@ -187,21 +158,11 @@ function ServicesPage() {
     setReady(true);
   }, []);
 
-  const fetchProviders = useCallback(async () => {
-    try {
-      const data = await fetchApi("/api/search-providers");
-      if (Array.isArray(data)) setProviders(data);
-    } catch (err) {
-      console.error("Failed to load search providers", err);
-    }
-  }, []);
-
   useEffect(() => {
     fetchServices();
-    fetchProviders();
     const timer = setInterval(fetchServices, 10000);
     return () => clearInterval(timer);
-  }, [fetchServices, fetchProviders]);
+  }, [fetchServices]);
 
   const add = async () => {
     if (!draft.key.trim()) return;
@@ -240,48 +201,6 @@ function ServicesPage() {
       setServices((s) => s.map((x) => (x.id === id ? { ...x, ...patch } : x)));
     } catch (e) {
       console.error("Failed to update service", e);
-    }
-  };
-
-  const addProvider = async () => {
-    const name = draftProvider.name.trim() || draftProvider.provider_type;
-    try {
-      const payload = { ...draftProvider, name };
-      const res = await fetchApi("/api/search-providers", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
-      if (res.id) {
-        setProviders((p) => [...p, { ...payload, id: res.id } as SearchProvider]);
-      }
-    } catch (e) {
-      console.error("Failed to add search provider", e);
-    }
-    setDraftProvider({ ...emptySearchDraft });
-    setAddingProvider(false);
-  };
-
-  const saveProvider = async (id: string, patch: Partial<SearchProvider>) => {
-    try {
-      const existing = providers.find((x) => x.id === id);
-      if (!existing) return;
-      const payload = { ...existing, ...patch };
-      await fetchApi("/api/search-providers", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
-      setProviders((p) => p.map((x) => (x.id === id ? payload : x)));
-    } catch (e) {
-      console.error("Failed to update search provider", e);
-    }
-  };
-
-  const removeProvider = async (id: string) => {
-    try {
-      await fetchApi(`/api/search-providers/${id}`, { method: "DELETE" });
-      setProviders((p) => p.filter((x) => x.id !== id));
-    } catch (e) {
-      console.error("Failed to remove search provider", e);
     }
   };
 
@@ -488,278 +407,6 @@ function ServicesPage() {
 
       {/* ENTERPRISE HA CLUSTER & INFRASTRUCTURE HUB */}
       <EnterpriseInfrastructureHub />
-
-      {/* WEB SEARCH PROVIDERS TOWER */}
-      <motion.section
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.15, delay: 0.05, ease: [0.22, 1, 0.36, 1] }}
-        className="mt-6 rounded-xl border border-white/[0.07] bg-white/[0.015] p-6"
-      >
-        <header className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="font-mono text-[13px] uppercase tracking-[0.18em] text-foreground">
-            Web Search Engine Tower
-          </h2>
-          <div className="flex items-center gap-3">
-            <span className="font-mono text-[11px] text-muted-foreground/50">
-              fallback engine chain
-            </span>
-            <JewelButton
-              size="sm"
-              variant="primary"
-              onClick={() => {
-                setAddingProvider(true);
-                setEditingProvider(null);
-                setDraftProvider({ ...emptySearchDraft });
-              }}
-            >
-              <Plus size={12} /> Add provider
-            </JewelButton>
-          </div>
-        </header>
-
-        {addingProvider && (
-          <div className="mt-4 rounded-xl border border-white/[0.06] bg-raised/20 p-5">
-            <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
-              <span className="font-mono text-[12px] uppercase tracking-wider text-sapphire">
-                New Search Provider
-              </span>
-              <button
-                onClick={() => setAddingProvider(false)}
-                className="text-muted-foreground/60 transition-colors hover:text-foreground"
-              >
-                close
-              </button>
-            </div>
-
-            <div className="mt-4 grid gap-x-5 gap-y-3 md:grid-cols-2">
-              <div>
-                <span className={labelCls}>Name</span>
-                <input
-                  className={fieldCls}
-                  placeholder="e.g. My Tavily Account"
-                  value={draftProvider.name}
-                  onChange={(e) => setDraftProvider({ ...draftProvider, name: e.target.value })}
-                />
-              </div>
-              <div>
-                <span className={labelCls}>Provider Type</span>
-                <select
-                  className={fieldCls}
-                  value={draftProvider.provider_type}
-                  onChange={(e) =>
-                    setDraftProvider({
-                      ...draftProvider,
-                      provider_type: e.target.value as SearchProviderType,
-                    })
-                  }
-                >
-                  <option value="tavily" className="bg-panel">
-                    Tavily Search API
-                  </option>
-                  <option value="searxng" className="bg-panel">
-                    SearXNG (Self-Hosted)
-                  </option>
-                  <option value="duckduckgo" className="bg-panel">
-                    DuckDuckGo (Free HTML)
-                  </option>
-                  <option value="brave" className="bg-panel">
-                    Brave Search API
-                  </option>
-                </select>
-              </div>
-              <div>
-                <span className={labelCls}>Priority (1=High, 10=Low)</span>
-                <input
-                  type="number"
-                  min="1"
-                  max="10"
-                  className={fieldCls}
-                  value={draftProvider.priority}
-                  onChange={(e) =>
-                    setDraftProvider({
-                      ...draftProvider,
-                      priority: parseInt(e.target.value, 10) || 5,
-                    })
-                  }
-                />
-              </div>
-              <div className="md:col-span-2">
-                <span className={labelCls}>Base URL (SearXNG etc.)</span>
-                <input
-                  className={fieldCls}
-                  placeholder="http://my-searxng:8080/search"
-                  value={draftProvider.base_url}
-                  onChange={(e) => setDraftProvider({ ...draftProvider, base_url: e.target.value })}
-                />
-              </div>
-              <div className="md:col-span-2">
-                <span className={labelCls}>API Key / Credential</span>
-                <VaultKeyField
-                  value={draftProvider.api_key_ref}
-                  onChange={(v) => setDraftProvider({ ...draftProvider, api_key_ref: v })}
-                />
-              </div>
-            </div>
-
-            <div className="mt-5 flex items-center justify-end gap-3 border-t border-white/[0.06] pt-4">
-              <ResetButton
-                title="Reset Provider?"
-                onReset={() => setDraftProvider({ ...emptySearchDraft })}
-              />
-              <SaveButton onSave={addProvider} />
-            </div>
-          </div>
-        )}
-
-        <div className="mt-6 flex flex-col gap-[2px]">
-          {providers.map((p) => (
-            <div key={p.id} className="group relative">
-              <div className="flex flex-wrap items-center justify-between gap-4 rounded-[10px] border border-transparent bg-white/[0.015] px-4 py-3 transition-colors hover:border-white/[0.04] hover:bg-white/[0.03]">
-                <div className="flex items-center gap-4">
-                  <button
-                    type="button"
-                    onClick={() => saveProvider(p.id, { active: !p.active })}
-                    className={cn(
-                      "flex h-[20px] w-[34px] items-center rounded-full border transition-all duration-200",
-                      p.active ? "border-emerald/50 bg-emerald/15" : "border-white/10 bg-white/5",
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "h-[12px] w-[12px] rounded-full transition-all duration-200",
-                        p.active ? "ml-[18px] bg-emerald" : "ml-[3px] bg-muted-foreground/40",
-                      )}
-                    />
-                  </button>
-
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-[13px] font-medium text-foreground">
-                        {p.name}
-                      </span>
-                      <span className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground/60">
-                        {p.provider_type}
-                      </span>
-                      <span className="rounded bg-topaz/10 px-1.5 py-0.5 font-mono text-[10px] text-topaz">
-                        P{p.priority}
-                      </span>
-                    </div>
-                    <div className="mt-1 font-mono text-[11.5px] text-muted-foreground/50">
-                      {p.id} {p.base_url && `· ${p.base_url}`}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                  <button
-                    onClick={() => {
-                      setAddingProvider(false);
-                      setEditingProvider((e) => (e === p.id ? null : p.id));
-                    }}
-                    className="rounded-md p-1 text-muted-foreground/60 hover:text-sapphire"
-                    aria-label="configure"
-                    title="configure"
-                  >
-                    <Plug size={13} strokeWidth={1.7} />
-                  </button>
-                  <button
-                    onClick={async () => {
-                      const ok = await confirmAction({
-                        title: `Delete ${p.name}?`,
-                        body: "The search provider will be removed from the fallback chain.",
-                        confirmLabel: "Delete",
-                        tone: "ruby",
-                      });
-                      if (ok) removeProvider(p.id);
-                    }}
-                    className="rounded-md p-1 text-muted-foreground/50 hover:text-ruby"
-                    aria-label="delete"
-                    title="delete"
-                  >
-                    <Trash2 size={13} strokeWidth={1.7} />
-                  </button>
-                </div>
-              </div>
-
-              {editingProvider === p.id && (
-                <div className="mb-4 mt-2 rounded-xl border border-white/[0.06] bg-raised/20 p-5">
-                  <div className="grid gap-x-5 gap-y-3 md:grid-cols-2">
-                    <div>
-                      <span className={labelCls}>Name</span>
-                      <input
-                        className={fieldCls}
-                        value={p.name}
-                        onChange={(e) => saveProvider(p.id, { name: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <span className={labelCls}>Provider Type</span>
-                      <select
-                        className={fieldCls}
-                        value={p.provider_type}
-                        onChange={(e) =>
-                          saveProvider(p.id, {
-                            provider_type: e.target.value as SearchProviderType,
-                          })
-                        }
-                      >
-                        <option value="tavily" className="bg-panel">
-                          Tavily Search API
-                        </option>
-                        <option value="searxng" className="bg-panel">
-                          SearXNG (Self-Hosted)
-                        </option>
-                        <option value="duckduckgo" className="bg-panel">
-                          DuckDuckGo (Free HTML)
-                        </option>
-                        <option value="brave" className="bg-panel">
-                          Brave Search API
-                        </option>
-                      </select>
-                    </div>
-                    <div>
-                      <span className={labelCls}>Priority (1=High, 10=Low)</span>
-                      <input
-                        type="number"
-                        min="1"
-                        max="10"
-                        className={fieldCls}
-                        value={p.priority}
-                        onChange={(e) =>
-                          saveProvider(p.id, {
-                            priority: parseInt(e.target.value, 10) || 5,
-                          })
-                        }
-                      />
-                    </div>
-                    <div className="md:col-span-2">
-                      <span className={labelCls}>Base URL (SearXNG etc.)</span>
-                      <input
-                        className={fieldCls}
-                        value={p.base_url}
-                        onChange={(e) => saveProvider(p.id, { base_url: e.target.value })}
-                      />
-                    </div>
-                    <div className="md:col-span-2">
-                      <span className={labelCls}>API Key / Credential</span>
-                      <VaultKeyField
-                        value={p.api_key_ref}
-                        onChange={(v) => saveProvider(p.id, { api_key_ref: v })}
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
-          {providers.length === 0 && (
-            <p className="font-mono text-[11.5px] text-muted-foreground/45">
-              tower empty — add a search engine to enable web capabilities
-            </p>
-          )}
-        </div>
-      </motion.section>
     </Surface>
   );
 }

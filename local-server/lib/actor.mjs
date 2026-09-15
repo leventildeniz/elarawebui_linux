@@ -26,16 +26,18 @@ export async function resolveDefaultActor() {
 }
 
 export async function resolveActor(req) {
-  const actor = String(
-    req?.session?.username ||
-    req?.actor ||
-    req?.headers?.["x-user"] ||
-    req?.headers?.["x-username"] ||
-    ""
-  ).trim().toLowerCase();
-  if (actor) return actor;
+  if (req?.session?.username) {
+    return String(req.session.username).trim().toLowerCase();
+  }
+  if (req?.actor) {
+    return String(req.actor).trim().toLowerCase();
+  }
   if (_hasLoopbackAdminToken(req)) {
     return await resolveDefaultActor();
+  }
+  if (_isLoopbackReq(req)) {
+    const loopbackActor = String(req?.headers?.["x-user"] || req?.headers?.["x-username"] || "").trim().toLowerCase();
+    if (loopbackActor) return loopbackActor;
   }
   return null;
 }
@@ -103,7 +105,8 @@ export async function resolveActorContext(req) {
       }
     }
 
-    const allRoles = [role, ...groupRoles, ...templateRoles].filter(Boolean).map(r => String(r).toLowerCase());
+    // Roles derive strictly from the account and assigned groups — templates govern AI inference, not RBAC roles
+    const allRoles = [role, ...groupRoles].filter(Boolean).map(r => String(r).toLowerCase());
     let effectiveRole = role || "viewer";
     if (allRoles.includes("admin") || allRoles.includes("sovereign")) {
       effectiveRole = "admin";

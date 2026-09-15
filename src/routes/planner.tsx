@@ -67,14 +67,28 @@ type Tab = "control" | "insights" | "runs" | "advanced";
 
 function PlannerPage() {
   const { plane } = Route.useSearch();
+  const access = useAccess();
+  const ownerCtx = useOwnerCtx();
+  const isAdmin = ownerCtx.sovereign;
+
+  const planeScopes: Record<PlannerKind, string> = {
+    tool: "planner-tool",
+    skill: "planner-skill",
+    mcp: "planner-mcp",
+  };
+
+  const allowedPlanes = (["tool", "skill", "mcp"] as const).filter(
+    (p) => isAdmin || access.allows(planeScopes[p]),
+  );
+
+  const activePlane = allowedPlanes.includes(plane) ? plane : (allowedPlanes[0] ?? plane);
+
   const { planners, create, update, remove } = usePlanners();
   const [openId, setOpenId] = useState<string | null>(null);
   const [dialog, setDialog] = useState<{ mode: "new" | "edit"; planner?: Planner } | null>(null);
   const [confirm, setConfirm] = useState<string | null>(null);
 
   const active = planners.find((p) => p.id === openId) ?? null;
-  /* Planners from other desks stay visible but sealed. */
-  const ownerCtx = useOwnerCtx();
 
   if (active) {
     return (
@@ -103,9 +117,9 @@ function PlannerPage() {
     );
   }
 
-  const scoped = planners.filter((p) => p.kind === plane);
+  const scoped = planners.filter((p) => p.kind === activePlane);
   const enabled = scoped.filter((p) => p.enabled).length;
-  const meta = plannerKinds.find((k) => k.id === plane)!;
+  const meta = plannerKinds.find((k) => k.id === activePlane) ?? plannerKinds[0]!;
 
   return (
     <Surface

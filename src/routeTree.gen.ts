@@ -51,6 +51,7 @@ import { Route as ToolsRouteImport } from './routes/tools'
 import { Route as UsersRouteImport } from './routes/users'
 import { Route as VisionRouteImport } from './routes/vision'
 import { Route as VisionAudioRouteImport } from './routes/vision-audio'
+import { Route as WebSearchRouteImport } from './routes/web-search'
 import { Route as ReportingCostRouteImport } from './routes/reporting.cost'
 import { Route as ReportingExportsRouteImport } from './routes/reporting.exports'
 import { Route as ReportingInvoicingRouteImport } from './routes/reporting.invoicing'
@@ -270,6 +271,11 @@ const VisionAudioRoute = VisionAudioRouteImport.update({
   path: '/vision-audio',
   getParentRoute: () => rootRouteImport,
 } as any)
+const WebSearchRoute = WebSearchRouteImport.update({
+  id: '/web-search',
+  path: '/web-search',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ReportingCostRoute = ReportingCostRouteImport.update({
   id: '/reporting/cost',
   path: '/reporting/cost',
@@ -354,6 +360,7 @@ export interface FileRoutesByFullPath {
   '/users': typeof UsersRoute
   '/vision': typeof VisionRoute
   '/vision-audio': typeof VisionAudioRoute
+  '/web-search': typeof WebSearchRoute
   '/reporting/cost': typeof ReportingCostRoute
   '/reporting/exports': typeof ReportingExportsRoute
   '/reporting/invoicing': typeof ReportingInvoicingRoute
@@ -406,6 +413,7 @@ export interface FileRoutesByTo {
   '/users': typeof UsersRoute
   '/vision': typeof VisionRoute
   '/vision-audio': typeof VisionAudioRoute
+  '/web-search': typeof WebSearchRoute
   '/reporting/cost': typeof ReportingCostRoute
   '/reporting/exports': typeof ReportingExportsRoute
   '/reporting/invoicing': typeof ReportingInvoicingRoute
@@ -459,6 +467,7 @@ export interface FileRoutesById {
   '/users': typeof UsersRoute
   '/vision': typeof VisionRoute
   '/vision-audio': typeof VisionAudioRoute
+  '/web-search': typeof WebSearchRoute
   '/reporting/cost': typeof ReportingCostRoute
   '/reporting/exports': typeof ReportingExportsRoute
   '/reporting/invoicing': typeof ReportingInvoicingRoute
@@ -513,6 +522,7 @@ export interface FileRouteTypes {
     | '/users'
     | '/vision'
     | '/vision-audio'
+    | '/web-search'
     | '/reporting/cost'
     | '/reporting/exports'
     | '/reporting/invoicing'
@@ -565,6 +575,7 @@ export interface FileRouteTypes {
     | '/users'
     | '/vision'
     | '/vision-audio'
+    | '/web-search'
     | '/reporting/cost'
     | '/reporting/exports'
     | '/reporting/invoicing'
@@ -617,6 +628,7 @@ export interface FileRouteTypes {
     | '/users'
     | '/vision'
     | '/vision-audio'
+    | '/web-search'
     | '/reporting/cost'
     | '/reporting/exports'
     | '/reporting/invoicing'
@@ -670,6 +682,7 @@ export interface RootRouteChildren {
   UsersRoute: typeof UsersRoute
   VisionRoute: typeof VisionRoute
   VisionAudioRoute: typeof VisionAudioRoute
+  WebSearchRoute: typeof WebSearchRoute
   ReportingCostRoute: typeof ReportingCostRoute
   ReportingExportsRoute: typeof ReportingExportsRoute
   ReportingInvoicingRoute: typeof ReportingInvoicingRoute
@@ -976,6 +989,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VisionAudioRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/web-search': {
+      id: '/web-search'
+      path: '/web-search'
+      fullPath: '/web-search'
+      preLoaderRoute: typeof WebSearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/reporting/cost': {
       id: '/reporting/cost'
       path: '/reporting/cost'
@@ -1078,6 +1098,7 @@ const rootRouteChildren: RootRouteChildren = {
   UsersRoute: UsersRoute,
   VisionRoute: VisionRoute,
   VisionAudioRoute: VisionAudioRoute,
+  WebSearchRoute: WebSearchRoute,
   ReportingCostRoute: ReportingCostRoute,
   ReportingExportsRoute: ReportingExportsRoute,
   ReportingInvoicingRoute: ReportingInvoicingRoute,

@@ -491,8 +491,12 @@ export async function dispatchToolCall({
   else if (realToolId === "sys_web_search") {
     const query = parsedArgs.query;
     try {
+      const tenantId = context?.actorCtx?.tenantId || "default";
       const searchProvidersRes = await pool.query(
-        `SELECT provider_type, base_url, api_key_ref FROM search_providers WHERE active = true ORDER BY priority ASC`
+        `SELECT provider_type, base_url, api_key_ref FROM search_providers 
+         WHERE active = true AND (tenant_id = $1 OR is_global = true) 
+         ORDER BY (tenant_id = $1) DESC, priority ASC`,
+        [tenantId]
       );
       const providers = searchProvidersRes.rows;
       let searchSuccess = false;

@@ -83,7 +83,8 @@ export function attachSessionContext() {
     try {
       const { rows } = await _pool.query(
         `SELECT s.id, s.user_id, s.username, s.role, s.provider, s.tenant_id, s.last_seen,
-                u.role AS db_role, u.tenant_id AS user_tenant_id
+                u.role AS db_role, u.tenant_id AS user_tenant_id,
+                u.locked, u.status AS user_status, u.valid_until
            FROM app_sessions s
            LEFT JOIN app_users u ON lower(u.username) = lower(s.username)
           WHERE s.id = $1
@@ -92,7 +93,16 @@ export function attachSessionContext() {
       );
       const row = rows[0];
       if (row) {
-        // Stale session check (24h)
+        // Enforce account security locks, status, and expiration
+        const isLocked = Boolean(row.locked) || row.user_status === "locked" || row.user_status === "suspended" || row.user_status === "disabled";
+        const isExpired = row.valid_until && new Date(row.valid_until).getTime() < Date.now();
+        if (isLocked || isExpired) {
+          _pool.query("DELETE FROM app_sessions WHERE id = $1", [sid]).catch(() => {});
+          req.session = null;
+          return next();
+        }
+
+        // Session expiration check (24h ceiling)
         const lastSeen = row.last_seen ? new Date(row.last_seen).getTime() : 0;
         if (!lastSeen || Date.now() - lastSeen <= 24 * 60 * 60 * 1000) {
           const role = String(row.db_role || row.role || "user").toLowerCase();
@@ -107,24 +117,6 @@ export function attachSessionContext() {
           _pool.query("UPDATE app_sessions SET last_seen = now() WHERE id = $1", [sid]).catch(() => {});
           return next();
         }
-      }
-
-      // Fallback: If sid is directly a username in development/loopback, resolve their real DB user profile
-      const { rows: uRows } = await _pool.query(
-        `SELECT id, username, role, tenant_id, provider FROM app_users WHERE lower(username) = lower($1) LIMIT 1`,
-        [sid]
-      );
-      if (uRows[0]) {
-        const u = uRows[0];
-        req.session = {
-          id: sid,
-          userId: u.id,
-          username: String(u.username).toLowerCase(),
-          role: String(u.role || "user").toLowerCase(),
-          tenant_id: u.tenant_id || "default",
-          provider: u.provider || "local",
-        };
-        return next();
       }
     } catch (err) {
       // DB error in session resolution
