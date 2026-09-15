@@ -1731,6 +1731,37 @@ ELARA Sovereign Studio genelinde **Zero-Trust Çoklu Kiracı (Multi-Tenancy) ve 
 
    ---
 
+   ### 🏆 RESOLVED — POST-FAZ B: NON-ADMIN RBAC REDIRECT & HYDRATION MISMATCH FIX
+
+   **Çözülen Problemler ve Uygulanan Cerrahi Müdahaleler:**
+   1. **Zero-Race Synchronous RBAC State (`src/lib/rbac-store.ts`):**
+      - `useRoles()` hook'u boş dizi (`[]`) yerine senkron olarak `read()` (`localStorage`) verisiyle başlatıldı.
+      - `loaded` ve `ready` bayrakları entegre edildi; roller senkronize edilirken kullanıcıların yetkili olduğu sayfalar (`/agents`, `/rag-documents`, `/flows` vb.) sahte `false` üretilerek engellenmesi önlendi.
+      - `useAccess()` fallback olarak `readActiveRole()` fonksiyonunu devreye alarak soğuk açılışlarda rolün her zaman el altında olmasını sağladı.
+   2. **Race-Free Route Guard & Graceful Access Enforcement (`src/components/sovereign/shell.tsx`):**
+      - `Shell` içerisindeki `navigate({ to: "/" })` yönlendirmesi `access.ready` koşuluna bağlandı. Roller henüz ağdan veya depodan çözümlenirken kullanıcıyı aceleyle ana sayfaya fırlatan yarış durumu giderildi.
+      - Yetkisiz roller (örneğin sadece `chat` izni olan `Viewer`) yetkisiz bir sayfaya gitmeye çalıştığında `rbac.denied` emit edilerek ana sayfaya fırlatılmaya devam eder (Zero-Trust mühürlendi).
+   3. **Synchronous Space Context Resolution (`src/lib/knowledge-space-store.ts`):**
+      - `readSpaceCtx()` fonksiyonu eklendi; `useSpaceAccess()` ilk render'da boş `{ userId: "", groupIds: [] }` yerine oturum açmış kullanıcının kimliğiyle başlatıldı.
+      - `spc.shared` (`readerGroups: ["*"]`) alanı sayesinde standart operatörler için de `spaceAccess.enabled` anında `true` döner; `/rag-documents` rotası menüden kaybolmaz.
+   4. **SSR Hydration Mismatch Tasfiyesi (`src/routes/login.tsx`, `shell.tsx`):**
+      - `login.tsx` içerisindeki suni `sessionStorage.setItem("sovereign.sidebar.closed", "1")` kaldırıldı.
+      - `shell.tsx` menü genişlik başlangıç değeri SSR ile birebir uyumlu hale getirildi (`open = true`).
+      - Hydration çökmeleri ve konsol uyarıları tamamen giderildi.
+   5. **17-Tablo Tam Veritabanı & Zero-Desk Paritesi (`telemetry_boards` & `telemetry.mjs`):**
+      - `telemetry_boards` tablosuna `visibility text DEFAULT 'private'` ve `shared_with jsonb DEFAULT '[]'::jsonb` kolonları eklendi.
+      - Sistem tohumu olan `tb.agents` panosu `is_global = true` ve `visibility = 'workspace'` yapılarak ortak erişim korundu.
+      - Operatörlerin (`deneme2`) oluşturduğu yeni panolar varsayılan olarak **MINE (`private`)** bandına kilitlendi; diğer operatörlerin masalarına sızması engellendi.
+      - Tüm veritabanındaki 17 tablonun tamamı (%100) simetrik ve tekdüze `visibility`, `shared_with`, `tenant_id` mimarisine kavuşturuldu.
+      - Canlı test ile doğrulandı: `deneme2`'nin oluşturduğu private pano `deneme` kullanıcısına görünmedi (Tam Desk İzolasyonu); kendi panosunu 204 No Content ile başarıyla silebildi.
+      - `local-server/lib/routes/telemetry.mjs` GET ve POST işleyicileri `visibility` ve `shared_with` destekleyecek şekilde güncellendi; `GET /api/telemetry/boards` 500 hatası kalıcı olarak giderilerek 200 OK sağlandı.
+      - `agents-templates.mjs` içindeki `siem?.status?.()` çağrısı güvenli hale getirildi.
+   6. **Doğrulama:**
+      - `npx tsc --noEmit` 0 hata ile doğrulandı.
+      - `node --check local-server/server.mjs` 0 hata ile doğrulandı.
+      - Canlı API oturum testi (`s_jtf7vn4wmu36p591` - `deneme2`) ile tüm uç noktalar (agents, knowledge, workflows, skills, targets, adapters, forge, models, approvals, telemetry/boards) 200 OK döndü.
+      - Tüm servisler (`elara-middleware`, `elara-vite`, `elara-worker`) aktif ve sağlıklı.
+
    ---
 
    ### 🔒 FAZ C: NetSec Güvenlik & Penetrasyon Denetimi (Kurumsal Güvenlik Mührü)

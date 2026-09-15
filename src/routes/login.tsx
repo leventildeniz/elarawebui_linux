@@ -156,7 +156,6 @@ function LoginPage() {
         }
 
         sessionStorage.setItem("sovereign.operator", data.user.username);
-        sessionStorage.setItem("sovereign.sidebar.closed", "1");
         
         // Notify all in-memory stores that principal context has switched
         window.dispatchEvent(new CustomEvent("sovereign:identity"));
@@ -167,9 +166,9 @@ function LoginPage() {
       }
 
       // Ensure the studio filters every surface based on the real role from the backend
-      bindSessionRole(data.user.role);
+      await bindSessionRole(data.user.role);
 
-      navigate({ to: "/" });
+      window.location.href = "/";
     } catch (err) {
       setBusy(false);
       console.error("[Login Error]", err);

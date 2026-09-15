@@ -87,6 +87,8 @@ export function mountTelemetryRoutes(app, deps) {
         tone: r.tone || "sapphire",
         entries: r.entries || [],
         ownerId: r.owner_id,
+        visibility: r.visibility || "workspace",
+        sharedWith: r.shared_with || [],
         createdAt: new Date(r.created_at).getTime()
       })));
     } catch (e) {
@@ -100,20 +102,24 @@ export function mountTelemetryRoutes(app, deps) {
       const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : null;
       const b = req.body ?? {};
       const id = b.id || `tb_${Math.random().toString(36).slice(2, 9)}`;
-      const ownerId = ctx?.userId || ctx?.actor || null;
-      const tenantId = ctx?.tenantId || "default";
+      const ownerId = req.session?.userId || req.session?.username || ctx?.userId || ctx?.actor || null;
+      const tenantId = req.session?.tenant_id || ctx?.tenantId || "default";
+      const visibility = b.visibility || "private";
+      const sharedWith = Array.isArray(b.sharedWith) ? b.sharedWith : (Array.isArray(b.shared_with) ? b.shared_with : []);
       await pool.query(
-        `INSERT INTO telemetry_boards (id, name, tone, entries, owner_id, tenant_id, created_at)
-         VALUES ($1, $2, $3, $4::jsonb, $5, $6, now())
+        `INSERT INTO telemetry_boards (id, name, tone, entries, owner_id, tenant_id, visibility, shared_with, created_at)
+         VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8::jsonb, now())
          ON CONFLICT (id) DO UPDATE SET
-           name=EXCLUDED.name, tone=EXCLUDED.tone, entries=EXCLUDED.entries`,
-        [id, b.name || "Untitled board", b.tone || "sapphire", JSON.stringify(b.entries || []), ownerId, tenantId]
+           name=EXCLUDED.name, tone=EXCLUDED.tone, entries=EXCLUDED.entries,
+           visibility=EXCLUDED.visibility, shared_with=EXCLUDED.shared_with`,
+        [id, b.name || "Untitled board", b.tone || "sapphire", JSON.stringify(b.entries || []), ownerId, tenantId, visibility, JSON.stringify(sharedWith)]
       );
       const { rows } = await pool.query("SELECT * FROM telemetry_boards WHERE id = $1", [id]);
       const r = rows[0];
       res.json({ ok: true, board: {
         id: r.id, name: r.name, tone: r.tone || "sapphire", entries: r.entries || [],
-        ownerId: r.owner_id, createdAt: new Date(r.created_at).getTime()
+        ownerId: r.owner_id, visibility: r.visibility || "private", sharedWith: r.shared_with || [],
+        createdAt: new Date(r.created_at).getTime()
       }});
     } catch (e) {
       res.status(500).json({ ok: false, error: String(e.message || e) });
@@ -486,6 +492,7 @@ export function mountTelemetryRoutes(app, deps) {
                COALESCE(SUM(u.prompt_tokens), 0)::bigint as tokens_in,
                COALESCE(SUM(u.response_tokens), 0)::bigint as tokens_out,
                COUNT(u.id)::int as requests,
+               COALESCE(SUM(u.cost_usd), 0)::numeric as cost_usd,
                COALESCE(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY u.latency_ms), 0)::int as p95,
                COUNT(NULLIF(u.status, 'ok'))::float / NULLIF(COUNT(u.id), 0) as error_rate
         FROM ai_providers p
@@ -502,7 +509,7 @@ export function mountTelemetryRoutes(app, deps) {
                COUNT(u.id)::int as requests,
                COALESCE(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY u.latency_ms), 0)::int as p95
         FROM app_users a
-        JOIN chat_threads ct ON ct.user_id = a.id
+        JOIN chat_threads ct ON (ct.owner_id = a.id OR lower(ct.owner_id) = lower(a.username))
         JOIN provider_usage u ON u.thread_id = ct.id
         JOIN ai_providers p ON p.id = u.provider_id
         GROUP BY a.id, p.id
@@ -520,7 +527,7 @@ export function mountTelemetryRoutes(app, deps) {
             tokensIn: Number(r.tokens_in),
             tokensOut: Number(r.tokens_out),
             requests: Number(r.requests),
-            costUsd: 0, // Not tracked in provider_usage currently
+            costUsd: Number(r.cost_usd || 0),
             p95: Number(r.p95),
             errorRate: Number((r.error_rate || 0) * 100).toFixed(2),
           };

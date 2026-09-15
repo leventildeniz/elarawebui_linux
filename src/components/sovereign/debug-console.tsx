@@ -359,9 +359,9 @@ export function DebugConsole() {
             </p>
           ) : (
             <ol className="space-y-[3px]">
-              {visible.map((fr) => (
+              {visible.map((fr, idx) => (
                 <li
-                  key={fr.id}
+                  key={`${fr.id}_${idx}`}
                   className={cn(
                     "flex gap-3 font-mono text-[11.5px] leading-relaxed",
                     wrap ? "whitespace-pre-wrap break-words" : "overflow-hidden whitespace-nowrap",

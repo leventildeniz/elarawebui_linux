@@ -291,13 +291,28 @@ export function useSpaces() {
   return { spaces, addSpace, updateSpace, removeSpace, toggleIn };
 }
 
+/** Resolve space context synchronously (SSR safe). */
+export function readSpaceCtx(): SpaceCtx {
+  if (typeof window === "undefined") return { userId: "", groupIds: [], sovereign: false };
+  const me = currentAccount();
+  if (!me) return { userId: "", groupIds: [], sovereign: false };
+  const gids = readGroups()
+    .filter((g) => g.members.includes(me.id))
+    .map((g) => g.id);
+  return {
+    userId: me.id,
+    groupIds: gids,
+    sovereign: isGodPrincipal(me.id, me.role, gids),
+  };
+}
+
 /**
  * Space access resolved for the signed-in principal: which spaces they may
  * query, which they may ingest into, and whether they are sovereign.
  */
 export function useSpaceAccess() {
   const { spaces } = useSpaces();
-  const [ctx, setCtx] = useState<SpaceCtx>({ userId: "", groupIds: [], sovereign: false });
+  const [ctx, setCtx] = useState<SpaceCtx>(readSpaceCtx);
 
   useEffect(() => {
     const resolve = () => {

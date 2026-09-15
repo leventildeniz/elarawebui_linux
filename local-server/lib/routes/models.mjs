@@ -1,5 +1,25 @@
 import { requireSession } from "../session-gate.mjs";
 
+export function isSystemModelGroup(g) {
+  if (!g) return false;
+  const id = String(g.id || "").toLowerCase();
+  const name = String(g.name || "").trim().toLowerCase();
+  return (
+    id === "local" ||
+    id === "cloud" ||
+    id.startsWith("local_llm") ||
+    id.startsWith("cloudbased_llm") ||
+    id.startsWith("cloud_based") ||
+    name === "local_llm" ||
+    name === "local llm" ||
+    name === "cloudbased_llm" ||
+    name === "cloud based" ||
+    name === "cloud_based" ||
+    name === "cloud_llm" ||
+    name === "cloud llm"
+  );
+}
+
 export async function mountModelsRoutes(app, deps) {
   const pool = deps.pool;
   const resolveActorContext = deps.resolveActorContext;
@@ -146,6 +166,11 @@ export async function mountModelsRoutes(app, deps) {
 
   app.delete("/api/models/groups/:id", admin, requireSuperAdmin, async (req, res) => {
     try {
+      const { rows } = await pool.query("SELECT * FROM model_groups WHERE id=$1", [req.params.id]);
+      if (!rows.length) return res.status(404).json({ ok: false, error: "group not found" });
+      if (isSystemModelGroup(rows[0])) {
+        return res.status(400).json({ ok: false, error: "Baseline system model groups (Local and Cloud) cannot be deleted." });
+      }
       await pool.query("DELETE FROM model_groups WHERE id=$1", [req.params.id]);
       res.json({ ok: true });
     } catch (e) { res.status(400).json({ ok: false, error: e.message }); }

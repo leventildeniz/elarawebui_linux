@@ -40,7 +40,15 @@ function read(): RbacEvent[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = window.localStorage.getItem(KEY);
-    return raw ? (JSON.parse(raw) as RbacEvent[]) : [];
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as RbacEvent[];
+    if (!Array.isArray(parsed)) return [];
+    const seen = new Set<string>();
+    return parsed.filter((e) => {
+      if (!e?.id || seen.has(e.id)) return false;
+      seen.add(e.id);
+      return true;
+    });
   } catch {
     return [];
   }
@@ -48,7 +56,13 @@ function read(): RbacEvent[] {
 
 function write(events: RbacEvent[]) {
   try {
-    window.localStorage.setItem(KEY, JSON.stringify(events.slice(0, LIMIT)));
+    const seen = new Set<string>();
+    const deduped = events.filter((e) => {
+      if (!e?.id || seen.has(e.id)) return false;
+      seen.add(e.id);
+      return true;
+    });
+    window.localStorage.setItem(KEY, JSON.stringify(deduped.slice(0, LIMIT)));
   } catch {
     /* quota — memory only */
   }
@@ -83,7 +97,7 @@ export function emitRbac(input: {
   actor?: string;
 }): RbacEvent {
   const event: RbacEvent = {
-    id: `rbc_${Date.now().toString(36)}_${(seq++).toString(36)}`,
+    id: `rbc_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}_${(seq++).toString(36)}`,
     at: Date.now(),
     action: input.action,
     role: input.role,

@@ -42,7 +42,15 @@ function read(): DenyEvent[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = window.localStorage.getItem(KEY);
-    return raw ? (JSON.parse(raw) as DenyEvent[]) : [];
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as DenyEvent[];
+    if (!Array.isArray(parsed)) return [];
+    const seen = new Set<string>();
+    return parsed.filter((e) => {
+      if (!e?.id || seen.has(e.id)) return false;
+      seen.add(e.id);
+      return true;
+    });
   } catch {
     return [];
   }
@@ -50,7 +58,13 @@ function read(): DenyEvent[] {
 
 function write(events: DenyEvent[]) {
   try {
-    window.localStorage.setItem(KEY, JSON.stringify(events.slice(0, LIMIT)));
+    const seen = new Set<string>();
+    const deduped = events.filter((e) => {
+      if (!e?.id || seen.has(e.id)) return false;
+      seen.add(e.id);
+      return true;
+    });
+    window.localStorage.setItem(KEY, JSON.stringify(deduped.slice(0, LIMIT)));
   } catch {
     /* quota — keep in-memory only */
   }
@@ -86,7 +100,7 @@ export function emitDeny(input: {
   detail?: string;
 }): DenyEvent {
   const event: DenyEvent = {
-    id: `dny_${Date.now().toString(36)}_${(seq++).toString(36)}`,
+    id: `dny_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}_${(seq++).toString(36)}`,
     at: Date.now(),
     category: input.category,
     action: input.action,

@@ -59,10 +59,13 @@ export type OwnerCtx = {
   userId: string;
   name: string;
   groupIds: string[];
-  /** Admin principal — sees and edits every desk. */
+  /** Admin principal — sees and edits every desk across the cluster. */
   sovereign: boolean;
   /** Holds the `workspace-all` verb (or enforcement is disarmed). */
   override: boolean;
+  tenantId?: string;
+  isSuperAdmin?: boolean;
+  isTenantAdmin?: boolean;
 };
 
 export const ANON_CTX: OwnerCtx = {
@@ -71,6 +74,9 @@ export const ANON_CTX: OwnerCtx = {
   groupIds: [],
   sovereign: false,
   override: false,
+  tenantId: "default",
+  isSuperAdmin: false,
+  isTenantAdmin: false,
 };
 
 /** Resolve the signed-in principal without a hook (SSR safe). */
@@ -87,10 +93,13 @@ export function readOwnerCtx(): OwnerCtx {
         .map((g) => g.id),
     ]),
   );
-  const sovereign = isGodPrincipal(me.id, me.role, groupIds);
-  /* Zero-Trust: override is strictly for sovereigns (SuperAdmin) or roles holding explicit 'workspace-all' action */
-  const override = sovereign || readRoleActions().includes("workspace-all");
-  return { userId: me.id, name: me.name || me.username, groupIds, sovereign, override };
+  const tenantId = me.tenantId || me.tenant_id || "default";
+  const isSuperAdmin = (isGodPrincipal(me.id, me.role, groupIds) || me.role?.toLowerCase() === "sovereign") && (tenantId === "default" || !tenantId);
+  const isTenantAdmin = isSuperAdmin || ((isGodPrincipal(me.id, me.role, groupIds) || me.role?.toLowerCase() === "tenant-admin") && tenantId !== "default");
+  const sovereign = isSuperAdmin;
+  /* Zero-Trust: override is strictly for sovereigns (SuperAdmin), tenant admins within their tenant, or roles holding explicit 'workspace-all' action */
+  const override = sovereign || isTenantAdmin || readRoleActions().includes("workspace-all");
+  return { userId: me.id, name: me.name || me.username, groupIds, sovereign, override, tenantId, isSuperAdmin, isTenantAdmin };
 }
 
 /** Effective band of a record — missing owner means it shipped with the studio. */
@@ -111,6 +120,15 @@ export function isMine(rec: Owned | undefined | null, ctx: OwnerCtx): boolean {
 /** May this principal see the record at all? */
 export function canSee(rec: Owned | undefined | null, ctx: OwnerCtx): boolean {
   if (!rec) return false;
+  if (ctx.sovereign) return true;
+  // Multi-Tenant Boundary: enforce tenant isolation
+  const recTenant = rec.tenantId || rec.tenant_id || "default";
+  const userTenant = ctx.tenantId || "default";
+  const isGlobal = rec.isGlobal === true;
+  if (!isGlobal && recTenant !== userTenant && recTenant !== "default") {
+    return false;
+  }
+  if (ctx.isTenantAdmin && (recTenant === userTenant || isGlobal)) return true;
   if (ctx.override) return true;
   if (isMine(rec, ctx)) return true;
   switch (visibilityOf(rec)) {

@@ -6,6 +6,26 @@ import { useModelGroups, useModels } from "@/lib/model-store";
 import { confirmAction } from "./confirm-dialog";
 import { cn } from "@/lib/utils";
 
+export function isSystemModelGroup(g?: { id?: string; name?: string } | null): boolean {
+  if (!g) return false;
+  const id = String(g.id || "").toLowerCase();
+  const name = String(g.name || "").trim().toLowerCase();
+  return (
+    id === "local" ||
+    id === "cloud" ||
+    id.startsWith("local_llm") ||
+    id.startsWith("cloudbased_llm") ||
+    id.startsWith("cloud_based") ||
+    name === "local_llm" ||
+    name === "local llm" ||
+    name === "cloudbased_llm" ||
+    name === "cloud based" ||
+    name === "cloud_based" ||
+    name === "cloud_llm" ||
+    name === "cloud llm"
+  );
+}
+
 /**
  * Header bar for the model registry: one tab per model group (Local LLM,
  * Cloud Based, plus anything the operator adds) followed by Vision.
@@ -71,7 +91,8 @@ export function ModelGroupTabs() {
     <div className="ml-2 hidden items-center gap-1.5 md:flex">
       {groups.map((g) => {
         const n = count(g.id);
-        if (editing === g.id) {
+        const isSystem = isSystemModelGroup(g);
+        if (editing === g.id && !isSystem) {
           return (
             <InlineName
               key={g.id}
@@ -87,6 +108,7 @@ export function ModelGroupTabs() {
             to="/models"
             active={!onVision && active === g.id}
             tone={g.tone}
+            isSystem={isSystem}
             onSelect={() => setActive(g.id)}
             onRename={() => setEditing(g.id)}
             onRemove={() => deleteGroup(g.id, g.name, n)}
@@ -149,6 +171,7 @@ function Tab({
   to,
   active,
   tone,
+  isSystem = false,
   onSelect,
   onRename,
   onRemove,
@@ -157,6 +180,7 @@ function Tab({
   to: string;
   active: boolean;
   tone: string;
+  isSystem?: boolean;
   onSelect: () => void;
   onRename: () => void;
   onRemove: () => void;
@@ -178,24 +202,26 @@ function Tab({
       <Link to={to} onClick={onSelect} className="whitespace-nowrap">
         {children}
       </Link>
-      <span className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-        <button
-          onClick={onRename}
-          aria-label="Rename group"
-          className="hover:text-sapphire"
-          title="Rename group"
-        >
-          <Pencil size={11} />
-        </button>
-        <button
-          onClick={onRemove}
-          aria-label="Delete group"
-          className="hover:text-ruby"
-          title="Delete group"
-        >
-          <X size={12} />
-        </button>
-      </span>
+      {!isSystem && (
+        <span className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+          <button
+            onClick={onRename}
+            aria-label="Rename group"
+            className="hover:text-sapphire"
+            title="Rename group"
+          >
+            <Pencil size={11} />
+          </button>
+          <button
+            onClick={onRemove}
+            aria-label="Delete group"
+            className="hover:text-ruby"
+            title="Delete group"
+          >
+            <X size={12} />
+          </button>
+        </span>
+      )}
     </span>
   );
 }

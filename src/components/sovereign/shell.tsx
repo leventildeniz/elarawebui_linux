@@ -190,17 +190,17 @@ const iconActive = {
   transition: { duration: 0.16, ease: "easeInOut" as const },
 };
 
-function shouldStartClosed() {
-  if (typeof window === "undefined") return false;
-  return sessionStorage.getItem("sovereign.sidebar.closed") === "1";
-}
-
 export function Shell({ children, crumb }: { children: ReactNode; crumb?: string | undefined }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const [canvas, setCanvas] = useState(false);
   const [filesOpen, setFilesOpen] = useState(false);
   const { active: activeChat, newChat } = useChats();
   const chatFiles = activeChat?.files ?? [];
-  const [open, setOpenState] = useState(() => (shouldStartClosed() ? false : persistedSidebar));
+  const [open, setOpenState] = useState(() => persistedSidebar);
   const setOpen = (v: boolean) => {
     persistedSidebar = v;
     setOpenState(v);
@@ -211,13 +211,13 @@ export function Shell({ children, crumb }: { children: ReactNode; crumb?: string
   const ownerCtx = readOwnerCtx();
   const access = useAccess();
   // In preview mode, evaluate the studio through the simulated role instead of sovereign override
-  const isEffectiveAdmin = !access.previewing && ownerCtx.sovereign;
+  const isEffectiveAdmin = mounted ? (!access.previewing && ownerCtx.sovereign) : true;
   const isAdmin = isEffectiveAdmin;
   const spaceAccess = useSpaceAccess();
   // / and /rbac always remain accessible during preview so the architect can navigate and exit preview
   const isPreviewEscape = access.previewing && (pathname === "/" || pathname === "/rbac");
-  const scopeAllowed = isPreviewEscape || isEffectiveAdmin || access.allows(pathname);
-  const knowledgeOk = spaceAccess.enabled;
+  const scopeAllowed = !mounted || !access.ready || isPreviewEscape || isEffectiveAdmin || access.allows(pathname);
+  const knowledgeOk = !mounted || spaceAccess.enabled;
 
   const firstAllowedSetting = [
     "/settings",
@@ -239,7 +239,7 @@ export function Shell({ children, crumb }: { children: ReactNode; crumb?: string
     groups
       .map((g) => ({
         ...g,
-        items: g.items.filter((i) => isAdmin || access.allows(i.to)),
+        items: g.items.filter((i) => !mounted || !access.ready || isAdmin || access.allows(i.to)),
       }))
       .filter((g) => g.items.length > 0 || g.id === "chats" || g.id === "more")
   ).map((g) =>
@@ -249,14 +249,15 @@ export function Shell({ children, crumb }: { children: ReactNode; crumb?: string
   const navGroups = visibleGroups;
 
   useEffect(() => {
-    if (scopeAllowed) return;
+    if (!mounted || !access.ready || scopeAllowed) return;
     emitRbac({
       action: "rbac.denied",
       role: access.role?.name ?? "unknown",
       target: pathname,
-      detail: `surface "${pathname}" refused — scope not granted to role ${access.role?.name ?? "unknown"}`,
+      detail: `attempted to navigate to ${pathname} — route not permitted by role "${access.role?.name ?? "unknown"}"`,
     });
-  }, [scopeAllowed, pathname, access.role?.name]);
+    navigate({ to: "/" });
+  }, [mounted, access.ready, scopeAllowed, pathname, access.role, navigate]);
   const approvalQueue = useQueueSwitch();
   const pendingCount = usePendingApprovals().length;
   const pendingApprovals = approvalQueue.enabled ? pendingCount : 0;
@@ -273,14 +274,6 @@ export function Shell({ children, crumb }: { children: ReactNode; crumb?: string
   const [operatorMenu, setOperatorMenu] = useState<boolean>(false);
   const [profile, setProfile] = useState<OperatorProfile>(defaultProfile);
   const title = crumb ?? active?.label ?? "New chat";
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (sessionStorage.getItem("sovereign.sidebar.closed") === "1") {
-      sessionStorage.removeItem("sovereign.sidebar.closed");
-      persistedSidebar = false;
-    }
-  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -372,7 +365,7 @@ export function Shell({ children, crumb }: { children: ReactNode; crumb?: string
           <QuickAction icon={Search} label="Search" onClick={() => setPalette(true)} hint="⌘/" />
           <QuickAction icon={Terminal} label="Console" to="/fleet" />
 
-          <div className="mt-3 min-h-0 flex-1 overflow-y-auto pr-0.5">
+          <div className="mt-3 min-h-0 flex-1 overflow-y-auto pr-0.5" suppressHydrationWarning>
             {navGroups.map((group) => {
               const expanded = openGroups[group.id] ?? false;
               return (
@@ -406,7 +399,7 @@ export function Shell({ children, crumb }: { children: ReactNode; crumb?: string
                             const on = to === pathname;
                             return (
                               <Link
-                                key={label}
+                                key={to}
                                 to={to}
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -517,23 +510,35 @@ export function Shell({ children, crumb }: { children: ReactNode; crumb?: string
 
                     <div className="my-1 h-px bg-white/[0.06]" />
 
-                    <Link
-                      to="/login"
-                      onClick={() => {
+                    <button
+                      type="button"
+                      onClick={async () => {
                         setOperatorMenu(false);
+                        const sid = typeof window !== "undefined" ? localStorage.getItem("sovereign.sessionId") : null;
+                        if (sid) {
+                          try {
+                            await fetch("/api/sessions/" + encodeURIComponent(sid), { method: "DELETE" });
+                          } catch {}
+                        }
                         try {
-                          sessionStorage.removeItem("sovereign.operator");
+                          sessionStorage.clear();
                           localStorage.removeItem("sovereign.sessionId");
                           localStorage.removeItem("sovereign.user");
-                        } catch {
-                          /* ignore */
-                        }
+                          localStorage.removeItem("sovereign:rbac:session-role");
+                          localStorage.removeItem("sovereign:rbac:active");
+                          localStorage.removeItem("sovereign:rbac:enforce");
+                          localStorage.removeItem("sovereign:rbac:bound");
+                          localStorage.removeItem("sovereign:rbac:preview");
+                          localStorage.removeItem("sovereign:identity:accounts:v1");
+                          localStorage.removeItem("sovereign:identity:groups:v1");
+                        } catch {}
+                        window.location.href = "/login";
                       }}
                       className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[14px] text-ruby/90 transition-colors hover:bg-ruby/10 hover:text-ruby"
                     >
                       <KeyRound className="h-4 w-4" strokeWidth={1.5} />
                       Log off
-                    </Link>
+                    </button>
                   </motion.div>
                 </>
               )}

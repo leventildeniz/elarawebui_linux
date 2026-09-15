@@ -131,25 +131,34 @@ function RegistryPage() {
     }));
     const toolRows: Row[] = items
       .filter((t) => !orphans.includes(t.id))
-      .map((t) => ({
-        kind: "tool",
-        slug: `/${slugKey(t.name)}`,
-        name: t.name,
-        refId: `tool.${refKey(t.name)}`,
-        origin: t.category,
-      }));
+      .map((t) => {
+        const idSuffix = t.id ? t.id.replace(/^(tool|tl|act)\./, "") : slugKey(t.name);
+        return {
+          kind: "tool",
+          slug: `/${slugKey(idSuffix || t.name)}`,
+          name: t.name,
+          refId: t.id || `tool.${refKey(t.name)}`,
+          origin: t.category,
+        };
+      });
     const mcpRows: Row[] = clients
       .filter((c) => c.enabled)
       .map((c) => ({
         kind: "mcp",
         slug: `#${slugKey(c.name)}`,
         name: c.name,
-        refId: `mcp.${refKey(c.name)}`,
+        refId: c.id || `mcp.${refKey(c.name)}`,
         origin: `${c.transport} · ${c.tools} tools`,
       }));
-    return [...agentRows, ...skillRows, ...toolRows, ...mcpRows].filter(
+    const all = [...agentRows, ...skillRows, ...toolRows, ...mcpRows].filter(
       (r) => !reg.deleted.includes(r.refId),
     );
+    const seen = new Set<string>();
+    return all.filter((r) => {
+      if (!r.refId || seen.has(r.refId)) return false;
+      seen.add(r.refId);
+      return true;
+    });
   }, [agents, skills, items, orphans, clients, reg.deleted]);
 
   const visible = useMemo(() => {
@@ -315,12 +324,12 @@ function RegistryPage() {
           <span />
         </div>
         <div className="max-h-[520px] overflow-y-auto">
-          {visible.map((r) => {
+          {visible.map((r, idx) => {
             const on = !reg.disabled.includes(r.refId);
             const tone = kindTone[r.kind];
             return (
               <div
-                key={r.refId}
+                key={`${r.refId}_${idx}`}
                 className="grid grid-cols-[92px_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1fr)_78px_44px] items-center gap-3 border-b border-white/[0.04] px-4 py-2.5 transition-colors hover:bg-raised/30"
               >
                 <span

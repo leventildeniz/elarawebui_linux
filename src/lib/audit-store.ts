@@ -358,16 +358,36 @@ export function useAuditLog() {
     const denials = listDenyEvents().map(denyToAudit);
     const rbac = listRbacEvents().map(rbacToAudit);
     const planner = listPlannerEvents().map(plannerToAudit);
-    setEvents((prev) => [...denials, ...rbac, ...planner, ...prev].sort((a, b) => b.at - a.at));
+    setEvents((prev) => {
+      const combined = [...denials, ...rbac, ...planner, ...prev];
+      const seen = new Set<string>();
+      return combined.filter((e) => {
+        if (!e?.id || seen.has(e.id)) return false;
+        seen.add(e.id);
+        return true;
+      }).sort((a, b) => b.at - a.at).slice(0, 4000);
+    });
 
     const offDeny = onDenyEvent((e) =>
-      setEvents((prev) => [denyToAudit(e), ...prev].slice(0, 4000)),
+      setEvents((prev) => {
+        const audit = denyToAudit(e);
+        if (prev.some((p) => p.id === audit.id)) return prev;
+        return [audit, ...prev].slice(0, 4000);
+      }),
     );
     const offRbac = onRbacEvent((e) =>
-      setEvents((prev) => [rbacToAudit(e), ...prev].slice(0, 4000)),
+      setEvents((prev) => {
+        const audit = rbacToAudit(e);
+        if (prev.some((p) => p.id === audit.id)) return prev;
+        return [audit, ...prev].slice(0, 4000);
+      }),
     );
     const offPlanner = onPlannerEvent((e) =>
-      setEvents((prev) => [plannerToAudit(e), ...prev].slice(0, 4000)),
+      setEvents((prev) => {
+        const audit = plannerToAudit(e);
+        if (prev.some((p) => p.id === audit.id)) return prev;
+        return [audit, ...prev].slice(0, 4000);
+      }),
     );
 
     return () => {

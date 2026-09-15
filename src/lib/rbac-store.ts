@@ -425,7 +425,14 @@ const EVENT = "sovereign:rbac";
 
 export function readEnforcement(): boolean {
   if (typeof window === "undefined") return false;
-  return window.localStorage.getItem(ENFORCE_KEY) === "1";
+  // Zero-Trust: If an account is signed in and not admin, enforcement is ALWAYS active
+  const me = currentAccount();
+  if (me?.role && !/^admin(istrator)?s?$/i.test(me.role.trim())) {
+    return true;
+  }
+  const stored = window.localStorage.getItem(ENFORCE_KEY);
+  if (stored !== null) return stored === "1";
+  return false;
 }
 
 /**
@@ -446,7 +453,11 @@ export function readPreviewRoleId(): string | null {
 /** The role the signed-in principal actually carries — never a preview. */
 export function readSessionRoleId(): string | null {
   if (typeof window === "undefined") return null;
-  return window.localStorage.getItem(SESSION_ROLE_KEY);
+  const stored = window.localStorage.getItem(SESSION_ROLE_KEY);
+  if (stored) return stored;
+  const me = currentAccount();
+  if (me?.role) return me.role.trim().toLowerCase();
+  return null;
 }
 
 /**
@@ -505,18 +516,38 @@ export function setEnforcement(on: boolean) {
  * Called by the access gate at sign-in: whoever logs in gets *their* role,
  * so an armed studio filters to what that account may actually reach.
  */
-export function bindSessionRole(roleName: string | undefined): Role | undefined {
+export async function bindSessionRole(roleName: string | undefined): Promise<Role | undefined> {
   if (typeof window === "undefined" || !roleName) return undefined;
+  let allRoles = read();
+  if (!allRoles.length) {
+    try {
+      const data = await fetchApi("/api/identity/roles");
+      if (Array.isArray(data) && data.length > 0) {
+        allRoles = data.map((r: Role) =>
+          isSovereign(r)
+            ? { ...r, scopes: [...TAB_SCOPES], actions: [...ROLE_ACTIONS.map((a) => a.id)] }
+            : r,
+        );
+        window.localStorage.setItem(KEY, JSON.stringify(allRoles));
+      }
+    } catch {}
+  }
   const key = roleName.trim().toLowerCase();
   const role =
-    read().find((r) => r.name.trim().toLowerCase() === key) ??
-    read().find((r) => r.id.toLowerCase() === key);
-  if (!role) return undefined;
+    allRoles.find((r) => r.name.trim().toLowerCase() === key || r.id.toLowerCase() === key) ??
+    allRoles.find((r) => r.id.toLowerCase().includes(key) || key.includes(r.id.toLowerCase()));
+  if (!role) {
+    const isGov = /^admin/i.test(key);
+    window.localStorage.setItem(ACTIVE_KEY, key);
+    window.localStorage.setItem(SESSION_ROLE_KEY, key);
+    window.localStorage.setItem(ENFORCE_KEY, isGov ? "0" : "1");
+    window.localStorage.setItem(BOUND_KEY, isGov ? "0" : "1");
+    window.dispatchEvent(new CustomEvent(EVENT));
+    return undefined;
+  }
   window.localStorage.setItem(ACTIVE_KEY, role.id);
   window.localStorage.setItem(SESSION_ROLE_KEY, role.id);
   window.localStorage.removeItem(PREVIEW_KEY);
-  // A real principal signs in as themselves: non-sovereign accounts get their
-  // scope applied immediately, sovereigns get the unfiltered studio back.
   window.localStorage.setItem(ENFORCE_KEY, isSovereign(role) ? "0" : "1");
   window.localStorage.setItem(BOUND_KEY, isSovereign(role) ? "0" : "1");
   window.dispatchEvent(new CustomEvent(EVENT));
@@ -573,10 +604,40 @@ export function readActiveRole(): Role | undefined {
   const roles = read();
   const preview = readPreviewRoleId();
   const session = readSessionRoleId();
+  const me = currentAccount();
+
+  if (preview) {
+    const r = roles.find((x) => x.id.toLowerCase() === preview.toLowerCase() || x.name.toLowerCase() === preview.toLowerCase());
+    if (r) return r;
+  }
+
+  if (session) {
+    const r = roles.find((x) => x.id.toLowerCase() === session.toLowerCase() || x.name.toLowerCase() === session.toLowerCase());
+    if (r) return r;
+  }
+
+  if (me?.role) {
+    const r = roles.find((x) => x.id.toLowerCase() === me.role.toLowerCase() || x.name.toLowerCase() === me.role.toLowerCase());
+    if (r) return r;
+    // If not in roles list yet, return a safe scoped role (never admin!)
+    if (!/^admin(istrator)?s?$/i.test(me.role.trim())) {
+      return {
+        id: me.role.toLowerCase(),
+        name: me.role,
+        provider: "Local",
+        tone: "topaz",
+        description: `${me.role} role`,
+        system: false,
+        scopes: ["chat"],
+        actions: ["read"],
+      };
+    }
+  }
+
+  const activeId = readActive(roles);
   return (
-    (preview ? roles.find((r) => r.id === preview) : undefined) ??
-    (session ? roles.find((r) => r.id === session) : undefined) ??
-    roles.find((r) => r.id === readActive(roles)) ??
+    roles.find((r) => r.id === activeId) ??
+    roles.find((r) => r.id === "admin") ??
     roles[0]
   );
 }
@@ -606,8 +667,9 @@ const BOUND_ESCAPE_ROUTES = new Set<string>(["/"]);
 const TONES: JewelTone[] = ["sapphire", "emerald", "amethyst", "topaz", "ruby"];
 
 export function useRoles() {
-  const [roles, setRoles] = useState<Role[]>(defaultRoles);
-  const [active, setActiveState] = useState<string>("admin");
+  const [roles, setRoles] = useState<Role[]>(read);
+  const [active, setActiveState] = useState<string>(() => readActive(read()));
+  const [loaded, setLoaded] = useState<boolean>(() => (typeof window !== "undefined" && read().length > 0));
 
   useEffect(() => {
     const sync = async () => {
@@ -635,6 +697,8 @@ export function useRoles() {
       } catch (e) {
         console.error("Failed to fetch roles:", e);
         setRoles(read());
+      } finally {
+        setLoaded(true);
       }
       setActiveState(readActive(currentRoles));
     };
@@ -851,6 +915,7 @@ export function useRoles() {
   return {
     roles,
     active,
+    loaded,
     setActive: (id: string) => {
       setActiveState(id);
       if (typeof window !== "undefined") {
@@ -873,7 +938,7 @@ export function useRoles() {
  * which verbs it may exercise. Enforcement is opt-in via the RBAC page.
  */
 export function useAccess() {
-  const { roles, active } = useRoles();
+  const { roles, active, loaded } = useRoles();
   const [enforced, setEnforced] = useState(false);
   const [bound, setBound] = useState(false);
   const [previewId, setPreviewId] = useState<string | null>(null);
@@ -889,32 +954,46 @@ export function useAccess() {
     sync();
     window.addEventListener(EVENT, sync);
     window.addEventListener("storage", sync);
+    window.addEventListener("sovereign:identity", sync);
     return () => {
       window.removeEventListener(EVENT, sync);
       window.removeEventListener("storage", sync);
+      window.removeEventListener("sovereign:identity", sync);
     };
   }, []);
 
+  const me = currentAccount();
+  const isSuperUser = me?.role ? /^admin(istrator)?s?$/i.test(me.role.trim()) : false;
+
   const role =
-    (previewId ? roles.find((r) => r.id === previewId) : undefined) ??
-    (sessionId ? roles.find((r) => r.id === sessionId) : undefined) ??
-    roles.find((r) => r.id === active) ??
-    roles[0];
-  const scopes = new Set<string>(role?.scopes ?? []);
+    (previewId ? roles.find((r) => r.id.toLowerCase() === previewId.toLowerCase() || r.name.toLowerCase() === previewId.toLowerCase()) : undefined) ??
+    (sessionId ? roles.find((r) => r.id.toLowerCase() === sessionId.toLowerCase() || r.name.toLowerCase() === sessionId.toLowerCase()) : undefined) ??
+    (me?.role ? roles.find((r) => r.id.toLowerCase() === me.role.toLowerCase() || r.name.toLowerCase() === me.role.toLowerCase()) : undefined) ??
+    (isSuperUser ? (roles.find((r) => r.id === active) ?? roles[0]) : undefined) ??
+    readActiveRole();
+
+  const isReady = isSuperUser || Boolean(role) || loaded;
+  const scopes = new Set<string>(role?.scopes ?? (isSuperUser ? TAB_SCOPES : []));
   const actions = roleActions(role);
 
   return {
     role,
+    ready: isReady,
     enforced,
     actions,
-    /** Simulating another principal — the architect's own grants are intact. */
     previewing: Boolean(previewId) && !bound,
     previewRole: previewId ? roles.find((r) => r.id === previewId) : undefined,
-    sovereign: isSovereign(role),
-    can: (a: RoleAction) => isSovereign(role) || actions.includes(a),
+    sovereign: isSuperUser || isSovereign(role),
+    can: (a: RoleAction) => isSuperUser || isSovereign(role) || actions.includes(a),
     allows: (pathOrScope: string) => {
-      if (!role || isSovereign(role)) return true;
+      if (isSuperUser || isSovereign(role)) return true;
       if (pathOrScope === "/" || pathOrScope === "/account" || pathOrScope === "/theme") return true;
+
+      if (!role) {
+        if (!isReady) return true;
+        // Safe default: non-admin without loaded role can only see public floor
+        return pathOrScope === "/" || pathOrScope === "/account" || pathOrScope === "/theme";
+      }
 
       // 1. If checking a specific tab scope (e.g. "engine-intent", "policy-vault", "fleet-agents")
       if (TAB_SCOPES.includes(pathOrScope as TabScope)) {

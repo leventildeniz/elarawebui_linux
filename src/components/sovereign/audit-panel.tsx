@@ -404,8 +404,8 @@ export function AuditPanel({
           </p>
         ) : (
           <ol className="max-h-[62vh] divide-y divide-white/[0.04] overflow-y-auto">
-            {rows.slice(0, 400).map((e) => (
-              <li key={e.id} className="flex items-start gap-5 px-5 py-3 hover:bg-white/[0.02]">
+            {rows.slice(0, 400).map((e, idx) => (
+              <li key={`${e.id}_${idx}`} className="flex items-start gap-5 px-5 py-3 hover:bg-white/[0.02]">
                 <span className="w-[150px] shrink-0 font-mono text-[12.5px] text-muted-foreground/60">
                   {fmtTs(e.at)}
                 </span>

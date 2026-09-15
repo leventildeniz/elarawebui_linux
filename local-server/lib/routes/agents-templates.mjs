@@ -60,7 +60,7 @@ export function mountAgentsTemplatesRoutes(app, deps) {
   app.get("/api/siem/config", async (_req, res) => {
     try {
       const r = await pool.query("SELECT enabled, host, port, protocol, format, facility, updated_at FROM app_siem_config WHERE id=1");
-      res.json({ ok: true, config: r.rows[0] || null, status: siem.status() });
+      res.json({ ok: true, config: r.rows[0] || null, status: typeof siem?.status === "function" ? siem.status() : { connected: false, queued: 0 } });
     } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
   });
   app.put("/api/siem/config", async (req, res) => {
