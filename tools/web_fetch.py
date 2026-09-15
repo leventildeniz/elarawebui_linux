@@ -13,12 +13,49 @@ Reads JSON from stdin: {url, timeout_ms?, max_bytes?}.
 - Follows up to 5 redirects (urllib default behaviour).
 - HTML → plain text via stdlib HTMLParser; non-HTML → returned as-is text.
 """
+import ipaddress
 import json
+import os
 import re
+import socket
 import sys
-import urllib.request
 import urllib.error
+import urllib.parse
+import urllib.request
 from html.parser import HTMLParser
+
+
+def is_safe_public_host(host: str) -> bool:
+    """Validate that host does not resolve to private, loopback, or cloud metadata addresses."""
+    if (os.environ.get("ELARA_NETSEC_ALLOW_PRIVATE", "0") or "0").strip() == "1":
+        return True
+    try:
+        ip = ipaddress.ip_address(host)
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or str(ip).startswith("169.254.") or str(ip) == "0.0.0.0":
+            return False
+        return True
+    except ValueError:
+        try:
+            addrs = socket.getaddrinfo(host, None)
+            for *_, sa in addrs:
+                ip = ipaddress.ip_address(sa[0])
+                if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or str(ip).startswith("169.254.") or str(ip) == "0.0.0.0":
+                    return False
+            return True
+        except Exception:
+            return False
+
+
+class SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Intercept HTTP 301/302 redirects to prevent SSRF bypass into private network or cloud metadata."""
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        parsed = urllib.parse.urlsplit(newurl)
+        if parsed.scheme not in ("http", "https"):
+            raise urllib.error.HTTPError(newurl, 403, "Redirect to forbidden scheme blocked", headers, fp)
+        host = parsed.hostname or ""
+        if not host or not is_safe_public_host(host):
+            raise urllib.error.HTTPError(newurl, 403, f"SSRF: Redirect to private or restricted host ({host}) blocked", headers, fp)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
 class _TextExtractor(HTMLParser):
@@ -83,6 +120,23 @@ def main() -> None:
     if not re.match(r"^https?://", url, re.I):
         print(json.dumps({"ok": False, "reason": "scheme_not_allowed"})); return
 
+    parsed_url = urllib.parse.urlsplit(url)
+    host = parsed_url.hostname or ""
+    if not host or not is_safe_public_host(host):
+        print(json.dumps({"ok": False, "reason": "ssrf_blocked_private_or_restricted_host", "host": host}))
+        return
+
+    # Check sandbox network posture from Tool Isolation profile
+    sandbox_net = (os.environ.get("ELARA_SANDBOX_NETWORK") or "").strip().lower()
+    if sandbox_net == "denied":
+        print(json.dumps({"ok": False, "reason": "network_denied_by_isolation_profile"}))
+        return
+    elif sandbox_net == "allowlist":
+        allowlist = [x.strip().lower() for x in (os.environ.get("ELARA_SANDBOX_NET_ALLOWLIST") or "").replace(",", "\n").splitlines() if x.strip()]
+        if not any(host == a or host.endswith("." + a) for a in allowlist):
+            print(json.dumps({"ok": False, "reason": "destination_not_in_network_allowlist", "host": host}))
+            return
+
     timeout_ms = int(p.get("timeout_ms") or 15000)
     timeout_ms = max(1000, min(60000, timeout_ms))
     max_bytes = int(p.get("max_bytes") or 5_000_000)
@@ -93,7 +147,8 @@ def main() -> None:
         "Accept": "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5",
     })
     try:
-        with urllib.request.urlopen(req, timeout=timeout_ms / 1000.0) as r:
+        opener = urllib.request.build_opener(SafeRedirectHandler())
+        with opener.open(req, timeout=timeout_ms / 1000.0) as r:
             raw = r.read(max_bytes + 1)
             truncated = len(raw) > max_bytes
             if truncated:

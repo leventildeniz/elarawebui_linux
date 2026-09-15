@@ -1766,13 +1766,35 @@ ELARA Sovereign Studio genelinde **Zero-Trust Çoklu Kiracı (Multi-Tenancy) ve 
 
    ### 🔒 FAZ C: NetSec Güvenlik & Penetrasyon Denetimi (Kurumsal Güvenlik Mührü)
 
-   **Odak:** Sistemin ağ ve kimlik katmanının dış saldırılara, yetki aşımlarına ve sızıntılara karşı test edilmesi.
+   **Odak:** Sistemin ağ, kimlik, veri ve icra katmanının dış saldırılara, yetki aşımlarına, sızıntılara ve zafiyetlere karşı uçtan uca denetlenmesi ve kurumsal seviyede mühürlenmesi.
 
-   #### 1. Ağ & API Güvenliği:
-   * Endpoint bazında rate limiting (`rlLogin`, API token rate limits) ve brute-force koruması.
-   * CORS politikaları ve hassas endpoint'lerin loopback (127.0.0.1) sınırlarının doğrulanması.
-   * Input validation (Zod / JSON Schema) ve SQL Injection parametrizasyon denetimi.
+   #### 🛡️ 5 Kritik Güvenlik Vektörü Yol Haritası:
 
-   #### 2. SSRF & Dış Servis Çağrı Güvenliği:
-   * Web Search, Webhook ve MCP Client bağlantılarında SSRF (Server-Side Request Forgery) koruması (dahili IP'lerin dial edilmesinin engellenmesi).
+   * **Vektör 1 — Ağ, Çevre & API Sınırları (Perimeter, Rate Limiting, Brute-Force, CORS & Loopback) — %100 TAMAMLANDI:**
+     - **Reverse Proxy Spoofing Engellendi (`actor.mjs`):** `x-user` başlığı yetkisiz isteklerde devre dışı bırakıldı; `_isLoopbackReq` proxy forwarding başlıklarını (`x-forwarded-for`, `x-real-ip`) denetleyecek şekilde sıkılaştırıldı. Sahte başlıkla admin olma açığı sıfırlandı.
+     - **Rate Limiter Gerçek IP Düzeltmesi (`auth-utils.mjs`):** `getRealClientIp()` fonksiyonu eklendi; reverse proxy arkasından gelen isteklerin `127.0.0.1` sayılarak rate-limit bypass edilmesi engellendi.
+     - **5-Hata Kuralı ile Hesap Kilitleme (`identity.mjs`):** `app_users` tablosundaki `failed_logins` ve `lockout_until` aktif edildi. 5 hatalı denemede hesap 15 dakika kilitleniyor (`HTTP 423 Locked`), başarılı girişte sayaç sıfırlanıyor.
+     - **CORS Sıkılaştırması (`server.mjs`, `sse.mjs`):** Parametresiz wildcard CORS kaldırıldı; yalnızca localhost, yerel ağ ve izinli origin'ler allowlist'e alındı. Yabancı origin'ler (`evil-attacker.com`) reddedildi.
+     - **Doğrulama:** Canlı exploit testleri (Header spoofing bloklama, 5 hatalı denemede 423 kilitlenme, CORS bloklama) başarıyla geçildi.
+
+   * **Vektör 2 — SSRF (Server-Side Request Forgery) & Egress Ağ Filtreleme — %100 TAMAMLANDI:**
+     - **Policy & Security ile Canlı İcra Bağlantısı (`tool-adapters.mjs`):** Ayrı bir dosya yerine doğrudan veritabanındaki `isolation_profiles` tablosuna bağlandı. Çok kiracılı (`tenant_id`) ve masa mülkiyetli (`owner_id`, `visibility`) `resolveIsolationProfile` fonksiyonu eklendi; HTTP ve Python araçları icra anında canlı sandbox profillerinden denetleniyor.
+     - **Python `web_fetch.py` SSRF Kalkanı (`tools/web_fetch.py`):** `is_safe_public_host()` fonksiyonu ve `SafeRedirectHandler` entegre edildi. Loopback (`127.0.0.1`), dahili RFC-1918 IP'leri ve bulut metadata servisi (`169.254.169.254`) anında bloklanıyor; 301/302 yönlendirmelerinde iç ağa zıplama (redirect SSRF) engellendi. Tool Isolation sandbox kuralları (`network: denied / allowlist`) uygulandı.
+     - **Knowledge Hub Crawler SSRF Koruması (`url-crawler.mjs`):** `isSafePublicHost()` denetimi eklendi; crawler'ın şirket içi ağları veya localhost portlarını RAG veritabanına çekmesi engellendi.
+     - **MCP Client Egress Koruması (`mcp/client.mjs`):** `mcpFetch` ve `probeServer` öncesinde hedef sunucunun özel IP blokları ve cloud metadata olmadığı doğrulandı.
+     - **Doğrulama:** Canlı CLI ve Node testleri ile `127.0.0.1` ve `169.254.169.254` aramaları 403 ile engellendi, sandbox `denied` ve `allowlist` kontrolleri doğrulandı.
+     - **SuperAdmin Default Fallback Mührü:** `iso.01`, `siso.01`, `miso.01` varsayılan sandbox profilleri küresel (`is_global = true`) olarak tüm sistemde etkindir; TenantAdmin veya operatörlerin kapatması/değiştirmesi backend seviyesinde (`HTTP 403`) ve arayüz toggle kilidi ile imkansız kılındı.
+     - **Canlı UI Senkronizasyonu & Test Temizliği:** `iso.test` test profili veritabanından silindi; `security-store.ts` optimistic state ve `EntityDialog` dinamik imza ile modal senkronizasyonu F5 gerektirmeden canlı hale getirildi.
+
+   * **Vektör 3 — SQL Injection & Dinamik Sorgu Parametrizasyonu:**
+     - Backend genelindeki (`local-server/lib/routes/`) tüm dinamik SQL bloklarının `$1, $2` ile tam parametrizasyon denetimi.
+     - `buildVisibility`, metrik sorguları ve filtre parametrelerinde string concatenation risklerinin sıfırlanması.
+
+   * **Vektör 4 — Secret Vault & Kriptografik Sızıntı Denetimi:**
+     - AES-256-GCM çözülmüş sırların (`unmask`) asla `agent_logs`, audit stream, SIEM forwarder veya konsola sızmadığının teyidi.
+     - Bellekte çözülen API key'lerinin ve credential'ların ömrü ve maskeleme hijyeni.
+
+   * **Vektör 5 — Zero-Trust Kimlik, IDOR & Yetki Aşımı (Privilege Escalation):**
+     - Oturum taklit (session hijacking / header tampering) denetimi.
+     - Farklı tenant veya kullanıcı varlıklarına doğrudan erişim (IDOR — Insecure Direct Object Reference) denetimi.
    * Secret Vault AES-256-GCM çözülmüş sırların asla loglara (`agent_logs`) veya audit stream'e sızmadığının teyidi.

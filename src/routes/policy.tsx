@@ -1617,10 +1617,12 @@ function CrudSection<T extends AnyItem>({
   actionButton?: ReactNode;
 }) {
   const [editing, setEditing] = useState<T | null>(null);
+  const activeEditing = editing ? (items.find((x) => x.id === editing.id) ?? editing) : null;
   const [creating, setCreating] = useState(false);
   const [confirm, setConfirm] = useState<string | null>(null);
   const ownerCtx = useOwnerCtx();
-  const editingWritable = Boolean(editing && !Boolean((editing as any).fallback) && canEditOwned(editing as Owned, ownerCtx));
+  const isEditingFallback = Boolean((activeEditing as any)?.fallback);
+  const editingWritable = Boolean(activeEditing && (ownerCtx.sovereign || (!isEditingFallback && canEditOwned(activeEditing as Owned, ownerCtx))));
 
   return (
     <section>
@@ -1647,7 +1649,8 @@ function CrudSection<T extends AnyItem>({
           {items.map((item, i) => {
             const on = enabledKey ? Boolean(item[enabledKey]) : true;
             const isFallback = Boolean((item as any).fallback);
-            const writable = !isFallback && canEditOwned(item as Owned, ownerCtx);
+            const writable = ownerCtx.sovereign || (!isFallback && canEditOwned(item as Owned, ownerCtx));
+            const canToggle = ownerCtx.sovereign || writable;
             return (
               <motion.article
                 key={item.id}
@@ -1671,15 +1674,17 @@ function CrudSection<T extends AnyItem>({
                     <button
                       role="switch"
                       aria-checked={on}
+                      disabled={!canToggle}
                       aria-label={`Toggle ${title(item)}`}
-                      onClick={() => onUpdate(item.id, { [enabledKey]: !on } as Partial<T>)}
+                      onClick={() => canToggle && onUpdate(item.id, { [enabledKey]: !on } as Partial<T>)}
                       className={cn(
                         "relative h-6 w-11 shrink-0 rounded-full border transition-colors duration-200",
+                        !canToggle && "opacity-50 cursor-not-allowed",
                         on
                           ? "border-emerald/45 bg-emerald/15 shadow-[0_0_20px_-6px_var(--emerald)]"
                           : "border-border bg-raised",
                       )}
-                      title={`Toggle ${title(item)}`}
+                      title={!canToggle ? "System defaults can only be modified by Super-Admin" : `Toggle ${title(item)}`}
                     >
                       <motion.span
                         layout
@@ -1783,17 +1788,17 @@ function CrudSection<T extends AnyItem>({
       </div>
 
       <EntityDialog
-        open={creating || editing !== null}
-        heading={editing ? `${editingWritable ? "Edit" : "View"} — ${heading}` : `New — ${heading}`}
+        open={creating || activeEditing !== null}
+        heading={activeEditing ? `${editingWritable ? "Edit" : "View"} — ${heading}` : `New — ${heading}`}
         fields={fields}
-        initial={editing ? (editing as unknown as Record<string, unknown>) : empty}
-        readOnly={editing ? !editingWritable : false}
+        initial={activeEditing ? (activeEditing as unknown as Record<string, unknown>) : empty}
+        readOnly={activeEditing ? !editingWritable : false}
         onClose={() => {
           setCreating(false);
           setEditing(null);
         }}
         onSubmit={(values) => {
-          if (editing) onUpdate(editing.id, values as Partial<T>);
+          if (activeEditing) onUpdate(activeEditing.id, values as Partial<T>);
           else onCreate(values as Omit<T, "id" | "createdAt">);
           setCreating(false);
           setEditing(null);
@@ -2011,7 +2016,7 @@ function EntityDialog({
   const [values, setValues] = useState<Record<string, unknown>>(initial);
   const [key, setKey] = useState("");
 
-  const signature = `${open}:${heading}:${String(initial["id"] ?? "new")}`;
+  const signature = `${open}:${heading}:${String(initial["id"] ?? "new")}:${String(initial["enabled"] ?? "")}:${String(initial["network"] ?? "")}`;
   if (open && key !== signature) {
     setKey(signature);
     const next: Record<string, unknown> = {};

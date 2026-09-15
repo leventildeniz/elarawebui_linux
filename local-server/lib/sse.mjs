@@ -15,9 +15,31 @@
 
 export function corsHeadersFor(req) {
   const origin = String(req?.headers?.origin || "").trim();
+  let allowedOrigin = "";
+  if (origin) {
+    try {
+      const parsed = new URL(origin);
+      const hostname = parsed.hostname;
+      if (
+        hostname === "localhost" ||
+        hostname === "127.0.0.1" ||
+        hostname === "::1" ||
+        hostname.endsWith(".local") ||
+        hostname.startsWith("192.168.") ||
+        hostname.startsWith("10.") ||
+        hostname.startsWith("172.")
+      ) {
+        allowedOrigin = origin;
+      } else {
+        const extra = String(process.env.CORS_ALLOWED_ORIGINS || "").split(",").map(s => s.trim()).filter(Boolean);
+        if (extra.includes(origin) || extra.includes(hostname)) {
+          allowedOrigin = origin;
+        }
+      }
+    } catch {}
+  }
   return {
-    "Access-Control-Allow-Origin": origin || "*",
-    "Access-Control-Allow-Credentials": "true",
+    ...(allowedOrigin ? { "Access-Control-Allow-Origin": allowedOrigin, "Access-Control-Allow-Credentials": "true" } : {}),
     "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,PATCH,OPTIONS",
     "Access-Control-Allow-Headers": String(req?.headers?.["access-control-request-headers"] || "Content-Type, Authorization, Accept, Origin, X-Requested-With, X-User, x-user, X-Session-Id, x-session-id, X-User-Role, x-user-role, Access-Control-Request-Private-Network"),
     "Access-Control-Allow-Private-Network": "true",

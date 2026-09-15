@@ -18,6 +18,8 @@ function slugify(name) {
     .slice(0, 48) || "server";
 }
 
+import { isSafePublicHost } from "../auth-utils.mjs";
+
 function jsonRpc(method, params, id = null) {
   return { jsonrpc: "2.0", id: id ?? Math.floor(Math.random() * 1e9), method, params };
 }
@@ -40,6 +42,16 @@ async function mcpFetch(server, rpcReq) {
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), REQ_TIMEOUT_MS);
   try {
+    const parsedUrl = new URL(server.url);
+    if (!(await isSafePublicHost(parsedUrl.hostname))) {
+      return {
+        ok: false,
+        status: 403,
+        reason: "ssrf_blocked_private_host",
+        error: { message: `MCP dial blocked: Target host "${parsedUrl.hostname}" resolves to private, loopback, or cloud metadata network.` },
+      };
+    }
+
     const resp = await fetch(server.url, {
       method: "POST",
       headers,

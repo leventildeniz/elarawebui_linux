@@ -14,6 +14,7 @@
 //   skipNoindex=true, includeSubdomains=false
 
 import * as cheerio from "cheerio";
+import { isSafePublicHost } from "./auth-utils.mjs";
 
 const DEFAULTS = {
   maxDepth: 5,
@@ -216,7 +217,13 @@ export async function crawlUrl(rootUrl, userOpts = {}) {
   const start = Date.now();
   const root = normalizeUrl(rootUrl);
   if (!root) throw new Error(`invalid root url: ${rootUrl}`);
-  const origin = new URL(root).origin;
+
+  const parsedRoot = new URL(root);
+  if (!(await isSafePublicHost(parsedRoot.hostname))) {
+    throw new Error(`SSRF Blocked: Target host "${parsedRoot.hostname}" resolves to private, loopback, or cloud metadata network.`);
+  }
+
+  const origin = parsedRoot.origin;
 
   const visited = new Set();
   const queued = new Set();

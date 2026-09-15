@@ -1,5 +1,7 @@
 import crypto from 'crypto';
 import dgram from 'dgram';
+import dns from 'node:dns/promises';
+import net from 'node:net';
 import radius from 'radius';
 import { Client as LdapClient } from 'ldapts';
 import { isAdminFromSession, isSuperAdminFromSession } from './session-gate.mjs';
@@ -13,16 +15,66 @@ import { isAdminFromSession, isSuperAdminFromSession } from './session-gate.mjs'
 const __rl = new Map(); // key -> { tokens, last }
 
 /**
+ * Resolves the genuine client IP address behind reverse proxies and CDNs.
+ */
+export function getRealClientIp(req) {
+  const stripV6 = (s) => String(s || "").replace(/^::ffff:/, "").trim();
+  const cf = stripV6(req?.headers?.["cf-connecting-ip"]);
+  const xreal = stripV6(req?.headers?.["x-real-ip"]);
+  const xfwdAll = String(req?.headers?.["x-forwarded-for"] || "")
+    .split(",").map(stripV6).filter(Boolean);
+  const xfwdReal = xfwdAll.find(ip => ip && ip !== "::1" && !/^127\./.test(ip)) || xfwdAll[0] || "";
+  const sock = stripV6(req?.ip || req?.socket?.remoteAddress);
+  return cf || xreal || xfwdReal || sock || "127.0.0.1";
+}
+
+/**
+ * Checks if an IP address belongs to a private, loopback, or cloud-metadata network.
+ */
+export function isPrivateOrRestrictedIp(ip) {
+  if (!net.isIP(ip)) return false;
+  if (net.isIPv4(ip)) {
+    const parts = ip.split('.').map(Number);
+    if (parts[0] === 127 || parts[0] === 10 || parts[0] === 0) return true;
+    if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
+    if (parts[0] === 192 && parts[1] === 168) return true;
+    if (parts[0] === 169 && parts[1] === 254) return true;
+    return false;
+  }
+  const norm = ip.toLowerCase();
+  if (norm === '::1' || norm === '::') return true;
+  if (norm.startsWith('fe80:') || norm.startsWith('fc00:') || norm.startsWith('fd00:')) return true;
+  return false;
+}
+
+/**
+ * Validates that a destination hostname does not resolve to private, loopback, or cloud metadata.
+ */
+export async function isSafePublicHost(host) {
+  if ((process.env.ELARA_NETSEC_ALLOW_PRIVATE || "").trim() === "1") return true;
+  try {
+    const records = await dns.lookup(host, { all: true });
+    for (const rec of records) {
+      if (isPrivateOrRestrictedIp(rec.address)) return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Token Bucket Rate Limiter
  * Provides IP-based and key-based request rate limiting.
  */
 export function rateLimit({ capacity, refillPerSec, key }) {
   return (req, res, next) => {
-    const ip = String(req.ip || req.socket?.remoteAddress || "").replace(/^::ffff:/, "");
-    // Whitelist loopback / local requests from rate limits
-    if (ip === "127.0.0.1" || ip === "::1" || ip === "") return next();
+    const clientIp = getRealClientIp(req);
+    // Only whitelist genuine direct CLI/local loopback requests (not forwarded by external proxy)
+    const isDirectLocal = (clientIp === "127.0.0.1" || clientIp === "::1") && !req?.headers?.["x-forwarded-for"] && !req?.headers?.["x-real-ip"];
+    if (isDirectLocal) return next();
 
-    const k = `${key}|${ip}|${typeof key === "function" ? key(req) : ""}`;
+    const k = `${key}|${clientIp}|${typeof key === "function" ? key(req) : ""}`;
     const now = Date.now();
     
     let b = __rl.get(k);

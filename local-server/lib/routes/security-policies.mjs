@@ -299,7 +299,10 @@ export function mountSecurityPoliciesRoutes(app, deps) {
       }
 
       const row = check.rows[0];
-      if (ctx && !ctx.isSuperAdmin && !row.fallback) {
+      if (row.fallback && !ctx?.isSuperAdmin) {
+        return res.status(403).json({ ok: false, error: "System default fallback sandbox profiles can only be modified by Super-Admin." });
+      }
+      if (ctx && !ctx.isSuperAdmin) {
         const ownerId = row.owner_id;
         const matches = [ctx.userId, ctx.username, ctx.actor].filter(Boolean).map(s => String(s).toLowerCase());
         if (!ownerId || !matches.includes(String(ownerId).toLowerCase())) {

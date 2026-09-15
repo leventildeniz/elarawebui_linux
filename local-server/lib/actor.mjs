@@ -35,10 +35,7 @@ export async function resolveActor(req) {
   if (_hasLoopbackAdminToken(req)) {
     return await resolveDefaultActor();
   }
-  if (_isLoopbackReq(req)) {
-    const loopbackActor = String(req?.headers?.["x-user"] || req?.headers?.["x-username"] || "").trim().toLowerCase();
-    if (loopbackActor) return loopbackActor;
-  }
+  // Zero-Trust: Never trust unauthenticated client headers (x-user) without session verification
   return null;
 }
 
@@ -293,8 +290,15 @@ export function buildVisibility(
 }
 
 export function _isLoopbackReq(req) {
-  const ip = String(req?.ip || req?.socket?.remoteAddress || "");
-  return ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1" || ip.startsWith("127.");
+  // If request has external forward headers, it was proxied from an outside network
+  const fwd = String(req?.headers?.["x-forwarded-for"] || req?.headers?.["x-real-ip"] || req?.headers?.["cf-connecting-ip"] || "").trim();
+  if (fwd) {
+    const ips = fwd.split(",").map(s => s.trim().replace(/^::ffff:/, ""));
+    const hasExternal = ips.some(ip => ip && ip !== "::1" && !ip.startsWith("127."));
+    if (hasExternal) return false;
+  }
+  const ip = String(req?.ip || req?.socket?.remoteAddress || "").replace(/^::ffff:/, "").trim();
+  return ip === "127.0.0.1" || ip === "::1" || ip.startsWith("127.");
 }
 
 export function _hasLoopbackAdminToken(req) {

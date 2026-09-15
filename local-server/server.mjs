@@ -437,7 +437,39 @@ async function startServer() {
 
     const app = express();
     app.use(helmet({ contentSecurityPolicy: false }));
-    app.use(cors());
+    
+    // Enterprise CORS Hardening: Whitelist local, private network, and explicitly configured origins
+    const corsOptions = {
+      origin: (origin, callback) => {
+        if (!origin) return callback(null, true);
+        try {
+          const parsed = new URL(origin);
+          const hostname = parsed.hostname;
+          if (
+            hostname === "localhost" ||
+            hostname === "127.0.0.1" ||
+            hostname === "::1" ||
+            hostname.endsWith(".local") ||
+            hostname.startsWith("192.168.") ||
+            hostname.startsWith("10.") ||
+            hostname.startsWith("172.")
+          ) {
+            return callback(null, true);
+          }
+          const extra = String(process.env.CORS_ALLOWED_ORIGINS || "").split(",").map(s => s.trim()).filter(Boolean);
+          if (extra.includes(origin) || extra.includes(hostname)) {
+            return callback(null, true);
+          }
+          return callback(null, false);
+        } catch {
+          return callback(null, false);
+        }
+      },
+      credentials: true,
+      methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+      allowedHeaders: ["Content-Type", "Authorization", "x-session-id", "x-user", "x-user-role", "x-tenant-id", "x-admin-token"],
+    };
+    app.use(cors(corsOptions));
     app.use(express.json({ limit: '50mb' }));
     app.use(express.urlencoded({ limit: '50mb', extended: true }));
     app.use(attachSessionContext());

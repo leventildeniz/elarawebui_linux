@@ -522,12 +522,45 @@ export async function mountIdentityRoutes(app, deps) {
             if (u.locked) { lastError = "account locked"; u = null; continue; }
             if (u.status !== "active") { lastError = `account ${u.status}`; u = null; continue; }
             if (u.valid_until && new Date(u.valid_until) < new Date()) { lastError = "account expired"; u = null; continue; }
-            if (!verifyPassword(password, u.password_hash, u.password_salt)) {
-              // Standard enterprise firewall approach: If user EXISTS locally but wrong pass, FAIL IMMEDIATELY.
-              // Don't fall through to LDAP using a local user's wrong password.
-              return res.status(401).json({ ok: false, error: "invalid credentials" });
+
+            // Check temporary lockout from brute-force attempts
+            if (u.lockout_until && new Date(u.lockout_until) > new Date()) {
+              const waitMins = Math.max(1, Math.ceil((new Date(u.lockout_until).getTime() - Date.now()) / 60000));
+              return res.status(423).json({ 
+                ok: false, 
+                error: `Account temporarily locked due to consecutive failed attempts. Try again in ${waitMins} minute(s).` 
+              });
             }
-            // Valid local user!
+
+            if (!verifyPassword(password, u.password_hash, u.password_salt)) {
+              // Standard enterprise firewall approach: If user EXISTS locally but wrong pass, track failed attempt and fail immediately.
+              const nextFailed = (u.failed_logins || 0) + 1;
+              if (nextFailed >= 5) {
+                await pool.query(
+                  "UPDATE app_users SET failed_logins = $1, lockout_until = now() + interval '15 minutes' WHERE id = $2",
+                  [nextFailed, u.id]
+                );
+                return res.status(423).json({ 
+                  ok: false, 
+                  error: "Account locked for 15 minutes due to 5 consecutive failed login attempts." 
+                });
+              } else {
+                await pool.query(
+                  "UPDATE app_users SET failed_logins = $1 WHERE id = $2",
+                  [nextFailed, u.id]
+                );
+                const remaining = 5 - nextFailed;
+                return res.status(401).json({ 
+                  ok: false, 
+                  error: `Invalid credentials. ${remaining} attempt(s) remaining before lockout.` 
+                });
+              }
+            }
+            // Valid local user! Reset failed attempts:
+            await pool.query(
+              "UPDATE app_users SET failed_logins = 0, lockout_until = NULL, last_login_at = now() WHERE id = $1",
+              [u.id]
+            );
             break;
           }
         } 

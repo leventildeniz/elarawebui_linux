@@ -442,18 +442,19 @@ export function useCollection<T extends { id: string; createdAt: number }>(
   const update = useCallback(
     async (id: string, patch: Partial<T>) => {
       const endpoint = getCollectionEndpoint(id);
+
+      // Optimistic update for instant UI feedback (zero-delay toggle response)
+      setItems((prev) => {
+        const next = prev.map((x) => (x.id === id ? { ...x, ...patch } : x));
+        persist(next);
+        return next;
+      });
       
-      if (!endpoint) {
-        setItems((prev) => persist(prev.map((x) => (x.id === id ? { ...x, ...patch } : x))));
-        return;
-      }
+      if (!endpoint) return;
 
       try {
-        // Find existing to merge before PUT
         const existing = items.find(x => x.id === id);
-        if (!existing) throw new Error("Item not found");
-        
-        let payload = { ...existing, ...patch };
+        let payload = { ...(existing || {}), ...patch, id };
         
         // Ensure kind is preserved for isolation profiles
         if (prefix === "siso") (payload as any).kind = "skill";
@@ -467,10 +468,11 @@ export function useCollection<T extends { id: string; createdAt: number }>(
         await fetchItems();
       } catch (err) {
         console.error(`Failed to update ${prefix} item:`, err);
+        await fetchItems();
         throw err;
       }
     },
-    [persist, items, prefix, fetchItems],
+    [persist, items, prefix, fetchItems, getCollectionEndpoint],
   );
 
   const remove = useCallback(

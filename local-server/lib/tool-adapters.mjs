@@ -45,6 +45,48 @@ export class ToolPolicyError extends Error {
   }
 }
 
+/**
+ * Resolves the effective Isolation Sandbox Profile from the Policy & Security plane,
+ * strictly honoring Multi-Tenant & Zero-Desk ownership boundaries.
+ */
+export async function resolveIsolationProfile(pool, { kind = "tool", toolId = null, tenantId = "default", userId = null } = {}) {
+  if (!pool) return null;
+  const userMatches = [userId].filter(Boolean);
+
+  try {
+    // 1. Specifically bound profile in this tenant or global desk
+    if (toolId) {
+      const { rows } = await pool.query(
+        `SELECT * FROM isolation_profiles 
+          WHERE enabled = true 
+            AND kind = $1 
+            AND tools ? $2
+            AND (tenant_id = $3 OR is_global = true)
+          ORDER BY (tenant_id = $3) DESC, (owner_id = ANY($4::text[])) DESC 
+          LIMIT 1`,
+        [kind, toolId, tenantId, userMatches.length ? userMatches : ['__none__']]
+      );
+      if (rows[0]) return rows[0];
+    }
+
+    // 2. Fallback profile for this kind in this tenant (or global fallback)
+    const { rows: fbRows } = await pool.query(
+      `SELECT * FROM isolation_profiles 
+        WHERE enabled = true 
+          AND kind = $1 
+          AND fallback = true 
+          AND (tenant_id = $2 OR is_global = true)
+        ORDER BY (tenant_id = $2) DESC 
+        LIMIT 1`,
+      [kind, tenantId]
+    );
+    return fbRows[0] || null;
+  } catch (e) {
+    console.error("[tool-adapters] resolveIsolationProfile error:", e.message);
+    return null;
+  }
+}
+
 async function loadTool(toolId) {
   if (!toolId) return null;
 
@@ -232,9 +274,26 @@ function withTimeout(signal, ms) {
 
 // ---- Adapter runners --------------------------------------------------------
 const RUNNERS = {
-  async http({ tool, params, signal }) {
+  async http({ tool, params, signal, profile }) {
     const cfg = tool.runtime || {};
     const url = cfg.url; if (!url) throw new ToolPolicyError("config", "http adapter requires runtime.url");
+
+    // Enforce Isolation Profile Network policy from Policy & Security UI
+    if (profile) {
+      if (profile.network === "denied") {
+        throw new ToolPolicyError("network_denied", `HTTP tool execution blocked: Isolation profile "${profile.name}" denies all network egress.`);
+      }
+      if (profile.network === "allowlist") {
+        const allowedEntries = String(profile.net_allowlist || "").split(/\r?\n|,/).map(s => s.trim().toLowerCase()).filter(Boolean);
+        const parsedUrl = new URL(url);
+        const host = parsedUrl.hostname.toLowerCase();
+        const isAllowed = allowedEntries.some(entry => host === entry || host.endsWith("." + entry) || entry === url);
+        if (!isAllowed) {
+          throw new ToolPolicyError("network_denied", `HTTP destination ${host} is not in isolation profile "${profile.name}" network allowlist.`);
+        }
+      }
+    }
+
     const method = (cfg.method || "POST").toUpperCase();
     const headers = { "Content-Type": "application/json", ...(cfg.headers || {}) };
     const body = method === "GET" ? undefined : JSON.stringify(params || {});
@@ -302,7 +361,7 @@ const RUNNERS = {
       throw new Error(`Native skill execution failed: ${e.message}`);
     }
   },
-  async python({ tool, params, signal }) {
+  async python({ tool, params, signal, profile }) {
     let script = tool.runtime?.script || tool.script_path || tool.script;
     if (!script && tool.id && tool.id.startsWith("tool.")) {
       const slug = tool.id.slice(5);
@@ -317,7 +376,15 @@ const RUNNERS = {
     }
     const timeoutMs = Number(tool.runtime?.timeout_ms || 60_000);
     const toolSysPrompt = String(tool.system_prompt || "").trim();
-    const env = toolSysPrompt ? { ELARA_TOOL_SYSTEM_PROMPT: toolSysPrompt } : {};
+    const env = {
+      ...(toolSysPrompt ? { ELARA_TOOL_SYSTEM_PROMPT: toolSysPrompt } : {}),
+      ...(profile ? {
+        ELARA_SANDBOX_NETWORK: profile.network || "denied",
+        ELARA_SANDBOX_NET_ALLOWLIST: profile.net_allowlist || "",
+        ELARA_SANDBOX_PROFILE_ID: profile.id || "",
+        ELARA_SANDBOX_PROFILE_NAME: profile.name || "",
+      } : {})
+    };
 
     // Legacy HTTP runner kept as opt-in fallback: only when PY_RUNNER_BASE is
     // explicitly set, route via that service. Default = local disk-runner so
@@ -483,7 +550,16 @@ export async function invokeTool({
 
   const started = Date.now();
   try {
-    const output = await RUNNERS[adapter]({ tool, params, signal, provider });
+    // Resolve Isolation Profile respecting Multi-Tenant & Zero-Desk boundaries
+    const kind = (tool.adapter === "mcp" || toolId.startsWith("mcp.")) ? "mcp" : (tool.adapter === "native" || toolId.startsWith("sk.") || toolId.startsWith("skill.")) ? "skill" : "tool";
+    const profile = await resolveIsolationProfile(_pool, {
+      kind,
+      toolId,
+      tenantId: tool.tenant_id || "default",
+      userId: username
+    });
+
+    const output = await RUNNERS[adapter]({ tool, params, signal, provider, profile });
     const duration = Date.now() - started;
     await updateInvocation(invocationId, {
       status: "done", output: output ?? null,
