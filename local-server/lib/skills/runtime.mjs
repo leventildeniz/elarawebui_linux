@@ -113,7 +113,7 @@ export function getSkillEnv(skill) {
 }
 
 export async function executeSkillScript(skill, params, runId, mode = "run") {
-  // Tur-7 — disk-bound python skill: script_path on disk, no inline body.
+  // Disk-bound python skill: script_path on disk, no inline body.
   // Rollback for python is out of scope this round; rollback_body still applies
   // only to script_kind='js'.
   if (skill.script_kind === "python" && mode === "run") {

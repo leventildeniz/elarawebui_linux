@@ -1,6 +1,4 @@
-// lib/routes/cockpit-allowlist.mjs — Tur 2 modülerleştirme
-// Cockpit allowlist + intent-guard + bridge telemetry endpoints.
-// server.mjs'ten taşındı (2093-2232). Davranış aynı.
+// lib/routes/cockpit-allowlist.mjs — Cockpit allowlist, intent-guard, and bridge telemetry endpoints.
 //
 // initCockpitAllowlist(deps) → { INTENT_GUARD, broadcastBridge,
 //   hydrateIntentGuardFromDb, hydrateAllowedAgentsFromDb,

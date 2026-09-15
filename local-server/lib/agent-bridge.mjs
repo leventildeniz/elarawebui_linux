@@ -1,13 +1,12 @@
-// agent-bridge.mjs — ELARA otonom ajan köprüsü.
-// Model çıktısındaki "tetikliyorum: x.py" / "@[x.py]" / "running x.py" niyetlerini
-// yakalar, whitelist'li bir yerel Python betiğini güvenle koşturur ve stdout'u
-// chat akışına enjekte edilebilecek temizlikte döner.
+// agent-bridge.mjs — ELARA Autonomous Agent Bridge.
+// Captures triggers like "tetikliyorum: x.py", "@[x.py]", "running x.py",
+// securely executes whitelisted local Python scripts, and returns clean stdout.
 //
-// Tasarım mühürleri:
-//  - Türkçe + İngilizce doğal dil varyantlarını yakalayan Unicode regex.
-//  - execFile (shell yorumlamaz) + argv array → shell injection cephesi kapalı.
-//  - Whitelist + path-escape mührü.
-//  - Hata sınıflandırma + locale-aware maskelenmiş fallback metinleri.
+// Design:
+//  - Unicode regex capturing bilingual natural language variants.
+//  - execFile + argv array closing shell injection vectors.
+//  - Whitelist and path-escape protection.
+//  - Error classification and masked fallback messaging.
 
 import { execFile, spawn } from "node:child_process";
 import path from "node:path";
@@ -210,9 +209,8 @@ export function setAllowedAgents(list) {
 }
 export function getAllowedAgents() {
   if (_runtimeAllowedAgents && _runtimeAllowedAgents.length) return [..._runtimeAllowedAgents];
-  // ELARA_AGENTS_ALLOWED env kaldırıldı (Tur-2). DB tek kaynak; server.mjs boot'ta
-  // setAllowedAgents() çağrısı ile hydrate eder. Yine de geriye uyum için env
-  // okumaya devam et — yoksa boş liste döner (hiçbir ajan koşturulamaz).
+  // Database is the primary source of truth; hydrated during server boot.
+  // Falls back to ELARA_AGENTS_ALLOWED environment variable for backward compatibility.
   const envList = String(process.env.ELARA_AGENTS_ALLOWED || "").split(",").map((s) => s.trim()).filter(Boolean);
   return envList;
 }
@@ -326,12 +324,8 @@ export async function runLocalAgent(opts) {
 
   const timeoutMs = Number(opts.timeoutMs || process.env.ELARA_AGENTS_TIMEOUT_MS || QUEUE_TIMEOUTS.AGENT_EXEC_TIMEOUT_MS);
 
-  // P1 fix (2026-05-28): Agent Python süreci MLX ${process.env.LOCAL_RUNTIME_PORT || 8001}'e openai-compat çağrı
-  // atıyor. Chat hattı (server.mjs) zaten localQueue üstünden gidiyor; agent
-  // de aynı slot'a girmezse paralel istek MLX'in tek aktif slot'unu kilitler
-  // ("MLX modeli 60s içinde ilk token üretmedi" → zombi slot → chat felç).
-  // Çözüm: execFile çağrısını AGENT_LOW önceliğiyle queue'ya teslim et.
-  // Chat default=1, execution=10; agent=-1 → kullanıcı sohbeti hep öne geçer.
+  // Agent Python process communicates with local runtime endpoint.
+  // Enqueue execFile with AGENT_LOW priority so user chat turns always take precedence.
   const slotLabel = `agent:${scriptBase}`;
   console.error(`[agent-bridge] enqueue script=${scriptBase} memLimitMb=${memLimitMb || 'auto'} timeoutMs=${timeoutMs}`);
   const t0 = Date.now();

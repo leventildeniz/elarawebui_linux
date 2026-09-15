@@ -1,9 +1,5 @@
-// =============================================================================
-// agents-scan.mjs — disk → app_agents registry source (Tur-7.2)
-// =============================================================================
-// Scans AGENTS_DISCOVERY_ROOTS (default: repo /agents) for *.py files and
-// upserts rows into `app_agents` with script_path=<abs>. Symmetric to
-// tools-scan.mjs / skills-scan.mjs — keep them in lockstep.
+// agents-scan.mjs — scans on-disk Python agents into `app_agents` registry.
+// Scans AGENTS_DISCOVERY_ROOTS for *.py files and upserts records into app_agents.
 //
 // Header contract (all optional except @agent):
 //   # @agent:        <slug>         (lowercase, [a-z0-9_-])

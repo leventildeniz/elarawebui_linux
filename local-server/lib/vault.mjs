@@ -198,9 +198,8 @@ export async function putSecretV2(pool, { scope, name, kind = "api_key", fields 
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    // vault_secrets upsert. Legacy ciphertext/iv/tag NOT NULL → bir field varsa
-    // onun değerini koy, yoksa boş bir placeholder şifrele (eski list endpoint'i
-    // bu kayıtlara bakmaz; ileride drop edilecek).
+    // vault_secrets upsert: encrypt placeholder if no primary field is provided
+    // to satisfy schema NOT NULL constraints.
     const placeholder = fields.api_key ?? fields.token ?? fields.password ?? fields.api_key ?? "";
     const { ciphertext, iv, tag } = encryptSecret(placeholder);
     await client.query(
@@ -280,7 +279,7 @@ export async function getSecretAllFields(pool, scope, name) {
     catch (e) { console.warn(`[vault.getSecretAllFields] decrypt fail ${id}.${r.field_name}: ${e.message}`); }
   }
   if (Object.keys(out).length === 0) {
-    // Legacy tek-değer satır.
+    // Legacy single-value row fallback.
     try { out.api_key = decryptSecret(head.rows[0].ciphertext, head.rows[0].iv, head.rows[0].tag); }
     catch (e) { console.warn(`[vault.getSecretAllFields] legacy decrypt fail ${id}: ${e.message}`); }
   }
@@ -295,20 +294,20 @@ export async function getSecretField(pool, scope, name, fieldName) {
 }
 
 /**
- * Merkezi Kimlik Bilgisi Çözümleyici (Credential Resolver)
- * - 'raw://...' formatındaki verilerin prefixini atıp düz (saf) döner.
- * - 'vault://...' formatındaki veriler için vault'a gidip belirtilen field'ı döner.
- * - Sisteme yeni eklenen veya eklenecek tüm servisler (Mail, MCP, Chat vb) API Key veya şifre çözerken bunu kullanmalıdır.
+ * Centralized Credential Resolver
+ * - Strips 'raw://...' prefix and returns raw plaintext.
+ * - Resolves 'vault://...' references against vault_secrets and returns decrypted field.
+ * - Used across Mail, MCP, Chat, and Provider services for secure credential resolution.
  */
 export async function resolveCredential(pool, credentialRef, fieldName = "api_key") {
   if (!credentialRef || typeof credentialRef !== "string") return credentialRef;
 
-  // 1. Manuel (Raw) giriş yapılmışsa, direkt temizleyip dön
+  // 1. Raw entry: strip prefix and return plaintext
   if (credentialRef.startsWith("raw://")) {
       return credentialRef.slice(6);
   }
 
-  // 2. Vault girişi yapılmışsa
+  // 2. Vault reference: lookup and decrypt
   if (credentialRef.startsWith("vault://") || credentialRef.startsWith("vault:")) {
       let vaultId = credentialRef.replace(/^vault:\/\//, "").replace(/^vault:/, "");
       while(vaultId.startsWith("vault://") || vaultId.startsWith("vault:")) {
@@ -333,10 +332,10 @@ export async function resolveCredential(pool, credentialRef, fieldName = "api_ke
               return secretValue;
           }
       } catch(e) {
-          console.warn(`[Vault] resolveCredential araması başarısız oldu (${scope}.${name}):`, e.message);
+          console.warn(`[Vault] resolveCredential lookup failed (${scope}.${name}):`, e.message);
       }
   }
 
-  // 3. Fallback (hiçbir şemaya uymuyorsa olduğu gibi dön)
+  // 3. Fallback: pass through value as-is
   return credentialRef;
 }

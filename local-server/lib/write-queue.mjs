@@ -3,9 +3,7 @@
 // CRITICAL lane: chat_messages, chat_threads, message_feedback — drained first.
 // SIDE lane: agent_logs, provider_usage, tool_invocations, observability, …
 // Each lane drains independently; side-drain yields to critical between jobs.
-//
-// Extracted from server.mjs (Block F Tur 1, 2026-05-30). pool + redactString +
-// redactDeep injected via initWriteQueue({...}).
+// Dependency injected: pool, redactString, redactDeep via initWriteQueue.
 import { redactString, redactDeep } from "./redaction.mjs";
 
 const CRITICAL_TABLE_RE = /\binto\s+(chat_messages|chat_threads|message_feedback)\b/i;

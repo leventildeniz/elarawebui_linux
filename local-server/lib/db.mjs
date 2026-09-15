@@ -1,11 +1,8 @@
-// lib/db.mjs — DB bootstrap layer (extracted from server.mjs, Block E.2 Tur 1, 2026-05-30).
+// lib/db.mjs — PostgreSQL database bootstrap layer.
 //
-// Saf bootstrap katmanı: DATABASE_URL bekleme + ELARA sovereign normalize +
-// pg Pool kurulumu + waitForDatabaseReady probe + pool error handler.
-//
-// HİÇBİR business logic burada YOK — sadece bağlantı sağlama. `migrate()` ve
-// `ensure*` fonksiyonları kendi domain modüllerine ait (knowledge/agents/rbac);
-// onlar ayrı bloklarda taşınacak.
+// Pure bootstrap infrastructure: awaits DATABASE_URL, normalizes connection string,
+// establishes pg.Pool, executes readiness probes, and attaches connection error handlers.
+// Domain migrations and table schemas are maintained in their respective domain modules.
 //
 // API:
 //   bootstrapDatabase({ initialUrl, dbName?, forbiddenDbNames?, env? })

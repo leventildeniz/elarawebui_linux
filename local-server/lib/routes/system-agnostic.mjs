@@ -1,6 +1,5 @@
-// Runtime ops: restart-runtime, runtime-sockets
-// Extracted from server.mjs (Tur 2.2). Mutable state lives in RUNTIME_TRANSPORT
-// (shared object reference) — no further hoisting needed.
+// Runtime operations: restart-runtime, runtime-sockets endpoints.
+// Mutable state resides in RUNTIME_TRANSPORT (shared object reference).
 
 export function mountSystemRoutes(app, deps) {
   const {

@@ -1,5 +1,4 @@
-// Pure port / process / lsof utilities. State'siz, dep'siz.
-// Block C Tur 1 — server.mjs'ten taşındı 2026-05-30.
+// Pure port, process, and lsof utilities without state or external dependencies.
 import net from "node:net";
 import fs from "node:fs";
 import os from "node:os";

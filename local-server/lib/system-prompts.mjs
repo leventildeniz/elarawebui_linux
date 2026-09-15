@@ -26,9 +26,7 @@ export const DEFAULT_INSPECTOR_DIRECTIVE =
 export const DEFAULT_INSPECTOR_BRAND_LOCK =
   "• Yalnızca {BRAND} terminolojisini kullan; başka satıcının ürün adlarını karıştırma.\n";
 
-// 2026-06-03 Tur 2: `/no_think` prefix UI knob (RAG_SETTINGS.thinkOffPrefix)
-// olarak çekildi. Default extractor/HyDE metni saf sistem talimatı — Qwen
-// `/no_think` prefix'i call-site'te ayrı bir knob ile eklenir.
+// Default extractor and HyDE prompts. Applied with optional prefix at call-site.
 export const DEFAULT_EXTRACTOR_SYSTEM_PROMPT =
   "You extract the technical search core from user messages. Output exactly one short line — the technical question only, no greetings, no filler, no names, no thinking, no preface, no tags. " +
   "Fix obvious vendor name typos (e.g. 'checkpointtte'->'checkpoint', 'fortigatte'->'fortigate', 'paloalto'->'palo alto', 'cisocoo'->'cisco'). " +
@@ -38,7 +36,7 @@ export const DEFAULT_HYDE_SYSTEM_PROMPT =
   "You write a short hypothetical technical passage that a real document would contain to answer the question. Output the passage only — no preface, no quotes, no list, no thinking, no tags. " +
   "";
 
-// 2026-06-03 Tur 2 — Planner system prompt (plan-and-execute LLM).
+// Planner system prompt (plan-and-execute LLM).
 // Placeholder: {MAX_TOOLS} → integer. UI override knob: plannerSystemPrompt.
 export const DEFAULT_PLANNER_SYSTEM_PROMPT =
   "Sen bir araç planlayıcısın. Kullanıcının sorusunu okuyup, MEVCUT araçlar listesinden hangilerinin sırayla çağrılması gerektiğini belirleyeceksin.\n" +
@@ -55,10 +53,8 @@ export const DEFAULT_PLANNER_SYSTEM_PROMPT =
   "  ]\n" +
   "}";
 
-// 2026-07-05 — Auto-Creator hattı. Elara'nın outer chat LLM'ine "eksik
-// capability sezersen `@[meta-forge-master]` çağır" direktifi enjekte edilir.
-// RAG_SETTINGS.capabilityGapDirective boşsa bu default kullanılır; knob
-// `autoForgeRouting` (bool) ile hattın kendisi açılıp kapanır.
+// Auto-Creator capability gap directive injected into outer chat LLM.
+// Injected when autoForgeRouting is enabled to route synthesis requests to `@[meta-forge-master]`.
 export const DEFAULT_CAPABILITY_GAP_DIRECTIVE =
   "META-FORGE ROUTING:\n" +
   "• Kullanıcının isteği mevcut tool/skill/agent ile karşılanamıyorsa, cevabının EN BAŞINDA (başka hiçbir metin olmadan) tek satır olarak `@[meta-forge-master]` yaz.\n" +

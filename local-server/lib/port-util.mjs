@@ -1,5 +1,4 @@
-// Port self-heal — kendi zombilerimizi (bun/node/elara) temizle.
-// Pure util, no DI. Extracted from server.mjs (Block E.2 Tur 3).
+// Port self-healing utility to ensure service port availability.
 import { execSync } from "node:child_process";
 
 export function ensurePortFree(port) {

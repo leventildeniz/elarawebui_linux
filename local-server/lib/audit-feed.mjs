@@ -1,5 +1,4 @@
 // Audit SSE broadcast hub + checkpoint logger.
-// Extracted from server.mjs (Block F Tur 2, 2026-05-30).
 // Deps injected: sseWrite, siem, enqueueWrite. redactDeep imported directly.
 import { redactDeep } from "./redaction.mjs";
 

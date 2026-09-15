@@ -1,5 +1,4 @@
-// Knowledge schema bootstrap — extracted from server.mjs (Block E.2 Tur 4).
-// DI: { pool, ftsCharLimit }
+// Knowledge schema bootstrap.
 // Exports: initKnowledgeSchema(deps) → { ensureKnowledgeFilesTable, ensureKnowledgeChunksTable }
 //
 // Both ensure*'s are single-flight (boot-time idempotency wrappers around

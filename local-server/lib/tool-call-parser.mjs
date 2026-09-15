@@ -1,5 +1,5 @@
 // =============================================================================
-// tool-call-parser.mjs — TUR-6 Phase C
+// tool-call-parser.mjs — Agent tool call parser
 // =============================================================================
 // Scans agent stdout for `!<slug>({json...})` invocations, dispatches them
 // through the loopback `/api/agents/tool-call` endpoint (so manifest gate +

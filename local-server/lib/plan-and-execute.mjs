@@ -58,7 +58,7 @@ export async function initPlanner(pool, deps = {}) {
     listCapabilities:  deps.listCapabilities  || null,   // async ({ enabledOnly }) → caps[]
     executeCapability: deps.executeCapability || null,   // async (cap, args, ctx) → result
     logger:            deps.logger            || ((...a) => console.log("[planner]", ...a)),
-    // 2026-06-03 (Tur 2) — UI tek mercii. Boş ise default planner sysprompt.
+    // Falls back to DEFAULT_PLANNER_SYSTEM_PROMPT when empty.
     getRagSettings:    deps.getRagSettings    || (() => ({})),
   };
   loadSettings();
@@ -337,8 +337,7 @@ function formatContextBlock(plan, toolResults) {
 
 // ---------------------------------------------------------------- planner LLM
 
-// 2026-06-03 (Tur 2) — DEFAULT_PLANNER_PROMPT lib/system-prompts.mjs'e taşındı.
-// Çözünürlük: SETTINGS.systemPrompt (planner-specific override) → RAG_SETTINGS.plannerSystemPrompt
+// Resolution precedence: SETTINGS.systemPrompt (planner-specific override) → RAG_SETTINGS.plannerSystemPrompt
 // (global UI knob) → lib/system-prompts.mjs DEFAULT_PLANNER_SYSTEM_PROMPT.
 
 async function askPlanner(query, capabilities, ragRows) {

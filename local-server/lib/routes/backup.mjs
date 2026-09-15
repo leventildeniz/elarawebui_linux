@@ -1,6 +1,5 @@
 // Backup subsystem — full system snapshots (.eez), cluster pg_dump (.eezpg),
-// restore orchestrator with pre-restore safety + atomic swap + supervisor-aware
-// restart. Extracted from server.mjs (Tur 1.4 — Block I).
+// restore orchestrator with pre-restore safety, atomic swap, and supervisor-aware restart.
 //
 // DI: app, pool, enqueueWrite, spawnPg, initPgVersion, upload (multer),
 //     UPLOAD_DIR, BACKUP_DIR, DATABASE_URL, __bootDir, startedAt,
@@ -239,7 +238,7 @@ function maintenanceUrl(database = "postgres") {
   return u.toString();
 }
 
-// spawnPg → lib/port-process.mjs (Block C Tur 1)
+// spawnPg via lib/port-process.mjs
 
 
 async function listDatabases() {

@@ -7,7 +7,7 @@ export async function mountModelsRoutes(app, deps) {
 
   function requireSuperAdmin(req, res, next) {
     if (!req.session || req.session.role !== "admin" || (req.session.tenant_id && req.session.tenant_id !== "default")) {
-      return res.status(403).json({ error: "Only Super-Admin can perform this operation." });
+      return res.status(403).json({ ok: false, error: "Only Super-Admin can perform this operation." });
     }
     next();
   }
@@ -117,7 +117,7 @@ export async function mountModelsRoutes(app, deps) {
         defaultId: engineCfg.rows[0]?.active_model_id || ""
       });
     } catch (e) {
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ ok: false, error: e.message });
     }
   });
 
@@ -130,7 +130,7 @@ export async function mountModelsRoutes(app, deps) {
         [id, name, tone]
       );
       res.json({ ok: true, group: rows[0] });
-    } catch (e) { res.status(400).json({ error: e.message }); }
+    } catch (e) { res.status(400).json({ ok: false, error: e.message }); }
   });
 
   app.patch("/api/models/groups/:id", admin, requireSuperAdmin, async (req, res) => {
@@ -141,14 +141,14 @@ export async function mountModelsRoutes(app, deps) {
         [name, req.params.id]
       );
       res.json({ ok: true, group: rows[0] });
-    } catch (e) { res.status(400).json({ error: e.message }); }
+    } catch (e) { res.status(400).json({ ok: false, error: e.message }); }
   });
 
   app.delete("/api/models/groups/:id", admin, requireSuperAdmin, async (req, res) => {
     try {
       await pool.query("DELETE FROM model_groups WHERE id=$1", [req.params.id]);
       res.json({ ok: true });
-    } catch (e) { res.status(400).json({ error: e.message }); }
+    } catch (e) { res.status(400).json({ ok: false, error: e.message }); }
   });
 
   // --- CRUD MODELS ---
@@ -156,7 +156,7 @@ export async function mountModelsRoutes(app, deps) {
     try {
       const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : null;
       if (!ctx?.isAdmin && !ctx?.isSuperAdmin && !ctx?.isTenantAdmin) {
-        return res.status(403).json({ error: "Only administrators can provision new AI models." });
+        return res.status(403).json({ ok: false, error: "Only administrators can provision new AI models." });
       }
 
       const m = req.body;
@@ -186,21 +186,21 @@ export async function mountModelsRoutes(app, deps) {
         ]
       );
       res.json({ ok: true, model: rows[0] });
-    } catch (e) { res.status(400).json({ error: e.message }); }
+    } catch (e) { res.status(400).json({ ok: false, error: e.message }); }
   });
 
   app.patch("/api/models/:id", admin, async (req, res) => {
     try {
       const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : null;
       const { rows: existingRows } = await pool.query("SELECT * FROM models WHERE id=$1", [req.params.id]);
-      if (!existingRows.length) return res.status(404).json({ error: "Model not found" });
+      if (!existingRows.length) return res.status(404).json({ ok: false, error: "Model not found" });
       const existing = existingRows[0];
 
       if (existing.is_global && !ctx?.isSuperAdmin) {
-        return res.status(403).json({ error: "Global system models can only be modified by Super-Admin." });
+        return res.status(403).json({ ok: false, error: "Global system models can only be modified by Super-Admin." });
       }
       if (!ctx?.isSuperAdmin && existing.tenant_id !== ctx?.tenantId) {
-        return res.status(403).json({ error: "Access denied to model outside your organization." });
+        return res.status(403).json({ ok: false, error: "Access denied to model outside your organization." });
       }
 
       const m = req.body;
@@ -235,26 +235,26 @@ export async function mountModelsRoutes(app, deps) {
         values
       );
       res.json({ ok: true, model: rows[0] });
-    } catch (e) { res.status(400).json({ error: e.message }); }
+    } catch (e) { res.status(400).json({ ok: false, error: e.message }); }
   });
 
   app.delete("/api/models/:id", admin, async (req, res) => {
     try {
       const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : null;
       const { rows: existingRows } = await pool.query("SELECT * FROM models WHERE id=$1", [req.params.id]);
-      if (!existingRows.length) return res.status(404).json({ error: "Model not found" });
+      if (!existingRows.length) return res.status(404).json({ ok: false, error: "Model not found" });
       const existing = existingRows[0];
 
       if (existing.is_global && !ctx?.isSuperAdmin) {
-        return res.status(403).json({ error: "Global system models can only be deleted by Super-Admin." });
+        return res.status(403).json({ ok: false, error: "Global system models can only be deleted by Super-Admin." });
       }
       if (!ctx?.isSuperAdmin && existing.tenant_id !== ctx?.tenantId) {
-        return res.status(403).json({ error: "Access denied to model outside your organization." });
+        return res.status(403).json({ ok: false, error: "Access denied to model outside your organization." });
       }
 
       await pool.query("DELETE FROM models WHERE id=$1", [req.params.id]);
       res.json({ ok: true });
-    } catch (e) { res.status(400).json({ error: e.message }); }
+    } catch (e) { res.status(400).json({ ok: false, error: e.message }); }
   });
 
   // --- DEFAULT MODEL SETTING ---
@@ -263,7 +263,7 @@ export async function mountModelsRoutes(app, deps) {
       const { id } = req.body;
       await pool.query("UPDATE engine_config SET active_model_id=$1 WHERE id='singleton'", [id]);
       res.json({ ok: true });
-    } catch (e) { res.status(400).json({ error: e.message }); }
+    } catch (e) { res.status(400).json({ ok: false, error: e.message }); }
   });
 
   // --- LIVE MODEL ENDPOINT PROBE ---

@@ -1,8 +1,6 @@
-// =============================================================================
-// agent-manifest.mjs — TUR-6
-// Disk'teki agent .py dosyalarından `# @tools: a, b, c` header satırını okur,
-// cache'ler ve gate kararı için tools[] döner. "-" veya boş → LLM-only (boş array).
-// =============================================================================
+// agent-manifest.mjs — Agent tool manifest discovery.
+// Reads `# @tools: a, b, c` headers from on-disk agent .py files,
+// caches results, and returns tools array for execution gate decisions.
 
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -12,7 +10,7 @@ const _cache = new Map(); // agentId -> { tools: string[], file: string, mtime: 
 let _scanned = false;
 
 function parseHeader(text) {
-  // İlk 40 satıra bak; `# @tools: a, b` veya `# @tools: -`
+  // Inspect first 40 lines for `# @tools: a, b` or `# @tools: -`
   const lines = text.split(/\r?\n/).slice(0, 40);
   for (const line of lines) {
     const m = line.match(/^\s*#\s*@tools\s*:\s*(.+)$/i);

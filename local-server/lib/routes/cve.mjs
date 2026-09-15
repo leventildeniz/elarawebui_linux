@@ -96,7 +96,7 @@ export async function mountCveRoutes(app, deps) {
 
       res.json({ ok: true, sources, watchlists, entries });
     } catch (e) {
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ ok: false, error: e.message });
     }
   });
 
@@ -113,7 +113,7 @@ export async function mountCveRoutes(app, deps) {
       );
       emitCveLog("info", "source.created", `${s.label || s.id} (${s.provider})`, { id: s.id, provider: s.provider });
       res.json({ ok: true, source: rows[0] });
-    } catch (e) { res.status(400).json({ error: e.message }); }
+    } catch (e) { res.status(400).json({ ok: false, error: e.message }); }
   });
 
   app.patch("/api/cve/sources/:id", admin, async (req, res) => {
@@ -123,17 +123,18 @@ export async function mountCveRoutes(app, deps) {
       const updates = [];
       const values = [];
       let idx = 1;
-
-      for (const key of ['enabled', 'provider', 'label', 'watchlist', 'ecosystem', 'query', 'version', 'url', 'headers', 'map', 'defaultScore', 'minScore', 'lastSyncAt', 'lastResult']) {
-        if (s[key] !== undefined) {
-          const colName = key.replace(/[A-Z]/g, letter => "_" + letter.toLowerCase());
-          updates.push(`${colName}=$${idx++}`);
-          if (key === 'lastSyncAt') values.push(s[key] ? new Date(s[key]) : null);
-          else values.push(s[key]);
-        }
-      }
-
-      if (updates.length === 0) return res.json({ ok: true });
+      if (s.enabled !== undefined) { updates.push(`enabled=$${idx++}`); values.push(s.enabled); }
+      if (s.label !== undefined) { updates.push(`label=$${idx++}`); values.push(s.label); }
+      if (s.provider !== undefined) { updates.push(`provider=$${idx++}`); values.push(s.provider); }
+      if (s.watchlist !== undefined) { updates.push(`watchlist=$${idx++}`); values.push(s.watchlist); }
+      if (s.ecosystem !== undefined) { updates.push(`ecosystem=$${idx++}`); values.push(s.ecosystem); }
+      if (s.query !== undefined) { updates.push(`query=$${idx++}`); values.push(s.query); }
+      if (s.version !== undefined) { updates.push(`version=$${idx++}`); values.push(s.version); }
+      if (s.url !== undefined) { updates.push(`url=$${idx++}`); values.push(s.url); }
+      if (s.headers !== undefined) { updates.push(`headers=$${idx++}`); values.push(s.headers); }
+      if (s.map !== undefined) { updates.push(`map=$${idx++}`); values.push(s.map); }
+      if (s.defaultScore !== undefined) { updates.push(`default_score=$${idx++}`); values.push(s.defaultScore); }
+      if (s.minScore !== undefined) { updates.push(`min_score=$${idx++}`); values.push(s.minScore); }
 
       values.push(req.params.id);
       const { rows } = await pool.query(
@@ -141,7 +142,7 @@ export async function mountCveRoutes(app, deps) {
         values
       );
       res.json({ ok: true, source: rows[0] });
-    } catch (e) { res.status(400).json({ error: e.message }); }
+    } catch (e) { res.status(400).json({ ok: false, error: e.message }); }
   });
 
   app.delete("/api/cve/sources/:id", admin, async (req, res) => {
@@ -149,7 +150,7 @@ export async function mountCveRoutes(app, deps) {
       await pool.query("DELETE FROM cve_sources WHERE id=$1", [req.params.id]);
       emitCveLog("warn", "source.deleted", `id=${req.params.id}`, { id: req.params.id });
       res.json({ ok: true });
-    } catch (e) { res.status(400).json({ error: e.message }); }
+    } catch (e) { res.status(400).json({ ok: false, error: e.message }); }
   });
 
   // --- CRUD WATCHLISTS ---
@@ -161,7 +162,7 @@ export async function mountCveRoutes(app, deps) {
         [w.id, w.name, w.tone, w.components || []]
       );
       res.json({ ok: true, watchlist: rows[0] });
-    } catch (e) { res.status(400).json({ error: e.message }); }
+    } catch (e) { res.status(400).json({ ok: false, error: e.message }); }
   });
 
   app.patch("/api/cve/watchlists/:id", admin, async (req, res) => {
@@ -172,14 +173,14 @@ export async function mountCveRoutes(app, deps) {
         [name, tone, components ? JSON.stringify(components) : null, req.params.id]
       );
       res.json({ ok: true, watchlist: rows[0] });
-    } catch (e) { res.status(400).json({ error: e.message }); }
+    } catch (e) { res.status(400).json({ ok: false, error: e.message }); }
   });
 
   app.delete("/api/cve/watchlists/:id", admin, async (req, res) => {
     try {
       await pool.query("DELETE FROM cve_watchlists WHERE id=$1", [req.params.id]);
       res.json({ ok: true });
-    } catch (e) { res.status(400).json({ error: e.message }); }
+    } catch (e) { res.status(400).json({ ok: false, error: e.message }); }
   });
 
   // --- CRUD ENTRIES ---
@@ -192,7 +193,7 @@ export async function mountCveRoutes(app, deps) {
       );
       emitCveLog("info", "entry.status", `advisory=${rows[0]?.cve || req.params.id} status=${status}`, { id: req.params.id, status });
       res.json({ ok: true, entry: rows[0] });
-    } catch (e) { res.status(400).json({ error: e.message }); }
+    } catch (e) { res.status(400).json({ ok: false, error: e.message }); }
   });
 
   app.post("/api/cve/entries/merge", admin, async (req, res) => {
@@ -225,6 +226,6 @@ export async function mountCveRoutes(app, deps) {
       }
       emitCveLog("info", "sync.merge", `ingested ${added} new advisories`, { added });
       res.json({ ok: true, added });
-    } catch (e) { res.status(400).json({ error: e.message }); }
+    } catch (e) { res.status(400).json({ ok: false, error: e.message }); }
   });
 }

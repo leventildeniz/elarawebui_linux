@@ -1,8 +1,6 @@
 import { mountTelemetryStreamRoute } from "./telemetry-stream.mjs";
 // lib/routes/telemetry.mjs — /api/telemetry/* endpoints.
-// Extracted from server.mjs (Tur 3, 2026-05-30). Probe helpers
-// (probeHttp/probeTcp/probePing + isLoopbackHttps) live alongside since
-// only this module uses them.
+// Probe helpers (probeHttp/probeTcp/probePing + isLoopbackHttps) scoped locally.
 
 import net from "node:net";
 import { execFile } from "node:child_process";

@@ -1,9 +1,5 @@
-// =============================================================================
-// skills-scan.mjs — disk → skills registry source (Tur-7)
-// =============================================================================
-// Scans SKILLS_DISCOVERY_ROOTS (default: repo /skills) for *.py files and
-// upserts rows into `skills` with script_kind='python' and script_path=<abs>.
-// Symmetric to tools-scan.mjs — keep the two in lockstep.
+// skills-scan.mjs — scans on-disk Python skills into skills registry.
+// Scans SKILLS_DISCOVERY_ROOTS for *.py files and upserts records into `skills`.
 //
 // Header contract (all optional except @skill):
 //   # @skill:        <slug>            (lowercase, [a-z0-9_-])

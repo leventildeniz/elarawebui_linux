@@ -1,6 +1,5 @@
-// lib/embed-worker/store.mjs — Tur 3a
-// embedAndStoreChunks + getEmbeddingHealth (server.mjs:5974-6177)
-// Pure DI: pool + mlxEmbed + worker probes + RAG_SETTINGS getter.
+// lib/embed-worker/store.mjs — Embedding persistence and vector store synchronization.
+// Pure DI: pool + embed + worker probes + RAG_SETTINGS getter.
 
 import { createHash } from "node:crypto";
 

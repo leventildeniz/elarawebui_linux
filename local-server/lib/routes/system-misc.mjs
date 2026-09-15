@@ -1,5 +1,4 @@
 // lib/routes/system-misc.mjs — admin/system maintenance + logs + uploads + STT.
-// Extracted from server.mjs (Tur 2, 2026-05-30).
 // Endpoints:
 //   /api/cve, /api/cve/refresh
 //   /api/retention/run
@@ -92,7 +91,7 @@ export function mountSystemMiscRoutes(app, deps) {
       res.json(out);
     } catch (e) {
       if (claim?.id) await sjRelease(pool, claim.id, "error", String(e?.message || e));
-      res.status(502).json({ error: String(e?.message || e) });
+      res.status(502).json({ ok: false, error: String(e?.message || e) });
     }
   });
 
@@ -101,7 +100,7 @@ export function mountSystemMiscRoutes(app, deps) {
     const dryRun = req.query.dryRun === "1" || req.body?.dryRun === true;
     if (dryRun) {
       try { return res.json(await runRetention(pool, { dryRun: true })); }
-      catch (e) { return res.status(500).json({ error: String(e?.message || e) }); }
+      catch (e) { return res.status(500).json({ ok: false, error: String(e?.message || e) }); }
     }
     const claim = await sjClaim(pool, "retention", { trigger: "manual" }).catch(() => null);
     if (claim && claim.conflict) {
@@ -113,7 +112,7 @@ export function mountSystemMiscRoutes(app, deps) {
       res.json(out);
     } catch (e) {
       if (claim?.id) await sjRelease(pool, claim.id, "error", String(e?.message || e));
-      res.status(500).json({ error: String(e?.message || e) });
+      res.status(500).json({ ok: false, error: String(e?.message || e) });
     }
   });
 
@@ -200,15 +199,15 @@ export function mountSystemMiscRoutes(app, deps) {
   // ---- Migrations ----
   app.get("/api/migrations", requireSession({ roles: ["admin"] }), async (_req, res) => {
     try { res.json({ items: await listMigrations(pool) }); }
-    catch (e) { res.status(500).json({ error: String(e?.message || e) }); }
+    catch (e) { res.status(500).json({ ok: false, error: String(e?.message || e) }); }
   });
   app.post("/api/migrations/apply", requireSession({ roles: ["admin"] }), async (req, res) => {
     try { res.json(await applyMigration(pool, req.body || {})); }
-    catch (e) { res.status(400).json({ error: String(e?.message || e) }); }
+    catch (e) { res.status(400).json({ ok: false, error: String(e?.message || e) }); }
   });
   app.post("/api/migrations/rollback/:id", requireSession({ roles: ["admin"] }), async (req, res) => {
     try { res.json(await rollbackMigration(pool, req.params.id)); }
-    catch (e) { res.status(400).json({ error: String(e?.message || e) }); }
+    catch (e) { res.status(400).json({ ok: false, error: String(e?.message || e) }); }
   });
 
   // ---- Services ----
@@ -241,7 +240,7 @@ export function mountSystemMiscRoutes(app, deps) {
 
   app.post("/api/services/:key/:action", async (req, res) => {
     const { key, action } = req.params;
-    if (!["start", "stop", "restart"].includes(action)) return res.status(400).json({ error: "invalid action" });
+    if (!["start", "stop", "restart"].includes(action)) return res.status(400).json({ ok: false, error: "invalid action" });
     const k = String(key || "").toLowerCase();
     if (k.includes("gateway")) {
       if (action === "stop" || action === "restart") killGateway();
@@ -317,7 +316,7 @@ export function mountSystemMiscRoutes(app, deps) {
   // ---- Logs ----
   app.post("/api/logs", (req, res) => {
     const { thread_id = null, agent, level = "info", message, meta = null } = req.body ?? {};
-    if (!agent || !message) return res.status(400).json({ error: "missing fields" });
+    if (!agent || !message) return res.status(400).json({ ok: false, error: "missing fields" });
     enqueueWrite(
       `INSERT INTO agent_logs(thread_id, agent, level, message, meta)
        VALUES ($1,$2,$3,$4,$5)`,
@@ -401,7 +400,7 @@ export function mountSystemMiscRoutes(app, deps) {
       );
       res.json(rows);
     } catch (e) {
-      res.status(500).json({ error: String(e?.message || e) });
+      res.status(500).json({ ok: false, error: String(e?.message || e) });
     }
   });
 
@@ -424,7 +423,7 @@ export function mountSystemMiscRoutes(app, deps) {
       }
       res.json({ ok: true });
     } catch (e) {
-      res.status(500).json({ error: String(e?.message || e) });
+      res.status(500).json({ ok: false, error: String(e?.message || e) });
     }
   });
 
@@ -452,7 +451,7 @@ export function mountSystemMiscRoutes(app, deps) {
 
   // ---- Uploads (Hybrid Storage Engine) ----
   app.post("/api/uploads", upload.single("file"), async (req, res) => {
-    if (!req.file) return res.status(400).json({ error: "file required" });
+    if (!req.file) return res.status(400).json({ ok: false, error: "file required" });
     try {
       const ctx = typeof resolveActorContext === "function"
         ? await resolveActorContext(req)
@@ -472,7 +471,7 @@ export function mountSystemMiscRoutes(app, deps) {
       res.status(201).json(saved);
     } catch (err) {
       console.error("[Uploads] Error saving file:", err);
-      res.status(500).json({ error: String(err.message || err) });
+      res.status(500).json({ ok: false, error: String(err.message || err) });
     }
   });
 
@@ -489,7 +488,7 @@ export function mountSystemMiscRoutes(app, deps) {
       });
 
       if (!fileRes.exists || !fileRes.absPath) {
-        return res.status(404).json({ error: fileRes.error || "File not found" });
+        return res.status(404).json({ ok: false, error: fileRes.error || "File not found" });
       }
 
       const mime = fileRes.row?.mime || "application/octet-stream";
@@ -498,13 +497,13 @@ export function mountSystemMiscRoutes(app, deps) {
       res.sendFile(fileRes.absPath);
     } catch (err) {
       console.error("[Uploads] GET error:", err);
-      res.status(500).json({ error: String(err.message || err) });
+      res.status(500).json({ ok: false, error: String(err.message || err) });
     }
   });
 
   // ---- STT ----
   app.post("/api/stt", upload.single("file"), async (req, res) => {
-    if (!req.file) return res.status(400).json({ error: "file required" });
+    if (!req.file) return res.status(400).json({ ok: false, error: "file required" });
     const t0 = Date.now();
     const base = (process.env.STT_BASE_URL || "http://127.0.0.1:8090").replace(/\/+$/, "");
     const model = req.body?.model || process.env.STT_MODEL || "";
@@ -516,7 +515,7 @@ export function mountSystemMiscRoutes(app, deps) {
       try {
         wavBuf = await transcodeToWav16kMono(rawBuf);
       } catch (e) {
-        return res.status(500).json({ error: `audio transcode failed (in=${inMime} bytes=${rawBuf.length}): ${String(e.message || e)}`, text: "", source: "stt:transcode-error", latencyMs: Date.now() - t0 });
+        return res.status(500).json({ ok: false, error: `audio transcode failed (in=${inMime} bytes=${rawBuf.length}): ${String(e.message || e)}`, text: "", source: "stt:transcode-error", latencyMs: Date.now() - t0 });
       }
       const fd = new FormData();
       fd.append("file", new Blob([wavBuf], { type: "audio/wav" }), "audio.wav");
@@ -525,13 +524,13 @@ export function mountSystemMiscRoutes(app, deps) {
       const r = await fetch(`${base}/inference`, { method: "POST", body: fd, signal: AbortSignal.timeout(60000) });
       if (!r.ok) {
         const txt = await r.text().catch(() => "");
-        return res.status(502).json({ error: `stt upstream ${r.status}: ${txt.slice(0, 300)} (in=${inMime} wav=${wavBuf.length}B)`, source: "stt:upstream-error", text: "" });
+        return res.status(502).json({ ok: false, error: `stt upstream ${r.status}: ${txt.slice(0, 300)} (in=${inMime} wav=${wavBuf.length}B)`, source: "stt:upstream-error", text: "" });
       }
       const j = await r.json().catch(() => ({}));
       const text = String(j.text ?? j.transcription ?? "").trim();
       res.json({ text, lang: j.language ?? lang, latencyMs: Date.now() - t0, source: `stt:${base}`, in_mime: inMime, wav_bytes: wavBuf.length });
     } catch (e) {
-      res.status(500).json({ error: String(e.message || e), text: "", source: "stt:error", latencyMs: Date.now() - t0 });
+      res.status(500).json({ ok: false, error: String(e.message || e), text: "", source: "stt:error", latencyMs: Date.now() - t0 });
     } finally {
       try { fsSync.unlinkSync(req.file.path); } catch {}
     }

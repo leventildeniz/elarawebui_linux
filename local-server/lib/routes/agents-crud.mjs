@@ -1,6 +1,4 @@
-// Tur 2A — Agents CRUD + lifecycle + capabilities
-// Extracted from server.mjs (was lines 15951-16206).
-// Wires 10 handlers via mountAgentsCrudRoutes(app, deps).
+// Agents CRUD, lifecycle, and capabilities route module.
 
 export function mountAgentsCrudRoutes(app, deps) {
   const {

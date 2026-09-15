@@ -1,5 +1,4 @@
 // Python interpreter resolution — venv → uv → system.
-// Block C Tur 2 — server.mjs'ten taşındı 2026-05-30.
 import path from "node:path";
 import fs from "node:fs";
 

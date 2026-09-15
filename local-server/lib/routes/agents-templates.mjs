@@ -1,4 +1,4 @@
-// lib/routes/agents-templates.mjs — Tur 4 extraction (2026-05-30)
+// lib/routes/agents-templates.mjs — Bridge health, SIEM config, and preferences endpoints.
 // Endpoints:
 //   GET    /api/bridge/health
 //   GET    /api/siem/config

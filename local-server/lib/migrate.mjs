@@ -1,10 +1,5 @@
-// lib/migrate.mjs — schema migration orchestrator (extracted from server.mjs,
-// Block E.2 Tur 2, 2026-05-30).
-//
-// Davranış orijinal server.mjs migrate() ile bire bir aynı. Tüm deps açıkça
-// import edilir (capability-registry, runtime-registry, brand, audit-chain).
-// Yeni "schema/" ara katmanı YOK — Plan B: ensure*'lar kendi domain
-// modüllerine gidecek; migrate() sadece schema.sql + seed/self-heal'i çalıştırır.
+// lib/migrate.mjs — PostgreSQL schema migration orchestrator.
+// Executes master schema DDL, initializes seeds, and synchronizes capability/runtime registries.
 
 import fs from "node:fs";
 import path from "node:path";

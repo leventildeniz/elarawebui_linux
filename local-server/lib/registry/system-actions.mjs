@@ -1,6 +1,5 @@
 // lib/registry/system-actions.mjs — Forge action_library seed registry.
-// Extracted from server.mjs (Tur 2, 2026-05-30). Consumed by
-// createKnowledgeMaintenance (seedForgeLibrary). Pure const data; no deps.
+// Consumed by seedForgeLibrary. Pure constant data.
 
 export const SYSTEM_ACTIONS = [
   // Triggers

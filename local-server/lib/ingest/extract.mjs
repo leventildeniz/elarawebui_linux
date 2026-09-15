@@ -252,7 +252,7 @@ export function createIngestExtract(deps = {}) {
     try {
       const ep = await _resolveMlxEndpoint();
       if (!ep) return { text: raw, cacheHit: false, ms: 0, reject: "no_runtime" };
-      // 2026-06-03 (Tur 2) — thinkOffPrefix UI knob (Qwen "/no_think"); ailesi qwen değilse boş.
+      // Optional thinkOffPrefix knob (e.g. Qwen "/no_think") applied when thinking mode is suppressed.
       const _extFamily = String(ep.render?.template ?? "").toLowerCase();
       const _extThinkOff = false;
       const _extPrefix = _extThinkOff ? String(RAG_SETTINGS?.thinkOffPrefix ?? "") : "";

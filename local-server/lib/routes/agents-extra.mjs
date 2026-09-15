@@ -1,7 +1,4 @@
-// Agent discovery, seeding, squads, interpreter listing, validation, and run
-// history routes — extracted from server.mjs (Block J, Tur 2C-α, 2026-05-30).
-// Pure-extract: behavior is identical to the original inline handlers.
-// All cross-module dependencies are dependency-injected via `deps`.
+// Agent discovery, seeding, squads, interpreter listing, validation, and run history routes.
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
@@ -37,7 +34,7 @@ export function mountAgentsExtraRoutes(app, deps) {
     res.json({ ok: true, root: null, squads: [], created: [], updated: [], skipped: [] });
   });
 
-  // ===================================================== squads CRUD (Tur-3b)
+  // Squads CRUD
   app.get("/api/agents/squads", async (req, res) => {
     try {
       await ensureAgentSquadsTable();

@@ -1,9 +1,5 @@
 // local-server/lib/runtime-registry.mjs
-// Runtime provider registry — presets + utils + state + readers.
-// Tur 1 (2026-05-30): stateless helpers extracted.
-// Tur 2 (2026-05-30): state (RUNTIME_PROVIDER_CFG) + readers (runtimeBase/Model/
-//   IsMlx/UpstreamBase, _safeRuntimeModel, _mlxServingId) + hydrate moved here.
-//   hydrate takes `pool` via initRuntimeRegistry({pool}) DI.
+// Runtime provider registry — presets, state, readers, and database hydration.
 
 let _pool = null;
 export function initRuntimeRegistry({ pool } = {}) {

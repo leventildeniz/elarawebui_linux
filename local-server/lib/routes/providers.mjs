@@ -29,7 +29,7 @@ export function mountProvidersRoutes(app, deps) {
         createdAt: new Date(r.created_at).getTime(),
       })));
     } catch (e) {
-      res.status(500).json({ error: String(e.message || e) });
+      res.status(500).json({ ok: false, error: String(e.message || e) });
     }
   });
 
@@ -68,7 +68,7 @@ export function mountProvidersRoutes(app, deps) {
         createdAt: new Date(r.created_at).getTime(),
       }});
     } catch (e) {
-      res.status(500).json({ error: String(e.message || e) });
+      res.status(500).json({ ok: false, error: String(e.message || e) });
     }
   });
 
@@ -97,7 +97,7 @@ export function mountProvidersRoutes(app, deps) {
       }
 
       const { rows } = await pool.query("SELECT * FROM ai_providers WHERE id=$1", [id]);
-      if (!rows.length) return res.status(404).json({ error: "not found" });
+      if (!rows.length) return res.status(404).json({ ok: false, error: "not found" });
 
       const r = rows[0];
       res.json({ ok: true, provider: {
@@ -113,7 +113,7 @@ export function mountProvidersRoutes(app, deps) {
         createdAt: new Date(r.created_at).getTime(),
       }});
     } catch (e) {
-      res.status(500).json({ error: String(e.message || e) });
+      res.status(500).json({ ok: false, error: String(e.message || e) });
     }
   });
 
@@ -123,7 +123,7 @@ export function mountProvidersRoutes(app, deps) {
       await pool.query("DELETE FROM ai_providers WHERE id=$1", [req.params.id]);
       res.status(204).end();
     } catch (e) {
-      res.status(500).json({ error: String(e.message || e) });
+      res.status(500).json({ ok: false, error: String(e.message || e) });
     }
   });
 }

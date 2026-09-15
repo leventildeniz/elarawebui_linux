@@ -41,7 +41,7 @@ export function mountSecurityPoliciesRoutes(app, deps) {
       const { rows } = await pool.query(query, vis.params);
       res.json({ items: rows });
     } catch (e) {
-      res.status(500).json({ error: String(e.message || e) });
+      res.status(500).json({ ok: false, error: String(e.message || e) });
     }
   });
 
@@ -114,7 +114,7 @@ export function mountSecurityPoliciesRoutes(app, deps) {
       emitPolicyLog("warn", "genguard.created", `${name} (${id})`, { id, name, action, engineType });
       res.json({ ok: true, item: out.rows[0] });
     } catch (e) {
-      res.status(500).json({ error: String(e.message || e) });
+      res.status(500).json({ ok: false, error: String(e.message || e) });
     }
   });
 
@@ -176,18 +176,18 @@ export function mountSecurityPoliciesRoutes(app, deps) {
       res.json({ ok: true, item: out.rows[0] });
     } catch (e) {
       console.error(e);
-      res.status(500).json({ error: String(e.message || e) });
+      res.status(500).json({ ok: false, error: String(e.message || e) });
     }
   });
 
   app.delete("/api/security/genguard/:id", adminOnly, async (req, res) => {
     try {
       const { rowCount } = await pool.query("DELETE FROM guard_rules WHERE id=$1", [req.params.id]);
-      if (!rowCount) return res.status(404).json({ error: "not found" });
+      if (!rowCount) return res.status(404).json({ ok: false, error: "not found" });
       emitPolicyLog("warn", "genguard.deleted", `id=${req.params.id}`, { id: req.params.id });
       res.json({ ok: true });
     } catch (e) {
-      res.status(500).json({ error: String(e.message || e) });
+      res.status(500).json({ ok: false, error: String(e.message || e) });
     }
   });
 
@@ -248,7 +248,7 @@ export function mountSecurityPoliciesRoutes(app, deps) {
       const { rows } = await pool.query(query, params);
       res.json({ items: rows });
     } catch (e) {
-      res.status(500).json({ error: String(e.message || e) });
+      res.status(500).json({ ok: false, error: String(e.message || e) });
     }
   });
 
@@ -273,7 +273,7 @@ export function mountSecurityPoliciesRoutes(app, deps) {
       );
       res.json({ ok: true, item: out.rows[0] });
     } catch (e) {
-      res.status(500).json({ error: String(e.message || e) });
+      res.status(500).json({ ok: false, error: String(e.message || e) });
     }
   });
 
@@ -303,7 +303,7 @@ export function mountSecurityPoliciesRoutes(app, deps) {
         const ownerId = row.owner_id;
         const matches = [ctx.userId, ctx.username, ctx.actor].filter(Boolean).map(s => String(s).toLowerCase());
         if (!ownerId || !matches.includes(String(ownerId).toLowerCase())) {
-          return res.status(403).json({ error: "Read-only profile — only author or administrator may edit this item." });
+          return res.status(403).json({ ok: false, error: "Read-only profile — only author or administrator may edit this item." });
         }
       }
 
@@ -338,30 +338,30 @@ export function mountSecurityPoliciesRoutes(app, deps) {
       );
       res.json({ ok: true, item: out.rows[0] });
     } catch (e) {
-      res.status(500).json({ error: String(e.message || e) });
+      res.status(500).json({ ok: false, error: String(e.message || e) });
     }
   });
 
   app.delete("/api/security/isolation/:id", adminOnly, async (req, res) => {
     try {
       const check = await pool.query("SELECT * FROM isolation_profiles WHERE id=$1", [req.params.id]);
-      if (!check.rows[0]) return res.status(404).json({ error: "not found" });
+      if (!check.rows[0]) return res.status(404).json({ ok: false, error: "not found" });
       if (check.rows[0].fallback) {
-        return res.status(400).json({ error: "System fallback sandbox profile cannot be deleted." });
+        return res.status(400).json({ ok: false, error: "System fallback sandbox profile cannot be deleted." });
       }
       const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : null;
       if (ctx && !ctx.isSuperAdmin) {
         const ownerId = check.rows[0].owner_id;
         const matches = [ctx.userId, ctx.username, ctx.actor].filter(Boolean).map(s => String(s).toLowerCase());
         if (!ownerId || !matches.includes(String(ownerId).toLowerCase())) {
-          return res.status(403).json({ error: "Read-only profile — only author or administrator may delete this item." });
+          return res.status(403).json({ ok: false, error: "Read-only profile — only author or administrator may delete this item." });
         }
       }
 
       await pool.query("DELETE FROM isolation_profiles WHERE id=$1", [req.params.id]);
       res.json({ ok: true });
     } catch (e) {
-      res.status(500).json({ error: String(e.message || e) });
+      res.status(500).json({ ok: false, error: String(e.message || e) });
     }
   });
 

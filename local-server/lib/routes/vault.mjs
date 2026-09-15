@@ -1,5 +1,5 @@
 // Vault routes — encrypted secrets CRUD + audit chain endpoints.
-// Extracted from server.mjs (Tur 1.3). All handlers admin-only via requireSession.
+// All handlers authenticated via requireSession.
 // DI: pool, enqueueWrite, requireSession, redactDeep, vault helpers, audit chain.
 
 export function mountVaultRoutes(app, deps) {
@@ -68,7 +68,7 @@ export function mountVaultRoutes(app, deps) {
     let { kind, fields, meta, value } = req.body ?? {};
     if (!scope || !name) {
       vaultAudit({ action: "write", scope, name, req, ok: false, reason: "missing fields" });
-      return res.status(400).json({ error: "scope/name required" });
+      return res.status(400).json({ ok: false, error: "scope/name required" });
     }
     if (!fields && value != null) {
       kind = kind || "api_key";
@@ -79,11 +79,11 @@ export function mountVaultRoutes(app, deps) {
     meta = meta && typeof meta === "object" ? meta : {};
     if (!VAULT_KIND_FIELDS[kind]) {
       vaultAudit({ action: "write", scope, name, req, ok: false, reason: `unknown kind: ${kind}` });
-      return res.status(400).json({ error: `unknown kind: ${kind}` });
+      return res.status(400).json({ ok: false, error: `unknown kind: ${kind}` });
     }
     if (Object.keys(fields).length === 0) {
       vaultAudit({ action: "write", scope, name, req, ok: false, reason: "no fields" });
-      return res.status(400).json({ error: "at least one field required" });
+      return res.status(400).json({ ok: false, error: "at least one field required" });
     }
     try {
       const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : null;
@@ -99,7 +99,7 @@ export function mountVaultRoutes(app, deps) {
       res.json({ ok: true, id: out.id, kind: out.kind, field_names: out.field_names });
     } catch (e) {
       vaultAudit({ action: "write", scope, name, req, ok: false, reason: e.message });
-      res.status(500).json({ error: String(e.message || e) });
+      res.status(500).json({ ok: false, error: String(e.message || e) });
     }
   });
 
@@ -118,7 +118,7 @@ export function mountVaultRoutes(app, deps) {
         const isWorkspace = out.meta?.visibility === "workspace";
         const isSystem = (!ownerId && (out.is_global || out.scope === "system"));
         if (!isOwner && !isWorkspace && !isSystem && !ctx.isTenantAdmin) {
-          return res.status(403).json({ error: "Access denied" });
+          return res.status(403).json({ ok: false, error: "Access denied" });
         }
       }
       vaultAudit({ action: "read", scope: req.params.scope, name: req.params.name, req, meta: { kind: out.kind, field_count: Object.keys(out.fields).length } });
@@ -129,7 +129,7 @@ export function mountVaultRoutes(app, deps) {
       });
     } catch (e) {
       vaultAudit({ action: "read", scope: req.params.scope, name: req.params.name, req, ok: false, reason: e.message });
-      res.status(500).json({ error: String(e.message || e) });
+      res.status(500).json({ ok: false, error: String(e.message || e) });
     }
   });
 
@@ -138,7 +138,7 @@ export function mountVaultRoutes(app, deps) {
       const out = await listSecretFieldNames(pool, req.params.scope, req.params.name);
       if (!out) return res.status(404).end();
       res.json({ scope: req.params.scope, name: req.params.name, ...out });
-    } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
+    } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
   });
 
   app.get("/api/vault", requireSession({ roles: ["admin", "engineer", "operator", "security"] }), async (req, res) => {
@@ -195,7 +195,7 @@ export function mountVaultRoutes(app, deps) {
       const { rows } = await pool.query(query, params);
       vaultAudit({ action: "list", scope: scope ?? "*", name: "*", req, meta: { count: rows.length } });
       res.json({ items: rows });
-    } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
+    } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
   });
 
   app.delete("/api/vault/:scope/:name", requireSession({ roles: ["admin", "engineer", "operator", "security"] }), async (req, res) => {
@@ -216,7 +216,7 @@ export function mountVaultRoutes(app, deps) {
           const ownerId = sRow.meta?.owner_id;
           const matches = [ctx?.userId, ctx?.username, ctx?.actor].filter(Boolean).map(s => String(s).toLowerCase());
           if (!ownerId || !matches.includes(String(ownerId).toLowerCase())) {
-            return res.status(403).json({ error: "Read-only credential — only the author or administrator may delete this secret." });
+            return res.status(403).json({ ok: false, error: "Read-only credential — only the author or administrator may delete this secret." });
           }
         }
       }
@@ -227,7 +227,7 @@ export function mountVaultRoutes(app, deps) {
       res.json({ ok: true });
     } catch (e) {
       vaultAudit({ action: "delete", scope: req.params.scope, name: req.params.name, req, ok: false, reason: e.message });
-      res.status(500).json({ error: String(e.message || e) });
+      res.status(500).json({ ok: false, error: String(e.message || e) });
     }
   });
 
@@ -246,7 +246,7 @@ export function mountVaultRoutes(app, deps) {
       }
       res.json({ ok: true, deleted, requested: items.length });
     } catch (e) {
-      res.status(500).json({ error: String(e.message || e) });
+      res.status(500).json({ ok: false, error: String(e.message || e) });
     }
   });
 
@@ -261,7 +261,7 @@ export function mountVaultRoutes(app, deps) {
         scope ? [scope, limit] : [limit]
       );
       res.json({ items: rows });
-    } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
+    } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
   });
 
   // Verifies the tamper-evident cryptographic hash chain of vault_audit logs.

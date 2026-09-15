@@ -5,7 +5,7 @@ export async function mountSearchProviderRoutes(app, deps) {
     try {
       const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : null;
       const isAllowed = ctx?.isAdmin || ctx?.isSuperAdmin || ctx?.isTenantAdmin || (typeof isAdminCaller === "function" && await isAdminCaller(req));
-      if (!isAllowed) return res.status(403).json({ error: "forbidden" });
+      if (!isAllowed) return res.status(403).json({ ok: false, error: "forbidden" });
 
       let query = "SELECT * FROM search_providers";
       const params = [];
@@ -18,7 +18,7 @@ export async function mountSearchProviderRoutes(app, deps) {
       const { rows } = await pool.query(query, params);
       res.json(rows);
     } catch (e) {
-      res.status(500).json({ error: String(e.message || e) });
+      res.status(500).json({ ok: false, error: String(e.message || e) });
     }
   });
 
@@ -26,7 +26,7 @@ export async function mountSearchProviderRoutes(app, deps) {
     try {
       const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : null;
       const isAllowed = ctx?.isAdmin || ctx?.isSuperAdmin || ctx?.isTenantAdmin || (typeof isAdminCaller === "function" && await isAdminCaller(req));
-      if (!isAllowed) return res.status(403).json({ error: "forbidden" });
+      if (!isAllowed) return res.status(403).json({ ok: false, error: "forbidden" });
 
       const p = req.body;
       const id = p.id || `sp.${Math.random().toString(36).slice(2, 8)}`;
@@ -65,7 +65,7 @@ export async function mountSearchProviderRoutes(app, deps) {
       );
       res.json({ ok: true, id });
     } catch (e) {
-      res.status(500).json({ error: String(e.message || e) });
+      res.status(500).json({ ok: false, error: String(e.message || e) });
     }
   });
 
@@ -73,7 +73,7 @@ export async function mountSearchProviderRoutes(app, deps) {
     try {
       const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : null;
       const isAllowed = ctx?.isAdmin || ctx?.isSuperAdmin || ctx?.isTenantAdmin || (typeof isAdminCaller === "function" && await isAdminCaller(req));
-      if (!isAllowed) return res.status(403).json({ error: "forbidden" });
+      if (!isAllowed) return res.status(403).json({ ok: false, error: "forbidden" });
 
       const id = req.params.id;
       if (!ctx?.isSuperAdmin) {
@@ -86,7 +86,7 @@ export async function mountSearchProviderRoutes(app, deps) {
       await pool.query("DELETE FROM search_providers WHERE id = $1", [id]);
       res.json({ ok: true });
     } catch (e) {
-      res.status(500).json({ error: String(e.message || e) });
+      res.status(500).json({ ok: false, error: String(e.message || e) });
     }
   });
 }

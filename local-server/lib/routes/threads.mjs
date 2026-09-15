@@ -1,7 +1,6 @@
 // lib/routes/threads.mjs
-// Thread CRUD + messages list/clear endpoints.
+// Thread CRUD and messages list/clear endpoints.
 // Mount via `mountThreadRoutes(app, { pool, isUuid, flushModelKvCache })`.
-// Extracted from server.mjs (Block T-2a, 2026-05-30).
 
 import multer from "multer";
 import { saveAttachmentFile, purgeThreadAttachments, deleteAttachmentFile } from "../storage-engine.mjs";
@@ -119,7 +118,7 @@ export function mountThreadRoutes(app, deps) {
       
       res.json(result);
     } catch (e) {
-      res.status(500).json({ error: String(e.message || e) });
+      res.status(500).json({ ok: false, error: String(e.message || e) });
     }
   });
 
@@ -155,12 +154,12 @@ export function mountThreadRoutes(app, deps) {
       };
       res.status(201).json(result);
     } catch (e) {
-      res.status(500).json({ error: String(e.message || e) });
+      res.status(500).json({ ok: false, error: String(e.message || e) });
     }
   });
 
   app.delete("/api/threads/:id", async (req, res) => {
-    if (!req.params.id) return res.status(400).json({ error: "missing thread id" });
+    if (!req.params.id) return res.status(400).json({ ok: false, error: "missing thread id" });
     const threadId = req.params.id;
     try {
       const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default", actor: "admin" };
@@ -176,11 +175,11 @@ export function mountThreadRoutes(app, deps) {
           [threadId, ctx.tenantId || "default", userMatches]
         );
       } else {
-        await pool.query("DELETE FROM chat_threads WHERE id = $1", [threadId]);
+        await pool.query('DELETE FROM chat_threads WHERE id = $1', [threadId]);
       }
       res.status(204).end();
     } catch (e) {
-      res.status(500).json({ error: String(e.message || e) });
+      res.status(500).json({ ok: false, error: String(e.message || e) });
     }
   });
 
@@ -265,7 +264,7 @@ export function mountThreadRoutes(app, deps) {
     } catch (e) {
       await pool.query('ROLLBACK');
       console.error("PUT messages error:", e);
-      res.status(500).json({ error: String(e?.message || e) });
+      res.status(500).json({ ok: false, error: String(e?.message || e) });
     }
   });
 
@@ -319,7 +318,7 @@ export function mountThreadRoutes(app, deps) {
       res.json({ ok: true });
     } catch (e) {
       await pool.query('ROLLBACK');
-      res.status(500).json({ error: String(e?.message || e) });
+      res.status(500).json({ ok: false, error: String(e?.message || e) });
     }
   });
 
@@ -333,7 +332,7 @@ export function mountThreadRoutes(app, deps) {
       );
       res.json({ ok: true });
     } catch (e) {
-      res.status(500).json({ error: String(e?.message || e) });
+      res.status(500).json({ ok: false, error: String(e.message || e) });
     }
   });
 }

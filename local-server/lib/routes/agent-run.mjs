@@ -1,6 +1,5 @@
-// Tur 2C-β: /api/agents/:id/run handler extracted from server.mjs.
-// Pure DI: no module-level state. probeAgentHealth stays in server.mjs
-// because setAgentArmedState consumes it; only the run hot path moves here.
+// Agent execution (/api/agents/:id/run) handler.
+// Dependency injected: pure execution routing layer.
 
 import { execFile } from "node:child_process";
 import path from "node:path";

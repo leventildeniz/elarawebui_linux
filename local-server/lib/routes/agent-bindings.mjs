@@ -1,5 +1,5 @@
-// Tur 2B — Agent + Skill + Target bindings, target endpoints, resolved capabilities, forge dry-run.
-// Extracted from server.mjs (was lines 16165-16827). Only dependency: `pool`.
+// Agent, Skill and Target bindings, endpoints, and capability resolution.
+// Pure routing layer. Only dependency: `pool`.
 
 export function mountAgentBindingsRoutes(app, deps) {
   const { pool } = deps;
@@ -88,9 +88,7 @@ export function mountAgentBindingsRoutes(app, deps) {
     } finally { client.release(); }
   });
   
-  // ============================================================
-  // Tur-3 — Targets registry + agent adapter/target bindings
-  // ============================================================
+  // Targets registry and agent adapter/target bindings
   const TARGET_KINDS = new Set(["firewall","router","server","cdn","social","custom"]);
   
   function sanitizeTargetGroup(b = {}) {
@@ -238,9 +236,7 @@ export function mountAgentBindingsRoutes(app, deps) {
   });
   
   
-  // =====================================================================
-  // Tur-3.3 — Target endpoints (multi-port + multi-adapter per target)
-  // =====================================================================
+  // Target endpoints (multi-port and multi-adapter per target)
   app.get("/api/targets/:id/endpoints", async (req, res) => {
     try {
       const r = await pool.query(
@@ -367,9 +363,7 @@ export function mountAgentBindingsRoutes(app, deps) {
     }
   });
   
-  // =====================================================================
-  // Tur-3.4 — Skill ↔ Adapter / Target bindings
-  // =====================================================================
+  // Skill ↔ Adapter / Target bindings
   app.get("/api/skills/:id/adapter-bindings", async (req, res) => {
     try {
       const r = await pool.query(
@@ -439,9 +433,7 @@ export function mountAgentBindingsRoutes(app, deps) {
     } finally { client.release(); }
   });
   
-  // =====================================================================
-  // Tur-3.5 — Agent Resolved Capabilities (effective adapters/targets union)
-  // =====================================================================
+  // Agent Resolved Capabilities (effective adapters/targets union)
   app.get("/api/agents/:id/resolved-capabilities", async (req, res) => {
     const agentId = String(req.params.id);
     try {

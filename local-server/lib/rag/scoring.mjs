@@ -1,6 +1,5 @@
-// Pure RAG scoring + token utilities (Tur 1a, 2026-05-30).
-// Extracted from server.mjs without behaviour change. No DI (pure), except
-// makeThinkStripper which takes ragSettings at call time.
+// Pure RAG scoring and token utilities.
+// Pure functions with no external DI dependencies.
 
 export const RAG_STOP = new Set([
   "the","a","an","and","or","but","of","for","to","in","on","at","by","with",

@@ -12,7 +12,7 @@
 //
 // Output: { env, args, meta } — injected into the child process.
 //
-// ragProbeAndFetch lives in ./rag/retrieval.mjs (Tur 1b 2026-05-30 extraction).
+// ragProbeAndFetch resides in ./rag/retrieval.mjs.
 // We use dynamic `await import("./rag/retrieval.mjs")` INSIDE the function
 // (request-time) — by then the module is fully evaluated, ESM cache hits.
 

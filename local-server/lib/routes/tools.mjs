@@ -120,7 +120,7 @@ export function mountToolRoutes(app, deps) {
   });
 
   // -----------------------------------------------------------------------------
-  // TUR-6 — Agent → Tool dispatch endpoint
+  // Agent → Tool dispatch endpoint
   // Loopback-only; auth = X-Agent-Id header + manifest gate (`# @tools: …`)
   // -----------------------------------------------------------------------------
   app.post("/api/agents/tool-call", safeRlInvoke, async (req, res) => {
@@ -242,7 +242,7 @@ export function mountToolRoutes(app, deps) {
     } finally { client.release(); }
   });
 
-  // --- Tool ↔ Target / Group bindings (Tur-3.1) ---------------------------
+  // --- Tool ↔ Target / Group bindings ---------------------------
   app.get("/api/tools/:id/target-bindings", async (req, res) => {
     try {
       const r = await pool.query(

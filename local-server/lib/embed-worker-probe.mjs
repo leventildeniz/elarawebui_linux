@@ -1,6 +1,5 @@
 // Embed worker probes — health, alive-check, warmup.
-// Block C Tur 2 — server.mjs'ten taşındı 2026-05-30.
-// pushLog DI'lı; env değişkenleri call-time'da okunur (rotation/restart için).
+// Dependency injected: pushLog; environment variables read at call-time for rotation/restart.
 
 let warmupInflight = null;
 
