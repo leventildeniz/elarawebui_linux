@@ -1744,9 +1744,10 @@ ELARA Sovereign Studio genelinde **Zero-Trust Çoklu Kiracı (Multi-Tenancy) ve 
    3. **Synchronous Space Context Resolution (`src/lib/knowledge-space-store.ts`):**
       - `readSpaceCtx()` fonksiyonu eklendi; `useSpaceAccess()` ilk render'da boş `{ userId: "", groupIds: [] }` yerine oturum açmış kullanıcının kimliğiyle başlatıldı.
       - `spc.shared` (`readerGroups: ["*"]`) alanı sayesinde standart operatörler için de `spaceAccess.enabled` anında `true` döner; `/rag-documents` rotası menüden kaybolmaz.
-   4. **SSR Hydration Mismatch Tasfiyesi (`src/routes/login.tsx`, `shell.tsx`):**
+   4. **SSR Hydration Mismatch Tasfiyesi (`src/routes/login.tsx`, `shell.tsx`, `approver-banner.tsx`):**
       - `login.tsx` içerisindeki suni `sessionStorage.setItem("sovereign.sidebar.closed", "1")` kaldırıldı.
       - `shell.tsx` menü genişlik başlangıç değeri SSR ile birebir uyumlu hale getirildi (`open = true`).
+      - `approver-banner.tsx` içindeki dinamik oturum/rol metinlerine (`auth.handle` ve `auth.role.name`) `suppressHydrationWarning` eklendi; Approval Queue (`/approvals`) ve MetaForge (`/meta-forge`) sayfalarındaki F5 yenileme hydration mismatch hatası kalıcı olarak giderildi.
       - Hydration çökmeleri ve konsol uyarıları tamamen giderildi.
    5. **17-Tablo Tam Veritabanı & Zero-Desk Paritesi (`telemetry_boards` & `telemetry.mjs`):**
       - `telemetry_boards` tablosuna `visibility text DEFAULT 'private'` ve `shared_with jsonb DEFAULT '[]'::jsonb` kolonları eklendi.
@@ -1811,6 +1812,6 @@ ELARA Sovereign Studio genelinde **Zero-Trust Çoklu Kiracı (Multi-Tenancy) ve 
    - **Vektör 2 (SSRF & Egress Filtreleme):** Tool, Skill ve MCP Isolation Sandboxes icra motoruna bağlandı; `web_fetch`, `url-crawler` ve `mcp/client` üzerinden loopback, intranet ve cloud metadata (`169.254.169.254`) aranması engellendi.
    - **Vektör 3 (SQL Injection):** Rota genelinde $1, $2 parametrik parite doğrulandı; dinamik UPDATE builder'lar kapalı izin kümesine bağlandı.
    - **Vektör 4 (Secret Vault):** Backend'e `access.can('vault')` yetki kapısı takıldı; yetkisiz rollerin açık metin sırları API ile çekmesi 403 ile engellendi. Sıfır açık metin loglama teyit edildi.
-   - **Vektör 5 (Zero-Trust IDOR):** Sohbet mesajları, workflow'lar ve kiracı başlıkları IDOR saldırılarına karşı kapatıldı.
+   - **Vektör 5 (Zero-Trust IDOR & Four-Eyes Onay Kapısı):** Sohbet mesajları, workflow'lar ve kiracı başlıkları IDOR saldırılarına karşı kapatıldı. Approval Queue (`approvals.mjs`) ve MetaForge (`meta-forge.mjs`) içerisine Dört Göz (Four-Eyes / Self-Approval prevention) kalkanı, `"approve"` rol aksiyon denetimi ve kriptografik `decided_by` oturum bağı entegre edildi. Kendi talebini onaylama açığı kapatıldı.
 
    **Sistem Durumu:** `node --check` 0 hata, `npx tsc --noEmit` 0 hata; tüm systemd servisleri aktif, sağlıklı ve operasyonel.

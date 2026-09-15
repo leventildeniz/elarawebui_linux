@@ -25,6 +25,7 @@ export function ApproverBanner({
 
   return (
     <div
+      suppressHydrationWarning
       className="mt-5 flex flex-wrap items-start gap-2.5 rounded-lg border px-3.5 py-3"
       style={{
         borderColor: `color-mix(in oklab, var(--${ok ? "emerald" : "ruby"}) 30%, transparent)`,
@@ -37,8 +38,8 @@ export function ApproverBanner({
         <ShieldAlert size={13} className="mt-0.5 shrink-0 text-ruby" strokeWidth={1.7} />
       )}
 
-      <div className="min-w-0 flex-1 space-y-1.5">
-        <p className="font-mono text-[11.5px] leading-relaxed text-foreground/85">
+      <div className="min-w-0 flex-1 space-y-1.5" suppressHydrationWarning>
+        <p className="font-mono text-[11.5px] leading-relaxed text-foreground/85" suppressHydrationWarning>
           {auth.handle} · {auth.role?.name ?? "no role"} ·{" "}
           {ok
             ? auth.enforced
@@ -46,7 +47,7 @@ export function ApproverBanner({
               : `enforcement disarmed — every principal may clear this ${gate}`
             : `no approve verb — this ${gate} is read-only for you`}
         </p>
-        <p className="font-mono text-[11px] leading-relaxed text-muted-foreground/65">
+        <p className="font-mono text-[11px] leading-relaxed text-muted-foreground/65" suppressHydrationWarning>
           approvers · roles: {roleNames.length ? roleNames.join(", ") : "none"}
           {groupNames.length ? ` · groups: ${groupNames.join(", ")}` : ""}
           {auth.approverAccounts.length

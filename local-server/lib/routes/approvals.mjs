@@ -85,18 +85,56 @@ export async function mountApprovalRoutes(app, deps) {
   // --- DECIDE ---
   app.patch("/api/approvals/decide", admin, async (req, res) => {
     try {
-      const { ids, status, note, by } = req.body;
+      const { ids, status, note } = req.body;
       if (!ids || !ids.length) return res.status(400).json({ ok: false, error: "no ids" });
 
+      const ctx = typeof deps.resolveActorContext === "function" ? await deps.resolveActorContext(req) : null;
+      const callerUsername = req.session?.username || ctx?.username || req.actor || "operator";
+      const callerTenant = ctx?.tenantId || req.session?.tenant_id || "default";
+
+      // 1. Role Action Check: Caller must hold explicit 'approve' verb (or be SuperAdmin)
+      const canApprove = ctx?.isSuperAdmin || ctx?.actions?.includes("approve") || ctx?.actions?.includes("*");
+      if (!canApprove) {
+        return res.status(403).json({ ok: false, error: "Approve action ('approve') is required to clear the approval queue." });
+      }
+
+      // 2. Fetch target tickets to enforce Multi-Tenant & Four-Eyes boundaries
+      const { rows: targets } = await pool.query("SELECT * FROM approval_requests WHERE id = ANY($1)", [ids]);
+      if (!targets.length) return res.status(404).json({ ok: false, error: "approval requests not found" });
+
+      // Multi-tenant check
+      if (!ctx?.isSuperAdmin) {
+        for (const t of targets) {
+          if (t.tenant_id && t.tenant_id !== callerTenant && !t.is_global) {
+            return res.status(403).json({ ok: false, error: "Access denied: cannot decide approval request outside your organization." });
+          }
+        }
+      }
+
+      // 3. Four-Eyes Principle Check (Self-Approval Gate)
       // Map 'rejected' from UI to 'denied' in DB
       const dbStatus = status === 'rejected' ? 'denied' : status;
+      if (dbStatus === "approved" && !ctx?.isSuperAdmin) {
+        const cfgRes = await pool.query("SELECT allow_self_approve FROM approval_config WHERE id='singleton'");
+        const allowSelf = cfgRes.rows[0]?.allow_self_approve === true;
+        if (!allowSelf) {
+          const selfTicket = targets.find(t => t.requester && String(t.requester).toLowerCase() === String(callerUsername).toLowerCase());
+          if (selfTicket) {
+            return res.status(403).json({
+              ok: false,
+              error: `Four-Eyes Principle Violation: You cannot approve your own request (${selfTicket.id}). An independent reviewer must sign it off.`
+            });
+          }
+        }
+      }
 
+      // 4. Update with verified session identity (prevents 'by' header spoofing)
       const { rows } = await pool.query(
         `UPDATE approval_requests 
          SET status=$1, note=$2, decided_by=$3, decided_at=now()
          WHERE id = ANY($4)
          RETURNING *`,
-        [dbStatus, note || "", by, ids]
+        [dbStatus, note || "", callerUsername, ids]
       );
 
       // Apply Self-Healing refactor on approved tickets
@@ -104,7 +142,7 @@ export async function mountApprovalRoutes(app, deps) {
         for (const row of rows) {
           if (row.origin === "self_healing") {
             try {
-              await applySelfHealingRefactor(pool, row, by || "admin", { broadcastAudit, enqueueWrite });
+              await applySelfHealingRefactor(pool, row, callerUsername, { broadcastAudit, enqueueWrite });
             } catch (err) {
               console.error(`[approvals] failed to apply self-healing refactor for ${row.id}:`, err);
             }
@@ -117,7 +155,7 @@ export async function mountApprovalRoutes(app, deps) {
         status: r.status === 'denied' ? 'rejected' : r.status
       }));
 
-      emitApprovalLog("info", "decide", `${ids.join(", ")} marked ${status} by ${by || "admin"}`, { ids, status, by });
+      emitApprovalLog("info", "decide", `${ids.join(", ")} marked ${status} by ${callerUsername}`, { ids, status, by: callerUsername });
       res.json({ ok: true, decided: updated });
     } catch (e) { res.status(400).json({ ok: false, error: e.message }); }
   });

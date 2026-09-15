@@ -158,15 +158,21 @@ export function mountMetaForgeRoutes(app, deps) {
     }
   });
 
-  // Approve + apply. Admin only.
+  // Approve + apply. Admin only with Multi-Tenant & Four-Eyes guards.
   app.post("/api/meta-forge/plans/:id/apply", async (req, res) => {
     const ctx = await requireAdmin(req, res); if (!ctx) return;
     const { rows } = await pool.query(
-      `SELECT id, jsonb_build_object('create', actions) AS plan_json, status FROM forge_plans WHERE id=$1`,
+      `SELECT id, jsonb_build_object('create', actions) AS plan_json, status, actor, tenant_id, is_global FROM forge_plans WHERE id=$1`,
       [req.params.id],
     );
     if (!rows.length) return res.status(404).json({ ok: false, error: "plan not found" });
     const p = rows[0];
+
+    // Multi-tenant isolation check
+    if (!ctx.isSuperAdmin && p.tenant_id && p.tenant_id !== ctx.tenantId && !p.is_global) {
+      return res.status(403).json({ ok: false, error: "Access denied: cannot apply plan outside your organization." });
+    }
+
     if (p.status === "applied") {
       return res.json({ ok: true, status: "applied", message: "plan already applied" });
     }
@@ -175,6 +181,19 @@ export function mountMetaForgeRoutes(app, deps) {
     }
     try {
       const operatorUser = ctx?.username || ctx?.user?.name || req.session?.username || req.actor || "system";
+
+      // Four-Eyes check: If self-approval is disabled, creator cannot self-approve their plan
+      if (!ctx.isSuperAdmin) {
+        const cfgRes = await pool.query("SELECT allow_self_approve FROM approval_config WHERE id='singleton'");
+        const allowSelf = cfgRes.rows[0]?.allow_self_approve === true;
+        if (!allowSelf && p.actor && String(p.actor).toLowerCase() === String(operatorUser).toLowerCase()) {
+          return res.status(403).json({
+            ok: false,
+            error: "Four-Eyes Principle Violation: You cannot approve your own MetaForge plan. An independent reviewer must sign it off."
+          });
+        }
+      }
+
       const result = await applyForgePlan({ pool, planId: p.id, plan: p.plan_json, forgedBy: operatorUser });
       const finalStatus = result.failed.length && !result.applied.length ? "failed" : "applied";
       await pool.query(
@@ -197,10 +216,20 @@ export function mountMetaForgeRoutes(app, deps) {
 
   app.post("/api/meta-forge/plans/:id/reject", async (req, res) => {
     const ctx = await requireAdmin(req, res); if (!ctx) return;
+    const { rows } = await pool.query(
+      `SELECT id, tenant_id, is_global FROM forge_plans WHERE id=$1`,
+      [req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ ok: false, error: "plan not found" });
+    const p = rows[0];
+    if (!ctx.isSuperAdmin && p.tenant_id && p.tenant_id !== ctx.tenantId && !p.is_global) {
+      return res.status(403).json({ ok: false, error: "Access denied: cannot reject plan outside your organization." });
+    }
+
     const reason = String(req.body?.reason || "").slice(0, 500);
     await pool.query(
       `UPDATE forge_plans SET status='rejected', note=$2 WHERE id=$1`,
-      [req.params.id, reason || null],
+      [p.id, reason || null],
     );
     res.json({ ok: true });
   });
