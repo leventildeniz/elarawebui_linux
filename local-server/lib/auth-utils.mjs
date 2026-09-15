@@ -154,18 +154,17 @@ export async function isSuperAdminCaller(req, resolveActorContext) {
 }
 
 /**
- * Veritabanı yazma işlemleri için kuyruk mekanizması.
- * Not: Asıl implementasyon local-server/lib/write-queue.mjs içerisindedir.
- * Buradaki fonksiyon, identity rotalarının çökmemesi için bir proxy görevi görür.
+ * Database write queue proxy mechanism.
+ * Note: Core implementation resides in local-server/lib/write-queue.mjs.
+ * This proxy ensures identity routes remain stable when queue injection is absent.
  */
 export function enqueueWrite(query, params) {
   console.log(`[AuthUtils] Write queued: ${query.substring(0, 50)}...`);
-  // Gerçek kuyruk yapısı deps üzerinden inject edildiğinde burası devre dışı kalır.
+  // Deactivated when real write-queue is injected via deps.
 }
 
-// --- Federated Auth Mocks ---
-// LDAP ve RADIUS implementasyonları genellikle harici modüllerle yapılır.
-// Sistemin crash olmaması için temel yapıları sağlıyoruz.
+// --- Federated Identity Providers (LDAP & RADIUS) ---
+// Provides enterprise LDAP/Active Directory bind testing and RADIUS authentication.
 
 export async function testLdapConnection(config) {
   const url = config.url;

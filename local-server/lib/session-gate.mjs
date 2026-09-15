@@ -49,8 +49,8 @@ export function attachSessionContext() {
     // POST /api/knowledge/* without a browser cookie. We accept x-admin-token
     // ONLY when (a) ADMIN_API_TOKEN env is set, (b) header matches, AND
     // (c) request originates from loopback. Header alone is not enough.
-    // v9: header geldi ama bypass başarısızsa SESSİZ kalmaz; reddi tek satır
-    // log'a düşürür. Token değerleri asla log'lanmaz — sadece uzunluk + sebep.
+    // v9: If header is provided but bypass fails, do NOT stay silent; emit single-line
+    // rejection log. Token values are never logged — only length and reason.
     const adminToken = String(process.env.ADMIN_API_TOKEN || "").trim();
     const sentToken  = String(req?.headers?.["x-admin-token"] || "").trim();
     if (sentToken) {

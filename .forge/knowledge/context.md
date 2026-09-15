@@ -1660,17 +1660,64 @@ ELARA Sovereign Studio genelinde **Zero-Trust Çoklu Kiracı (Multi-Tenancy) ve 
 
    ### 📝 FAZ B: Kod Standartlaştırma & English Documentation (Uluslararası Kod Standardı)
 
-   **Odak:** Kodun içine başka bir yazılımcı girdiğinde "bu nasıl bir kod" demeyeceği, kurumsal seviyede temiz, tekdüze ve %100 İngilizce standardı.
+   **Odak:** Kodun içine başka bir yazılımcı girdiğinde "bu nasıl bir kod" demeyeceği, kurumsal seviyede temiz, tekdüze, %100 İngilizce standardı ve uçtan uca uyumlu API/Store kontratları.
+   
+   **Ana Çalışma Kuralı (Ajan Şeffaflık & Karşılıklı Kontrol İlkesi):**
+   Faz A'da olduğu gibi her dikey modülde Levent İldeniz'e 3 adımlı rapor sunulacak:
+   1. *"Burayı inceledim, şunları tespit ettim (dosyalar, yorumlar, legacy token'lar, kontratlar)..."*
+   2. *"Düzeltmek ve standartlaştırmak için şu aksiyonları alacağım, zincire (UI <-> API <-> Worker <-> DB) etki-tepki analizi şudur..."*
+   3. *"Senin aklına gelen/fark ettiğin başka bir detay var mı? Onay verirsen cerrahi müdahaleye başlayacağım."*
+   Açık onay gelmeden KESİNLİKLE TEK BİR KOD DÜZENLENMEYECEKTİR.
 
-   #### 1. Yorum Satırları & Mesajların Standartlaştırılması:
-   * Backend (`local-server/`) ve Frontend (`src/`) genelinde kalan tüm Türkçe yorum satırlarının taranması ve profesyonel enterprise İngilizceye çevrilmesi.
-   * UI üzerindeki alert, confirm ve hata mesajlarının standartlaştırılması.
-   * Lovable zamanından kalan TUR, TUR-A, MLX gibi legacy etiketlerin raporlanıp temizlenmesi.
+   ---
 
-   #### 2. API Yanıt & Hata Formatı Standardizasyonu:
-   * Tüm API uç noktalarında tekdüze yanıt formatı: `{ ok: true, data }` veya `{ ok: false, error: string }`.
-   * HTTP durum kodlarının (200, 201, 400, 401, 403, 404, 500) anlamsal tutarlılığı.
-   * Frontend store'larındaki camelCase ile PostgreSQL'deki snake_case eşleştirmelerinin (`rowTo...`) standart hale getirilmesi.
+   #### 🧩 FAZ B Dikey Modül İcra Takvimi:
+
+   * **Adım 0 — Repo Genelinde Salt-Okunur Keşif & Anomali Taraması (Read-Only Audit):**
+     - Lovable/prototip döneminden kalma `TUR`, `TUR-A`, `MLX`, `mlx` token/sembollerinin taranması ve ısı haritası.
+     - Backend (`local-server/`) ve Frontend (`src/`) genelinde kalan Türkçe yorum ve console log'larının tespiti.
+     - Doğrudan kod değişikliği yapılmadan kapsamlı raporlama.
+
+   * **Modül 1 — Core Identity, RBAC & Auth Session Slice:**
+     - Kapsam: `session-gate.mjs`, `auth-utils.mjs`, `actor.mjs`, `identity*.mjs`, `api-keys.mjs` $\leftrightarrow$ `users.tsx`, `rbac.tsx`, `account.tsx`, `rbac-store.ts`, `group-store.ts`
+     - Standartlaştırma: Auth hata formatları (`{ ok: false, error: 'Unauthorized' }`), rol/scope isimlendirmeleri, store DTO dönüşümleri, İngilizce yorum standardı.
+
+   * **Modül 2 — Reporting, FinOps & Telemetry Slice:**
+     - Kapsam: `reporting.mjs`, `telemetry.mjs`, `telemetry-stream.mjs`, `metrics.mjs` $\leftrightarrow$ `reporting.*.tsx`, `report-store.ts`, `rag-analytics-store.ts`
+     - Standartlaştırma: Metrik ve zaman birimleri, FinOps tarife log standartları, camelCase/snake_case DTO paritesi, API hata yanıtları.
+
+   * **Modül 3 — Knowledge Hub, ONNX Ingestion & RAG Slice:**
+     - Kapsam: `knowledge-spaces.mjs`, `rag-folders.mjs`, `knowledge-ingest.mjs`, `knowledge-retrieve.mjs`, `onnx-pipeline.mjs`, `agent-rag.mjs`, `retrieval.mjs` $\leftrightarrow$ `knowledge.tsx`, `rag-documents.tsx`, `knowledge-store.ts`, `rag-folder-store.ts`
+     - Standartlaştırma: RAG arama & chunking hata kontratları, in-process ONNX log standartları, yorum satırları. (Not: Dilbilimsel Türkçe arama/stemming kuralları korunacaktır).
+
+   * **Modül 4 — Capabilities, Tools, Skills & MCP Engine Slice:**
+     - Kapsam: `tools.mjs`, `skills.mjs`, `capabilities.mjs`, `mcp.mjs`, `adapters.mjs`, `python-crud.mjs`, `tool-adapters.mjs`, `disk-runner.mjs` $\leftrightarrow$ `skills.tsx`, `factory.tsx`, `tools.tsx`, `mcp.tsx`, `tool-store.ts`, `skill-store.ts`, `mcp-store.ts`
+     - Standartlaştırma: Tool icra hata paketleri (`execution error wrapping`), Forge Factory DTO yapıları, MCP exposure kontratları, İngilizce log/yorumlar.
+
+   * **Modül 5 — Workflows, DAG Canvas & MetaForge Synthesis Slice:**
+     - Kapsam: `workflows.mjs`, `chains.mjs`, `workflow-engine.mjs`, `meta-forge/*.mjs`, `self-healing.mjs`, `approvals.mjs` $\leftrightarrow$ `workflows.tsx`, `orchestration.tsx`, `meta-forge.tsx`, `approvals.tsx`, `src/types/workflow.ts`, `workflow-store.ts`, `approval-store.ts`
+     - Standartlaştırma: Node icra durum kodları, DAG şema tipleri, onay kartı payload'ları, İngilizce yorum ve loglar.
+
+   * **Modül 6 — Chat, Threads, Hybrid Storage & Orchestration Engine Slice ("En Baba Yer"):**
+     - Kapsam: `chat-orchestrate.mjs`, `lib/orchestrator/*` (`directives.mjs`, `stream-bridge.mjs`, `tool-dispatcher.mjs`, `finops-meter.mjs`), `threads.mjs`, `storage-engine.mjs` $\leftrightarrow$ `src/routes/index.tsx`, `composer.tsx`, `chat-store.ts`, `orchestrate-stream.ts`
+     - Standartlaştırma: SSE streaming error payload'ları, chunk ayrıştırıcı dokümantasyonu, dosya yükleme MIME denetimi hata mesajları, multi-turn state geçiş açıklamaları.
+
+   * **Modül 7 — Policy, Security, GenGuard & Secret Vault Slice:**
+     - Kapsam: `security-policies.mjs`, `vault.mjs`, `cve.mjs`, `genguard-scanner.mjs`, `policy-engine-eval.mjs`, `local-server/lib/vault.mjs` $\leftrightarrow$ `policy.tsx`, `security.tsx`, `security-store.ts`, `vault-store.ts`, `cve-store.ts`
+     - Standartlaştırma: Vault şifreleme/çözme hata maskelemesi (bilgi sızdırmayan kurumsal error handling), GenGuard güvenlik etiketleri, CVE feed durum kodları.
+
+   * **Modül 8 — Infrastructure, HA Cluster, System Engine & Settings Slice:**
+     - Kapsam: `infra.mjs`, `redis-cache.mjs`, `rabbitmq-broker.mjs`, `models.mjs`, `providers.mjs`, `system-config.mjs`, `system-certs.mjs`, `siem-forwarder.mjs` $\leftrightarrow$ `services.tsx`, `engine.tsx`, `system.tsx`, `fleet.tsx`, `models.tsx`, `system-store.ts`, `agent-store.ts`
+     - Standartlaştırma: HA health/ready check yanıtları, SIEM forwarder log şemaları, sistem sertifika doğrulama bildirimleri.
+
+   * **Modül 9 — Global UI Polish & Cross-Cutting Standardization:**
+     - Kapsam: `src/components/`, `src/layout/`, `src/types/`
+     - Standartlaştırma: Ham browser `alert()` / `confirm()` yapılarının elenmesi, toast/notification formatlarının tekdüzeliği, gereksiz console gürültüsünün temizlenmesi.
+
+   * **Modül 10 — Final FAZ B Validation & Mühürleme:**
+     - `npx tsc --noEmit` tam sistem derleme kontrolü (0 hata hedefi).
+     - Tüm systemd servislerinin canlı sağlık kontrolü (`elara-middleware.service`, `elara-vite.service` vb.).
+     - `context.md` üzerinde FAZ B Mühürleme Raporu ve FAZ C'ye devir.
 
    ---
 

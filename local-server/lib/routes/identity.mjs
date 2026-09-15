@@ -1,5 +1,5 @@
 // Identity routes — users / groups / RBAC / auth-providers / login / sessions
-// Moved from server.mjs (B-1 / Tur 1.1, 2026-05-30). Behaviour identical.
+// Modular identity routes (B-1, 2026-05-30). Behaviour identical.
 import { initAuthSchema } from "../schema-auth.mjs";
 
 const SECRET_FIELDS = {
@@ -355,7 +355,7 @@ export async function mountIdentityRoutes(app, deps) {
       }
       await pool.query("COMMIT");
       res.json({ ok: true, count: rules.length });
-    } catch (e) { await pool.query("ROLLBACK").catch(()=>{}); res.status(500).json({ error: String(e.message || e) }); }
+    } catch (e) { await pool.query("ROLLBACK").catch(()=>{}); res.status(500).json({ ok: false, error: String(e.message || e) }); }
   });
 
   // ---------- Federated auth provider config (DB-sealed) ----------
@@ -602,12 +602,12 @@ export async function mountIdentityRoutes(app, deps) {
         connectedAt: new Date(r.connected_at).toISOString(),
         lastSeen: new Date(r.last_seen).toISOString(),
       })));
-    } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
+    } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
   });
 
   app.post("/api/sessions/:id/heartbeat", async (req, res) => {
     try { await pool.query("UPDATE app_sessions SET last_seen=now() WHERE id=$1", [req.params.id]); res.json({ ok: true }); }
-    catch (e) { res.status(500).json({ error: String(e.message || e) }); }
+    catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
   });
 
   app.delete("/api/sessions/:id", async (req, res) => {
@@ -616,7 +616,7 @@ export async function mountIdentityRoutes(app, deps) {
       const callerSid   = String(req.session?.id || "").trim();
       let allowed = sessionRole === "admin";
       if (!allowed && callerSid && callerSid === req.params.id) allowed = true;
-      if (!allowed) return res.status(403).json({ error: "admin role required" });
+      if (!allowed) return res.status(403).json({ ok: false, error: "admin role required" });
       await pool.query("DELETE FROM app_sessions WHERE id=$1", [req.params.id]);
       enqueueWrite(
         `INSERT INTO agent_logs(agent,level,message,meta) VALUES ('auth','warn',$1,$2)`,
@@ -631,7 +631,7 @@ export async function mountIdentityRoutes(app, deps) {
         });
       }
       res.status(204).end();
-    } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
+    } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
   });
 
   return { readProviderConfig, writeProviderConfig, ensureFederatedUser };
