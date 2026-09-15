@@ -120,6 +120,16 @@ export function mountVaultRoutes(app, deps) {
         if (!isOwner && !isWorkspace && !isSystem && !ctx.isTenantAdmin) {
           return res.status(403).json({ ok: false, error: "Access denied" });
         }
+
+        // Vault Reveal Permission Gate:
+        // Only the author of the secret or callers holding the explicit 'vault' action verb can unmask plaintext fields!
+        if (!isOwner && !ctx.canRevealVault) {
+          vaultAudit({ action: "unmask_denied", scope: req.params.scope, name: req.params.name, req, ok: false, reason: "missing 'vault' action permission" });
+          return res.status(403).json({
+            ok: false,
+            error: "Vault reveal action ('vault') is required to unmask shared or system credentials."
+          });
+        }
       }
       vaultAudit({ action: "read", scope: req.params.scope, name: req.params.name, req, meta: { kind: out.kind, field_count: Object.keys(out.fields).length } });
       res.json({

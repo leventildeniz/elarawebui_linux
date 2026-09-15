@@ -171,7 +171,7 @@ export function mountThreadRoutes(app, deps) {
         const userMatches = [ctx.userId, ctx.username, ctx.actor].filter(Boolean);
         await pool.query(
           `DELETE FROM chat_threads 
-           WHERE id = $1 AND (tenant_id = $2 OR tenant_id IS NULL) AND (owner_id = ANY(ARRAY[$3]::text[]) OR lower(owner_id) = ANY(ARRAY[$3]::text[]) OR owner_id IS NULL)`,
+           WHERE id = $1 AND (tenant_id = $2 OR tenant_id IS NULL) AND (owner_id = ANY($3::text[]) OR lower(owner_id) = ANY($3::text[]) OR owner_id IS NULL)`,
           [threadId, ctx.tenantId || "default", userMatches]
         );
       } else {
@@ -183,13 +183,54 @@ export function mountThreadRoutes(app, deps) {
     }
   });
 
+  async function assertThreadAccess(threadId, ctx, isWrite = false) {
+    if (!threadId) {
+      const err = new Error("missing thread id");
+      err.status = 400;
+      throw err;
+    }
+    const { rows } = await pool.query("SELECT id, owner_id, tenant_id FROM chat_threads WHERE id = $1", [threadId]);
+    if (!rows.length) {
+      if (isWrite) return null; // caller is authoring a new thread on write
+      const err = new Error("thread not found");
+      err.status = 404;
+      throw err;
+    }
+
+    const t = rows[0];
+    if (ctx?.isSuperAdmin) return t;
+
+    const callerTenant = ctx?.tenantId || "default";
+    if (t.tenant_id && t.tenant_id !== callerTenant && t.tenant_id !== "default") {
+      const err = new Error("Access denied: thread belongs to another organization");
+      err.status = 403;
+      throw err;
+    }
+
+    const matches = [ctx?.userId, ctx?.username, ctx?.actor].filter(Boolean).map(s => String(s).toLowerCase());
+    const owner = String(t.owner_id || "").toLowerCase();
+    const isOwner = !owner || matches.includes(owner);
+    if (!isOwner) {
+      const err = new Error("Access denied: conversation belongs to another operator");
+      err.status = 403;
+      throw err;
+    }
+    return t;
+  }
+
   app.get("/api/threads/:id/messages", async (req, res) => {
     if (!req.params.id) return res.json([]);
-    const { rows } = await pool.query(
-      "SELECT * FROM chat_messages WHERE thread_id = $1 ORDER BY seq ASC",
-      [req.params.id]
-    );
-    res.json(rows);
+    try {
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default", actor: "admin" };
+      await assertThreadAccess(req.params.id, ctx, false);
+      const { rows } = await pool.query(
+        "SELECT * FROM chat_messages WHERE thread_id = $1 ORDER BY seq ASC",
+        [req.params.id]
+      );
+      res.json(rows);
+    } catch (e) {
+      res.status(e.status || 500).json({ ok: false, error: String(e.message || e) });
+    }
   });
 
   // Persist messages endpoint: syncs full thread message state with PostgreSQL
@@ -197,6 +238,11 @@ export function mountThreadRoutes(app, deps) {
     const threadId = req.params.id;
     const messages = req.body?.messages || [];
     const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default", actor: "admin" };
+    try {
+      await assertThreadAccess(threadId, ctx, true);
+    } catch (e) {
+      return res.status(e.status || 403).json({ ok: false, error: String(e.message || e) });
+    }
     const tenantId = ctx.tenantId || "default";
     let ownerId = ctx.userId || null;
     if (!ownerId && ctx.actor) {
@@ -272,6 +318,11 @@ export function mountThreadRoutes(app, deps) {
     const threadId = req.params.id;
     const files = req.body?.files || [];
     const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default", actor: "admin" };
+    try {
+      await assertThreadAccess(threadId, ctx, true);
+    } catch (e) {
+      return res.status(e.status || 403).json({ ok: false, error: String(e.message || e) });
+    }
     const tenantId = ctx.tenantId || "default";
     let ownerId = ctx.userId || null;
     if (!ownerId && ctx.actor) {
@@ -326,13 +377,15 @@ export function mountThreadRoutes(app, deps) {
     const id = req.params.id;
     const { title, titleLocked, pinned, color, context } = req.body || {};
     try {
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default", actor: "admin" };
+      await assertThreadAccess(id, ctx, true);
       await pool.query(
         "UPDATE chat_threads SET title = COALESCE($2, title), title_locked = COALESCE($3, title_locked), pinned = COALESCE($4, pinned), color = COALESCE($5, color), context = COALESCE($6, context), updated_at = now() WHERE id = $1 RETURNING *",
         [id, title, titleLocked, pinned, color, context]
       );
       res.json({ ok: true });
     } catch (e) {
-      res.status(500).json({ ok: false, error: String(e.message || e) });
+      res.status(e.status || 500).json({ ok: false, error: String(e.message || e) });
     }
   });
 }

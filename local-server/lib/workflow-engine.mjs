@@ -84,9 +84,17 @@ async function loadRun(runId) {
   const { rows } = await _pool.query(`SELECT * FROM chain_runs WHERE id=$1`, [runId]);
   return rows[0] || null;
 }
+const ALLOWED_CHAIN_RUN_COLS = new Set([
+  'status', 'current_node', 'context', 'trace', 'started_at', 'finished_at',
+  'paused_reason', 'pending_node', 'pending_token', 'username', 'error'
+]);
+
 async function saveRun(runId, patch) {
   const sets = [], args = [];
-  for (const [k, v] of Object.entries(patch)) { args.push(v); sets.push(`${k}=$${args.length}`); }
+  for (const [k, v] of Object.entries(patch)) {
+    if (!ALLOWED_CHAIN_RUN_COLS.has(k)) continue;
+    args.push(v); sets.push(`${k}=$${args.length}`);
+  }
   if (!sets.length) return;
   args.push(runId);
   await _pool.query(`UPDATE chain_runs SET ${sets.join(",")} WHERE id=$${args.length}`, args);

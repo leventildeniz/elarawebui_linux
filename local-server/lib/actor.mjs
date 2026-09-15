@@ -44,7 +44,10 @@ export async function resolveActor(req) {
 // Regular users see MINE + GROUP + WORKSPACE strictly within their own tenant (+ global system assets).
 export async function resolveActorContext(req) {
   const actor = await resolveActor(req);
-  const sessionTenantId = req?.session?.tenant_id || req?.headers?.["x-tenant-id"] || null;
+  const verifiedSessionTenant = req?.session?.tenant_id || null;
+  const isSuperSession = req?.session?.role === "admin" && (verifiedSessionTenant === "default" || !verifiedSessionTenant);
+  // Zero-Trust: Only verified SuperAdmin on default tenant can switch tenant scope via header; standard users are anchored to their session tenant
+  const sessionTenantId = (isSuperSession ? req?.headers?.["x-tenant-id"] : null) || verifiedSessionTenant || null;
   if (!actor) {
     return {
       actor: null,
@@ -118,16 +121,19 @@ export async function resolveActorContext(req) {
     }
     
     let rbacGrantsMcpServer = false;
+    let rbacActions = [];
     try {
       const roleRes = await _pool.query(
-        "SELECT scopes FROM app_roles WHERE lower(name) = ANY($1::text[]) OR id = ANY($1::text[])",
+        "SELECT scopes, actions FROM app_roles WHERE lower(name) = ANY($1::text[]) OR id = ANY($1::text[])",
         [allRoles]
       );
       for (const rRow of roleRes.rows) {
         const scopes = Array.isArray(rRow?.scopes) ? rRow.scopes : [];
         if (scopes.includes("mcp-server") || scopes.includes("*")) {
           rbacGrantsMcpServer = true;
-          break;
+        }
+        if (Array.isArray(rRow?.actions)) {
+          rbacActions.push(...rRow.actions);
         }
       }
     } catch {}
@@ -137,6 +143,7 @@ export async function resolveActorContext(req) {
     const isSuperAdmin = (effectiveRole === "admin" || effectiveRole === "sovereign" || isFirstMimar) && userTenantId === "default";
     const isTenantAdmin = isSuperAdmin || ((effectiveRole === "admin" || effectiveRole === "sovereign" || effectiveRole === "tenant-admin") && userTenantId !== "default") || effectiveRole === "tenant-admin";
     const canManageMcpServer = isSuperAdmin || rbacGrantsMcpServer || templateGrantsMcpServer;
+    const canRevealVault = isSuperAdmin || rbacActions.includes("vault") || rbacActions.includes("*");
     
     return {
       actor,
@@ -145,6 +152,8 @@ export async function resolveActorContext(req) {
       isSuperAdmin,
       isTenantAdmin,
       canManageMcpServer,
+      canRevealVault,
+      actions: Array.from(new Set(rbacActions)),
       userId,
       tenantId: userTenantId,
       groupIds,

@@ -247,9 +247,15 @@ async function recordInvocation(row) {
      row.sessionId || null, validRunId, row.status, row.params || {}, row.riskLevel]
   );
 }
+const ALLOWED_INVOCATION_COLS = new Set([
+  'status', 'approval_id', 'approver', 'approved_at', 'finished_at', 'duration_ms',
+  'error', 'output', 'params', 'risk_level'
+]);
+
 async function updateInvocation(id, patch) {
   const sets = [], args = [];
   for (const [k, v] of Object.entries(patch)) {
+    if (!ALLOWED_INVOCATION_COLS.has(k)) continue;
     args.push(v); sets.push(`${k}=$${args.length}`);
   }
   if (!sets.length) return;

@@ -115,9 +115,26 @@ export function mountWorkflowRoutes(app, deps) {
   });
   app.get("/api/workflows/:id", async (req, res) => {
     try {
-      const { rows } = await pool.query("SELECT id, name, status, trigger, runs, nodes, edges, color, visibility, shared_with, owner_id, owner_name, updated_at FROM workflows WHERE id=$1", [req.params.id]);
+      const ctx = await deps.resolveActorContext(req);
+      const { rows } = await pool.query("SELECT id, name, status, trigger, runs, nodes, edges, color, visibility, shared_with, owner_id, owner_name, tenant_id, is_global, updated_at FROM workflows WHERE id=$1", [req.params.id]);
       if (!rows[0]) return res.status(404).end();
       const r = rows[0];
+
+      // Multi-Tenant & Desk Isolation check
+      if (!ctx.isSuperAdmin) {
+        const callerTenant = ctx.tenantId || "default";
+        if (r.tenant_id && r.tenant_id !== callerTenant && !r.is_global) {
+          return res.status(403).json({ ok: false, error: "Access denied to workflow outside your organization" });
+        }
+        if (r.visibility === "private") {
+          const matches = [ctx.userId, ctx.username, ctx.actor].filter(Boolean).map(s => String(s).toLowerCase());
+          const isOwner = r.owner_id && matches.includes(String(r.owner_id).toLowerCase());
+          if (!isOwner && !ctx.isTenantAdmin) {
+            return res.status(403).json({ ok: false, error: "Private workflow — only author or administrator may view this item." });
+          }
+        }
+      }
+
       res.json({
         id: r.id, name: r.name, updated_at: r.updated_at, visibility: r.visibility, shared_with: r.shared_with,
         owner_id: r.owner_id, owner_name: r.owner_name,
@@ -592,12 +609,29 @@ export function mountWorkflowRoutes(app, deps) {
   });
   app.get("/api/chains/:id", async (req, res) => {
     try {
+      const ctx = await deps.resolveActorContext(req);
       const { rows } = await pool.query(
-        "SELECT id, name, status, trigger, runs, nodes, edges, color, visibility, shared_with, owner_id, owner_name, created_at as updated_at FROM orchestrations WHERE id=$1",
+        "SELECT id, name, status, trigger, runs, nodes, edges, color, visibility, shared_with, owner_id, owner_name, tenant_id, is_global, created_at as updated_at FROM orchestrations WHERE id=$1",
         [req.params.id]
       );
       if (!rows[0]) return res.status(404).json({ ok: false, error: "Chain not found" });
       const r = rows[0];
+
+      // Multi-Tenant & Desk Isolation check
+      if (!ctx.isSuperAdmin) {
+        const callerTenant = ctx.tenantId || "default";
+        if (r.tenant_id && r.tenant_id !== callerTenant && !r.is_global) {
+          return res.status(403).json({ ok: false, error: "Access denied to chain outside your organization" });
+        }
+        if (r.visibility === "private") {
+          const matches = [ctx.userId, ctx.username, ctx.actor].filter(Boolean).map(s => String(s).toLowerCase());
+          const isOwner = r.owner_id && matches.includes(String(r.owner_id).toLowerCase());
+          if (!isOwner && !ctx.isTenantAdmin) {
+            return res.status(403).json({ ok: false, error: "Private chain — only author or administrator may view this item." });
+          }
+        }
+      }
+
       res.json({
         id: r.id, name: r.name, updated_at: r.updated_at, visibility: r.visibility, shared_with: r.shared_with,
         owner_id: r.owner_id, owner_name: r.owner_name,

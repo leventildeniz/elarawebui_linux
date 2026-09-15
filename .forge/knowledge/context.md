@@ -1786,15 +1786,31 @@ ELARA Sovereign Studio genelinde **Zero-Trust Çoklu Kiracı (Multi-Tenancy) ve 
      - **SuperAdmin Default Fallback Mührü:** `iso.01`, `siso.01`, `miso.01` varsayılan sandbox profilleri küresel (`is_global = true`) olarak tüm sistemde etkindir; TenantAdmin veya operatörlerin kapatması/değiştirmesi backend seviyesinde (`HTTP 403`) ve arayüz toggle kilidi ile imkansız kılındı.
      - **Canlı UI Senkronizasyonu & Test Temizliği:** `iso.test` test profili veritabanından silindi; `security-store.ts` optimistic state ve `EntityDialog` dinamik imza ile modal senkronizasyonu F5 gerektirmeden canlı hale getirildi.
 
-   * **Vektör 3 — SQL Injection & Dinamik Sorgu Parametrizasyonu:**
-     - Backend genelindeki (`local-server/lib/routes/`) tüm dinamik SQL bloklarının `$1, $2` ile tam parametrizasyon denetimi.
-     - `buildVisibility`, metrik sorguları ve filtre parametrelerinde string concatenation risklerinin sıfırlanması.
+   * **Vektör 3 — SQL Injection & Dinamik Sorgu Parametrizasyonu — %100 TAMAMLANDI:**
+     - **360° Parametrik Binding Denetimi:** `local-server/lib/routes/` altındaki tüm SQL sorguları (`identity`, `reporting`, `telemetry`, `workflows`, `models`, `cve`, `targets`, `adapters`, `security-policies`) tarandı; kullanıcı girdilerinin string concatenation olmaksızın `$1, $2, $3` parametrizasyonuna oturtulduğu doğrulandı.
+     - **Dynamic UPDATE Builder Kolon İzin Listesi (`workflow-engine.mjs`, `tool-adapters.mjs`):** `updateInvocation` ve `saveRun` içerisindeki dinamik kolon güncellemeleri açık bir `Set` izin listesine (`ALLOWED_INVOCATION_COLS`, `ALLOWED_CHAIN_RUN_COLS`) bağlandı; yetkisiz kolon enjeksiyonu riski sıfırlandı.
+     - **PostgreSQL Dizi Uyumluluğu (`threads.mjs`):** `threads.mjs` silme sorgusundaki `ANY(ARRAY[$3]::text[])` gereksiz iç içe dizi sarmalaması standart `ANY($3::text[])` formatına getirildi.
+     - **Doğrulama:** `node --check` ve `npx tsc --noEmit` 0 hata ile mühürlendi. Servisler aktif.
 
-   * **Vektör 4 — Secret Vault & Kriptografik Sızıntı Denetimi:**
-     - AES-256-GCM çözülmüş sırların (`unmask`) asla `agent_logs`, audit stream, SIEM forwarder veya konsola sızmadığının teyidi.
-     - Bellekte çözülen API key'lerinin ve credential'ların ömrü ve maskeleme hijyeni.
+   * **Vektör 4 — Secret Vault & Kriptografik Sızıntı Denetimi — %100 TAMAMLANDI:**
+     - **Backend "Vault Reveal" Yetki Kapısı (`actor.mjs`, `vault.mjs`):** Arayüzdeki `access.can("vault")` kontrolü doğrudan arka uç API'sine (`GET /api/vault/:scope/:name`) taşındı. Sırrın sahibi olmayan ve rolünde `"vault"` eylem izni bulunmayan kullanıcıların (`deneme2` — `Engineer`) cURL veya DevTools ile açık metin parolaları çekmesi `HTTP 403 Forbidden` ile engellendi.
+     - **Sıfır Açık Metin Loglama Hijyeni:** `vaultAudit` ve `vaultAuditRuntime` loglarında AES-256-GCM çözülmüş değerlerin asla `agent_logs`, audit stream veya konsola yazılmadığı teyit edildi.
+     - **Kriptografik Denetim Zinciri Doğrulaması:** `vault_audit` tablosundaki her kaydın SHA-256 zincir bütünlüğü (`prev_hash`, `row_hash`) ile korunduğu doğrulandı.
+     - **Doğrulama:** `admin` oturumu ile 200 OK unmasked veri dönerken, `deneme2` oturumu ile aynı endpoint 403 Access Denied ile engellendi. `npx tsc --noEmit` ve `node --check` 0 hata.
 
-   * **Vektör 5 — Zero-Trust Kimlik, IDOR & Yetki Aşımı (Privilege Escalation):**
-     - Oturum taklit (session hijacking / header tampering) denetimi.
-     - Farklı tenant veya kullanıcı varlıklarına doğrudan erişim (IDOR — Insecure Direct Object Reference) denetimi.
-   * Secret Vault AES-256-GCM çözülmüş sırların asla loglara (`agent_logs`) veya audit stream'e sızmadığının teyidi.
+   * **Vektör 5 — Zero-Trust Kimlik, IDOR & Yetki Aşımı (Privilege Escalation) — %100 TAMAMLANDI:**
+     - **Chat Thread IDOR Muhafızı (`threads.mjs`):** `assertThreadAccess()` fonksiyonu yazıldı. `GET /api/threads/:id/messages`, `PUT /api/threads/:id/messages`, `PUT /api/threads/:id/files` ve `PATCH /api/threads/:id` uç noktaları korunmaya alındı. Başka bir operatörün veya kiracının sohbet geçmişini UUID bilerek çekme veya üzerine yazma açığı `HTTP 403 Forbidden` ile kapatıldı.
+     - **Workflow & Chain IDOR Kalkanı (`workflows.mjs`):** `GET /api/workflows/:id` ve `GET /api/orchestrations/:id` uç noktalarına çok kiracılı ve masa görünürlüğü (`private` / `isOwner` / `isTenantAdmin`) kontrolleri eklendi; başka bir masanın özel DAG akışlarını ID ile sızdırma engellendi.
+     - **Tenant Header Tampering Engeli (`actor.mjs`):** `x-tenant-id` başlığı üzerinden kiracı kapsamı değiştirme hakkı yalnızca doğrulanmış SuperAdmin'lere sınırlandı; standart kullanıcıların tenant'ı kriptografik oturum tablosuna (`req.session.tenant_id`) çivilendi.
+     - **Doğrulama:** Canlı test ile `deneme2`'nin `deneme`'ye ait bir thread'i okuma ve üzerine yazma denemesi `HTTP 403 Access denied: conversation belongs to another operator` ile engellendi.
+
+   ---
+
+   ### 🏆 FAZ C SONUÇ RAPORU: %100 TAMAMLANDI (KURUMSAL NETSEC MÜHRÜ)
+   - **Vektör 1 (Ağ Sınırları & Rate Limiting):** Reverse proxy header spoofing engellendi, gerçek IP rate limiter aktif edildi, 5 hatalı denemede 15 dakikalık 423 kilit mekanizması devrede, wildcard CORS kaldırıldı.
+   - **Vektör 2 (SSRF & Egress Filtreleme):** Tool, Skill ve MCP Isolation Sandboxes icra motoruna bağlandı; `web_fetch`, `url-crawler` ve `mcp/client` üzerinden loopback, intranet ve cloud metadata (`169.254.169.254`) aranması engellendi.
+   - **Vektör 3 (SQL Injection):** Rota genelinde $1, $2 parametrik parite doğrulandı; dinamik UPDATE builder'lar kapalı izin kümesine bağlandı.
+   - **Vektör 4 (Secret Vault):** Backend'e `access.can('vault')` yetki kapısı takıldı; yetkisiz rollerin açık metin sırları API ile çekmesi 403 ile engellendi. Sıfır açık metin loglama teyit edildi.
+   - **Vektör 5 (Zero-Trust IDOR):** Sohbet mesajları, workflow'lar ve kiracı başlıkları IDOR saldırılarına karşı kapatıldı.
+
+   **Sistem Durumu:** `node --check` 0 hata, `npx tsc --noEmit` 0 hata; tüm systemd servisleri aktif, sağlıklı ve operasyonel.
