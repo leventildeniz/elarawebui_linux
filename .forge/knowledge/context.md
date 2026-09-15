@@ -1519,6 +1519,7 @@ ELARA Sovereign Studio genelinde **Zero-Trust Çoklu Kiracı (Multi-Tenancy) ve 
    1519	   * **B2B Faturalandırma & FinOps İzolasyonu:** `GET /api/reporting/invoicing` rotasındaki küme geneli şirket listesi sızıntısı kapatıldı. Bir kiracı giriş yaptığında yalnızca kendi şirketinin token defterini ve faturasını görebilir (`targetTenant = tenantId`).
    1520	   * **Operatör & RAG Telemetrisi İzolasyonu:** `GET /api/reporting/operators` ve `/api/reporting/rag` uç noktaları kiracı filtrelerine bağlandı. Normal operatörler ise yalnızca kendi kişisel kullanım metriklerini görebilir.
    1521	   * **SuperAdmin Küme Görünürlüğü Korundu:** SuperAdmin tüm şirketleri küresel olarak (`1=1`) raporlayabilmeye veya dilediği kiracıyı filtrelemeye devam eder.
+   * **Ambiguous Status Sütunu & Scoping Onarımı:** `/api/reporting/overview` ve `/api/reporting/cost` SQL sorgularındaki belirsiz `status` sütun referansları `u.status` olarak nitelendirildi; `dailyRes` ve `storageRes` sorguları çoklu kiracı sınırlarına bağlandı (HTTP 500 hataları giderildi).
    1522	
    #### 📊 2. Nihai Sistem Doğrulaması
    * `npx tsc --noEmit`: **0 hata**.

@@ -1,80 +1,30 @@
-RAG Documents Loaded v2
-react-dom-client.development.js:5238 Uncaught Error: Hydration failed because the server rendered HTML didn't match the client. As a result this tree will be regenerated on the client. This can happen if a SSR-ed Client Component used:
-
-- A server/client branch `if (typeof window !== 'undefined')`.
-- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
-- Date formatting in a user's locale which doesn't match the server.
-- External changing data without sending a snapshot of it along with the HTML.
-- Invalid HTML tag nesting.
-
-It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
-
-https://react.dev/link/hydration-mismatch
-
-  ...
-    <SafeFragment fallback={function fallback}>
-      <MatchInnerImpl matchId="/agents/ag...">
-        <Lazy>
-          <AgentOrchestrator>
-            <Surface title="Agent Orch..." crumb="Agents" meta="local brid..." wide={true} action={<div>}>
-              <Shell crumb="Agents">
-                <div className="relative f...">
-                  <CommandPalette>
-                  <motion.aside>
-                  <div className="studio-sta...">
-                    <header className="flex h-12 ...">
-                      <div className="flex min-w...">
-                        <span>
-                        <ModuleTabs>
-                          <SquadTabs>
-                            <div className="ml-2 hidde...">
-                              <Tab>
-                              <Tab active={false} tone="sapphire" onClick={function onClick} onRename={undefined} ...>
-+                               <div
-+                                 onClick={function onClick}
-+                                 onDoubleClick={undefined}
-+                                 className="group flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-[5..."
-+                               >
--                               <button
--                                 className="flex items-center gap-1.5 rounded-lg border border-dashed border-white/[0..."
--                               >
-                              ...
-                              ...
-                      ...
-                    ...
-                  ...
-
-    at throwOnHydrationMismatch (react-dom-client.development.js:5238:11)
-    at beginWork (react-dom-client.development.js:12027:17)
-    at runWithFiberInDEV (react-dom-client.development.js:871:30)
-    at performUnitOfWork (react-dom-client.development.js:17641:22)
-    at workLoopConcurrentByScheduler (react-dom-client.development.js:17635:9)
-    at renderRootConcurrent (react-dom-client.development.js:17617:15)
-    at performWorkOnRoot (react-dom-client.development.js:16503:11)
-    at performWorkOnRootViaSchedulerTask (react-dom-client.development.js:18957:7)
-    at MessagePort.performWorkUntilDeadline (scheduler.development.js:45:48)
-react-dom-client.development.js:26084 Each child in a list should have a unique "key" prop.
-
-Check the render method of `div`. It was passed a child from ConfigDialog. See https://react.dev/link/warning-keys for more information.
-(anonymous) @ react-dom-client.development.js:26084
-api/skills:1  Failed to load resource: the server responded with a status of 400 (Bad Request)
-skill-store.ts:417 Failed to create skill ApiError: ctx is not defined
-    at fetchApi (api.ts:44:11)
-    at async skill-store.ts:403:7
-    at async save (skills.tsx:674:12)
-(anonymous) @ skill-store.ts:417
-confirm-dialog.tsx:37 close called with ok= false pending is Object
-api/skills:1  Failed to load resource: the server responded with a status of 400 (Bad Request)
-skill-store.ts:417 Failed to create skill ApiError: ctx is not defined
-    at fetchApi (api.ts:44:11)
-    at async skill-store.ts:403:7
-    at async save (skills.tsx:674:12)
-(anonymous) @ skill-store.ts:417
-confirm-dialog.tsx:37 close called with ok= true pending is Object
-api/skills:1  Failed to load resource: the server responded with a status of 400 (Bad Request)
-skill-store.ts:417 Failed to create skill ApiError: ctx is not defined
-    at fetchApi (api.ts:44:11)
-    at async skill-store.ts:403:7
-    at async save (skills.tsx:674:12)
-(anonymous) @ skill-store.ts:417
-confirm-dialog.tsx:37 close called with ok= false pending is Object
+api.ts:52 
+ GET https://localhost:10443/api/reporting/cost?span=30d 500 (Internal Server Error)
+api.ts:52 
+ GET https://localhost:10443/api/reporting/cost?span=30d 500 (Internal Server Error)
+report-store.ts:443
+ [useReportingCost] Failed to fetch cost data: ApiError: column reference "status" is ambiguous
+    at fetchApi (api.ts:65:11)
+report-store.ts:443
+ [useReportingCost] Failed to fetch cost data: ApiError: column reference "status" is ambiguous
+    at fetchApi (api.ts:65:11)
+api.ts:52 
+ GET https://localhost:10443/api/reporting/cost?span=30d 500 (Internal Server Error)
+api.ts:52 
+ GET https://localhost:10443/api/reporting/cost?span=30d 500 (Internal Server Error)
+report-store.ts:443
+ [useReportingCost] Failed to fetch cost data: ApiError: column reference "status" is ambiguous
+    at fetchApi (api.ts:65:11)
+report-store.ts:443
+ [useReportingCost] Failed to fetch cost data: ApiError: column reference "status" is ambiguous
+    at fetchApi (api.ts:65:11)
+api.ts:52 
+ GET https://localhost:10443/api/reporting/overview?span=30d 500 (Internal Server Error)
+api.ts:52 
+ GET https://localhost:10443/api/reporting/overview?span=30d 500 (Internal Server Error)
+report-store.ts:304
+ [useReportingOverview] Failed to fetch overview data: ApiError: column reference "status" is ambiguous
+    at fetchApi (api.ts:65:11)
+report-store.ts:304
+ [useReportingOverview] Failed to fetch overview data: ApiError: column reference "status" is ambiguous
+    at fetchApi (api.ts:65:11)

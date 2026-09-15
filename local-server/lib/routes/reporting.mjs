@@ -173,10 +173,10 @@ export async function mountReportingRoutes(app, deps) {
       const usageRes = await pool.query(
         `SELECT 
            COALESCE(COUNT(*), 0)::bigint as total_runs,
-           COALESCE(SUM(prompt_tokens + response_tokens), 0)::bigint as total_tokens,
-           COALESCE(SUM(cost_usd), 0)::numeric as total_cost,
-           COALESCE(COUNT(CASE WHEN status != 'ok' THEN 1 END), 0)::bigint as total_errors,
-           COALESCE(AVG(latency_ms), 0)::int as avg_latency
+           COALESCE(SUM(u.prompt_tokens + u.response_tokens), 0)::bigint as total_tokens,
+           COALESCE(SUM(u.cost_usd), 0)::numeric as total_cost,
+           COALESCE(COUNT(CASE WHEN u.status != 'ok' THEN 1 END), 0)::bigint as total_errors,
+           COALESCE(AVG(u.latency_ms), 0)::int as avg_latency
          FROM provider_usage u
          LEFT JOIN chat_threads ct ON u.thread_id = ct.id
          LEFT JOIN tenant_api_keys k ON u.api_key_id = k.id::text
@@ -577,7 +577,7 @@ export async function mountReportingRoutes(app, deps) {
   app.get("/api/reporting/cost", async (req, res) => {
     try {
       const { days, startDate, endDate, label, slug } = parseDateRange(req.query);
-      const { tenantId, userId } = resolveReportingScope(req);
+      const { tenantId, userId, isSuperAdmin } = resolveReportingScope(req);
 
       // Read operator-defined infrastructure & storage tariffs from PostgreSQL (app_settings)
       let tariffs = { vectorStorageRate: 0, objectStorageRate: 0, gpuHourRate: 0, egressRate: 0 };
@@ -598,12 +598,12 @@ export async function mountReportingRoutes(app, deps) {
       const usageRes = await pool.query(
         `SELECT 
            COALESCE(COUNT(*), 0)::bigint as total_runs,
-           COALESCE(SUM(prompt_tokens + response_tokens), 0)::bigint as total_tokens,
-           COALESCE(SUM(prompt_tokens), 0)::bigint as input_tokens,
-           COALESCE(SUM(response_tokens), 0)::bigint as output_tokens,
-           COALESCE(SUM(cost_usd), 0)::numeric as total_cost,
-           COALESCE(COUNT(CASE WHEN status != 'ok' THEN 1 END), 0)::bigint as total_errors,
-           COALESCE(AVG(latency_ms), 0)::int as avg_latency
+           COALESCE(SUM(u.prompt_tokens + u.response_tokens), 0)::bigint as total_tokens,
+           COALESCE(SUM(u.prompt_tokens), 0)::bigint as input_tokens,
+           COALESCE(SUM(u.response_tokens), 0)::bigint as output_tokens,
+           COALESCE(SUM(u.cost_usd), 0)::numeric as total_cost,
+           COALESCE(COUNT(CASE WHEN u.status != 'ok' THEN 1 END), 0)::bigint as total_errors,
+           COALESCE(AVG(u.latency_ms), 0)::int as avg_latency
          FROM provider_usage u
          LEFT JOIN chat_threads ct ON u.thread_id = ct.id
          LEFT JOIN tenant_api_keys k ON u.api_key_id = k.id::text
@@ -691,11 +691,18 @@ export async function mountReportingRoutes(app, deps) {
       }
 
       // Storage metrics from knowledge_sources
+      let storageFilter = "";
+      const storageParams = [];
+      if (!isSuperAdmin) {
+        storageParams.push(tenantId);
+        storageFilter = "WHERE (tenant_id = $1 OR is_global = true)";
+      }
       const storageRes = await pool.query(
         `SELECT 
            COALESCE(SUM(size_mb), 0)::numeric as total_mb,
            COALESCE(COUNT(*), 0)::bigint as total_docs
-         FROM knowledge_sources`
+         FROM knowledge_sources ${storageFilter}`,
+        storageParams
       );
       const totalStorageMb = Number(storageRes.rows[0]?.total_mb || 0);
       const totalStorageGb = Number((totalStorageMb / 1024).toFixed(2));
@@ -772,17 +779,21 @@ export async function mountReportingRoutes(app, deps) {
       // Daily burn curve
       const dailyRes = await pool.query(
         `SELECT 
-           TO_CHAR(DATE_TRUNC('day', created_at), 'YYYY-MM-DD') as day,
+           TO_CHAR(DATE_TRUNC('day', u.created_at), 'YYYY-MM-DD') as day,
            COUNT(*)::bigint as runs,
-           COALESCE(SUM(prompt_tokens + response_tokens), 0)::bigint as tokens,
-           COALESCE(SUM(cost_usd), 0)::numeric as cost,
-           COUNT(CASE WHEN status != 'ok' THEN 1 END)::bigint as errors,
-           COALESCE(AVG(latency_ms), 0)::int as latency
-         FROM provider_usage
-         WHERE created_at >= $1 AND created_at <= $2
-         GROUP BY DATE_TRUNC('day', created_at)
+           COALESCE(SUM(u.prompt_tokens + u.response_tokens), 0)::bigint as tokens,
+           COALESCE(SUM(u.cost_usd), 0)::numeric as cost,
+           COUNT(CASE WHEN u.status != 'ok' THEN 1 END)::bigint as errors,
+           COALESCE(AVG(u.latency_ms), 0)::int as latency
+         FROM provider_usage u
+         LEFT JOIN chat_threads ct ON u.thread_id = ct.id
+         LEFT JOIN tenant_api_keys k ON u.api_key_id = k.id::text
+         WHERE u.created_at >= $1 AND u.created_at <= $2
+           AND ($3::text IS NULL OR u.tenant_id = $3)
+           AND ($4::text IS NULL OR lower(COALESCE(ct.owner_id, ct.owner_name, '')) = $4 OR lower(COALESCE(k.user_id, '')) = $4)
+         GROUP BY DATE_TRUNC('day', u.created_at)
          ORDER BY day ASC`,
-        [startDate, endDate]
+        [startDate, endDate, tenantId, userId]
       );
 
       const dailyMap = new Map();
