@@ -177,7 +177,7 @@ async function runNode(node, ctx, runInfo, signal) {
         break;
       }
       case "human_input": {
-        // Pause + token üret. Step "waiting" kalır; run paused olur.
+        // Pause step and issue resume token. Step enters "waiting", run enters "paused".
         const token = randomUUID();
         await saveRun(runInfo.runId, {
           status: "paused", paused_reason: "human_input",
@@ -267,11 +267,11 @@ export async function resumeWorkflowRun({ runId, token, payload = {}, signal = n
   const chain = await loadChain(run.chain_id);
   const graph = typeof chain.graph === "string" ? JSON.parse(chain.graph) : chain.graph;
   const ctx = typeof run.context === "string" ? JSON.parse(run.context) : (run.context || {});
-  // human_input payload'ı bağlama yaz
+  // Write human_input payload into execution context
   ctx[`__input_${run.pending_node}`] = payload;
   Object.assign(ctx, payload || {});
   await saveRun(runId, { status: "running", paused_reason: null, pending_token: null });
-  // Pause olan node'dan SONRAKİ adımdan devam et
+  // Resume workflow from node following the paused step
   const byId = new Map(graph.nodes.map(n => [n.id, n]));
   const pausedNode = byId.get(run.pending_node);
   const nextId = pausedNode ? nextOf(pausedNode, { branch: "true" }) : null;

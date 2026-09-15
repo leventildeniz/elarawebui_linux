@@ -111,7 +111,7 @@ export function mountWorkflowRoutes(app, deps) {
         owner_id: r.owner_id, owner_name: r.owner_name,
         graph: { status: r.status, trigger: r.trigger, runs: r.runs, nodes: r.nodes, edges: r.edges, color: r.color || 'sapphire' }
       })));
-    } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
+    } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
   });
   app.get("/api/workflows/:id", async (req, res) => {
     try {
@@ -123,7 +123,7 @@ export function mountWorkflowRoutes(app, deps) {
         owner_id: r.owner_id, owner_name: r.owner_name,
         graph: { status: r.status, trigger: r.trigger, runs: r.runs, nodes: r.nodes, edges: r.edges, color: r.color || 'sapphire' }
       });
-    } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
+    } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
   });
   app.post("/api/workflows", async (req, res) => {
     const { id, name, nodes = [], edges = [], color, status, trigger, runs, visibility, shared_with, ownerId, ownerName } = req.body ?? {};
@@ -217,7 +217,7 @@ export function mountWorkflowRoutes(app, deps) {
       res.status(200).json({ ok: true });
     } catch (e) {
       console.error("[workflows] Delete error:", e);
-      res.status(500).json({ error: String(e.message || e) });
+      res.status(500).json({ ok: false, error: String(e.message || e) });
     }
   });
 
@@ -242,7 +242,7 @@ export function mountWorkflowRoutes(app, deps) {
     } catch (e) {
       const msg = String(e.message || e);
       if (/not found/i.test(msg)) return res.status(404).json({ ok: false, error: msg, code: "not_found" });
-      res.status(500).json({ error: msg });
+      res.status(500).json({ ok: false, error: msg });
     }
   });
   app.post("/api/workflow-runs/:runId/resume", requireSession(), async (req, res) => {
@@ -253,21 +253,21 @@ export function mountWorkflowRoutes(app, deps) {
         payload: req.body?.payload || {},
       });
       res.json({ ok: true, ...out });
-    } catch (e) { res.status(400).json({ error: e.message }); }
+    } catch (e) { res.status(400).json({ ok: false, error: e.message }); }
   });
   app.post("/api/workflow-runs/:runId/cancel", requireSession(), async (req, res) => {
     try {
       const out = await cancelWorkflowRun(req.params.runId, req.body?.reason || "operator cancel");
       res.json({ ok: true, ...out });
-    } catch (e) { res.status(500).json({ error: e.message }); }
+    } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
   });
   app.get("/api/workflow-runs/:runId", requireSession(), async (req, res) => {
     try {
       const { rows } = await pool.query(`SELECT * FROM chain_runs WHERE id=$1`, [req.params.runId]);
-      if (!rows[0]) return res.status(404).json({ error: "run not found" });
+      if (!rows[0]) return res.status(404).json({ ok: false, error: "run not found" });
       const steps = await getRunSteps(req.params.runId, { limit: 500 });
       res.json({ ok: true, run: rows[0], steps });
-    } catch (e) { res.status(500).json({ error: e.message }); }
+    } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
   });
 
   // --- Legacy workflow trigger (in-process DAG walk) ----------------------
@@ -291,7 +291,7 @@ export function mountWorkflowRoutes(app, deps) {
         }
       }
     } catch (e) {
-      return res.status(500).json({ error: `hydrate failed: ${e.message}` });
+      return res.status(500).json({ ok: false, error: `hydrate failed: ${e.message}` });
     }
     const wfId = req.params.id;
     // Normalize edge properties (UI uses 'from'/'to', Execution Engine uses 'source'/'target')
@@ -588,7 +588,7 @@ export function mountWorkflowRoutes(app, deps) {
         owner_id: r.owner_id, owner_name: r.owner_name,
         graph: { status: r.status, trigger: r.trigger, runs: r.runs, nodes: r.nodes, edges: r.edges, color: r.color || 'ruby' }
       })));
-    } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
+    } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
   });
   app.get("/api/chains/:id", async (req, res) => {
     try {
@@ -596,14 +596,14 @@ export function mountWorkflowRoutes(app, deps) {
         "SELECT id, name, status, trigger, runs, nodes, edges, color, visibility, shared_with, owner_id, owner_name, created_at as updated_at FROM orchestrations WHERE id=$1",
         [req.params.id]
       );
-      if (!rows[0]) return res.status(404).json({ error: "Chain not found" });
+      if (!rows[0]) return res.status(404).json({ ok: false, error: "Chain not found" });
       const r = rows[0];
       res.json({
         id: r.id, name: r.name, updated_at: r.updated_at, visibility: r.visibility, shared_with: r.shared_with,
         owner_id: r.owner_id, owner_name: r.owner_name,
         graph: { status: r.status, trigger: r.trigger, runs: r.runs, nodes: r.nodes, edges: r.edges, color: r.color || 'ruby' }
       });
-    } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
+    } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
   });
   app.post("/api/chains", async (req, res) => {
     const { id, name, nodes = [], edges = [], color, status, trigger, runs, visibility, shared_with, ownerId, ownerName } = req.body ?? {};
@@ -659,7 +659,7 @@ export function mountWorkflowRoutes(app, deps) {
         [req.params.id]
       );
       res.json(rows);
-    } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
+    } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
   });
   app.post("/api/chains/:id/run", requireSession(), async (req, res) => {
     const chainId = req.params.id;
@@ -668,14 +668,14 @@ export function mountWorkflowRoutes(app, deps) {
     let nodes, edges, startNode;
     try {
       const { rows } = await pool.query("SELECT nodes, edges FROM orchestrations WHERE id=$1", [chainId]);
-      if (!rows[0]) return res.status(404).json({ error: "chain not found" });
+      if (!rows[0]) return res.status(404).json({ ok: false, error: "chain not found" });
       nodes = Array.isArray(rows[0].nodes) ? rows[0].nodes : [];
       edges = Array.isArray(rows[0].edges) ? rows[0].edges : [];
       // Normalize edge properties (UI uses 'from'/'to', Execution Engine uses 'source'/'target')
       edges = edges.map(e => ({ ...e, source: e.source || e.from, target: e.target || e.to }));
 
       startNode = nodes.find((n) => n.kind === "start" || n.kind === "trigger" || n.type === "trigger" || n.label?.toLowerCase().includes("trigger")) || nodes[0];
-      if (!startNode) return res.status(400).json({ error: "chain has no start node" });
+      if (!startNode) return res.status(400).json({ ok: false, error: "chain has no start node" });
 
       runId = newRunId("run");
       await pool.query(
@@ -683,7 +683,7 @@ export function mountWorkflowRoutes(app, deps) {
         [runId, chainId, startNode.id, seedCtx, []]
       );
     } catch (e) {
-      return res.status(500).json({ error: String(e.message || e) });
+      return res.status(500).json({ ok: false, error: String(e.message || e) });
     }
 
     let chainName = chainId;

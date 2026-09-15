@@ -1,6 +1,6 @@
 // local-server/lib/routes/tools.mjs
-// Block J Tur 1C — Tools invoke + approvals + invocations + agent dispatch + bindings.
-// Pure routing layer; behavior must match server.mjs 1:1.
+// Tools invoke, approvals, invocations, and capability bindings route module.
+// Pure routing layer; behavior matches core specifications 1:1.
 
 import { dispatchInjectedCall } from "../mcp/client.mjs";
 

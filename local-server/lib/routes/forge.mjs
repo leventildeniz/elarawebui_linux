@@ -1,5 +1,4 @@
-// Forge (action library) route module
-// Extracted from server.mjs (T-2c, 2026-05-30).
+// Forge (action library) route module.
 // All external deps passed via DI — no module-level side effects.
 
 import path from "node:path";
@@ -83,7 +82,7 @@ export function mountForgeRoutes(app, deps) {
                    ORDER BY al.priority DESC, al.is_system DESC, al.category, al.name`;
       const { rows } = await pool.query(sql, params);
       res.json(rows);
-    } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
+    } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
   });
 
   app.get("/api/forge/actions/:id", async (req, res) => {
@@ -94,11 +93,11 @@ export function mountForgeRoutes(app, deps) {
       const action = rows[0];
       if (!ctx.isSuperAdmin && !ctx.isTenantAdmin) {
         if (!action.is_system && !action.is_global && action.tenant_id && action.tenant_id !== ctx.tenantId && action.tenant_id !== "default") {
-          return res.status(403).json({ error: "Access denied" });
+          return res.status(403).json({ ok: false, error: "Access denied" });
         }
       }
       res.json(action);
-    } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
+    } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
   });
 
   app.post("/api/forge/actions", async (req, res) => {
@@ -110,7 +109,7 @@ export function mountForgeRoutes(app, deps) {
         if (assertCanEdit) {
           assertCanEdit(ctx, existing, "forge action");
         } else if (existing.is_system && !ctx.isAdmin) {
-          return res.status(403).json({ error: "system actions can only be edited by admin" });
+          return res.status(403).json({ ok: false, error: "system actions can only be edited by admin" });
         }
       }
       const owner = req.body.ownerId || req.body.owner_id || existing?.owner_user_id || ctx.userId || req.actor || null;
@@ -143,7 +142,7 @@ export function mountForgeRoutes(app, deps) {
          policy ? JSON.stringify(policy) : null, owner, a.priority, a.system_prompt, visibility, JSON.stringify(shared_with), tenantId, isGlobal]
       );
       res.json({ ok: true, id: a.id });
-    } catch (e) { res.status(400).json({ error: String(e.message || e) }); }
+    } catch (e) { res.status(400).json({ ok: false, error: String(e.message || e) }); }
   });
 
   app.delete("/api/forge/actions/:id", async (req, res) => {
@@ -154,7 +153,7 @@ export function mountForgeRoutes(app, deps) {
       if (assertCanEdit) {
         assertCanEdit(ctx, existing, "forge action");
       } else if (existing.is_system && !ctx.isAdmin) {
-        return res.status(403).json({ error: "system actions can only be deleted by admin" });
+        return res.status(403).json({ ok: false, error: "system actions can only be deleted by admin" });
       }
       await pool.query("DELETE FROM action_library WHERE id=$1", [req.params.id]);
       if (existing.is_system) {
@@ -165,6 +164,6 @@ export function mountForgeRoutes(app, deps) {
         );
       }
       res.status(204).end();
-    } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
+    } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
   });
 }

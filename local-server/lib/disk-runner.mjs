@@ -76,7 +76,7 @@ export async function runDiskScript(opts) {
       }
     });
 
-    // Hem argv[1] hem stdin üzerinden besleme yaparak sys.stdin ve sys.argv uyumluluğu sağlıyoruz
+    // Feed via both argv[1] and stdin for sys.stdin and sys.argv compatibility
     if (child.stdin) {
       child.stdin.on("error", () => {});
       if (safeQuery) {

@@ -1,7 +1,7 @@
-// Block J Tur 1A — Capabilities + Capability Packs + Discovery Scans
-// Pure transfer from server.mjs (lines 13650-14021). No behavior changes.
+// Capabilities, Capability Packs and Discovery Scans route module.
 import path from "node:path";
 import fs from "node:fs";
+import { listCapabilities as _listCaps, syncCapabilitiesFromSources as _syncCaps } from "../capability-registry.mjs";
 
 export function mountCapabilityRoutes(app, deps) {
   const {
@@ -9,14 +9,14 @@ export function mountCapabilityRoutes(app, deps) {
     requireSession,
     resolveActorContext,
     buildVisibility,
-    listCapabilities,
-    syncCapabilitiesFromSources,
     invalidatePackFilterCache,
     scanToolsDir, defaultToolsRoots,
     scanSkillsDir, defaultSkillsRoots,
     scanAgentsDir, defaultAgentsRoots,
     repoRoot,
   } = deps;
+  const listCapabilities = deps.listCapabilities || _listCaps;
+  const syncCapabilitiesFromSources = deps.syncCapabilitiesFromSources || _syncCaps;
 
   async function resolveToolsRoots(bodyRoots) {
     if (Array.isArray(bodyRoots) && bodyRoots.length) {
@@ -171,7 +171,7 @@ export function mountCapabilityRoutes(app, deps) {
         vis.params
       );
       res.json({ ok: true, items: rows });
-    } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
+    } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
   });
 
   app.delete("/api/capability-packs/:id", async (req, res) => {
@@ -251,7 +251,7 @@ export function mountCapabilityRoutes(app, deps) {
       }
 
       res.json({ ok: true, id });
-    } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
+    } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
   });
 
   app.patch("/api/capability-packs/:id", async (req, res) => {
@@ -297,43 +297,43 @@ export function mountCapabilityRoutes(app, deps) {
       }
 
       res.json({ ok: true });
-    } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
+    } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
   });
 
   app.patch("/api/capabilities/:id", requireSession({ roles: ["admin"] }), async (req, res) => {
     try {
       const b = req.body || {};
       const existing = (await pool.query("SELECT * FROM capabilities WHERE id=$1", [req.params.id])).rows[0];
-      if (!existing) return res.status(404).json({ error: "not found" });
+      if (!existing) return res.status(404).json({ ok: false, error: "not found" });
       const patches = [];
       const args = [req.params.id];
       if (typeof b.enabled === "boolean") { args.push(b.enabled); patches.push(`enabled=$${args.length}`); }
       if (typeof b.slug === "string" && b.slug.trim()) {
         const s = b.slug.trim().toLowerCase();
-        if (!/^[a-z0-9][a-z0-9-_]{0,79}$/.test(s)) return res.status(400).json({ error: "invalid slug" });
+        if (!/^[a-z0-9][a-z0-9-_]{0,79}$/.test(s)) return res.status(400).json({ ok: false, error: "invalid slug" });
         const dup = await pool.query(`SELECT 1 FROM capabilities WHERE lower(slug)=$1 AND id<>$2 LIMIT 1`, [s, req.params.id]);
-        if (dup.rowCount) return res.status(409).json({ error: "slug already in use" });
+        if (dup.rowCount) return res.status(409).json({ ok: false, error: "slug already in use" });
         args.push(s); patches.push(`slug=$${args.length}`);
       }
       if (!patches.length) return res.json({ ok: true, noop: true });
       patches.push(`updated_at=now()`);
       await pool.query(`UPDATE capabilities SET ${patches.join(", ")} WHERE id=$1`, args);
       res.json({ ok: true });
-    } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
+    } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
   });
 
   app.delete("/api/capabilities/:id", requireSession({ roles: ["admin"] }), async (req, res) => {
     try {
       const row = (await pool.query("SELECT kind,ref_id FROM capabilities WHERE id=$1", [req.params.id])).rows[0];
-      if (!row) return res.status(404).json({ error: "not found" });
+      if (!row) return res.status(404).json({ ok: false, error: "not found" });
       const src = row.kind === "skill" ? "skills" : row.kind === "tool" ? "action_library" : "app_agents";
       const stillExists = await pool.query(`SELECT 1 FROM ${src} WHERE id=$1 LIMIT 1`, [row.ref_id]).catch(() => ({ rowCount: 0 }));
       if (stillExists.rowCount) {
-        return res.status(409).json({ error: "source row still exists — disable instead (PATCH enabled=false)" });
+        return res.status(409).json({ ok: false, error: "source row still exists — disable instead (PATCH enabled=false)" });
       }
       await pool.query("DELETE FROM capabilities WHERE id=$1", [req.params.id]);
       res.status(204).end();
-    } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
+    } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
   });
 
   app.get("/api/capabilities", async (req, res) => {
@@ -356,14 +356,14 @@ export function mountCapabilityRoutes(app, deps) {
         for (const r of rows) r.orphan = !livenessByKind[r.kind]?.has(r.ref_id);
       }
       res.json({ ok: true, capabilities: rows });
-    } catch (e) { res.status(500).json({ error: e.message }); }
+    } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
   });
 
   app.post("/api/capabilities/sync", requireSession({ roles: ["admin"] }), async (_req, res) => {
     try {
       const counts = await syncCapabilitiesFromSources();
       res.json({ ok: true, counts });
-    } catch (e) { res.status(500).json({ error: e.message }); }
+    } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
   });
 
   app.post("/api/tools/scan", requireSession({ roles: ["admin"] }), async (req, res) => {

@@ -54,7 +54,7 @@ export function mountPythonRoutes(app, deps) {
       const { rows } = await pool.query(query, vis.params);
       res.json({ items: rows });
     } catch (e) {
-      res.status(500).json({ error: String(e.message || e) });
+      res.status(500).json({ ok: false, error: String(e.message || e) });
     }
   });
 
@@ -80,7 +80,7 @@ export function mountPythonRoutes(app, deps) {
       );
       res.json({ ok: true, item: out.rows[0] });
     } catch (e) {
-      res.status(500).json({ error: String(e.message || e) });
+      res.status(500).json({ ok: false, error: String(e.message || e) });
     }
   });
 
@@ -88,7 +88,7 @@ export function mountPythonRoutes(app, deps) {
     try {
       const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : null;
       const existing = await pool.query("SELECT * FROM runtimes WHERE id=$1", [req.params.id]);
-      if (!existing.rowCount) return res.status(404).json({ error: "not found" });
+      if (!existing.rowCount) return res.status(404).json({ ok: false, error: "not found" });
       const row = existing.rows[0];
       if (ctx && assertCanEdit) {
         assertCanEdit(ctx, row, "python runtime");
@@ -152,7 +152,7 @@ export function mountPythonRoutes(app, deps) {
       
       res.json({ ok: true, item: out.rows[0] });
     } catch (e) {
-      res.status(500).json({ error: String(e.message || e) });
+      res.status(500).json({ ok: false, error: String(e.message || e) });
     }
   });
 
@@ -160,15 +160,15 @@ export function mountPythonRoutes(app, deps) {
     try {
       const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : null;
       const existing = await pool.query("SELECT * FROM runtimes WHERE id=$1", [req.params.id]);
-      if (!existing.rowCount) return res.status(404).json({ error: "not found" });
+      if (!existing.rowCount) return res.status(404).json({ ok: false, error: "not found" });
       if (ctx && assertCanEdit) {
         assertCanEdit(ctx, existing.rows[0], "python runtime");
       }
       const { rowCount } = await pool.query("DELETE FROM runtimes WHERE id=$1", [req.params.id]);
-      if (!rowCount) return res.status(404).json({ error: "not found" });
+      if (!rowCount) return res.status(404).json({ ok: false, error: "not found" });
       res.json({ ok: true });
     } catch (e) {
-      res.status(e.status || 500).json({ error: String(e.message || e) });
+      res.status(e.status || 500).json({ ok: false, error: String(e.message || e) });
     }
   });
 }

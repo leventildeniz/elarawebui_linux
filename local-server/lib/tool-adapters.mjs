@@ -130,7 +130,7 @@ async function loadTool(toolId) {
     } catch { /* tools tablosu opsiyonel */ }
   }
   if (!row) {
-    // Fallback 2: disk tools doğrudan kontrol et
+    // Fallback 2: check disk tools directly
     const slug = bareToolId;
     const filePath = path.resolve(PROJECT_ROOT, "tools", `${slug}.py`);
     if (fs.existsSync(filePath)) {
@@ -177,7 +177,7 @@ async function loadTool(toolId) {
 }
 
 async function isAgentAllowed(agentId, toolId) {
-  if (!agentId) return true; // ad-hoc operator çağrısı — agent kısıtı yok
+  if (!agentId) return true; // ad-hoc operator call — unconstrained by agent ACL
   const { rowCount } = await _pool.query(
     `SELECT 1 FROM agent_capabilities
       WHERE agent_id=$1 AND kind='tool' AND ref_id=$2`,
@@ -433,12 +433,12 @@ export async function invokeTool({
   }
   if (!RUNNERS[adapter]) throw new ToolPolicyError("adapter", `unknown adapter "${adapter}"`);
 
-  // Agent whitelist (Faz 5 — agent kafasına göre tool çağıramaz)
+  // Agent whitelist enforcement — agent must possess registered capability binding
   if (agentId && !(await isAgentAllowed(agentId, toolId))) {
     throw new ToolPolicyError("acl", `agent ${agentId} not allowed for tool ${toolId}`);
   }
 
-  // Tur-3.8 — Target-level approval gate. A target marked requires_approval=true
+  // Target-level approval gate. A target marked requires_approval=true
   // (or whose risk_level is high/critical) forces the same approval flow as tools.
   let targetRequiresApproval = false;
   let targetRiskLevel = null;
@@ -527,7 +527,7 @@ export async function decideApproval(invocationId, { approver, decision, reason 
 
   if (decision === "rejected") return { invocationId, status: "rejected" };
 
-  // Approved → koş.
+  // Approved → execute tool.
   const tool = await loadTool(inv.tool_id);
   const adapter = (tool?.adapter || "builtin").toLowerCase();
   const started = Date.now();

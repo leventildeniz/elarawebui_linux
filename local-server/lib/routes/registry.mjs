@@ -49,7 +49,7 @@ export async function mountRegistryRoutes(app, { pool }) {
         lastScan: state.last_scan || {}
       });
     } catch (e) {
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ ok: false, error: e.message });
     }
   });
 

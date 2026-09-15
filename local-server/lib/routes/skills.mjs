@@ -1,5 +1,4 @@
-// Block J Tur 1B — Skills CRUD + runs + key mgmt
-// Pure transfer from server.mjs (lines 22027-22328). No behavior changes.
+// Skills CRUD, runs and key management route module.
 import path from "node:path";
 
 export function mountSkillRoutes(app, deps) {

@@ -34,12 +34,12 @@ export function mountMetaForgeRoutes(app, deps) {
     try {
       const ctx = await resolveActorContext(req);
       if (!ctx?.isAdmin) {
-        res.status(403).json({ error: "admin only" });
+        res.status(403).json({ ok: false, error: "admin only" });
         return null;
       }
       return ctx;
     } catch {
-      res.status(401).json({ error: "unauthorized" });
+      res.status(401).json({ ok: false, error: "unauthorized" });
       return null;
     }
   }
@@ -51,7 +51,7 @@ export function mountMetaForgeRoutes(app, deps) {
       const inv = await buildInventory(pool);
       res.json({ ok: true, inventory: inv });
     } catch (e) {
-      res.status(500).json({ error: String(e?.message || e) });
+      res.status(500).json({ ok: false, error: String(e?.message || e) });
     }
   });
 
@@ -122,11 +122,11 @@ export function mountMetaForgeRoutes(app, deps) {
           GROUP BY p.id`,
         [req.params.id],
       );
-      if (!rows.length) return res.status(404).json({ error: "plan not found" });
+      if (!rows.length) return res.status(404).json({ ok: false, error: "plan not found" });
       const plan = rows[0];
       if (!ctx.isSuperAdmin && !ctx.isTenantAdmin) {
         if (plan.tenant_id && plan.tenant_id !== ctx.tenantId && plan.tenant_id !== "default") {
-          return res.status(403).json({ error: "access denied" });
+          return res.status(403).json({ ok: false, error: "access denied" });
         }
       }
       res.json({ ok: true, plan });
@@ -141,7 +141,7 @@ export function mountMetaForgeRoutes(app, deps) {
     try {
       const body = req.body || {};
       const intent = String(body.intent || "").slice(0, 2000);
-      if (!intent.trim()) return res.status(400).json({ error: "intent required" });
+      if (!intent.trim()) return res.status(400).json({ ok: false, error: "intent required" });
       const plan = validateForgePlan(body.plan);
       const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default", actor: "admin" };
       const requestedBy = body.requested_by || ctx?.username || ctx?.actor || req.session?.username || "system";
@@ -154,7 +154,7 @@ export function mountMetaForgeRoutes(app, deps) {
       );
       res.json({ ok: true, id: rows[0].id, created_at: rows[0].created_at });
     } catch (e) {
-      res.status(400).json({ error: String(e?.message || e) });
+      res.status(400).json({ ok: false, error: String(e?.message || e) });
     }
   });
 
@@ -165,27 +165,25 @@ export function mountMetaForgeRoutes(app, deps) {
       `SELECT id, jsonb_build_object('create', actions) AS plan_json, status FROM forge_plans WHERE id=$1`,
       [req.params.id],
     );
-    if (!rows.length) return res.status(404).json({ error: "plan not found" });
+    if (!rows.length) return res.status(404).json({ ok: false, error: "plan not found" });
     const p = rows[0];
     if (p.status === "applied") {
       return res.json({ ok: true, status: "applied", message: "plan already applied" });
     }
     if (p.status !== "pending" && p.status !== "approved" && p.status !== "failed" && p.status !== "rolled_back") {
-      return res.status(409).json({ error: `plan status is ${p.status}` });
+      return res.status(409).json({ ok: false, error: `plan status is ${p.status}` });
     }
     try {
       const operatorUser = ctx?.username || ctx?.user?.name || req.session?.username || req.actor || "system";
       const result = await applyForgePlan({ pool, planId: p.id, plan: p.plan_json, forgedBy: operatorUser });
       const finalStatus = result.failed.length && !result.applied.length ? "failed" : "applied";
       await pool.query(
-        `UPDATE forge_plans SET status=$2, rolled_back_at=now(), note=$3 WHERE id=$1`,
-        [p.id, finalStatus, result.failed.length ? JSON.stringify(result.failed) : null],
+        `UPDATE forge_plans SET status=$2, note=null WHERE id=$1`,
+        [p.id, finalStatus],
       );
       let refresh = null;
       if (finalStatus === "applied") {
-        try { refresh = await refreshCapabilitiesAfterForgeApply({ pool, plan: p.plan_json }); }
-        catch (e) { refresh = { error: String(e?.message || e) }; }
-        try { await hydrateAllowedAgentsFromDb?.(); } catch { /* best-effort */ }
+        try { refresh = await refreshCapabilitiesAfterForgeApply({ pool, plan: p.plan_json }); } catch {}
       }
       res.json({ ok: true, status: finalStatus, refresh, ...result });
     } catch (e) {
@@ -193,7 +191,7 @@ export function mountMetaForgeRoutes(app, deps) {
         `UPDATE forge_plans SET status='failed', note=$2 WHERE id=$1`,
         [p.id, String(e?.message || e)],
       );
-      res.status(500).json({ error: String(e?.message || e) });
+      res.status(500).json({ ok: false, error: String(e?.message || e) });
     }
   });
 
@@ -217,7 +215,7 @@ export function mountMetaForgeRoutes(app, deps) {
       );
       res.json({ ok: true, ...result });
     } catch (e) {
-      res.status(500).json({ error: String(e?.message || e) });
+      res.status(500).json({ ok: false, error: String(e?.message || e) });
     }
   });
 
@@ -227,7 +225,7 @@ export function mountMetaForgeRoutes(app, deps) {
       `SELECT id, jsonb_build_object('create', actions) AS plan_json, status FROM forge_plans WHERE id=$1`,
       [req.params.id],
     );
-    if (!rows.length) return res.status(404).json({ error: "plan not found" });
+    if (!rows.length) return res.status(404).json({ ok: false, error: "plan not found" });
     const p = rows[0];
     try {
       const operatorUser = ctx?.username || ctx?.user?.name || req.session?.username || req.actor || "system";
@@ -243,13 +241,12 @@ export function mountMetaForgeRoutes(app, deps) {
       }
       res.json({ ok: true, status: finalStatus, refresh, ...result });
     } catch (e) {
-      res.status(500).json({ error: String(e?.message || e) });
+      res.status(500).json({ ok: false, error: String(e?.message || e) });
     }
   });
 
-  // 2026-07-05 — Auto-Creator: Undo alias (admin-only) — cleaner semantics
-  // for /system-engine → Auto-Forge Log. Same as rollback but sets
-  // status='undone' so the log distinguishes admin-driven undo.
+  // Auto-Creator: Undo alias (admin-only)
+  // Same as rollback but sets status='undone' so the log distinguishes admin-driven undo.
   app.post("/api/meta-forge/plans/:id/undo", async (req, res) => {
     const ctx = await requireAdmin(req, res); if (!ctx) return;
     try {
@@ -260,7 +257,7 @@ export function mountMetaForgeRoutes(app, deps) {
       );
       res.json({ ok: true, ...result });
     } catch (e) {
-      res.status(500).json({ error: String(e?.message || e) });
+      res.status(500).json({ ok: false, error: String(e?.message || e) });
     }
   });
 
@@ -278,7 +275,7 @@ export function mountMetaForgeRoutes(app, deps) {
       await pool.query("DELETE FROM forge_plans");
       res.json({ ok: true, mode });
     } catch (e) {
-      res.status(500).json({ error: String(e?.message || e) });
+      res.status(500).json({ ok: false, error: String(e?.message || e) });
     }
   });
 
@@ -390,14 +387,14 @@ export function mountMetaForgeRoutes(app, deps) {
     }
   });
 
-  // 2026-07-05 — Approve / reject a pending_review capability (admin-only).
+  // Approve / reject a pending_review capability (admin-only).
   // Body: { action: 'approve' | 'reject', reason?: string }
   app.post("/api/capabilities/:id/review", async (req, res) => {
     const ctx = await requireAdmin(req, res); if (!ctx) return;
     const action = String(req.body?.action || "").toLowerCase();
     const reason = String(req.body?.reason || "").slice(0, 500);
     if (action !== "approve" && action !== "reject") {
-      return res.status(400).json({ error: "action must be 'approve' or 'reject'" });
+      return res.status(400).json({ ok: false, error: "action must be 'approve' or 'reject'" });
     }
     try {
       if (action === "approve") {
@@ -408,7 +405,7 @@ export function mountMetaForgeRoutes(app, deps) {
             RETURNING id, slug, kind, live, review_status`,
           [req.params.id],
         );
-        if (!r.rows.length) return res.status(404).json({ error: "capability not found" });
+        if (!r.rows.length) return res.status(404).json({ ok: false, error: "capability not found" });
         try { await hydrateAllowedAgentsFromDb?.(); } catch { /* */ }
         res.json({ ok: true, capability: r.rows[0] });
       } else {
@@ -420,11 +417,11 @@ export function mountMetaForgeRoutes(app, deps) {
             RETURNING id, slug, kind, live, review_status`,
           [req.params.id, reason || null],
         );
-        if (!r.rows.length) return res.status(404).json({ error: "capability not found" });
+        if (!r.rows.length) return res.status(404).json({ ok: false, error: "capability not found" });
         res.json({ ok: true, capability: r.rows[0] });
       }
     } catch (e) {
-      res.status(500).json({ error: String(e?.message || e) });
+      res.status(500).json({ ok: false, error: String(e?.message || e) });
     }
   });
 }

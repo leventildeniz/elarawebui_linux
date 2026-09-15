@@ -225,28 +225,28 @@ export function mountMcpRoutes(app, deps) {
     try {
       const [settings, stats] = await Promise.all([getMcpSettings(pool), callStats(pool)]);
       res.json({ ok: true, settings, stats });
-    } catch (e) { res.status(500).json({ error: e.message }); }
+    } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
   });
 
   app.patch("/api/mcp/settings", serverAdmin, async (req, res) => {
     try {
       const s = await updateMcpSettings(pool, req.body || {});
       res.json({ ok: true, settings: s });
-    } catch (e) { res.status(400).json({ error: e.message }); }
+    } catch (e) { res.status(400).json({ ok: false, error: e.message }); }
   });
 
   app.get("/api/mcp/exposures", anySession, async (_req, res) => {
     try {
       const [exposures, candidates] = await Promise.all([listExposures(pool), listAllCandidates(pool)]);
       res.json({ ok: true, exposures, candidates });
-    } catch (e) { res.status(500).json({ error: e.message }); }
+    } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
   });
 
   app.post("/api/mcp/exposures", serverAdmin, async (req, res) => {
     try {
       const row = await upsertExposure(pool, req.body || {});
       res.json({ ok: true, exposure: row });
-    } catch (e) { res.status(400).json({ error: e.message }); }
+    } catch (e) { res.status(400).json({ ok: false, error: e.message }); }
   });
 
   app.patch("/api/mcp/exposures/toggle", serverAdmin, async (req, res) => {
@@ -254,12 +254,12 @@ export function mountMcpRoutes(app, deps) {
       const { kind, slug, enabled } = req.body || {};
       const row = await setExposureEnabled(pool, { kind, slug, enabled });
       res.json({ ok: true, exposure: row });
-    } catch (e) { res.status(400).json({ error: e.message }); }
+    } catch (e) { res.status(400).json({ ok: false, error: e.message }); }
   });
 
   app.delete("/api/mcp/exposures/:id", serverAdmin, async (req, res) => {
     try { await deleteExposure(pool, req.params.id); res.json({ ok: true }); }
-    catch (e) { res.status(400).json({ error: e.message }); }
+    catch (e) { res.status(400).json({ ok: false, error: e.message }); }
   });
 
   app.get("/api/mcp/tokens", anySession, async (req, res) => {
@@ -269,7 +269,7 @@ export function mountMcpRoutes(app, deps) {
         return res.json({ ok: true, tokens: [] });
       }
       res.json({ ok: true, tokens: await listTokens(pool) });
-    } catch (e) { res.status(500).json({ error: e.message }); }
+    } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
   });
 
   app.post("/api/mcp/tokens", serverAdmin, async (req, res) => {
@@ -277,12 +277,12 @@ export function mountMcpRoutes(app, deps) {
       const { label } = req.body || {};
       const created = await createToken(pool, { label, createdBy: req.session?.username || null });
       res.json({ ok: true, ...created, warning: "This token is shown only once. Copy it now." });
-    } catch (e) { res.status(400).json({ error: e.message }); }
+    } catch (e) { res.status(400).json({ ok: false, error: e.message }); }
   });
 
   app.delete("/api/mcp/tokens/:id", serverAdmin, async (req, res) => {
     try { await revokeToken(pool, req.params.id); res.json({ ok: true }); }
-    catch (e) { res.status(400).json({ error: e.message }); }
+    catch (e) { res.status(400).json({ ok: false, error: e.message }); }
   });
 
   app.get("/api/mcp/history", operatorOrAdmin, async (req, res) => {
@@ -290,7 +290,7 @@ export function mountMcpRoutes(app, deps) {
       const limit = Math.min(500, Math.max(1, Number(req.query.limit) || 50));
       const [rows, stats] = await Promise.all([recentCalls(pool, { limit }), callStats(pool)]);
       res.json({ ok: true, history: rows, stats });
-    } catch (e) { res.status(500).json({ error: e.message }); }
+    } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
   });
 
   app.get("/api/mcp/preview-catalog", admin, async (_req, res) => {
@@ -298,7 +298,7 @@ export function mountMcpRoutes(app, deps) {
       const settings = await getMcpSettings(pool);
       const catalog = await buildMcpToolCatalog(pool, settings.namespace);
       res.json({ ok: true, namespace: settings.namespace, count: catalog.length, tools: catalog });
-    } catch (e) { res.status(500).json({ error: e.message }); }
+    } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
   });
 
   // --- MCP Client (outbound) — connect to remote MCP servers -----------------
@@ -316,7 +316,7 @@ export function mountMcpRoutes(app, deps) {
       );
       res.json({ ok: true, servers: rows });
     }
-    catch (e) { res.status(500).json({ error: e.message }); }
+    catch (e) { res.status(500).json({ ok: false, error: e.message }); }
   });
 
   app.post("/api/mcp/client/servers", operatorOrAdmin, async (req, res) => {
@@ -338,7 +338,7 @@ export function mountMcpRoutes(app, deps) {
       // Kick off initial probe (non-blocking; result stored on server row).
       probeServer(srv).then((r) => recordProbe(pool, srv.id, r)).catch(() => {});
       res.json({ ok: true, server: srv });
-    } catch (e) { res.status(400).json({ error: e.message }); }
+    } catch (e) { res.status(400).json({ ok: false, error: e.message }); }
   });
 
   app.patch("/api/mcp/client/servers/:id", operatorOrAdmin, async (req, res) => {
@@ -381,26 +381,26 @@ export function mountMcpRoutes(app, deps) {
   app.post("/api/mcp/client/servers/:id/probe", operatorOrAdmin, async (req, res) => {
     try {
       const srv = await getClientServer(pool, req.params.id);
-      if (!srv) return res.status(404).json({ error: "server not found" });
+      if (!srv) return res.status(404).json({ ok: false, error: "server not found" });
       const result = await probeServer(srv);
       await recordProbe(pool, srv.id, result);
       emitMcpLog(result.ok ? "info" : "warn", "probe", `${srv.slug} · status=${result.status}`, { id: srv.id, slug: srv.slug, status: result.status });
       const fresh = await getClientServer(pool, srv.id);
       res.json({ ok: true, server: fresh, probe: result });
-    } catch (e) { res.status(500).json({ error: e.message }); }
+    } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
   });
 
   app.post("/api/mcp/client/servers/:id/call", operatorOrAdmin, async (req, res) => {
     try {
       const srv = await getClientServer(pool, req.params.id);
-      if (!srv) return res.status(404).json({ error: "server not found" });
+      if (!srv) return res.status(404).json({ ok: false, error: "server not found" });
       const { tool, args } = req.body || {};
-      if (!tool) return res.status(400).json({ error: "tool required" });
+      if (!tool) return res.status(400).json({ ok: false, error: "tool required" });
       emitMcpLog("info", "call.start", `${srv.slug}/${tool}`, { server: srv.slug, tool });
       const result = await callRemoteTool(srv, tool, args || {});
       emitMcpLog("info", "call.done", `${srv.slug}/${tool} completed`, { server: srv.slug, tool });
       res.json({ ok: true, result });
-    } catch (e) { res.status(500).json({ error: e.message }); }
+    } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
   });
 }
 

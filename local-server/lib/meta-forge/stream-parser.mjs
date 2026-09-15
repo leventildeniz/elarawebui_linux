@@ -1,12 +1,11 @@
 // local-server/lib/meta-forge/stream-parser.mjs
-// Tur 7 — streaming plan card.
-// forge_master.py stdout'unu chunk-chunk parçalar, `"create":[ {...}, {...} ]`
-// dizisinde her tamamlanmış balanced-brace nesnesini `onCreateItem`'a teslim
-// eder. `"intent":"..."` string'i ilk kez göründüğünde `onIntent`'e gider.
-// Kural: sadece parse edilebilir olan yayılır; yarım nesne buffer'da bekler.
+// Streaming plan parser for MetaForge synthesis.
+// Incrementally parses forge_master stdout chunks, streaming completed
+// balanced-brace objects in the `"create": [ ... ]` array to `onCreateItem`.
+// Emits `"intent"` via `onIntent` upon first discovery.
+// Partial JSON fragments remain buffered until balanced delimiters are reached.
 //
-// Buffer 4MB'ta sıkışırsa baş taraf düşürülür (planner tipik çıktısı 8-12KB;
-// pathological durumda safety-net).
+// Safety cap: drops buffer head if backlog exceeds 4MB.
 
 export function createStreamingForgeParser({ onIntent, onCreateItem } = {}) {
   let buf = "";

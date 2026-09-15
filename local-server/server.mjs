@@ -58,7 +58,7 @@ import { initPlanner } from './lib/plan-and-execute.mjs';
 
 // --- Sovereign Boot Imports ---
 import { initRuntimeRegistry } from './lib/runtime-registry.mjs';
-import { initCapabilityRegistry } from './lib/capability-registry.mjs';
+import { initCapabilityRegistry, listCapabilities, syncCapabilitiesFromSources } from './lib/capability-registry.mjs';
 import { initDispatcher } from './lib/dispatch.mjs';
 import { initSessionGate, attachSessionContext } from './lib/session-gate.mjs';
 import { initBrandCache, getActivePackBrandFilter, getAgentRagBrands, getLibraryBrands, detectLibraryMatch } from './lib/rag/brand-cache.mjs';
@@ -391,7 +391,9 @@ async function startServer() {
       listPendingApprovals,
       decideApproval,
       ApprovalRequired,
-      ToolPolicyError
+      ToolPolicyError,
+      listCapabilities,
+      syncCapabilitiesFromSources,
     };
 
     console.log(`[boot] Phase D: RAG & Engine Layer...`);

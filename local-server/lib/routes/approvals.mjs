@@ -78,7 +78,7 @@ export async function mountApprovalRoutes(app, deps) {
         config
       });
     } catch (e) {
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ ok: false, error: e.message });
     }
   });
 
@@ -86,7 +86,7 @@ export async function mountApprovalRoutes(app, deps) {
   app.patch("/api/approvals/decide", admin, async (req, res) => {
     try {
       const { ids, status, note, by } = req.body;
-      if (!ids || !ids.length) return res.status(400).json({ error: "no ids" });
+      if (!ids || !ids.length) return res.status(400).json({ ok: false, error: "no ids" });
 
       // Map 'rejected' from UI to 'denied' in DB
       const dbStatus = status === 'rejected' ? 'denied' : status;
@@ -119,7 +119,7 @@ export async function mountApprovalRoutes(app, deps) {
 
       emitApprovalLog("info", "decide", `${ids.join(", ")} marked ${status} by ${by || "admin"}`, { ids, status, by });
       res.json({ ok: true, decided: updated });
-    } catch (e) { res.status(400).json({ error: e.message }); }
+    } catch (e) { res.status(400).json({ ok: false, error: e.message }); }
   });
 
   // --- REQUEST APPROVAL ---
@@ -148,7 +148,7 @@ export async function mountApprovalRoutes(app, deps) {
       
       emitApprovalLog("warn", "request", `${draft.title} (${draft.id}) requested by ${draft.requester}`, { id: draft.id, requester: draft.requester, tool: draft.tool });
       res.json({ ok: true, request: r });
-    } catch (e) { res.status(400).json({ error: e.message }); }
+    } catch (e) { res.status(400).json({ ok: false, error: e.message }); }
   });
 
   // --- CONFIG ---
@@ -169,6 +169,6 @@ export async function mountApprovalRoutes(app, deps) {
       );
       emitApprovalLog("warn", "config", `queue armed=${nextArmed} self-approval=${nextSelf}`, { armed: nextArmed, selfApproval: nextSelf });
       res.json({ ok: true, config: rows[0] });
-    } catch (e) { res.status(400).json({ error: e.message }); }
+    } catch (e) { res.status(400).json({ ok: false, error: e.message }); }
   });
 }
