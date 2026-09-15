@@ -84,13 +84,13 @@ export function mountSystemRoutes(app, deps) {
         RUNTIME_TRANSPORT.dirty = !restartCommandDispatched;
         RUNTIME_TRANSPORT.lastResetStatus = restartCommandDispatched ? "respawn-requested" : "no-process";
         RUNTIME_TRANSPORT.lastResetDetail = restartCommandDispatched
-          ? `[${traceId}] :${RUNTIME_PORT} boştu — runtime start komutu gönderildi`
-          : `[${traceId}] :${RUNTIME_PORT} boştu — runtime service/command bulunamadı`;
+          ? `[${traceId}] port :${RUNTIME_PORT} was free — runtime start command dispatched`
+          : `[${traceId}] port :${RUNTIME_PORT} was free — no runtime service/command discovered`;
         steps.push(restartCommandDispatched ? "no process was bound (runtime start requested)" : "no process was bound and no restart target was discovered");
       } else {
         RUNTIME_TRANSPORT.lastResetStatus = "restart-noop";
-        RUNTIME_TRANSPORT.lastResetDetail = `[${traceId}] kill etkisiz — stillAlive=[${stillAlive.join(",")}] (dirty korunuyor)`;
-        steps.push("restart-noop: zombi process hâlâ ayakta, dirty korunuyor");
+        RUNTIME_TRANSPORT.lastResetDetail = `[${traceId}] kill ineffective — stillAlive=[${stillAlive.join(",")}] (dirty state retained)`;
+        steps.push("restart-noop: process still running, dirty state retained");
         pushLog("server", `[runtime:restart:${traceId}] NOOP · stillAlive=[${stillAlive.join(",")}]`);
       }
 

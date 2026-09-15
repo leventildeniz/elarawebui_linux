@@ -46,7 +46,7 @@ export function buildRetrieval(
   aliases: AliasTerm[] = [],
 ): Retrieval {
   const seed = hash(`${agent.id}|${query}`);
-  const brandIds = agent.ragBrands.length ? agent.ragBrands : [knowledgeBrands[0]!.id];
+  const brandIds = agent.ragBrands.length ? agent.ragBrands : (knowledgeBrands.length ? [knowledgeBrands[0]!.id] : ["general"]);
   const brands = brandIds.map((id) => knowledgeBrands.find((b) => b.id === id)?.label ?? id);
   /** Keyword / tag plane: rank the readable corpus before slicing citations. */
   const ranked = rankCorpus(corpus, query, aliases);

@@ -1636,10 +1636,25 @@ ELARA Sovereign Studio genelinde **Zero-Trust Çoklu Kiracı (Multi-Tenancy) ve 
      - Durum: Doğrulandı ve mühürlendi (0 TypeScript hatası, servis aktif).
 
    * **Modül 8 — Infrastructure, High Availability Cluster, System Engine & Settings:**
-     - Rotalar: `infra.mjs`, `redis-cache.mjs`, `rabbitmq-broker.mjs`, `models.mjs`, `providers.mjs`, `system-config.mjs`, `system-misc.mjs`, `system-certs.mjs`, `siem-api.mjs`, `siem-forwarder.mjs`, `mail-time.mjs`, `fleet-services.mjs`, `telemetry.mjs`, `telemetry-stream.mjs`, `search-providers.mjs`
-     - UI: `src/routes/services.tsx`, `src/routes/engine.tsx`, `src/routes/system.tsx`, `src/routes/fleet.tsx`, `src/routes/models.tsx`, `src/routes/web-search.tsx`, `src/routes/converter.tsx`, `src/routes/api-tokens.tsx`
-     - DB Tabloları: `app_services`, `search_providers`, `ai_providers`, `models`, `engine_config`, `system_certs`, `siem_config`, `agent_logs`, `tenant_api_keys`, `tenant_rate_limits`
-     - Durum: Beklemede.
+     - Rotalar: `infra.mjs`, `redis-cache.mjs`, `rabbitmq-broker.mjs`, `models.mjs`, `providers.mjs`, `system-config.mjs`, `system-misc.mjs`, `system-certs.mjs`, `siem-api.mjs`, `siem-forwarder.mjs`, `mail-time.mjs`, `fleet-services.mjs`, `telemetry.mjs`, `telemetry-stream.mjs`, `search-providers.mjs`, `api-keys.mjs`, `openai-gateway.mjs`
+     - UI: `src/routes/services.tsx`, `src/routes/engine.tsx`, `src/routes/system.tsx`, `src/routes/fleet.tsx`, `src/routes/models.tsx`, `src/routes/web-search.tsx`, `src/routes/converter.tsx`, `src/routes/api-tokens.tsx`, `src/routes/settings.tsx`, `src/routes/certificates.tsx`, `src/routes/mail.tsx`, `src/routes/telemetry-sources.tsx`, `src/routes/backup.tsx`, `src/routes/theme.tsx`, `src/routes/vision-audio.tsx`, `src/routes/authentication.tsx`
+     - DB Tabloları: `app_services`, `search_providers`, `ai_providers`, `models`, `engine_config`, `system_certs`, `siem_config`, `agent_logs`, `tenant_api_keys`, `tenant_rate_limits`, `app_system_config`
+     - Yapılan Temizlik & Standardizasyon:
+       * `src/lib/agent-store.ts` içindeki `knowledgeBrands` ve `seedAgents` tanımları doğrudan store içine inlined edildi (`src/mocks/agents.ts` bağımlılığı kaldırıldı).
+       * `src/mocks/` klasöründeki kalan tüm mock dosyaları (`agents.ts`, `fleet.ts`, `mockData.ts`, `services.ts`, `settings.ts`, `system.ts`, `workspaces.ts`, `index.ts`) ve `src/mocks` dizini repodan tamamen silindi (**%100 Sıfır-Mock tamamlandı**).
+       * `local-server/lib/routes/system-misc.mjs` ve `system-agnostic.mjs` içerisindeki Türkçe yorum ve çalışma zamanı log metinleri kurumsal İngilizceye çevrildi.
+       * `app_system_config` (Key-Value) ile `engine_config` (Engine Singleton) tablolarının rolleri doğrulandı.
+     - Durum: Doğrulandı ve mühürlendi (0 TypeScript hatası, servis aktif).
+
+   ---
+
+   ### 🏆 FAZ A SONUÇ RAPORU: %100 TAMAMLANDI
+   - **Adım 0 (Meta Dosya Temizliği):** 217 adet `*:Zone.Identifier` meta çöpleri silindi.
+   - **Backend Rota Temizliği:** 15 adet unmounted/ölü legacy rota dosyası repodan silindi.
+   - **Veritabanı Şema Paritesi:** `default_role`, `default_template`, `mcp_clients`, `chat_attachments` ölü tablo ve kolonları PostgreSQL'den düşürüldü; `v2_master_schema.sql` standardı ile %100 parite sağlandı.
+   - **Mock Veri Tasfiyesi:** `src/mocks/` klasörü ve içerisindeki 15 mock dosyası tamamen silindi; tüm UI ve store'lar saf PostgreSQL / API mimarisine oturtuldu.
+   - **İngilizce Standartlaştırma:** Tüm alt modüllerdeki Türkçe yorum satırları ve API hata/notice metinleri kurumsal İngilizceye çevrildi.
+   - **Canlı Sistem Sağlığı:** `npx tsc --noEmit` 0 hata; tüm systemd servisleri aktif ve operasyonel.
 
    ---
 

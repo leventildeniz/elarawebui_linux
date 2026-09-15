@@ -11,8 +11,7 @@
 //   /api/logs (POST/GET), /api/_debug/write-queues, /api/audit/stream
 //   /api/debug/chat/recent, /api/debug/chat/:traceId
 //   /api/uploads (POST/GET), /api/stt
-// Helpers probeUrl/probePostgres/transcodeToWav16kMono içeride; sadece bu
-// route'lar kullanıyordu.
+// Helpers probeUrl/probePostgres/transcodeToWav16kMono are scoped internally to these routes.
 
 import path from "node:path";
 import fs from "node:fs/promises";

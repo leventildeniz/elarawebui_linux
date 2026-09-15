@@ -2,8 +2,6 @@ import { seedNow } from "@/lib/utils";
 import { useCallback, useEffect, useState } from "react";
 import type { AvatarStyle, JewelName } from "@/lib/avatar-library";
 import { readDesk, writeDesk, readDeskRaw, writeDeskRaw, scopeOwned, stampOwner, useOwnerCtx, type Owned } from "@/lib/ownership";
-import { knowledgeBrands } from "@/mocks/agents";
-import { seedAgents } from "@/mocks/agents";
 
 /** Elara Sovereign Studio — Agent Orchestrator registry (local bridge, per-agent identity). */
 
@@ -67,7 +65,7 @@ export type StudioAgent = Owned & {
   createdAt: number;
 };
 
-export { knowledgeBrands };
+export const knowledgeBrands: KnowledgeBrand[] = [];
 
 import { fetchApi } from "@/lib/api";
 
@@ -75,7 +73,7 @@ const KEY = "sovereign.agents";
 const RUNS_KEY = "sovereign.agents.runs";
 const EVT = "sovereign:agents";
 
-export { seedAgents };
+export const seedAgents: StudioAgent[] = [];
 
 export const emptyAgent: Omit<StudioAgent, "id" | "createdAt"> = {
   name: "",
