@@ -92,7 +92,7 @@ export function mountTelemetryRoutes(app, deps) {
         createdAt: new Date(r.created_at).getTime()
       })));
     } catch (e) {
-      res.status(500).json({ error: String(e.message || e) });
+      res.status(500).json({ ok: false, error: String(e.message || e) });
     }
   });
 
@@ -118,7 +118,7 @@ export function mountTelemetryRoutes(app, deps) {
         ownerId: r.owner_id, createdAt: new Date(r.created_at).getTime()
       }});
     } catch (e) {
-      res.status(500).json({ error: String(e.message || e) });
+      res.status(500).json({ ok: false, error: String(e.message || e) });
     }
   });
 
@@ -126,21 +126,21 @@ export function mountTelemetryRoutes(app, deps) {
   app.delete("/api/telemetry/boards/:id", async (req, res) => {
     try {
       if (req.params.id === "tb.agents") {
-        return res.status(400).json({ error: "System default telemetry board cannot be deleted." });
+        return res.status(400).json({ ok: false, error: "System default telemetry board cannot be deleted." });
       }
       const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : null;
       if (ctx && !ctx.isSuperAdmin) {
         const cur = await pool.query("SELECT owner_id FROM telemetry_boards WHERE id = $1", [req.params.id]);
-        if (!cur.rows[0]) return res.status(404).json({ error: "not found" });
+        if (!cur.rows[0]) return res.status(404).json({ ok: false, error: "not found" });
         const matches = [ctx.userId, ctx.username, ctx.actor].filter(Boolean).map(s => String(s).toLowerCase());
         if (!cur.rows[0].owner_id || !matches.includes(String(cur.rows[0].owner_id).toLowerCase())) {
-          return res.status(403).json({ error: "Read-only board — only author or administrator may delete this item." });
+          return res.status(403).json({ ok: false, error: "Read-only board — only author or administrator may delete this item." });
         }
       }
       await pool.query("DELETE FROM telemetry_boards WHERE id = $1", [req.params.id]);
       res.status(204).end();
     } catch (e) {
-      res.status(500).json({ error: String(e.message || e) });
+      res.status(500).json({ ok: false, error: String(e.message || e) });
     }
   });
 
@@ -165,7 +165,7 @@ export function mountTelemetryRoutes(app, deps) {
         createdAt: new Date(r.created_at).getTime()
       })));
     } catch (e) {
-      res.status(500).json({ error: String(e.message || e) });
+      res.status(500).json({ ok: false, error: String(e.message || e) });
     }
   });
 
@@ -196,7 +196,7 @@ export function mountTelemetryRoutes(app, deps) {
         lastProbe: r.last_probe || null, createdAt: new Date(r.created_at).getTime()
       }});
     } catch (e) {
-      res.status(500).json({ error: String(e.message || e) });
+      res.status(500).json({ ok: false, error: String(e.message || e) });
     }
   });
 
@@ -205,7 +205,7 @@ export function mountTelemetryRoutes(app, deps) {
       await pool.query("DELETE FROM telemetry_sources WHERE id = $1", [req.params.id]);
       res.status(204).end();
     } catch (e) {
-      res.status(500).json({ error: String(e.message || e) });
+      res.status(500).json({ ok: false, error: String(e.message || e) });
     }
   });
 
@@ -339,7 +339,7 @@ export function mountTelemetryRoutes(app, deps) {
 
       res.json(payload);
     } catch (e) {
-      res.status(500).json({ error: String(e.message || e) });
+      res.status(500).json({ ok: false, error: String(e.message || e) });
     }
   });
 

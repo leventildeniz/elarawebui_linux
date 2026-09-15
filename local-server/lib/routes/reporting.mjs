@@ -323,7 +323,7 @@ export async function mountReportingRoutes(app, deps) {
       });
     } catch (err) {
       console.error("[Reporting API] Error in /api/reporting/overview:", err);
-      res.status(500).json({ error: String(err.message || err) });
+      res.status(500).json({ ok: false, error: String(err.message || err) });
     }
   });
 
@@ -527,7 +527,7 @@ export async function mountReportingRoutes(app, deps) {
       });
     } catch (err) {
       console.error("[Reporting API] Error in /api/reporting/usage:", err);
-      res.status(500).json({ error: String(err.message || err) });
+      res.status(500).json({ ok: false, error: String(err.message || err) });
     }
   });
 
@@ -546,7 +546,7 @@ export async function mountReportingRoutes(app, deps) {
       res.json({ ok: true, tariffs });
     } catch (err) {
       console.error("[Reporting API] Error in GET /api/reporting/cost/tariffs:", err);
-      res.status(500).json({ error: String(err.message || err) });
+      res.status(500).json({ ok: false, error: String(err.message || err) });
     }
   });
 
@@ -570,7 +570,7 @@ export async function mountReportingRoutes(app, deps) {
       res.json({ ok: true, tariffs });
     } catch (err) {
       console.error("[Reporting API] Error in PUT /api/reporting/cost/tariffs:", err);
-      res.status(500).json({ error: String(err.message || err) });
+      res.status(500).json({ ok: false, error: String(err.message || err) });
     }
   });
 
@@ -835,7 +835,7 @@ export async function mountReportingRoutes(app, deps) {
       });
     } catch (err) {
       console.error("[Reporting API] Error in /api/reporting/cost:", err);
-      res.status(500).json({ error: String(err.message || err) });
+      res.status(500).json({ ok: false, error: String(err.message || err) });
     }
   });
 
@@ -1073,7 +1073,7 @@ export async function mountReportingRoutes(app, deps) {
       });
     } catch (err) {
       console.error("[Reporting API] Error in /api/reporting/operators:", err);
-      res.status(500).json({ error: String(err.message || err) });
+      res.status(500).json({ ok: false, error: String(err.message || err) });
     }
   });
 
@@ -1198,7 +1198,7 @@ export async function mountReportingRoutes(app, deps) {
       });
     } catch (err) {
       console.error("[Reporting API] Error in /api/reporting/rag:", err);
-      res.status(500).json({ error: String(err.message || err) });
+      res.status(500).json({ ok: false, error: String(err.message || err) });
     }
   });
 
@@ -1225,7 +1225,7 @@ export async function mountReportingRoutes(app, deps) {
       );
       res.json({ ok: true, id });
     } catch (err) {
-      res.status(500).json({ error: String(err.message || err) });
+      res.status(500).json({ ok: false, error: String(err.message || err) });
     }
   });
 
@@ -1279,7 +1279,7 @@ export async function mountReportingRoutes(app, deps) {
       );
     } catch (err) {
       console.error("[Reporting API] Error in GET /api/reporting/schedules:", err);
-      res.status(500).json({ error: String(err.message || err) });
+      res.status(500).json({ ok: false, error: String(err.message || err) });
     }
   });
 
@@ -1345,7 +1345,7 @@ export async function mountReportingRoutes(app, deps) {
       res.json({ ok: true, id });
     } catch (err) {
       console.error("[Reporting API] Error in POST /api/reporting/schedules:", err);
-      res.status(500).json({ error: String(err.message || err) });
+      res.status(500).json({ ok: false, error: String(err.message || err) });
     }
   });
 
@@ -1407,7 +1407,7 @@ export async function mountReportingRoutes(app, deps) {
       res.json({ ok: true, id });
     } catch (err) {
       console.error("[Reporting API] Error in PUT /api/reporting/schedules:", err);
-      res.status(500).json({ error: String(err.message || err) });
+      res.status(500).json({ ok: false, error: String(err.message || err) });
     }
   });
 
@@ -1417,7 +1417,7 @@ export async function mountReportingRoutes(app, deps) {
       res.status(204).end();
     } catch (err) {
       console.error("[Reporting API] Error in DELETE /api/reporting/schedules:", err);
-      res.status(500).json({ error: String(err.message || err) });
+      res.status(500).json({ ok: false, error: String(err.message || err) });
     }
   });
 
@@ -1442,7 +1442,7 @@ export async function mountReportingRoutes(app, deps) {
       );
     } catch (err) {
       console.error("[Reporting API] Error in GET /api/reporting/deliveries:", err);
-      res.status(500).json({ error: String(err.message || err) });
+      res.status(500).json({ ok: false, error: String(err.message || err) });
     }
   });
 
@@ -1469,7 +1469,7 @@ export async function mountReportingRoutes(app, deps) {
       res.json({ ok: true, id });
     } catch (err) {
       console.error("[Reporting API] Error in POST /api/reporting/deliveries:", err);
-      res.status(500).json({ error: String(err.message || err) });
+      res.status(500).json({ ok: false, error: String(err.message || err) });
     }
   });
 
@@ -1604,7 +1604,7 @@ export async function mountReportingRoutes(app, deps) {
       });
     } catch (err) {
       console.error("[Reporting API] Error in GET /api/reporting/invoicing:", err);
-      res.status(500).json({ error: String(err.message || err) });
+      res.status(500).json({ ok: false, error: String(err.message || err) });
     }
   });
 }

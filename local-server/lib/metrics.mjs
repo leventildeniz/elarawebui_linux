@@ -259,12 +259,12 @@ export function installMetrics({ app, pool, sseBegin, execAsync }) {
   // --- Routes ---
   app.get("/api/system/info", async (_req, res) => {
     try { res.json(await probeHardwareInfo()); }
-    catch (e) { res.status(500).json({ error: String(e.message || e) }); }
+    catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
   });
 
   app.get("/api/metrics/snapshot", async (_req, res) => {
     try { res.json(await getMetricsFrame(1000)); }
-    catch (e) { res.status(500).json({ error: String(e.message || e) }); }
+    catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
   });
 
   app.get("/api/metrics/history", (req, res) => {
