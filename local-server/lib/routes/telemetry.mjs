@@ -80,7 +80,9 @@ export function mountTelemetryRoutes(app, deps) {
   // GET /api/telemetry/boards
   app.get("/api/telemetry/boards", async (req, res) => {
     try {
-      const { rows } = await pool.query("SELECT * FROM telemetry_boards ORDER BY created_at ASC");
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
+      const vis = typeof buildVisibility === "function" ? buildVisibility(ctx, 1, 'owner_id') : { clause: "1=1", params: [] };
+      const { rows } = await pool.query(`SELECT * FROM telemetry_boards WHERE ${vis.clause} ORDER BY created_at ASC`, vis.params);
       res.json(rows.map(r => ({
         id: r.id,
         name: r.name,
@@ -97,14 +99,17 @@ export function mountTelemetryRoutes(app, deps) {
   // POST /api/telemetry/boards
   app.post("/api/telemetry/boards", async (req, res) => {
     try {
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : null;
       const b = req.body ?? {};
       const id = b.id || `tb_${Math.random().toString(36).slice(2, 9)}`;
+      const ownerId = ctx?.userId || ctx?.actor || null;
+      const tenantId = ctx?.tenantId || "default";
       await pool.query(
-        `INSERT INTO telemetry_boards (id, name, tone, entries, created_at)
-         VALUES ($1, $2, $3, $4::jsonb, now())
+        `INSERT INTO telemetry_boards (id, name, tone, entries, owner_id, tenant_id, created_at)
+         VALUES ($1, $2, $3, $4::jsonb, $5, $6, now())
          ON CONFLICT (id) DO UPDATE SET
            name=EXCLUDED.name, tone=EXCLUDED.tone, entries=EXCLUDED.entries`,
-        [id, b.name || "Untitled board", b.tone || "sapphire", JSON.stringify(b.entries || [])]
+        [id, b.name || "Untitled board", b.tone || "sapphire", JSON.stringify(b.entries || []), ownerId, tenantId]
       );
       const { rows } = await pool.query("SELECT * FROM telemetry_boards WHERE id = $1", [id]);
       const r = rows[0];
@@ -120,6 +125,18 @@ export function mountTelemetryRoutes(app, deps) {
   // DELETE /api/telemetry/boards/:id
   app.delete("/api/telemetry/boards/:id", async (req, res) => {
     try {
+      if (req.params.id === "tb.agents") {
+        return res.status(400).json({ error: "System default telemetry board cannot be deleted." });
+      }
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : null;
+      if (ctx && !ctx.isSuperAdmin) {
+        const cur = await pool.query("SELECT owner_id FROM telemetry_boards WHERE id = $1", [req.params.id]);
+        if (!cur.rows[0]) return res.status(404).json({ error: "not found" });
+        const matches = [ctx.userId, ctx.username, ctx.actor].filter(Boolean).map(s => String(s).toLowerCase());
+        if (!cur.rows[0].owner_id || !matches.includes(String(cur.rows[0].owner_id).toLowerCase())) {
+          return res.status(403).json({ error: "Read-only board — only author or administrator may delete this item." });
+        }
+      }
       await pool.query("DELETE FROM telemetry_boards WHERE id = $1", [req.params.id]);
       res.status(204).end();
     } catch (e) {
@@ -532,22 +549,41 @@ export function mountTelemetryRoutes(app, deps) {
   // GET /api/telemetry/agent-status — runtime status for every agent
   app.get("/api/telemetry/agent-status", async (req, res) => {
     try {
-      const { rows } = await pool.query(`
-        SELECT id::text, name, 'agent' as kind, stats as metrics, model_ref as meta FROM agents
-        WHERE id != 'agt.forge_master' AND squad != 'System' AND id NOT LIKE 'sys.%'
-        UNION ALL
-        SELECT id::text, name, 'workflow' as kind, jsonb_build_object('calls', runs, 'success', runs) as metrics, 'workflow' as meta FROM workflows
-        UNION ALL
-        SELECT id::text, name, 'orchestrator' as kind, jsonb_build_object('calls', runs, 'success', runs) as metrics, 'orchestrator' as meta FROM orchestrations
-        UNION ALL
-        SELECT s.id::text, s.name, 'skill' as kind, jsonb_build_object('calls', COUNT(r.id), 'success', COUNT(CASE WHEN r.status = 'ok' THEN 1 END)) as metrics, 'skill' as meta 
-        FROM skills s LEFT JOIN skill_runs r ON r.skill_id = s.id GROUP BY s.id
-        UNION ALL
-        SELECT a.id::text, a.name, 'tool' as kind, jsonb_build_object('calls', COUNT(t.id), 'success', COUNT(CASE WHEN t.status = 'ok' THEN 1 END)) as metrics, 'adapter' as meta 
-        FROM adapters a LEFT JOIN tool_invocations t ON t.tool_id = a.id GROUP BY a.id
-        UNION ALL
-        SELECT c.id::text, c.name, 'tool' as kind, jsonb_build_object('calls', 0, 'success', 0) as metrics, 'mcp' as meta FROM mcp_client_servers c
-      `);
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
+      
+      let visAgent = { clause: "1=1", params: [] };
+      let visWf = { clause: "1=1", params: [] };
+      let visOrc = { clause: "1=1", params: [] };
+      let visSkill = { clause: "1=1", params: [] };
+      let visAdp = { clause: "1=1", params: [] };
+      let visMcp = { clause: "1=1", params: [] };
+
+      if (!ctx.isSuperAdmin) {
+        visAgent = buildVisibility(ctx, 1, 'owner_id');
+        visWf = buildVisibility(ctx, 1, 'owner_id');
+        visOrc = buildVisibility(ctx, 1, 'owner_id');
+        visSkill = buildVisibility(ctx, 1, 'owner_id');
+        visAdp = buildVisibility(ctx, 1, 'owner_id');
+        visMcp = buildVisibility(ctx, 1, 'owner_id');
+      }
+
+      const [rAgents, rWorkflows, rOrchestrations, rSkills, rAdapters, rMcp] = await Promise.all([
+        pool.query(`SELECT id::text, name, 'agent' as kind, stats as metrics, model_ref as meta FROM agents WHERE (${visAgent.clause}) AND id != 'agt.forge_master' AND squad != 'System' AND id NOT LIKE 'sys.%'`, visAgent.params),
+        pool.query(`SELECT id::text, name, 'workflow' as kind, jsonb_build_object('calls', runs, 'success', runs) as metrics, 'workflow' as meta FROM workflows WHERE (${visWf.clause})`, visWf.params),
+        pool.query(`SELECT id::text, name, 'orchestrator' as kind, jsonb_build_object('calls', runs, 'success', runs) as metrics, 'orchestrator' as meta FROM orchestrations WHERE (${visOrc.clause})`, visOrc.params),
+        pool.query(`SELECT s.id::text, s.name, 'skill' as kind, jsonb_build_object('calls', COUNT(r.id), 'success', COUNT(CASE WHEN r.status = 'ok' THEN 1 END)) as metrics, 'skill' as meta FROM skills s LEFT JOIN skill_runs r ON r.skill_id = s.id WHERE (${visSkill.clause}) GROUP BY s.id`, visSkill.params),
+        pool.query(`SELECT a.id::text, a.name, 'tool' as kind, jsonb_build_object('calls', COUNT(t.id), 'success', COUNT(CASE WHEN t.status = 'ok' THEN 1 END)) as metrics, 'adapter' as meta FROM adapters a LEFT JOIN tool_invocations t ON t.tool_id = a.id WHERE (${visAdp.clause}) GROUP BY a.id`, visAdp.params),
+        pool.query(`SELECT c.id::text, c.name, 'tool' as kind, jsonb_build_object('calls', 0, 'success', 0) as metrics, 'mcp' as meta FROM mcp_client_servers c WHERE (${visMcp.clause})`, visMcp.params)
+      ]);
+
+      const rows = [
+        ...rAgents.rows,
+        ...rWorkflows.rows,
+        ...rOrchestrations.rows,
+        ...rSkills.rows,
+        ...rAdapters.rows,
+        ...rMcp.rows
+      ];
       
       const out = rows.map((r) => {
         const metrics = (r.metrics && typeof r.metrics === "object") ? r.metrics : {};

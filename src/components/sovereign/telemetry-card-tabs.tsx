@@ -4,12 +4,14 @@ import { motion } from "motion/react";
 import { Check, Pencil, Plus, X } from "lucide-react";
 import { boardTones, useTelemetryBoards } from "@/lib/telemetry-board-store";
 import { confirmAction } from "./confirm-dialog";
+import { useAccess } from "@/lib/rbac-store";
+import { readOwnerCtx } from "@/lib/ownership";
 import { cn } from "@/lib/utils";
 
 const fixedViews = [
-  { id: "system", label: "System General", tone: "sapphire" },
-  { id: "operators", label: "Operators", tone: "amethyst" },
-  { id: "database", label: "Database", tone: "topaz" },
+  { id: "system", label: "System General", tone: "sapphire", scope: "fleet-general" },
+  { id: "operators", label: "Operators", tone: "amethyst", scope: "fleet-operators" },
+  { id: "database", label: "Database", tone: "topaz", scope: "fleet-database" },
 ] as const;
 
 type FleetView = (typeof fixedViews)[number]["id"] | "agents";
@@ -18,6 +20,13 @@ type FleetView = (typeof fixedViews)[number]["id"] | "agents";
 export function TelemetryCardTabs({ view }: { view: FleetView }) {
   const navigate = useNavigate();
   const { boards, active, setActive, create, update, remove } = useTelemetryBoards();
+  const access = useAccess();
+  const ownerCtx = readOwnerCtx();
+  const isSuperAdmin = ownerCtx.sovereign;
+
+  const allowedFixed = fixedViews.filter(t => isSuperAdmin || access.allows(t.scope) || access.allows("fleet"));
+  const canSeeAgents = isSuperAdmin || access.allows("fleet-agents") || access.allows("fleet");
+
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [name, setName] = useState("");
@@ -51,7 +60,7 @@ export function TelemetryCardTabs({ view }: { view: FleetView }) {
 
   return (
     <div className="ml-2 hidden flex-wrap items-center gap-1.5 md:flex">
-      {fixedViews.map((t) => (
+      {allowedFixed.map((t) => (
         <Link
           key={t.id}
           to="/fleet"
@@ -71,9 +80,9 @@ export function TelemetryCardTabs({ view }: { view: FleetView }) {
         </Link>
       ))}
 
-      {boards.length > 0 && <span className="mx-1 h-4 w-px bg-white/[0.08]" />}
+      {canSeeAgents && boards.length > 0 && <span className="mx-1 h-4 w-px bg-white/[0.08]" />}
 
-      {boards.map((b) =>
+      {canSeeAgents && boards.map((b) =>
         editing === b.id ? (
           <InlineName
             key={b.id}
@@ -127,7 +136,7 @@ export function TelemetryCardTabs({ view }: { view: FleetView }) {
         ),
       )}
 
-      {creating ? (
+      {canSeeAgents && (creating ? (
         <div className="flex items-center gap-1 rounded-lg border border-sapphire/45 bg-raised/50 px-2 py-[3px]">
           <input
             ref={ref}
@@ -156,7 +165,7 @@ export function TelemetryCardTabs({ view }: { view: FleetView }) {
         >
           <Plus size={13} strokeWidth={1.8} /> Add card
         </motion.button>
-      )}
+      ))}
     </div>
   );
 }

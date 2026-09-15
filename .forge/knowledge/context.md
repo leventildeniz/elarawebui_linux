@@ -1416,6 +1416,11 @@ ELARA Sovereign Studio genelinde **Zero-Trust Çoklu Kiracı (Multi-Tenancy) ve 
    * **Oturum İptali:** Bir kullanıcı silindiğinde `app_sessions` tablosundaki aktif oturumları anında düşürülmektedir.
    * **Şablon & Rol Öksüz Temizliği:** Silinen bir şablona bağlı kullanıcı ve grupların `template_id` alanı güvenle temizlenir (`NULL`); silinen özel bir role sahip kullanıcı ve gruplar otomatik olarak temel `Viewer` rolüne devredilir.
    * **Grup Tasfiyesi:** Silinen özel gruplar, kullanıcıların `app_users.groups` JSON dizilerinden otomatik olarak ayıklanır.
-10. **Sistem Doğrulaması:**
+10. **Fleet Telemetry, Runtime Monitor Sızıntı Kapatma & Granüler RBAC Alt Sekmeleri (`telemetry.mjs`, `telemetry-card-tabs.tsx`, `fleet.tsx`, `rbac-store.ts`, `app_roles`):**
+   * **Runtime Monitor Sızıntısının Kökten Kesilmesi:** `/api/telemetry/agent-status` sorgusundaki tüm ajan, iş akışı, orkestrasyon, yetenek ve adaptör seçimlerine `buildVisibility(ctx, 1, 'owner_id')` bağlandı. Admin 26 varlık izlerken, `deneme2` 0 varlık görerek Runtime Monitor çekmecesinde sıfır sızıntı kanıtlandı.
+   * **Deploy Streams Modal İzolasyonu:** `src/routes/fleet.tsx` içerisindeki `catalog` seçicisine `scopeOwned` süzgeci bağlanarak, normal operatörün yayın akışına ekleme modalında Admin'in özel ajanlarını (`Arastirmaci Ajan`, `X2_Agent` vb.) görmesi engellendi.
+   * **Telemetry Boards İzolasyonu:** `/api/telemetry/boards` uç noktasına `buildVisibility` filtresi bağlandı; `tb.agents` sistem varsayılan kartı silinmeye karşı korundu.
+   * **Fleet Telemetry Granüler RBAC Sub-Tab Mimarisi:** Monolitik `fleet` kapsamı, diğer tüm modüllerimizde olduğu gibi 4 ayrıntılı alt sekmeye (`fleet-general`, `fleet-operators`, `fleet-database`, `fleet-agents`) ayrıldı. `telemetry-card-tabs.tsx` ve `FleetView` yetki kontrolüyle mühürlendi. `app_roles` tablosundaki `admin` (tüm 4 sekme) ve `engineer` (`fleet-general`, `fleet-agents`) rolleri güncellendi.
+11. **Sistem Doğrulaması:**
    * `npx tsc --noEmit` 0 hata ile doğrulandı.
    * `elara-middleware.service` ve `elara-vite.service` aktif çalışıyor.

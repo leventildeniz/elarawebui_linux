@@ -23,6 +23,8 @@ import {
 } from "@/lib/telemetry-live";
 import { useTelemetryBoards, type BoardEntry, type BoardKind } from "@/lib/telemetry-board-store";
 import { useEngine } from "@/lib/engine-store";
+import { useOwnerCtx, scopeOwned } from "@/lib/ownership";
+import { useAccess } from "@/lib/rbac-store";
 
 import { cn } from "@/lib/utils";
 
@@ -179,9 +181,26 @@ const toneFor = (v: number, warn: number, bad: number) =>
 
 function FleetView() {
   const { view } = Route.useSearch();
-  if (view === "agents") return <AgentsTelemetry />;
-  if (view === "operators") return <OperatorsTelemetry />;
-  if (view === "database") return <DatabaseTelemetry />;
+  const access = useAccess();
+  const ownerCtx = useOwnerCtx();
+  const isSuperAdmin = ownerCtx.sovereign;
+
+  const allowedViews: View[] = useMemo(() => {
+    return views.filter((v) => {
+      if (isSuperAdmin) return true;
+      if (v === "system") return access.allows("fleet-general") || access.allows("fleet");
+      if (v === "operators") return access.allows("fleet-operators") || access.allows("fleet");
+      if (v === "database") return access.allows("fleet-database") || access.allows("fleet");
+      if (v === "agents") return access.allows("fleet-agents") || access.allows("fleet");
+      return false;
+    });
+  }, [access, isSuperAdmin]);
+
+  const activeView = allowedViews.includes(view ?? "system") ? (view ?? "system") : (allowedViews[0] ?? "system");
+
+  if (activeView === "agents") return <AgentsTelemetry />;
+  if (activeView === "operators") return <OperatorsTelemetry />;
+  if (activeView === "database") return <DatabaseTelemetry />;
   return <SystemGeneral />;
 }
 
@@ -514,19 +533,25 @@ function AgentsTelemetry() {
   const { boards, active, hydrated, addEntries, removeEntry } = useTelemetryBoards();
   const { config: engine } = useEngine();
   const [pickerOpen, setPickerOpen] = useState(false);
+  const ownerCtx = useOwnerCtx();
 
   const catalog = useMemo(() => {
+    const visibleAgents = scopeOwned(agents, ownerCtx);
+    const visibleWorkflows = scopeOwned(workflows, ownerCtx);
+    const visibleSkills = scopeOwned(skills, ownerCtx);
+    const visibleMcp = scopeOwned(mcpClients, ownerCtx);
+
     const rows: CatalogRow[] = [];
-    agents.forEach((a) => rows.push({ kind: "agent", id: a.id, name: a.name, meta: a.squad }));
-    workflows.forEach((w) =>
+    visibleAgents.forEach((a) => rows.push({ kind: "agent", id: a.id, name: a.name, meta: a.squad }));
+    visibleWorkflows.forEach((w) =>
       rows.push({ kind: "workflow", id: w.id, name: w.name, meta: "workflow" }),
     );
-    skills.forEach((k) => rows.push({ kind: "skill", id: k.id, name: k.name, meta: k.squad }));
-    mcpClients.forEach((c) =>
+    visibleSkills.forEach((k) => rows.push({ kind: "skill", id: k.id, name: k.name, meta: k.squad }));
+    visibleMcp.forEach((c) =>
       rows.push({ kind: "tool", id: c.id, name: c.name, meta: `${c.tools} tools` }),
     );
     return rows;
-  }, [agents, workflows, skills, mcpClients]);
+  }, [agents, workflows, skills, mcpClients, ownerCtx]);
 
   const board = boards.find((b) => b.id === active) ?? boards[0];
   const lookup = (e: BoardEntry) => catalog.find((c) => c.kind === e.kind && c.id === e.id);
