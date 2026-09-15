@@ -11,6 +11,7 @@ import {
   FlaskConical,
   GitBranch,
   KeyRound,
+  Lock,
   Pencil,
   Plus,
   ScrollText,
@@ -68,6 +69,8 @@ import { JewelButton as GateButton } from "@/components/sovereign/primitives";
 import { cn } from "@/lib/utils";
 import { useSigningEnabled } from "@/lib/signing";
 import { confirmAction } from "@/components/sovereign/confirm-dialog";
+import { useOwnerCtx, scopeOwned, canSee, canEdit as canEditOwned, type Owned } from "@/lib/ownership";
+import { ReadOnlyBanner } from "@/components/sovereign/ownership-controls";
 
 const POLICY_TABS = [
   "vault",
@@ -550,7 +553,7 @@ const buildIsolationFields = (
   subjects: { id: string; name: string }[],
   subjectLabel = "tools",
 ): FieldSpec[] => [
-  { key: "name", label: "profile name", type: "text", placeholder: "Default sandbox", full: true },
+  { key: "name", label: "profile name", type: "text", placeholder: "Default tool sandbox", full: true },
   { key: "network", label: "network", type: "select", options: ["denied", "allowlist", "granted"] },
   { key: "enabled", label: "active", type: "toggle" },
   {
@@ -822,12 +825,21 @@ function PolicyView() {
   };
   const mcpName = (id: string) => mcp.clients.find((c) => c.id === id)?.name ?? id;
 
-  const guardFields = useMemo(() => buildGuardFields(vault.items), [vault.items]);
-  const engineFields = useMemo(() => buildEngineFields(models, agents), [models, agents]);
-  const guardRules = useMemo(() => normaliseGuardRules(guard.items), [guard.items]);
-  const engineRules = useMemo(() => normalisePolicyRules(engine.items), [engine.items]);
+  const ownerCtx = useOwnerCtx();
+  const visibleVaultItems = useMemo(() => scopeOwned(vault.items, ownerCtx), [vault.items, ownerCtx]);
+  const visibleIsolation = useMemo(() => scopeOwned(isolation.items, ownerCtx), [isolation.items, ownerCtx]);
+  const visibleSkillIsolation = useMemo(() => scopeOwned(skillIsolation.items, ownerCtx), [skillIsolation.items, ownerCtx]);
+  const visibleMcpIsolation = useMemo(() => scopeOwned(mcpIsolation.items, ownerCtx), [mcpIsolation.items, ownerCtx]);
+  const visibleGuard = useMemo(() => scopeOwned(guard.items, ownerCtx), [guard.items, ownerCtx]);
+  const visibleEngine = useMemo(() => scopeOwned(engine.items, ownerCtx), [engine.items, ownerCtx]);
+  const visibleSigned = useMemo(() => scopeOwned(signed.items, ownerCtx), [signed.items, ownerCtx]);
 
-  const meta = `${vault.items.length} secrets · ${guard.items.length} guard rules · ${isolation.items.length} tool sandboxes · ${skillIsolation.items.length} skill sandboxes · ${mcpIsolation.items.length} mcp sandboxes · ${signed.items.length} signing policies · ${engine.items.length} policy rules`;
+  const guardFields = useMemo(() => buildGuardFields(visibleVaultItems), [visibleVaultItems]);
+  const engineFields = useMemo(() => buildEngineFields(models, agents), [models, agents]);
+  const guardRules = useMemo(() => normaliseGuardRules(visibleGuard), [visibleGuard]);
+  const engineRules = useMemo(() => normalisePolicyRules(visibleEngine), [visibleEngine]);
+
+  const meta = `${visibleVaultItems.length} secrets · ${visibleGuard.length} guard rules · ${visibleIsolation.length} tool sandboxes · ${visibleSkillIsolation.length} skill sandboxes · ${visibleMcpIsolation.length} mcp sandboxes · ${visibleSigned.length} signing policies · ${visibleEngine.length} policy rules`;
 
   return (
     <Surface title="Policy & Security" meta={meta} wide crumb="Policy & Security">
@@ -839,8 +851,8 @@ function PolicyView() {
             tone="sapphire"
             createLabel="New credential"
             fields={vaultFields}
-            empty={{ scope: "global", name: "", kind: "api_key", secret: "", note: "" }}
-            items={vault.items}
+            empty={{ scope: "user", name: "", kind: "api_key", secret: "", note: "" }}
+            items={visibleVaultItems}
             onCreate={vault.create}
             onUpdate={vault.update}
             onRemove={vault.remove}
@@ -913,7 +925,7 @@ function PolicyView() {
               tools: [],
               fallback: false,
             }}
-            items={isolation.items}
+            items={visibleIsolation}
             onCreate={isolation.create}
             onUpdate={isolation.update}
             onRemove={isolation.remove}
@@ -969,7 +981,7 @@ function PolicyView() {
               tools: [],
               fallback: false,
             }}
-            items={skillIsolation.items}
+            items={visibleSkillIsolation}
             onCreate={skillIsolation.create}
             onUpdate={skillIsolation.update}
             onRemove={skillIsolation.remove}
@@ -1025,7 +1037,7 @@ function PolicyView() {
               tools: [],
               fallback: false,
             }}
-            items={mcpIsolation.items}
+            items={visibleMcpIsolation}
             onCreate={mcpIsolation.create}
             onUpdate={mcpIsolation.update}
             onRemove={mcpIsolation.remove}
@@ -1078,7 +1090,7 @@ function PolicyView() {
               algorithm: "Ed25519",
               enforcement: "reject unverified",
             }}
-            items={signed.items}
+            items={visibleSigned}
             onCreate={signed.create}
             onUpdate={signed.update}
             onRemove={signed.remove}
@@ -1205,6 +1217,7 @@ function FirewallSection<T extends FirewallItem>({
   const [simOpen, setSimOpen] = useState(false);
   const [ctx, setCtx] = useState<EvalContext>(emptyContext);
   const { action: fallback, setAction: setFallback } = useChainDefault(chain);
+  const ownerCtx = useOwnerCtx();
 
   const verdict = evaluateChain(items, (rule, c) => match(rule as unknown as T, c), ctx, fallback);
   const traceById = new Map(verdict.trace.map((t) => [t.id, t]));
@@ -1472,20 +1485,22 @@ function FirewallSection<T extends FirewallItem>({
                   >
                     <Pencil className="h-3.5 w-3.5" strokeWidth={1.75} />
                   </button>
-                  <button
-                    aria-label="Delete rule"
-                    onClick={() => {
-                      setConfirmId(item.id);
-                      void remove(item);
-                    }}
-                    className={cn(
-                      "rounded-md p-1.5 transition-colors hover:text-ruby",
-                      confirmId === item.id ? "text-ruby" : "text-muted-foreground/55",
-                    )}
-                    title="Delete rule"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" strokeWidth={1.75} />
-                  </button>
+                  {canEditOwned(item as Owned, ownerCtx) && (
+                    <button
+                      aria-label="Delete rule"
+                      onClick={() => {
+                        setConfirmId(item.id);
+                        void remove(item);
+                      }}
+                      className={cn(
+                        "rounded-md p-1.5 transition-colors hover:text-ruby",
+                        confirmId === item.id ? "text-ruby" : "text-muted-foreground/55",
+                      )}
+                      title="Delete rule"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" strokeWidth={1.75} />
+                    </button>
+                  )}
                 </div>
               </motion.div>
             );
@@ -1586,6 +1601,8 @@ function CrudSection<T extends AnyItem>({
   const [editing, setEditing] = useState<T | null>(null);
   const [creating, setCreating] = useState(false);
   const [confirm, setConfirm] = useState<string | null>(null);
+  const ownerCtx = useOwnerCtx();
+  const editingWritable = Boolean(editing && !Boolean((editing as any).fallback) && canEditOwned(editing as Owned, ownerCtx));
 
   return (
     <section>
@@ -1611,6 +1628,8 @@ function CrudSection<T extends AnyItem>({
         <AnimatePresence initial={false}>
           {items.map((item, i) => {
             const on = enabledKey ? Boolean(item[enabledKey]) : true;
+            const isFallback = Boolean((item as any).fallback);
+            const writable = !isFallback && canEditOwned(item as Owned, ownerCtx);
             return (
               <motion.article
                 key={item.id}
@@ -1682,17 +1701,24 @@ function CrudSection<T extends AnyItem>({
                     onClick={() => setEditing(item)}
                   >
                     <Pencil className="h-3.5 w-3.5" strokeWidth={1.75} />
-                    Edit
+                    {writable ? "Edit" : "View"}
                   </JewelButton>
-                  <JewelButton
-                    size="sm"
-                    variant="ghost"
-                    className="ml-auto gap-1.5 text-ruby hover:text-ruby"
-                    onClick={() => setConfirm(item.id)}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" strokeWidth={1.75} />
-                    Delete
-                  </JewelButton>
+                  {isFallback ? (
+                    <span className="ml-auto flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground/75 border border-white/[0.08] px-2.5 py-1 rounded-md bg-raised/40">
+                      <Lock className="h-3 w-3 text-topaz" />
+                      SYSTEM DEFAULT
+                    </span>
+                  ) : writable ? (
+                    <JewelButton
+                      size="sm"
+                      variant="ghost"
+                      className="ml-auto gap-1.5 text-ruby hover:text-ruby"
+                      onClick={() => setConfirm(item.id)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" strokeWidth={1.75} />
+                      Delete
+                    </JewelButton>
+                  ) : null}
                 </div>
 
                 <AnimatePresence>
@@ -1740,9 +1766,10 @@ function CrudSection<T extends AnyItem>({
 
       <EntityDialog
         open={creating || editing !== null}
-        heading={editing ? `Edit — ${heading}` : `New — ${heading}`}
+        heading={editing ? `${editingWritable ? "Edit" : "View"} — ${heading}` : `New — ${heading}`}
         fields={fields}
         initial={editing ? (editing as unknown as Record<string, unknown>) : empty}
+        readOnly={editing ? !editingWritable : false}
         onClose={() => {
           setCreating(false);
           setEditing(null);
@@ -1935,6 +1962,7 @@ function EntityDialog({
   heading,
   fields,
   initial,
+  readOnly = false,
   onClose,
   onSubmit,
 }: {
@@ -1942,6 +1970,7 @@ function EntityDialog({
   heading: string;
   fields: FieldSpec[];
   initial: Record<string, unknown>;
+  readOnly?: boolean;
   onClose: () => void;
   onSubmit: (values: Record<string, unknown>) => void;
 }) {
@@ -2010,11 +2039,17 @@ function EntityDialog({
               </button>
             </div>
 
+            {readOnly && (
+              <div className="mt-4">
+                <ReadOnlyBanner reason="This item is a system default or authored by another operator. It is read-only." />
+              </div>
+            )}
+
             <form
-              className="mt-6 grid grid-cols-2 gap-4"
+              className={cn("mt-6 grid grid-cols-2 gap-4", readOnly && "pointer-events-none opacity-80")}
               onSubmit={(e) => {
                 e.preventDefault();
-                onSubmit(values);
+                if (!readOnly) onSubmit(values);
               }}
             >
               {fields
@@ -2088,9 +2123,13 @@ function EntityDialog({
 
               <div className="col-span-2 mt-2 flex justify-end gap-2">
                 <JewelButton type="button" variant="outline" onClick={onClose}>
-                  Cancel
+                  {readOnly ? "Close" : "Cancel"}
                 </JewelButton>
-                <JewelButton type="submit">Save</JewelButton>
+                {!readOnly && (
+                  <JewelButton type="submit">
+                    Save
+                  </JewelButton>
+                )}
               </div>
             </form>
           </motion.div>

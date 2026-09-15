@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
-import { canEdit as canEditOwned, editRefusal } from "@/lib/ownership";
+import { canEdit as canEditOwned, canSee, editRefusal } from "@/lib/ownership";
 import { toast } from "sonner";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
@@ -1197,13 +1197,14 @@ function AdaptersPage() {
     () =>
       adapters.filter(
         (a) =>
+          canSee(a, ownerCtx) &&
           (cat === "all" || a.category === cat) &&
           (!query.trim() ||
             `${a.id} ${a.name} ${a.description} ${a.tags.join(" ")}`
               .toLowerCase()
               .includes(query.trim().toLowerCase())),
       ),
-    [adapters, cat, query],
+    [adapters, cat, query, ownerCtx],
   );
 
   return (

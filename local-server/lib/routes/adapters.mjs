@@ -21,27 +21,26 @@ function sanitizeAdapterBody(body) {
 }
 
 export function mountAdaptersRoutes(app, deps) {
-  const { pool, resolveActorContext, assertCanEdit } = deps;
+  const { pool, resolveActorContext, assertCanEdit, buildVisibility } = deps;
 
   app.get("/api/adapters", async (req, res) => {
     try {
       const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
+      const vis = typeof buildVisibility === "function" ? buildVisibility(ctx, 1, 'owner_id') : { clause: "1=1", params: [] };
       let query = `SELECT id, name, description, tags, category, connection as connection_type, 
                 runner as adapter, vault_scope, vault_name, vault_field, 
                 config, risk as risk_level, requires_approval, enabled, 
-                created_at as updated_at, tenant_id, is_global
-           FROM adapters`;
-      const params = [];
-      if (!ctx.isSuperAdmin) {
-        query += " WHERE (tenant_id = $1 OR is_global = true OR tenant_id = 'default')";
-        params.push(ctx.tenantId || "default");
-      }
-      query += " ORDER BY enabled DESC, name ASC";
+                created_at as updated_at, tenant_id, is_global,
+                owner_id, visibility, shared_with
+           FROM adapters WHERE ${vis.clause} ORDER BY enabled DESC, name ASC`;
 
-      const r = await pool.query(query, params);
+      const r = await pool.query(query, vis.params);
       
       const items = r.rows.map(row => ({
         ...row,
+        ownerId: row.owner_id || "",
+        visibility: row.visibility || "private",
+        sharedWith: row.shared_with || [],
         vault_binding_spec: {
           scope: row.vault_scope,
           name: row.vault_name,
@@ -60,8 +59,16 @@ export function mountAdaptersRoutes(app, deps) {
       if (!r.rows[0]) return res.status(404).json({ ok: false, error: "not_found" });
       
       const row = r.rows[0];
-      if (!ctx.isSuperAdmin && row.tenant_id !== ctx.tenantId && row.tenant_id !== "default" && !row.is_global) {
-        return res.status(403).json({ ok: false, error: "Access denied" });
+      if (!ctx.isSuperAdmin && !row.is_global) {
+        if (row.tenant_id !== ctx.tenantId && row.tenant_id !== "default") {
+          return res.status(403).json({ ok: false, error: "Access denied" });
+        }
+        if (row.visibility === "private" && !ctx.isTenantAdmin) {
+          const matches = [ctx.userId, ctx.username, ctx.actor].filter(Boolean).map(s => String(s).toLowerCase());
+          if (!matches.includes(String(row.owner_id || "").toLowerCase())) {
+            return res.status(403).json({ ok: false, error: "Access denied" });
+          }
+        }
       }
 
       row.adapter = row.runner;
@@ -84,6 +91,9 @@ export function mountAdaptersRoutes(app, deps) {
       const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
       const tenantId = req.body?.tenant_id || req.body?.tenantId || (ctx.isSuperAdmin ? (req.body?.tenant_id || "default") : ctx.tenantId);
       const isGlobal = ctx.isSuperAdmin ? (req.body?.is_global || false) : false;
+      const ownerId = req.body?.owner_id || req.body?.ownerId || ctx.userId || ctx.actor || null;
+      const visibility = req.body?.visibility || "private";
+      const sharedWith = Array.isArray(req.body?.sharedWith || req.body?.shared_with) ? JSON.stringify(req.body?.sharedWith || req.body?.shared_with) : "[]";
       
       let configStr = "{}";
       if (typeof b.config === "string") configStr = b.config;
@@ -92,8 +102,8 @@ export function mountAdaptersRoutes(app, deps) {
       const r = await pool.query(
         `INSERT INTO adapters (id, name, description, tags, category, connection, runner,
                             vault_scope, vault_name, vault_field, config, risk,
-                            requires_approval, enabled, tenant_id, is_global)
-         VALUES ($1,$2,$3,$4::jsonb,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+                            requires_approval, enabled, tenant_id, is_global, owner_id, visibility, shared_with)
+         VALUES ($1,$2,$3,$4::jsonb,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19::jsonb)
          RETURNING *`,
         [
           id, b.name, b.description, JSON.stringify(b.tags), b.category, b.connection_type, b.adapter,
@@ -105,7 +115,10 @@ export function mountAdaptersRoutes(app, deps) {
           b.requires_approval,
           b.enabled,
           tenantId,
-          isGlobal
+          isGlobal,
+          ownerId,
+          visibility,
+          sharedWith
         ]
       );
       
@@ -123,6 +136,10 @@ export function mountAdaptersRoutes(app, deps) {
       }
 
       const b = sanitizeAdapterBody(req.body);
+      const visibility = req.body?.visibility !== undefined ? req.body.visibility : cur.rows[0].visibility;
+      const sharedWith = req.body?.sharedWith !== undefined || req.body?.shared_with !== undefined 
+        ? JSON.stringify(req.body?.sharedWith || req.body?.shared_with || []) 
+        : JSON.stringify(cur.rows[0].shared_with || []);
       
       let configStr = "{}";
       if (typeof b.config === "string") configStr = b.config;
@@ -132,7 +149,7 @@ export function mountAdaptersRoutes(app, deps) {
         `UPDATE adapters
             SET name=$2, description=$3, tags=$4::jsonb, category=$5, connection=$6, runner=$7,
                 vault_scope=$8, vault_name=$9, vault_field=$10, config=$11, risk=$12,
-                requires_approval=$13, enabled=$14
+                requires_approval=$13, enabled=$14, visibility=$15, shared_with=$16::jsonb
           WHERE id=$1
           RETURNING *`,
          [
@@ -143,7 +160,9 @@ export function mountAdaptersRoutes(app, deps) {
           configStr,
           b.risk_level,
           b.requires_approval,
-          b.enabled
+          b.enabled,
+          visibility,
+          sharedWith
         ]
       );
       if (!r.rows[0]) return res.status(404).json({ ok: false, error: "not_found" });

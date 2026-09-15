@@ -40,6 +40,10 @@ export const useVaultStore = create<VaultStore>((set, get) => ({
           secret: "", // Cannot read from list endpoint
           note: meta.note || "",
           createdAt: new Date(row.created_at).getTime(),
+          ownerId: meta.owner_id || "",
+          ownerName: meta.owner_name || "",
+          visibility: meta.visibility || "private",
+          sharedWith: meta.shared_with || [],
           // Map kind-specific fields from meta
           headerName: meta.headerName,
           baseUrl: meta.baseUrl,

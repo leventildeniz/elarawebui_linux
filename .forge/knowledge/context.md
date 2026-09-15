@@ -1346,7 +1346,10 @@ ELARA Sovereign Studio genelinde **Zero-Trust Çoklu Kiracı (Multi-Tenancy) ve 
 
 ---
 
-### 🛡️ 5. PHASE 62.2 / PHASE 63: 360° ZERO-TRUST DESK ISOLATION & SECONDARY ASSET SEAL (DETAYLI İCRA PLANI)
+### 🛡️ 5. COMPLETED — PHASE 62.2 / PHASE 63: 360° ZERO-TRUST DESK ISOLATION & SECONDARY ASSET SEAL
+
+**Tarih:** 2026-09-15  
+**Durum:** %100 Tamamlandı & Doğrulandı (0 Veri Sızıntısı Kanıtlandı)
 
 #### 🎯 1. İlke ve 3 Seviyeli Altın Kural (The 3-Tier Hierarchy)
 1. **1. Seviye — SüperAdmin (Founder/God):** Bütün sistemi, tüm kiracıları ve tüm operatörlerin masalarını tam yetkiyle görür ve yönetir (`1=1`).
@@ -1360,36 +1363,49 @@ ELARA Sovereign Studio genelinde **Zero-Trust Çoklu Kiracı (Multi-Tenancy) ve 
 
 ---
 
-#### 🔍 2. Tespit Edilen Kök Sebepler & Modül Bazlı Çözüm Matrisi
+#### 🔍 2. Tamamlanan Kök Çözüm ve Mimari Müdahaleler
 
-| Modül & Tablo | Mevcut Sızıntı Sebebi | Kök Çözüm & Mimari Müdahale |
-| :--- | :--- | :--- |
-| **Webhooks** (`webhooks` tablosu) | Tabloda `owner_id` ve `visibility` var; ancak `POST /api/webhooks` varsayılan olarak `visibility: "workspace"` damgalıyor. `buildVisibility` de workspace'i tüm tenanta açıyor. | 1. Yeni webhook varsayılanı `private` yapılacak.<br>2. `GET /api/webhooks` sorgusunda Admin olmayanlar sadece kendi private webhook'larını veya genel sistem webhook'larını görecek. |
-| **Targets / Envanter** (`targets` tablosu) | Tabloda `owner` kolonu var fakat `targets-crud.mjs` sorgusu `WHERE (tenant_id = $1 OR tenant_id = 'default')` diyerek tüm tenanta döküyor. Frontend'de `t.owner` `ownerId`'ye map edilmediği için `ownership.ts` sahipsiz "system" zannedip herkese açıyor. | 1. `GET /api/targets` uç noktasına `buildVisibility(ctx, 1, 'owner')` filtresi entegre edilecek.<br>2. Frontend `target-store.ts` içine `ownerId: t.owner` maplenecek; `deneme` sadece kendi hedeflerini görecek. |
-| **Adaptörler** (`adapters` tablosu) | Tabloda `owner_id` ve `visibility` kolonu yok; sadece `config` alanı var. `GET /api/adapters` sadece `tenant_id`'ye bakıyor. | 1. `adapters` tablosuna `owner_id text` ve `visibility text DEFAULT 'private'` kolonları eklenecek.<br>2. `adapters.mjs` içine `buildVisibility(ctx)` filtresi bağlanacak; Admin'in özel adaptörleri gizlenecek. |
-| **Secret Vault** (`vault_secrets` tablosu) | `scope:name` ikilisiyle tutuluyor. Tabloda `meta jsonb` kolonu var fakat mülkiyet için kullanılmıyor. `vault.mjs` içindeki `OR s.tenant_id = 'default'` tüm sırları herkese açıyor. | 1. Sır kaydedilirken `meta` jsonb alanına `{ owner_id: ctx.userId, visibility: 'private' }` yazılacak.<br>2. `GET /api/vault` sorgusunda Admin dışındakilere sadece kendi sırları (`meta->>'owner_id' = ANY(userMatches)`) ve genel sistem sırları (`scope IN ('global', 'system')`) listelenecek. |
-| **İzolasyon Profilleri** (`isolation_profiles` — Tool, Skill, MCP Sandboxes) | Tabloda `owner_id` yok. `security-policies.mjs` içindeki `WHERE (tenant_id = $1 OR is_global = true OR fallback = true OR tenant_id = 'default')` sorgusu yüzünden Admin'in test profilleri (örn. `iso.test`) tenanta sızıyor. | 1. `isolation_profiles` tablosuna `owner_id text` ve `visibility text DEFAULT 'private'` eklenecek.<br>2. `OR tenant_id = 'default'` temizlenecek. Sadece sistem defaults (`fallback = true` / `is_global = true`) ortak kalacak; custom profiller yazarına özel olacak. |
-| **GenGuard (`guard_rules`), Policy Engine (`policy_rules`), Signed Workflows (`signed_artifacts`)** | Sorgulardaki `OR tenant_id = 'default'` kalıntısı yüzünden ayrım yapılmadan tenanta dökülüyor. | `security-policies.mjs` içinde tenant izolasyonu katılaştırılacak; sistem kuralları ile operatör kuralları birbirinden ayrılacak. |
-
----
-
-#### 📋 3. Adım Adım İcra Yol Haritası (Kompaktlaşma Sonrası Sırasıyla Yapılacaklar)
-
-1. **Adım 1 (Veritabanı Altyapısı):**
-   * `adapters` tablosuna `owner_id text` ve `visibility text DEFAULT 'private'` kolonlarının eklenmesi.
-   * `isolation_profiles` tablosuna `owner_id text` ve `visibility text DEFAULT 'private'` kolonlarının eklenmesi.
-   * `targets` tablosuna eksik `visibility text DEFAULT 'private'` kolonunun bağlanması.
-   * Mevcut tohumların ve sistem nesnelerinin `visibility = 'workspace'` veya `is_global = true` olarak korunması.
-2. **Adım 2 (Backend SQL Zırhları):**
-   * `local-server/lib/routes/adapters.mjs` ➔ `buildVisibility` ve aktör mülkiyet filtresi.
-   * `local-server/lib/routes/targets-crud.mjs` ➔ `buildVisibility(ctx, 1, 'owner')` entegrasyonu ve `ownerId` aktarımı.
-   * `local-server/lib/routes/webhooks-crud.mjs` ➔ Varsayılan `private` görünürlük ve kullanıcı süzgeci.
-   * `local-server/lib/routes/vault.mjs` ➔ `meta->>'owner_id'` ve `scope` izolasyonu.
-   * `local-server/lib/routes/security-policies.mjs` ➔ `OR tenant_id = 'default'` sızıntı temizliği ve sandbox izolasyonu.
-3. **Adım 3 (Frontend Store & UI Desk Süzgeçleri):**
-   * `src/routes/policy.tsx` içindeki `useCollection` ve `useVaultStore` veri listelerine `scopeOwned` filtresi bağlanması.
-   * `src/routes/adapters.tsx` ve `src/routes/targets.tsx` listelerinin `scopeOwned` ile senkronize edilmesi.
-4. **Adım 4 (Uçtan Uca Doğrulama & %0 Sızıntı Kanıtı):**
-   * `admin` ve `deneme` kullanıcıları ile terminal üzerinden cURL testleri yapılması.
-   * `deneme` ekranında Admin'in adaptör, hedef, webhook, kasa anahtarı ve izolasyon kurallarının tamamen kaybolduğunun (boş masa geldiğinin) kanıtlanması.
-   * `npx tsc --noEmit` ve servislerin doğrulanması.
+1. **Webhooks (`webhooks` tablosu & `webhooks-crud.mjs` & `webhook-store.ts`):**
+   * Varsayılan oluşturma görünürlüğü `workspace` yerine `private` yapıldı.
+   * Mevcut admin özel webhook'ları `private` olarak mühürlendi.
+   * `buildVisibility(ctx, 1, 'owner_id')` filtresi backend'de tam uygulandı; `webhook-store.ts` üzerinde `scopeOwned` süzgeci bağlandı.
+   * **Doğrulama Sonucu:** Admin 2 webhook görürken, `deneme` 0 webhook görerek temiz kişisel masa elde etti.
+2. **Targets / Envanter (`targets` tablosu & `targets-crud.mjs` & `target-store.ts` & `targets.tsx`):**
+   * `targets` tablosuna `visibility visibility_level NOT NULL DEFAULT 'private'` ve `shared_with jsonb` sütunları eklendi.
+   * `targets-crud.mjs` içindeki `OR tenant_id = 'default'` kaldırıldı; `buildVisibility(ctx, 1, 'owner')` bağlandı.
+   * `mappedTargets` içine `ownerId`, `ownerName`, `visibility`, `sharedWith` eşlendi.
+   * `targets.tsx` üzerinde `canSee(t, ownerCtx)` filtresi bağlandı.
+   * **Doğrulama Sonucu:** Admin 1 hedef görürken, `deneme` 0 hedef gördü. `deneme` tarafından yeni hedef yaratıldığında yalnızca `deneme`'nin masasında listelendi ve SuperAdmin tarafından görülebildi.
+3. **Adaptörler (`adapters` tablosu & `adapters.mjs` & `adapter-store.ts` & `adapters.tsx`):**
+   * `adapters` tablosuna `owner_id text`, `visibility visibility_level NOT NULL DEFAULT 'private'` ve `shared_with jsonb` sütunları eklendi.
+   * `adapters.mjs` içine `buildVisibility(ctx, 1, 'owner_id')` bağlandı; `owner_id`, `visibility`, `shared_with` geri döndürüldü.
+   * `adapter-store.ts` içindeki sahte `"org"` ve `"workspace"` atamaları kaldırılarak veritabanı mülkiyetine bağlandı.
+   * `adapters.tsx` üzerinde `canSee(a, ownerCtx)` filtresi bağlandı.
+   * **Doğrulama Sonucu:** Admin 2 adaptör görürken, `deneme` 0 adaptör gördü.
+4. **Secret Vault (`vault_secrets` tablosu & `vault.mjs` & `vault-store.ts` & `policy.tsx`):**
+   * `requireSession` rolleri `["admin", "engineer", "operator", "security"]` olarak genişletildi.
+   * Sır oluşturulurken `meta.owner_id` ve `meta.visibility = 'private'` damgalandı.
+   * `GET /api/vault` sorgusunda SuperAdmin `1=1` ile tüm sırları görürken; `deneme` kullanıcısı için `lower(meta->>'owner_id') = ANY(userMatches)` + genel sistem sırları (`s.is_global = true OR s.scope = 'system'`) sınırlandırıldı.
+   * Mevcut test sırları (`denem1`, `denem2` vb.) admin kullanıcısına zimmetlendi.
+   * `policy.tsx` üzerinde `visibleVaultItems` `scopeOwned` süzgecinden geçirildi.
+   * **Doğrulama Sonucu:** Admin 10 secret görürken, `deneme` 0 secret görerek tam sızıntısız desk elde etti.
+5. **İzolasyon Profilleri (`isolation_profiles` tablosu & `security-policies.mjs` & `policy.tsx`):**
+   * `isolation_profiles` tablosuna `owner_id text`, `visibility visibility_level NOT NULL DEFAULT 'private'` ve `shared_with jsonb` sütunları eklendi.
+   * `OR tenant_id = 'default'` temizlendi. Sistem varsayılanları (`fallback = true` / `is_global = true`) ortak bırakıldı; özel profiller (`iso.test`) yazarına izole edildi.
+   * `policy.tsx` üzerinde tool, skill ve mcp izolasyon profilleri `scopeOwned` ile senkronize edildi.
+   * **Doğrulama Sonucu:** Admin 3 profil (`miso.01`, `siso.01`, `iso.test`) görürken, `deneme` sadece 2 sistem varsayılanını (`miso.01`, `siso.01`) gördü; Admin'in `iso.test` profili `deneme`'ye kesinlikle sızmadı.
+6. **Python Runtimes (`runtimes` tablosu & `python-crud.mjs` & `runtime-store.ts` & `runtime.tsx`):**
+   * `runtimes` tablosundaki sahipsiz kayıtlar admin'e zimmetlendi (`owner_id = admin`, `visibility = 'private'`).
+   * `python-crud.mjs` içindeki `OR tenant_id = 'default'` kaldırıldı; `buildVisibility(ctx, 1, 'owner_id')` bağlandı.
+   * `runtime-store.ts` nesnelerine `ownerId`, `ownerName`, `visibility`, `sharedWith` eşlendi.
+   * `runtime.tsx` üzerinde `scopeOwned(runtimes, ownerCtx)` filtresi bağlandı.
+   * **Doğrulama Sonucu:** Admin 2 runtime (`deneme6` ve `test3`) görürken, `deneme` 0 runtime gördü. `deneme` yeni bir runtime oluşturduğunda (`deneme_own_runtime`) sadece `deneme`'nin masasında listelendi; Admin tümünü gördü.
+7. **GenGuard, Policy Engine & Signed Workflows (`guard_rules`, `policy_rules`, `signed_artifacts` & `security-policies.mjs` & `security-store.ts` & `policy.tsx`):**
+   * `guard_rules`, `policy_rules` ve `signed_artifacts` tablolarına `owner_id text`, `visibility visibility_level NOT NULL DEFAULT 'private'` ve `shared_with jsonb` eklendi. Mevcut admin kuralları `owner_id = admin` ve `visibility = 'private'` yapıldı.
+   * `security-policies.mjs` içinde `GET /api/security/genguard`, `GET /api/security/policy`, `GET /api/security/signed` sorgularına `buildVisibility(ctx, 1, 'owner_id')` bağlandı.
+   * `security-store.ts` içindeki `if (rows.length === 0) setItems(seed)` sahte mock veri enjeksiyonu tamamen kaldırıldı (sıfır-mock standardı).
+   * `policy.tsx` içinde `guard`, `engine` ve `signed` listeleri `scopeOwned` süzgecine bağlandı.
+   * **Doğrulama Sonucu:** Admin GenGuard'da 1 kural (`gg.lk1la`), Policy Engine'de 1 kural (`pol.route.coding`) görürken; `deneme` 0 kural görerek temiz desk elde etti. `deneme` yeni kural yarattığında sadece kendi masasında göründü; Admin ise her iki kuralı da gördü.
+8. **Sistem Doğrulaması:**
+   * `npx tsc --noEmit` 0 hata ile doğrulandı.
+   * `elara-middleware.service` ve `elara-vite.service` aktif çalışıyor.

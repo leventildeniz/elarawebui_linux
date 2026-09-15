@@ -1,7 +1,7 @@
 import { testExternalGuardrailProbe } from "../genguard-scanner.mjs";
 
 export function mountSecurityPoliciesRoutes(app, deps) {
-  const { pool, requireSession, broadcastAudit, enqueueWrite } = deps;
+  const { pool, requireSession, broadcastAudit, enqueueWrite, resolveActorContext, buildVisibility, assertCanEdit } = deps;
 
   const adminOnly = requireSession({ roles: ["admin", "operator"] });
 
@@ -34,17 +34,11 @@ export function mountSecurityPoliciesRoutes(app, deps) {
   // --- GenGuard Rules ---
   app.get("/api/security/genguard", adminOnly, async (req, res) => {
     try {
-      const tenantId = req.session?.tenant_id || req.headers["x-tenant-id"] || "default";
-      const isSuperAdmin = req.session?.role === "admin" && tenantId === "default";
-      let query = "SELECT * FROM guard_rules";
-      const params = [];
-      if (!isSuperAdmin) {
-        query += " WHERE (tenant_id = $1 OR is_global = true OR tenant_id = 'default')";
-        params.push(tenantId);
-      }
-      query += " ORDER BY seq ASC, created_at ASC";
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : null;
+      const vis = typeof buildVisibility === "function" ? buildVisibility(ctx, 1, 'owner_id') : { clause: "1=1", params: [] };
+      let query = `SELECT * FROM guard_rules WHERE ${vis.clause} ORDER BY seq ASC, created_at ASC`;
 
-      const { rows } = await pool.query(query, params);
+      const { rows } = await pool.query(query, vis.params);
       res.json({ items: rows });
     } catch (e) {
       res.status(500).json({ error: String(e.message || e) });
@@ -96,20 +90,25 @@ export function mountSecurityPoliciesRoutes(app, deps) {
       const stage = b.stage || "input";
       const timeoutMs = Number(b.timeout_ms ?? b.timeoutMs ?? 1500);
       const failMode = b.fail_mode || b.failMode || "fail_open";
-      const tenantId = req.session?.tenant_id || "default";
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : null;
+      const tenantId = b.tenant_id || ctx?.tenantId || req.session?.tenant_id || "default";
+      const isGlobal = ctx?.isSuperAdmin ? (b.is_global || false) : false;
+      const ownerId = b.owner_id || b.ownerId || ctx?.userId || ctx?.actor || null;
+      const visibility = b.visibility || "private";
+      const sharedWith = Array.isArray(b.sharedWith || b.shared_with) ? JSON.stringify(b.sharedWith || b.shared_with) : "[]";
 
       const out = await pool.query(
         `INSERT INTO guard_rules (
            id, name, enabled, sensitivity, input_blacklist, output_patterns, rules_path, seq, action,
            engine_type, endpoint_url, auth_mode, vault_ref, api_key, provider_format,
-           risk_threshold, stage, timeout_ms, fail_mode, tenant_id
+           risk_threshold, stage, timeout_ms, fail_mode, tenant_id, is_global, owner_id, visibility, shared_with
          )
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24::jsonb)
          RETURNING *`,
         [
           id, name, enabled, sensitivity, inputBlacklist, outputPatterns, rulesPath, seq, action,
           engineType, endpointUrl, authMode, vaultRef, apiKey, providerFormat,
-          riskThreshold, stage, timeoutMs, failMode, tenantId
+          riskThreshold, stage, timeoutMs, failMode, tenantId, isGlobal, ownerId, visibility, sharedWith
         ]
       );
       emitPolicyLog("warn", "genguard.created", `${name} (${id})`, { id, name, action, engineType });
@@ -196,8 +195,10 @@ export function mountSecurityPoliciesRoutes(app, deps) {
   app.get("/api/security/isolation", adminOnly, async (req, res) => {
     try {
       const kind = req.query.kind;
-      const tenantId = req.session?.tenant_id || req.headers["x-tenant-id"] || "default";
-      const isSuperAdmin = req.session?.role === "admin" && tenantId === "default";
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : null;
+      const tenantId = ctx?.tenantId || req.session?.tenant_id || req.headers["x-tenant-id"] || "default";
+      const isSuperAdmin = ctx ? ctx.isSuperAdmin : (req.session?.role === "admin" && tenantId === "default");
+      const isTenantAdmin = ctx ? ctx.isTenantAdmin : false;
 
       let query = "SELECT * FROM isolation_profiles";
       const params = [];
@@ -208,13 +209,41 @@ export function mountSecurityPoliciesRoutes(app, deps) {
         whereParts.push(`kind = $${params.length}`);
       }
       if (!isSuperAdmin) {
-        params.push(tenantId);
-        whereParts.push(`(tenant_id = $${params.length} OR is_global = true OR fallback = true OR tenant_id = 'default')`);
+        if (isTenantAdmin) {
+          params.push(tenantId);
+          whereParts.push(`(tenant_id = $${params.length} OR is_global = true OR fallback = true)`);
+        } else {
+          // Regular user (deneme):
+          // Sees system baselines (fallback = true OR is_global = true)
+          // PLUS custom profiles they authored (owner_id = ANY(userMatches))
+          // PLUS workspace profiles in their tenant (visibility = 'workspace' AND tenant_id = $tenantId)
+          const userMatches = [ctx?.userId, ctx?.username, ctx?.actor].filter(Boolean).map(s => String(s).toLowerCase());
+          params.push(tenantId);
+          const tSlot = `$${params.length}`;
+          if (userMatches.length > 0) {
+            const uSlots = userMatches.map(u => {
+              params.push(u);
+              return `$${params.length}`;
+            });
+            whereParts.push(`(
+              fallback = true
+              OR is_global = true
+              OR (lower(COALESCE(owner_id, '')) = ANY(ARRAY[${uSlots.join(",")}]::text[]))
+              OR (visibility = 'workspace' AND tenant_id = ${tSlot})
+            )`);
+          } else {
+            whereParts.push(`(
+              fallback = true
+              OR is_global = true
+              OR (visibility = 'workspace' AND tenant_id = ${tSlot})
+            )`);
+          }
+        }
       }
       if (whereParts.length) {
         query += " WHERE " + whereParts.join(" AND ");
       }
-      query += " ORDER BY created_at ASC";
+      query += " ORDER BY fallback DESC, created_at ASC";
 
       const { rows } = await pool.query(query, params);
       res.json({ items: rows });
@@ -225,13 +254,21 @@ export function mountSecurityPoliciesRoutes(app, deps) {
 
   app.post("/api/security/isolation", adminOnly, async (req, res) => {
     try {
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : null;
       const { id, name, enabled, allowedPaths, deniedSyscalls, network, netAllowlist, tools, fallback, kind } = req.body;
+      const tenantId = req.body?.tenant_id || ctx?.tenantId || req.session?.tenant_id || "default";
+      const isGlobal = ctx?.isSuperAdmin ? (req.body?.is_global || false) : false;
+      const ownerId = req.body?.owner_id || req.body?.ownerId || ctx?.userId || ctx?.actor || null;
+      const visibility = req.body?.visibility || "private";
+      const sharedWith = Array.isArray(req.body?.sharedWith || req.body?.shared_with) ? JSON.stringify(req.body?.sharedWith || req.body?.shared_with) : "[]";
+
       const out = await pool.query(
-        `INSERT INTO isolation_profiles (id, name, enabled, allowed_paths, denied_syscalls, network, net_allowlist, tools, fallback, kind)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+        `INSERT INTO isolation_profiles (id, name, enabled, allowed_paths, denied_syscalls, network, net_allowlist, tools, fallback, kind, tenant_id, is_global, owner_id, visibility, shared_with)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15::jsonb) RETURNING *`,
         [
           id, name, !!enabled, allowedPaths || '', deniedSyscalls || '', network || 'denied', 
-          netAllowlist || '', JSON.stringify(tools || []), !!fallback, kind || 'tool'
+          netAllowlist || '', JSON.stringify(tools || []), !!fallback, kind || 'tool',
+          tenantId, isGlobal, ownerId, visibility, sharedWith
         ]
       );
       res.json({ ok: true, item: out.rows[0] });
@@ -242,19 +279,34 @@ export function mountSecurityPoliciesRoutes(app, deps) {
 
   app.put("/api/security/isolation/:id", adminOnly, async (req, res) => {
     try {
-      const { name, enabled, allowedPaths, deniedSyscalls, network, netAllowlist, tools, fallback, kind } = req.body;
-      const check = await pool.query("SELECT id FROM isolation_profiles WHERE id=$1", [req.params.id]);
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : null;
+      const { name, enabled, allowedPaths, deniedSyscalls, network, netAllowlist, tools, fallback, kind, visibility, sharedWith } = req.body;
+      const check = await pool.query("SELECT * FROM isolation_profiles WHERE id=$1", [req.params.id]);
       if (check.rowCount === 0) {
+        const tenantId = ctx?.tenantId || req.session?.tenant_id || "default";
+        const isGlobal = ctx?.isSuperAdmin ? (req.body?.is_global || false) : false;
+        const ownerId = ctx?.userId || ctx?.actor || null;
         const ins = await pool.query(
-          `INSERT INTO isolation_profiles (id, name, enabled, allowed_paths, denied_syscalls, network, net_allowlist, tools, fallback, kind)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+          `INSERT INTO isolation_profiles (id, name, enabled, allowed_paths, denied_syscalls, network, net_allowlist, tools, fallback, kind, tenant_id, is_global, owner_id, visibility, shared_with)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15::jsonb) RETURNING *`,
           [
             req.params.id, name, enabled !== undefined ? Boolean(enabled) : true, allowedPaths || '', deniedSyscalls || '', network || 'denied',
-            netAllowlist || '', JSON.stringify(tools || []), fallback !== undefined ? Boolean(fallback) : false, kind || 'tool'
+            netAllowlist || '', JSON.stringify(tools || []), fallback !== undefined ? Boolean(fallback) : false, kind || 'tool',
+            tenantId, isGlobal, ownerId, visibility || 'private', JSON.stringify(sharedWith || [])
           ]
         );
         return res.json({ ok: true, item: ins.rows[0] });
       }
+
+      const row = check.rows[0];
+      if (ctx && !ctx.isSuperAdmin && !row.fallback) {
+        const ownerId = row.owner_id;
+        const matches = [ctx.userId, ctx.username, ctx.actor].filter(Boolean).map(s => String(s).toLowerCase());
+        if (!ownerId || !matches.includes(String(ownerId).toLowerCase())) {
+          return res.status(403).json({ error: "Read-only profile — only author or administrator may edit this item." });
+        }
+      }
+
       const out = await pool.query(
         `UPDATE isolation_profiles SET 
            name = COALESCE($2, name), 
@@ -265,7 +317,9 @@ export function mountSecurityPoliciesRoutes(app, deps) {
            net_allowlist = COALESCE($7, net_allowlist), 
            tools = COALESCE($8::jsonb, tools), 
            fallback = COALESCE($9::boolean, fallback), 
-           kind = COALESCE($10, kind)
+           kind = COALESCE($10, kind),
+           visibility = COALESCE($11, visibility),
+           shared_with = COALESCE($12::jsonb, shared_with)
          WHERE id=$1 RETURNING *`,
         [
           req.params.id, 
@@ -277,7 +331,9 @@ export function mountSecurityPoliciesRoutes(app, deps) {
           netAllowlist, 
           tools ? JSON.stringify(tools) : null, 
           fallback !== undefined ? Boolean(fallback) : null, 
-          kind
+          kind,
+          visibility || null,
+          sharedWith ? JSON.stringify(sharedWith) : null
         ]
       );
       res.json({ ok: true, item: out.rows[0] });
@@ -288,8 +344,21 @@ export function mountSecurityPoliciesRoutes(app, deps) {
 
   app.delete("/api/security/isolation/:id", adminOnly, async (req, res) => {
     try {
-      const { rowCount } = await pool.query("DELETE FROM isolation_profiles WHERE id=$1", [req.params.id]);
-      if (!rowCount) return res.status(404).json({ error: "not found" });
+      const check = await pool.query("SELECT * FROM isolation_profiles WHERE id=$1", [req.params.id]);
+      if (!check.rows[0]) return res.status(404).json({ error: "not found" });
+      if (check.rows[0].fallback) {
+        return res.status(400).json({ error: "System fallback sandbox profile cannot be deleted." });
+      }
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : null;
+      if (ctx && !ctx.isSuperAdmin) {
+        const ownerId = check.rows[0].owner_id;
+        const matches = [ctx.userId, ctx.username, ctx.actor].filter(Boolean).map(s => String(s).toLowerCase());
+        if (!ownerId || !matches.includes(String(ownerId).toLowerCase())) {
+          return res.status(403).json({ error: "Read-only profile — only author or administrator may delete this item." });
+        }
+      }
+
+      await pool.query("DELETE FROM isolation_profiles WHERE id=$1", [req.params.id]);
       res.json({ ok: true });
     } catch (e) {
       res.status(500).json({ error: String(e.message || e) });
@@ -299,7 +368,10 @@ export function mountSecurityPoliciesRoutes(app, deps) {
   // --- Signed Artifacts (Workflows) ---
   app.get("/api/security/signed", adminOnly, async (req, res) => {
     try {
-      const { rows } = await pool.query("SELECT * FROM signed_artifacts ORDER BY created_at ASC");
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : null;
+      const vis = typeof buildVisibility === "function" ? buildVisibility(ctx, 1, 'owner_id') : { clause: "1=1", params: [] };
+      let query = `SELECT * FROM signed_artifacts WHERE ${vis.clause} ORDER BY created_at ASC`;
+      const { rows } = await pool.query(query, vis.params);
       res.json({ items: rows });
     } catch (e) {
       res.status(500).json({ error: String(e.message || e) });
@@ -308,11 +380,18 @@ export function mountSecurityPoliciesRoutes(app, deps) {
 
   app.post("/api/security/signed", adminOnly, async (req, res) => {
     try {
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : null;
       const { id, name, fingerprint, algorithm, enforcement } = req.body;
+      const tenantId = req.body.tenant_id || ctx?.tenantId || req.session?.tenant_id || "default";
+      const isGlobal = ctx?.isSuperAdmin ? (req.body.is_global || false) : false;
+      const ownerId = req.body.owner_id || req.body.ownerId || ctx?.userId || ctx?.actor || null;
+      const visibility = req.body.visibility || "private";
+      const sharedWith = Array.isArray(req.body.sharedWith || req.body.shared_with) ? JSON.stringify(req.body.sharedWith || req.body.shared_with) : "[]";
+
       const out = await pool.query(
-        `INSERT INTO signed_artifacts (id, name, fingerprint, algorithm, enforcement, hash)
-         VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-        [id, name, fingerprint || '', algorithm || '', enforcement || '', '']
+        `INSERT INTO signed_artifacts (id, name, fingerprint, algorithm, enforcement, hash, tenant_id, is_global, owner_id, visibility, shared_with)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb) RETURNING *`,
+        [id, name, fingerprint || '', algorithm || '', enforcement || '', '', tenantId, isGlobal, ownerId, visibility, sharedWith]
       );
       res.json({ ok: true, item: out.rows[0] });
     } catch (e) {
@@ -356,7 +435,10 @@ export function mountSecurityPoliciesRoutes(app, deps) {
   // --- Policy Engine ---
   app.get("/api/security/policy", adminOnly, async (req, res) => {
     try {
-      const { rows } = await pool.query("SELECT * FROM policy_rules ORDER BY seq ASC, created_at ASC");
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : null;
+      const vis = typeof buildVisibility === "function" ? buildVisibility(ctx, 1, 'owner_id') : { clause: "1=1", params: [] };
+      let query = `SELECT * FROM policy_rules WHERE ${vis.clause} ORDER BY seq ASC, created_at ASC`;
+      const { rows } = await pool.query(query, vis.params);
       res.json({ items: rows });
     } catch (e) {
       res.status(500).json({ error: String(e.message || e) });
@@ -365,11 +447,19 @@ export function mountSecurityPoliciesRoutes(app, deps) {
 
   app.post("/api/security/policy", adminOnly, async (req, res) => {
     try {
-      const { id, name, ifCondition, thenAction, priority, seq, enabled, action } = req.body;
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : null;
+      const id = req.body?.id || `pol.${Math.random().toString(36).slice(2, 7)}`;
+      const { name, ifCondition, thenAction, priority, seq, enabled, action } = req.body;
+      const tenantId = req.body.tenant_id || ctx?.tenantId || req.session?.tenant_id || "default";
+      const isGlobal = ctx?.isSuperAdmin ? (req.body.is_global || false) : false;
+      const ownerId = req.body.owner_id || req.body.ownerId || ctx?.userId || ctx?.actor || null;
+      const visibility = req.body.visibility || "private";
+      const sharedWith = Array.isArray(req.body.sharedWith || req.body.shared_with) ? JSON.stringify(req.body.sharedWith || req.body.shared_with) : "[]";
+
       const out = await pool.query(
-        `INSERT INTO policy_rules (id, name, if_condition, then_action, priority, seq, enabled, action)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-        [id, name, ifCondition || '', thenAction || '', priority || '', seq || 0, !!enabled, action || 'allow']
+        `INSERT INTO policy_rules (id, name, if_condition, then_action, priority, seq, enabled, action, tenant_id, is_global, owner_id, visibility, shared_with)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb) RETURNING *`,
+        [id, name, ifCondition || '', thenAction || '', priority || '', seq || 0, !!enabled, action || 'allow', tenantId, isGlobal, ownerId, visibility, sharedWith]
       );
       res.json({ ok: true, item: out.rows[0] });
     } catch (e) {

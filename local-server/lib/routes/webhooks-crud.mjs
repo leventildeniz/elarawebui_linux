@@ -26,8 +26,9 @@ export async function mountWebhooksCrudRoutes(app, deps) {
         ingestToRag: !!r.ingest_to_rag,
         ragSpaceId: r.rag_space_id || "",
         owner: r.owner_id || "",
+        ownerId: r.owner_id || "",
         ownerName: r.owner_name || "",
-        visibility: r.visibility || "workspace",
+        visibility: r.visibility || "private",
         sharedWith: r.shared_with || [],
         tenant_id: r.tenant_id || "default",
         createdAt: new Date(r.created_at).getTime()
@@ -55,7 +56,7 @@ export async function mountWebhooksCrudRoutes(app, deps) {
           m.vaultScope || "none", m.vaultName || null, m.vaultField || null,
           m.config || "{}", m.risk || "low", !!m.requiresApproval, m.enabled !== false,
           m.slug || id, m.urlOverride || null, m.ingestToRag !== false, m.ragSpaceId || null,
-          owner_id, owner_name, m.visibility || "workspace", JSON.stringify(m.sharedWith || []),
+          owner_id, owner_name, m.visibility || "private", JSON.stringify(m.sharedWith || []),
           tenantId, isGlobal
         ]
       );

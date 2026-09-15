@@ -395,9 +395,16 @@ export function useTargets() {
         const res = await fetchApi("/api/targets");
 
         if (res?.ok && res.state) {
+          const mappedTargets = (res.state.targets || []).map((t: any) => ({
+            ...t,
+            ownerId: t.ownerId || t.owner || "",
+            ownerName: t.ownerName || t.owner || "",
+            visibility: t.visibility || "private",
+            sharedWith: t.sharedWith || [],
+          }));
           setState({
             groups: res.state.groups || [],
-            targets: res.state.targets || []
+            targets: mappedTargets
           });
         }
       } catch (err) {

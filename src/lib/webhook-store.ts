@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { fetchApi } from "./api";
 import { canEdit, readOwnerCtx, scopeOwned, stampOwner, useOwnerCtx, type Owned } from "@/lib/ownership";
 
@@ -44,7 +44,7 @@ export const emptyWebhook: Omit<Webhook, "id" | "createdAt"> = {
   ragSpaceId: "",
   ownerId: "",
   ownerName: "",
-  visibility: "workspace",
+  visibility: "private",
   sharedWith: [],
 };
 
@@ -69,8 +69,18 @@ async function syncWebhooksBackend() {
   }
 }
 
-export function useWebhooks() {
+export interface UseWebhooksResult {
+  webhooks: Webhook[];
+  rawWebhooks: Webhook[];
+  create: (draft: Omit<Webhook, "id" | "createdAt">) => Promise<string>;
+  update: (id: string, patch: Partial<Webhook>) => Promise<void>;
+  remove: (id: string) => Promise<void>;
+  toggle: (id: string) => void;
+}
+
+export function useWebhooks(): UseWebhooksResult {
   const [webhooks, setWebhooks] = useState<Webhook[]>(cachedWebhooks);
+  const ownerCtx = useOwnerCtx();
 
   useEffect(() => {
     const onSync = () => setWebhooks([...cachedWebhooks]);
@@ -78,6 +88,8 @@ export function useWebhooks() {
     syncWebhooksBackend();
     return () => window.removeEventListener(EVT, onSync);
   }, []);
+
+  const visibleWebhooks = useMemo(() => scopeOwned(webhooks, ownerCtx), [webhooks, ownerCtx]);
 
   const create = useCallback(
     async (draft: Omit<Webhook, "id" | "createdAt">) => {
@@ -135,5 +147,5 @@ export function useWebhooks() {
     [update]
   );
 
-  return { webhooks, create, update, remove, toggle };
+  return { webhooks: visibleWebhooks, rawWebhooks: webhooks, create, update, remove, toggle };
 }

@@ -34,9 +34,10 @@ export function mountTargetsRoutes(app, deps) {
 
       const groupQuery = ctx.isSuperAdmin
         ? "SELECT * FROM target_groups ORDER BY created_at ASC"
-        : "SELECT * FROM target_groups WHERE (tenant_id = $1 OR is_global = true OR tenant_id = 'default') ORDER BY created_at ASC";
-      const targetQuery = ctx.isSuperAdmin
-        ? `SELECT t.*,
+        : "SELECT * FROM target_groups WHERE (tenant_id = $1 OR is_global = true) ORDER BY created_at ASC";
+
+      const vis = typeof buildVisibility === "function" ? buildVisibility(ctx, 1, 'owner') : { clause: "1=1", params: [] };
+      const targetQuery = `SELECT t.*,
                COALESCE(
                  (SELECT json_agg(json_build_object(
                     'id', te.id,
@@ -53,30 +54,12 @@ export function mountTargetsRoutes(app, deps) {
                  '[]'::json
                ) AS endpoints_json
           FROM targets t
-          ORDER BY t.created_at DESC`
-        : `SELECT t.*,
-               COALESCE(
-                 (SELECT json_agg(json_build_object(
-                    'id', te.id,
-                    'port', COALESCE(te.port::text, ''),
-                    'adapter', COALESCE(te.adapter_id, ''),
-                    'label', COALESCE(te.label, ''),
-                    'vaultScope', COALESCE(te.vault_scope, ''),
-                    'vaultName', COALESCE(te.vault_name, ''),
-                    'primary', COALESCE(te.is_primary, false)
-                  ))
-                  FROM target_endpoints te
-                  WHERE te.target_id = t.id
-                 ),
-                 '[]'::json
-               ) AS endpoints_json
-          FROM targets t
-          WHERE (t.tenant_id = $1 OR t.is_global = true OR t.tenant_id = 'default')
+          WHERE ${vis.clause}
           ORDER BY t.created_at DESC`;
 
       const [gRes, tRes] = await Promise.all([
         pool.query(groupQuery, ctx.isSuperAdmin ? [] : [tenantId]),
-        pool.query(targetQuery, ctx.isSuperAdmin ? [] : [tenantId])
+        pool.query(targetQuery, vis.params)
       ]);
 
       const groups = gRes.rows;
@@ -104,6 +87,10 @@ export function mountTargetsRoutes(app, deps) {
         risk: t.risk_level || "low",
         requiresApproval: !!t.requires_approval,
         owner: t.owner || "",
+        ownerId: t.owner || "",
+        ownerName: t.owner || "",
+        visibility: t.visibility || "private",
+        sharedWith: t.shared_with || [],
         notes: t.notes || "",
         enabled: true,
         createdAt: new Date(t.created_at).getTime(),
@@ -179,13 +166,16 @@ export function mountTargetsRoutes(app, deps) {
       const tagsArr = Array.isArray(tags) ? tags : [];
       const tenantId = req.body?.tenant_id || req.session?.tenant_id || ctx.tenantId || "default";
       const isGlobal = ctx.isSuperAdmin ? (req.body?.is_global || false) : false;
+      const ownerId = req.body?.owner_id || req.body?.ownerId || req.body?.owner || ctx.userId || req.session?.username || req.actor || "";
+      const visibility = req.body?.visibility || "private";
+      const sharedWith = Array.isArray(req.body?.sharedWith || req.body?.shared_with) ? JSON.stringify(req.body?.sharedWith || req.body?.shared_with) : "[]";
 
       await client.query("BEGIN");
       
       const out = await client.query(
-        `INSERT INTO targets (id, name, group_id, ip, host, port, tags, default_adapter_id, vault_scope, vault_name, risk_level, requires_approval, owner, notes, tenant_id, is_global)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`,
-        [tId, name, groupId || null, ip || "", host || "", Number.isFinite(pt) ? pt : null, tagsArr, adapter || null, vaultScope || "", vaultName || "", risk || "low", !!requiresApproval, owner || req.session?.username || req.actor || "", notes || "", tenantId, isGlobal]
+        `INSERT INTO targets (id, name, group_id, ip, host, port, tags, default_adapter_id, vault_scope, vault_name, risk_level, requires_approval, owner, notes, tenant_id, is_global, visibility, shared_with)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18::jsonb) RETURNING *`,
+        [tId, name, groupId || null, ip || "", host || "", Number.isFinite(pt) ? pt : null, tagsArr, adapter || null, vaultScope || "", vaultName || "", risk || "low", !!requiresApproval, ownerId, notes || "", tenantId, isGlobal, visibility, sharedWith]
       );
       
       if (Array.isArray(endpoints) && endpoints.length > 0) {
@@ -240,13 +230,17 @@ export function mountTargetsRoutes(app, deps) {
       const r_requires = requiresApproval !== undefined ? !!requiresApproval : row.requires_approval;
       const r_owner = owner !== undefined && owner !== "" ? owner : row.owner;
       const r_notes = notes !== undefined ? notes : row.notes;
+      const r_visibility = req.body?.visibility !== undefined ? req.body.visibility : (row.visibility || 'private');
+      const r_shared = req.body?.sharedWith !== undefined || req.body?.shared_with !== undefined
+        ? JSON.stringify(req.body?.sharedWith || req.body?.shared_with || [])
+        : JSON.stringify(row.shared_with || []);
 
       await client.query("BEGIN");
       
       const out = await client.query(
-        `UPDATE targets SET name=$2, group_id=$3, ip=$4, host=$5, port=$6, tags=$7, default_adapter_id=$8, vault_scope=$9, vault_name=$10, risk_level=$11, requires_approval=$12, owner=$13, notes=$14, updated_at=now()
+        `UPDATE targets SET name=$2, group_id=$3, ip=$4, host=$5, port=$6, tags=$7, default_adapter_id=$8, vault_scope=$9, vault_name=$10, risk_level=$11, requires_approval=$12, owner=$13, notes=$14, visibility=$15, shared_with=$16::jsonb, updated_at=now()
          WHERE id=$1 RETURNING *`,
-        [req.params.id, r_name, r_group, r_ip, r_host, r_ports, r_tags, r_adapter, r_vault_scope, r_vault_name, r_risk, r_requires, r_owner, r_notes]
+        [req.params.id, r_name, r_group, r_ip, r_host, r_ports, r_tags, r_adapter, r_vault_scope, r_vault_name, r_risk, r_requires, r_owner, r_notes, r_visibility, r_shared]
       );
       
       if (endpoints !== undefined) {

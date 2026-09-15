@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState, useEffect } from "react";
-import { canEdit as canEditOwned, editRefusal, useOwnerCtx, stampOwner } from "@/lib/ownership";
+import { canEdit as canEditOwned, canSee, editRefusal, useOwnerCtx, stampOwner } from "@/lib/ownership";
 import { ReadOnlyBanner } from "@/components/sovereign/ownership-controls";
 import { createFileRoute } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
@@ -713,13 +713,14 @@ function TargetsPage() {
     () =>
       targets.filter(
         (t) =>
+          canSee(t, ownerCtx) &&
           (group === "all" || t.groupId === group) &&
           (!query.trim() ||
             `${t.id} ${t.name} ${t.ip} ${t.host} ${t.owner} ${t.tags.join(" ")}`
               .toLowerCase()
               .includes(query.trim().toLowerCase())),
       ),
-    [targets, group, query],
+    [targets, group, query, ownerCtx],
   );
 
   const [showImportHelp, setShowImportHelp] = useState(false);

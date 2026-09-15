@@ -7,8 +7,8 @@ import { promisify } from "node:util";
 const execAsync = promisify(exec);
 
 export function mountPythonRoutes(app, deps) {
-  const { pool, requireSession } = deps;
-  const adminOnly = requireSession({ roles: ["admin", "operator"] });
+  const { pool, requireSession, resolveActorContext, buildVisibility, assertCanEdit } = deps;
+  const adminOnly = requireSession({ roles: ["admin", "operator", "engineer"] });
 
   app.post("/api/python/detect", adminOnly, async (req, res) => {
     let p = String(req.body?.path || "").trim();
@@ -47,16 +47,11 @@ export function mountPythonRoutes(app, deps) {
 
   app.get("/api/python/runtimes", adminOnly, async (req, res) => {
     try {
-      const ctx = typeof deps.resolveActorContext === "function" ? await deps.resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
-      let query = "SELECT * FROM runtimes";
-      const params = [];
-      if (!ctx.isSuperAdmin) {
-        query += " WHERE (tenant_id = $1 OR is_global = true OR tenant_id = 'default')";
-        params.push(ctx.tenantId || "default");
-      }
-      query += " ORDER BY created_at DESC";
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
+      const vis = typeof buildVisibility === "function" ? buildVisibility(ctx, 1, 'owner_id') : { clause: "1=1", params: [] };
+      let query = `SELECT * FROM runtimes WHERE ${vis.clause} ORDER BY created_at DESC`;
 
-      const { rows } = await pool.query(query, params);
+      const { rows } = await pool.query(query, vis.params);
       res.json({ items: rows });
     } catch (e) {
       res.status(500).json({ error: String(e.message || e) });
@@ -65,20 +60,23 @@ export function mountPythonRoutes(app, deps) {
 
   app.post("/api/python/runtimes", adminOnly, async (req, res) => {
     try {
-      const { id, name, version, pythonPath, venvPath, memory, egress, packages } = req.body;
+      const id = req.body?.id || `py.sandbox.${Math.random().toString(36).slice(2, 8)}`;
+      const { name, version, pythonPath, venvPath, memory, egress, packages } = req.body;
       const memAuto = memory === "auto";
       const memMb = memAuto ? null : Number(memory) || 1024;
       
-      const ctx = await deps.resolveActorContext(req);
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
       const owner_id = req.body.owner_id || req.body.ownerId || ctx.userId || req.actor || null;
       const owner_name = req.body.owner_name || req.body.ownerName || ctx.actor || req.session?.username || null;
       const tenantId = req.body.tenant_id || req.body.tenantId || (ctx.isSuperAdmin ? (req.body.tenant_id || "default") : ctx.tenantId);
       const isGlobal = ctx.isSuperAdmin ? (req.body.is_global || false) : false;
+      const visibility = req.body.visibility || "private";
+      const sharedWith = Array.isArray(req.body.sharedWith || req.body.shared_with) ? JSON.stringify(req.body.sharedWith || req.body.shared_with) : "[]";
       
       const out = await pool.query(
-        `INSERT INTO runtimes (id, name, version, python_path, venv_path, memory_mb, memory_auto, packages, egress, status, owner_id, owner_name, tenant_id, is_global)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'idle', $10, $11, $12, $13) RETURNING *`,
-        [id, name, version || '', pythonPath || '', venvPath || null, memMb, memAuto, packages || '', !!egress, owner_id, owner_name, tenantId, isGlobal]
+        `INSERT INTO runtimes (id, name, version, python_path, venv_path, memory_mb, memory_auto, packages, egress, status, owner_id, owner_name, tenant_id, is_global, visibility, shared_with)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'idle', $10, $11, $12, $13, $14, $15::jsonb) RETURNING *`,
+        [id, name, version || '', pythonPath || '', venvPath || null, memMb, memAuto, packages || '', !!egress, owner_id, owner_name, tenantId, isGlobal, visibility, sharedWith]
       );
       res.json({ ok: true, item: out.rows[0] });
     } catch (e) {
@@ -88,9 +86,13 @@ export function mountPythonRoutes(app, deps) {
 
   app.put("/api/python/runtimes/:id", adminOnly, async (req, res) => {
     try {
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : null;
       const existing = await pool.query("SELECT * FROM runtimes WHERE id=$1", [req.params.id]);
       if (!existing.rowCount) return res.status(404).json({ error: "not found" });
       const row = existing.rows[0];
+      if (ctx && assertCanEdit) {
+        assertCanEdit(ctx, row, "python runtime");
+      }
 
       // Front-end'den (Zustand üzerinden) tüm model objesi geldiği için
       // SADECE eksik gönderilen (örneğin sadece status güncelleniyorsa) verileri DB'den devralalım.
@@ -136,14 +138,17 @@ export function mountPythonRoutes(app, deps) {
         })();
       }
 
-      const ctx = await deps.resolveActorContext(req);
-      const owner_id = req.body.owner_id || req.body.ownerId || ctx.userId || req.actor || null;
-      const owner_name = req.body.owner_name || req.body.ownerName || ctx.actor || req.session?.username || null;
+      const owner_id = req.body.owner_id || req.body.ownerId || ctx?.userId || req.actor || null;
+      const owner_name = req.body.owner_name || req.body.ownerName || ctx?.actor || req.session?.username || null;
+      const visibility = req.body?.visibility !== undefined ? req.body.visibility : row.visibility;
+      const sharedWith = req.body?.sharedWith !== undefined || req.body?.shared_with !== undefined
+        ? JSON.stringify(req.body?.sharedWith || req.body?.shared_with || [])
+        : JSON.stringify(row.shared_with || []);
 
       const out = await pool.query(
-        `UPDATE runtimes SET name=$2, version=$3, python_path=$4, venv_path=$5, memory_mb=$6, memory_auto=$7, packages=$8, egress=$9, status=$10, owner_id=COALESCE(runtimes.owner_id, $11), owner_name=COALESCE(runtimes.owner_name, $12), last_error=NULL
+        `UPDATE runtimes SET name=$2, version=$3, python_path=$4, venv_path=$5, memory_mb=$6, memory_auto=$7, packages=$8, egress=$9, status=$10, owner_id=COALESCE(runtimes.owner_id, $11), owner_name=COALESCE(runtimes.owner_name, $12), visibility=$13, shared_with=$14::jsonb, last_error=NULL
          WHERE id=$1 RETURNING *`,
-        [req.params.id, name, version, pythonPath, venvPath, memMb, memAuto, packages, !!egress, status, owner_id, owner_name]
+        [req.params.id, name, version, pythonPath, venvPath, memMb, memAuto, packages, !!egress, status, owner_id, owner_name, visibility, sharedWith]
       );
       
       res.json({ ok: true, item: out.rows[0] });
@@ -154,11 +159,17 @@ export function mountPythonRoutes(app, deps) {
 
   app.delete("/api/python/runtimes/:id", adminOnly, async (req, res) => {
     try {
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : null;
+      const existing = await pool.query("SELECT * FROM runtimes WHERE id=$1", [req.params.id]);
+      if (!existing.rowCount) return res.status(404).json({ error: "not found" });
+      if (ctx && assertCanEdit) {
+        assertCanEdit(ctx, existing.rows[0], "python runtime");
+      }
       const { rowCount } = await pool.query("DELETE FROM runtimes WHERE id=$1", [req.params.id]);
       if (!rowCount) return res.status(404).json({ error: "not found" });
       res.json({ ok: true });
     } catch (e) {
-      res.status(500).json({ error: String(e.message || e) });
+      res.status(e.status || 500).json({ error: String(e.message || e) });
     }
   });
 }

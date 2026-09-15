@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { fetchApi } from "./api";
+import type { Owned } from "@/lib/ownership";
 
 export type RuntimeStatus = "idle" | "running" | "stopped" | "error";
 
-export type PythonRuntime = {
+export type PythonRuntime = Owned & {
   id: string;
   name: string;
   version: string;
@@ -49,6 +50,10 @@ export function useRuntimes() {
         packages: row.packages,
         egress: row.egress,
         status: row.status,
+        ownerId: row.owner_id || "",
+        ownerName: row.owner_name || "",
+        visibility: row.visibility || "private",
+        sharedWith: row.shared_with || [],
         createdAt: new Date(row.created_at).getTime()
       } as PythonRuntime));
 

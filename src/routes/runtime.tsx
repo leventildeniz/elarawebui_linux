@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
 import { Check, Cpu, Loader2, Pencil, Play, Plus, Search, Square, Trash2, X } from "lucide-react";
 import { Surface } from "@/components/sovereign/surface";
 import { JewelButton, Sheen, StatusDot, Tag } from "@/components/sovereign/primitives";
 import { useRuntimes, type PythonRuntime, type RuntimeStatus } from "@/lib/runtime-store";
+import { useOwnerCtx, scopeOwned } from "@/lib/ownership";
 import { fetchApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -56,18 +57,20 @@ const statusTone: Record<RuntimeStatus, "emerald" | "sapphire" | "ruby"> = {
 
 function RuntimePage() {
   const { runtimes, create, update, remove } = useRuntimes();
+  const ownerCtx = useOwnerCtx();
+  const visibleRuntimes = useMemo(() => scopeOwned(runtimes, ownerCtx), [runtimes, ownerCtx]);
   const [editing, setEditing] = useState<PythonRuntime | null>(null);
   const [creating, setCreating] = useState(false);
   const [confirm, setConfirm] = useState<string | null>(null);
 
-  const running = runtimes.filter((r) => r.status === "running").length;
-  const memory = runtimes.reduce((s, r) => s + (typeof r.memory === "number" ? r.memory : 0), 0);
-  const autoCount = runtimes.filter((r) => r.memory === "auto").length;
+  const running = visibleRuntimes.filter((r) => r.status === "running").length;
+  const memory = visibleRuntimes.reduce((s, r) => s + (typeof r.memory === "number" ? r.memory : 0), 0);
+  const autoCount = visibleRuntimes.filter((r) => r.memory === "auto").length;
 
   return (
     <Surface
       title="Python Runtime"
-      meta={`${runtimes.length} sandbox · ${running} running · ${memory} MB allocated${autoCount ? ` · ${autoCount} auto` : ""}`}
+      meta={`${visibleRuntimes.length} sandbox · ${running} running · ${memory} MB allocated${autoCount ? ` · ${autoCount} auto` : ""}`}
       wide
       action={
         <JewelButton onClick={() => setCreating(true)} className="gap-2">
@@ -83,7 +86,7 @@ function RuntimePage() {
 
       <div className="mt-10 grid gap-4 sm:grid-cols-2">
         <AnimatePresence initial={false}>
-          {runtimes.map((r, i) => (
+          {visibleRuntimes.map((r, i) => (
             <motion.article
               key={r.id}
               layout

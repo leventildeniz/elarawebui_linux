@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { fetchApi } from "./api";
+import type { Owned } from "@/lib/ownership";
 
-export type SecretEntry = {
+export type SecretEntry = Owned & {
   id: string;
   scope: string;
   name: string;
@@ -36,7 +37,7 @@ export type SecretEntry = {
 /** firewall verdict verbs shared by both policy chains */
 export type RuleAction = "allow" | "deny" | "redact" | "route" | "challenge" | "log";
 
-export type GenGuardRule = {
+export type GenGuardRule = Owned & {
   id: string;
   name: string;
   enabled: boolean;
@@ -60,7 +61,7 @@ export type GenGuardRule = {
   failMode?: "fail_open" | "fail_closed";
 };
 
-export type IsolationProfile = {
+export type IsolationProfile = Owned & {
   id: string;
   name: string;
   enabled: boolean;
@@ -98,7 +99,7 @@ export function resolveSandbox(
   return active.find((p) => p.tools.includes(toolId)) ?? active.find((p) => p.fallback) ?? null;
 }
 
-export type SignedWorkflow = {
+export type SignedWorkflow = Owned & {
   id: string;
   name: string;
   fingerprint: string;
@@ -106,7 +107,7 @@ export type SignedWorkflow = {
   enforcement: string;
   createdAt: number;
 };
-export type PolicyRule = {
+export type PolicyRule = Owned & {
   id: string;
   name: string;
   ifCondition: string;
@@ -213,7 +214,7 @@ export const guardSeed: GenGuardRule[] = [
 export const isolationSeed: IsolationProfile[] = [
   {
     id: "iso.01",
-    name: "Default sandbox",
+    name: "Default tool sandbox",
     enabled: true,
     allowedPaths: "/var/lib/sovereign/work\n/tmp/sandbox",
     deniedSyscalls: "fork, exec, ptrace",
@@ -283,7 +284,7 @@ export function useCollection<T extends { id: string; createdAt: number }>(
   seed: T[],
   prefix: string,
 ) {
-  const [items, setItems] = useState<T[]>(seed);
+  const [items, setItems] = useState<T[]>([]);
   const [loading, setLoading] = useState(false);
 
   // Map prefix to API endpoint
@@ -322,6 +323,10 @@ export function useCollection<T extends { id: string; createdAt: number }>(
         stage: row.stage || "input",
         timeoutMs: row.timeout_ms || 1500,
         failMode: row.fail_mode || "fail_open",
+        ownerId: row.owner_id || "",
+        ownerName: row.owner_name || "",
+        visibility: row.visibility || "private",
+        sharedWith: row.shared_with || [],
         createdAt: new Date(row.created_at).getTime()
       } as unknown as T;
     }
@@ -331,12 +336,20 @@ export function useCollection<T extends { id: string; createdAt: number }>(
         allowedPaths: row.allowed_paths,
         deniedSyscalls: row.denied_syscalls,
         netAllowlist: row.net_allowlist,
+        ownerId: row.owner_id || "",
+        ownerName: row.owner_name || "",
+        visibility: row.visibility || (row.fallback ? "workspace" : "private"),
+        sharedWith: row.shared_with || [],
         createdAt: new Date(row.created_at).getTime()
       } as unknown as T;
     }
     if (prefix === "sig") {
       return {
         ...row,
+        ownerId: row.owner_id || "",
+        ownerName: row.owner_name || "",
+        visibility: row.visibility || "private",
+        sharedWith: row.shared_with || [],
         createdAt: new Date(row.created_at).getTime()
       } as unknown as T;
     }
@@ -345,6 +358,10 @@ export function useCollection<T extends { id: string; createdAt: number }>(
         ...row,
         ifCondition: row.if_condition,
         thenAction: row.then_action,
+        ownerId: row.owner_id || "",
+        ownerName: row.owner_name || "",
+        visibility: row.visibility || "private",
+        sharedWith: row.shared_with || [],
         createdAt: new Date(row.created_at).getTime()
       } as unknown as T;
     }
@@ -363,13 +380,7 @@ export function useCollection<T extends { id: string; createdAt: number }>(
     try {
       const data = await fetchApi(endpoint);
       const rows = (data.items || []).map(mapFromServer);
-      
-      // If db is empty, merge in seed items (similar to planners)
-      if (rows.length === 0 && seed.length > 0) {
-        setItems(seed);
-      } else {
-        setItems(rows);
-      }
+      setItems(rows);
     } catch (err) {
       console.error(`Failed to load ${prefix} collection:`, err);
       // Fallback to local storage on error

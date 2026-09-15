@@ -145,8 +145,10 @@ const mapAdapterRow = (row: any): Adapter => {
     enabled: !!row.enabled,
     createdAt: new Date(row.updated_at || row.created_at || Date.now()).getTime(),
     lastTest: null,
-    ownerId: row.owner || "org",
-    visibility: "workspace",
+    ownerId: row.ownerId || row.owner_id || row.owner || "",
+    ownerName: row.ownerName || row.owner_name || "",
+    visibility: row.visibility || "private",
+    sharedWith: row.sharedWith || row.shared_with || [],
   };
 };
 

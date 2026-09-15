@@ -163,6 +163,11 @@ export async function autoLinkLegacyOwnership({ migrateReady } = {}) {
     if (!defaultActor) return;
     await _pool.query("UPDATE agents SET owner_id=$1 WHERE owner_id IS NULL", [defaultActor]);
     await _pool.query("UPDATE app_agents SET owner_user_id=$1 WHERE owner_user_id IS NULL", [defaultActor]);
+    await _pool.query("UPDATE adapters SET owner_id=$1 WHERE owner_id IS NULL", [defaultActor]);
+    await _pool.query("UPDATE runtimes SET owner_id=$1 WHERE owner_id IS NULL", [defaultActor]);
+    await _pool.query("UPDATE guard_rules SET owner_id=$1 WHERE owner_id IS NULL", [defaultActor]);
+    await _pool.query("UPDATE policy_rules SET owner_id=$1 WHERE owner_id IS NULL", [defaultActor]);
+    await _pool.query("UPDATE isolation_profiles SET owner_id=$1 WHERE fallback = false AND owner_id IS NULL", [defaultActor]);
     const runtimeTable = await _pool.query("SELECT to_regclass('public.runtimes_config') AS table_name");
     if (runtimeTable.rows[0]?.table_name) {
       await _pool.query("UPDATE runtimes_config SET owner_user_id=$1 WHERE owner_user_id IS NULL", [defaultActor]);

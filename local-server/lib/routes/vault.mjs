@@ -15,6 +15,7 @@ export function mountVaultRoutes(app, deps) {
     verifyAuditChain,
     rebuildAuditChain,
     broadcastAudit,
+    resolveActorContext,
   } = deps;
 
   // Faz 7 — vault audit helper. Every vault access (read/write/delete/list and
@@ -64,7 +65,7 @@ export function mountVaultRoutes(app, deps) {
   // Vault v2 (2026-05-20) — body iki şekli kabul eder:
   //   Eski:  { scope, name, value }                         → kind='api_key', fields={api_key:value}
   //   Yeni:  { scope, name, kind, fields:{...}, meta:{...} } → çok-alanlı
-  app.post("/api/vault", requireSession({ roles: ["admin"] }), async (req, res) => {
+  app.post("/api/vault", requireSession({ roles: ["admin", "engineer", "operator", "security"] }), async (req, res) => {
     const { scope, name } = req.body ?? {};
     let { kind, fields, meta, value } = req.body ?? {};
     if (!scope || !name) {
@@ -87,8 +88,11 @@ export function mountVaultRoutes(app, deps) {
       return res.status(400).json({ error: "at least one field required" });
     }
     try {
-      const tenant_id = req.session?.tenant_id || "default";
-      const is_global = req.session?.role === "admin" && tenant_id === "default" && (scope === "global" || scope === "system");
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : null;
+      const tenant_id = ctx?.tenantId || req.session?.tenant_id || "default";
+      const is_global = ctx?.isSuperAdmin ? (scope === "global" || scope === "system") : false;
+      meta.owner_id = meta.owner_id || ctx?.userId || ctx?.actor || null;
+      meta.visibility = meta.visibility || "private";
       const out = await putSecretV2(pool, { scope, name, kind, fields, meta, tenant_id, is_global });
       vaultAudit({
         action: "write", scope, name, req,
@@ -101,12 +105,23 @@ export function mountVaultRoutes(app, deps) {
     }
   });
 
-  app.get("/api/vault/:scope/:name", requireSession({ roles: ["admin"] }), async (req, res) => {
+  app.get("/api/vault/:scope/:name", requireSession({ roles: ["admin", "engineer", "operator", "security"] }), async (req, res) => {
     try {
       const out = await getSecretAllFields(pool, req.params.scope, req.params.name);
       if (!out) {
         vaultAudit({ action: "read", scope: req.params.scope, name: req.params.name, req, ok: false, reason: "not found" });
         return res.status(404).end();
+      }
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : null;
+      if (ctx && !ctx.isSuperAdmin) {
+        const ownerId = out.meta?.owner_id;
+        const matches = [ctx.userId, ctx.username, ctx.actor].filter(Boolean).map(s => String(s).toLowerCase());
+        const isOwner = ownerId && matches.includes(String(ownerId).toLowerCase());
+        const isWorkspace = out.meta?.visibility === "workspace";
+        const isSystem = (!ownerId && (out.is_global || out.scope === "system"));
+        if (!isOwner && !isWorkspace && !isSystem && !ctx.isTenantAdmin) {
+          return res.status(403).json({ error: "Access denied" });
+        }
       }
       vaultAudit({ action: "read", scope: req.params.scope, name: req.params.name, req, meta: { kind: out.kind, field_count: Object.keys(out.fields).length } });
       res.json({
@@ -120,7 +135,7 @@ export function mountVaultRoutes(app, deps) {
     }
   });
 
-  app.get("/api/vault/:scope/:name/fields", requireSession({ roles: ["admin"] }), async (req, res) => {
+  app.get("/api/vault/:scope/:name/fields", requireSession({ roles: ["admin", "engineer", "operator", "security"] }), async (req, res) => {
     try {
       const out = await listSecretFieldNames(pool, req.params.scope, req.params.name);
       if (!out) return res.status(404).end();
@@ -128,11 +143,13 @@ export function mountVaultRoutes(app, deps) {
     } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
   });
 
-  app.get("/api/vault", requireSession({ roles: ["admin"] }), async (req, res) => {
+  app.get("/api/vault", requireSession({ roles: ["admin", "engineer", "operator", "security"] }), async (req, res) => {
     try {
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : null;
       const scope = req.query.scope ? String(req.query.scope) : null;
-      const tenantId = req.session?.tenant_id || "default";
-      const isSuperAdmin = req.session?.role === "admin" && tenantId === "default";
+      const tenantId = ctx?.tenantId || req.session?.tenant_id || "default";
+      const isSuperAdmin = ctx ? ctx.isSuperAdmin : (req.session?.role === "admin" && tenantId === "default");
+      const isTenantAdmin = ctx ? ctx.isTenantAdmin : false;
       let query = `SELECT s.scope, s.name, s.kind, s.meta, s.created_at, s.updated_at, s.tenant_id, s.is_global,
                 COALESCE(
                   (SELECT array_agg(f.field_name ORDER BY f.field_name)
@@ -147,8 +164,30 @@ export function mountVaultRoutes(app, deps) {
         whereParts.push(`s.scope = $${params.length}`);
       }
       if (!isSuperAdmin) {
-        params.push(tenantId);
-        whereParts.push(`(s.tenant_id = $${params.length} OR s.is_global = true OR s.scope = 'global' OR s.scope = 'system')`);
+        if (isTenantAdmin) {
+          params.push(tenantId);
+          whereParts.push(`(s.tenant_id = $${params.length} OR s.is_global = true OR s.scope = 'global' OR s.scope = 'system')`);
+        } else {
+          const userMatches = [ctx?.userId, ctx?.username, ctx?.actor].filter(Boolean).map(s => String(s).toLowerCase());
+          params.push(tenantId);
+          const tSlot = `$${params.length}`;
+          if (userMatches.length > 0) {
+            const uSlots = userMatches.map(u => {
+              params.push(u);
+              return `$${params.length}`;
+            });
+            whereParts.push(`(
+              (lower(COALESCE(s.meta->>'owner_id', '')) = ANY(ARRAY[${uSlots.join(",")}]::text[]))
+              OR (s.meta->>'visibility' = 'workspace' AND s.tenant_id = ${tSlot})
+              OR ((s.meta->>'owner_id' IS NULL OR s.meta->>'owner_id' = '') AND (s.is_global = true OR s.scope = 'system'))
+            )`);
+          } else {
+            whereParts.push(`(
+              (s.meta->>'visibility' = 'workspace' AND s.tenant_id = ${tSlot})
+              OR ((s.meta->>'owner_id' IS NULL OR s.meta->>'owner_id' = '') AND (s.is_global = true OR s.scope = 'system'))
+            )`);
+          }
+        }
       }
       if (whereParts.length) {
         query += " WHERE " + whereParts.join(" AND ");
@@ -161,8 +200,29 @@ export function mountVaultRoutes(app, deps) {
     } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
   });
 
-  app.delete("/api/vault/:scope/:name", requireSession({ roles: ["admin"] }), async (req, res) => {
+  app.delete("/api/vault/:scope/:name", requireSession({ roles: ["admin", "engineer", "operator", "security"] }), async (req, res) => {
     try {
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : null;
+      const tenantId = ctx?.tenantId || req.session?.tenant_id || "default";
+      const isSuperAdmin = ctx ? ctx.isSuperAdmin : (req.session?.role === "admin" && tenantId === "default");
+      const isTenantAdmin = ctx ? ctx.isTenantAdmin : false;
+
+      const curRes = await pool.query("SELECT * FROM vault_secrets WHERE scope=$1 AND name=$2", [req.params.scope, req.params.name]);
+      if (!curRes.rows[0]) return res.status(404).end();
+      const sRow = curRes.rows[0];
+
+      if (!isSuperAdmin) {
+        if (isTenantAdmin && (sRow.tenant_id === tenantId || sRow.tenant_id === "default")) {
+          // allowed for tenant admin
+        } else {
+          const ownerId = sRow.meta?.owner_id;
+          const matches = [ctx?.userId, ctx?.username, ctx?.actor].filter(Boolean).map(s => String(s).toLowerCase());
+          if (!ownerId || !matches.includes(String(ownerId).toLowerCase())) {
+            return res.status(403).json({ error: "Read-only credential — only the author or administrator may delete this secret." });
+          }
+        }
+      }
+
       const { rowCount } = await pool.query("DELETE FROM vault_secrets WHERE scope=$1 AND name=$2", [req.params.scope, req.params.name]);
       vaultAudit({ action: "delete", scope: req.params.scope, name: req.params.name, req, ok: rowCount > 0, reason: rowCount ? null : "not found" });
       if (!rowCount) return res.status(404).end();
