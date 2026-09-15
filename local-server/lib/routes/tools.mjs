@@ -47,7 +47,7 @@ export function mountToolRoutes(app, deps) {
     }
   };
 
-  // Geliştirici Yaması: rlInvoke veya requireSession undefined ise diye önlem alıyoruz
+  // Fallback guards if rlInvoke or requireSession dependencies are undefined
   const safeRlInvoke = rlInvoke || ((req, res, next) => next());
   const safeSession = typeof requireSession === "function" ? requireSession() : ((req, res, next) => next());
 

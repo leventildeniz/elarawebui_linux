@@ -6,20 +6,19 @@
 //
 // Adapters:
 //   - http   : signed/proxied HTTP call (config.url, method, headers, body template)
-//   - python : worker.py / forge runner üzerinden script (config.script)
-//   - mcp    : MCP tool çağrısı (config.server, config.name)
+//   - python : worker.py / forge disk runner script (config.script)
+//   - mcp    : MCP remote tool invocation (config.server, config.name)
 //   - forge  : in-house forge skill runtime (config.skill_id)
-//   - builtin: legacy workflow node handler (geriye dönük)
+//   - builtin: legacy workflow node handler (backward compatible)
 //
 // Policy:
-//   1) Tool DB'den okunur; enabled + adapter + risk_level + requires_approval alınır.
-//   2) Agent verilmişse `agent_capabilities` üstünden whitelist doğrulanır.
-//   3) requires_approval=true VEYA risk_level ∈ {high,critical} ise:
-//      - tool_invocations.status='pending', tool_approvals satırı açılır.
-//      - { approvalRequired:true, invocationId } döner; runner bekler.
-//   4) Approval yoksa veya approver onayladıysa adapter koşulur.
-//   5) Tüm karar/sonuç tool_invocations'a yazılır; localQueue dışındaki kaynaklar
-//      buraya da düşer böylece tek audit yolu olur.
+//   1) Tool is loaded from PostgreSQL; enabled + adapter + risk_level + requires_approval resolved.
+//   2) If bound to an agent, capabilities whitelist is validated against agent_capabilities.
+//   3) If requires_approval=true OR risk_level in {high, critical}:
+//      - tool_invocations status marked 'pending', approval request created.
+//      - Returns { approvalRequired: true, invocationId }; runner suspends.
+//   4) If no approval required or approver approved, executor executes the adapter.
+//   5) All decisions/results are logged to tool_invocations and audit stream.
 // =============================================================================
 
 import { randomUUID } from "node:crypto";

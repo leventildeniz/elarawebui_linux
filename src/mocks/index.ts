@@ -13,6 +13,3 @@ export * from "./composer";
 export * from "./services";
 
 export * from "./agents";
-export * from "./skills";
-
-export * from "./snippets";

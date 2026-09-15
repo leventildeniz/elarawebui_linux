@@ -163,7 +163,7 @@ export function initApiKeysSchema({ pool }) {
       'workflows', 'orchestrations', 'knowledge_spaces', 'rag_folders',
       'knowledge_sources', 'chat_threads',
       // Ring 2 — Expanded Subsystems:
-      'mcp_client_servers', 'mcp_clients', 'mcp_exposures', 'mcp_tokens',
+      'mcp_client_servers', 'mcp_exposures', 'mcp_tokens',
       'capability_packs', 'capabilities', 'capability_proposals',
       'action_library', 'forge_plans', 'forge_outputs', 'forge_artifacts',
       'planners', 'planner_runs', 'planner_events',

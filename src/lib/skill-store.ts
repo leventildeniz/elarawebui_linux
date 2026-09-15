@@ -3,9 +3,6 @@ import { useCallback, useEffect, useState } from "react";
 import { fetchApi } from "@/lib/api";
 import { readDesk, writeDesk, readDeskRaw, writeDeskRaw, scopeOwned, stampOwner, useOwnerCtx, type Owned } from "@/lib/ownership";
 import type { JewelName } from "@/lib/avatar-library";
-import { emptySkill } from "@/mocks/skills";
-import { seedSkills } from "@/mocks/skills";
-import { seedSkillSquadMap } from "@/mocks/skills";
 
 /** Elara Sovereign Studio — Skills Engine registry (sealed procedures, !slug triggers). */
 
@@ -63,14 +60,26 @@ const KEY = "sovereign.skills";
 const RUNS_KEY = "sovereign.skills.runs";
 const EVT = "sovereign:skills";
 
-export { emptySkill };
+export const emptySkill: Omit<StudioSkill, "id" | "createdAt"> = {
+  name: "",
+  description: "",
+  instructions: "",
+  squad: "Unassigned",
+  icon: "Sparkles",
+  jewel: "sapphire",
+  type: "native",
+  params: [],
+  scriptPath: "",
+  runtimeId: "",
+  workflowId: "",
+  mcpClientId: "",
+  enabled: true,
+  system: false,
+  stats: { calls: 0, success: 100, latencyMs: 0 },
+};
 
-
-export { seedSkills };
-
-export { seedSkillSquadMap };
-
-for (const s of seedSkills) s.squad = seedSkillSquadMap[s.id] ?? "Unassigned";
+export const seedSkills: StudioSkill[] = [];
+export const seedSkillSquadMap: Record<string, string> = {};
 
 /* ------------------------------------------------------- skill squads */
 

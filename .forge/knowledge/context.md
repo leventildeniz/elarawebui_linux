@@ -1592,11 +1592,16 @@ ELARA Sovereign Studio genelinde **Zero-Trust Çoklu Kiracı (Multi-Tenancy) ve 
      - Durum: Doğrulandı ve mühürlendi (0 TypeScript hatası, servis aktif).
 
    * **Modül 4 — Capabilities, Tools, Skills & MCP Engine:**
-     - Rotalar: `tools.mjs`, `skills.mjs`, `capabilities.mjs`, `mcp.mjs`, `adapters.mjs`, `webhooks-crud.mjs`, `python-crud.mjs`, `tool-adapters.mjs`, `tools-scan.mjs`
-     - UI: `src/routes/skills.tsx`, `src/routes/factory.tsx`, `src/routes/mcp.tsx`, `src/routes/adapters.tsx`, `src/routes/targets.tsx`, `src/routes/runtime.tsx`
-     - DB Tabloları: `action_library`, `tools`, `skills`, `capabilities`, `capability_packs`, `mcp_client_servers`, `mcp_clients`, `mcp_exposures`, `adapters`, `webhooks`, `targets`, `runtimes`
-     - Eski/Yetim Dosya Şüphelileri: `webhooks.mjs` (webhooks-crud varken eski kopya mı?), `python.mjs` (python-crud varken eski kopya mı?).
-     - Durum: Beklemede.
+     - Rotalar: `tools.mjs`, `skills.mjs`, `capabilities.mjs`, `mcp.mjs`, `adapters.mjs`, `webhooks-crud.mjs`, `python-crud.mjs`, `targets-crud.mjs`, `registry.mjs`, `forge.mjs`, `tool-adapters.mjs`, `tools-scan.mjs`, `disk-runner.mjs`
+     - UI: `src/routes/skills.tsx`, `src/routes/factory.tsx`, `src/routes/tools.tsx`, `src/routes/capabilities.tsx`, `src/routes/mcp.tsx`, `src/routes/adapters.tsx`, `src/routes/targets.tsx`, `src/routes/runtime.tsx`
+     - DB Tabloları: `action_library` (Master Tanımlar), `tools` (Kontrol Paneli / Operational Overlay), `skills`, `capabilities`, `capability_packs`, `mcp_client_servers`, `mcp_exposures`, `adapters`, `webhooks`, `targets`, `runtimes`
+     - Mimari Not: Tool'lar Forge Factory'de (`action_library`) üretilir ve Tool Control Panel (`tools`) üzerine kimlik kazanarak yansır.
+     - Yapılan Temizlik & Standardizasyon:
+       * `src/mocks/` altındaki `skills.ts` ve `snippets.ts` mock dosyaları silindi; boş kalıplar ve fallback verileri doğrudan store dosyalarına inlined edildi (`src/mocks/index.ts` temizlendi).
+       * `telemetry-stream.mjs` içindeki MCP sayacı eski yetim tablo `mcp_clients` yerine aktif `mcp_client_servers` tablosuna bağlandı.
+       * PostgreSQL'deki eski ve yetim `mcp_clients` tablosu düşürüldü (`DROP TABLE mcp_clients CASCADE`).
+       * `tools.mjs`, `python-crud.mjs`, `tool-adapters.mjs` ve `disk-runner.mjs` içerisindeki Türkçe yorum satırları profesyonel İngilizce standartlarına getirildi.
+     - Durum: Doğrulandı ve mühürlendi (0 TypeScript hatası, servis aktif).
 
    * **Modül 5 — Workflows, DAG Canvas & MetaForge Synthesis:**
      - Rotalar: `workflows.mjs`, `chains.mjs`, `meta-forge.mjs`, `meta-forge/apply.mjs`, `meta-forge/planner.mjs`, `meta-forge/seed.mjs`, `trigger-sync.mjs`, `self-healing.mjs`

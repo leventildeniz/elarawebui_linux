@@ -94,8 +94,7 @@ export function mountPythonRoutes(app, deps) {
         assertCanEdit(ctx, row, "python runtime");
       }
 
-      // Front-end'den (Zustand üzerinden) tüm model objesi geldiği için
-      // SADECE eksik gönderilen (örneğin sadece status güncelleniyorsa) verileri DB'den devralalım.
+      // Fallback to existing DB values for partial updates (e.g. status-only changes)
       const name = req.body.name !== undefined ? req.body.name : row.name;
       const version = req.body.version !== undefined ? req.body.version : row.version;
       const pythonPath = req.body.pythonPath !== undefined ? req.body.pythonPath : row.python_path;
@@ -108,8 +107,8 @@ export function mountPythonRoutes(app, deps) {
       const memAuto = memory === "auto";
       const memMb = memAuto ? null : Number(memory) || 1024;
 
-      // --- GERÇEK ÇALIŞMA ZAMANI (RUNTIME) KURULUMU ---
-      // Eğer durum "running" yapılıyorsa ve daha önce idle/error/stopped ise, VENV kurulumunu tetikle
+      // --- RUNTIME ENVIRONMENT PROVISIONING ---
+      // Trigger VENV setup if transitioning to running state from idle/error/stopped
       if (status === "running" && row.status !== "running" && venvPath && pythonPath) {
         // Fire and forget to prevent blocking the PUT request and causing race conditions
         (async () => {
@@ -118,13 +117,13 @@ export function mountPythonRoutes(app, deps) {
             const venvPy = path.join(venvPath, isWin ? "Scripts" : "bin", "python");
             const venvPip = path.join(venvPath, isWin ? "Scripts" : "bin", "pip");
 
-            // 1. Venv yoksa oluştur
+            // 1. Create venv if missing
             if (!fs.existsSync(venvPy)) {
               console.log(`[python-runtime] 📦 Creating venv at ${venvPath} using ${pythonPath}...`);
               await execAsync(`"${pythonPath}" -m venv "${venvPath}"`);
             }
 
-            // 2. Paketler tanımlıysa kur (eğer pip mevcutsa)
+            // 2. Install declared packages if pip exists
             if (packages && String(packages).trim() && fs.existsSync(venvPip)) {
               console.log(`[python-runtime] ⬇️ Installing packages: ${packages}`);
               await execAsync(`"${venvPip}" install ${packages}`);

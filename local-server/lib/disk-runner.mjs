@@ -1,9 +1,8 @@
 // =============================================================================
-// disk-runner.mjs — Tur-7
-// Çalıştırıcı: disk-bound python scriptleri (tools/ ve skills/) için.
-// runLocalAgent agents/ baseDir + whitelist ile sınırlı; tools/skills için
-// yetersiz. Bu helper sadece dosya varlığı + uzantı + absolute path doğrular,
-// scriptin kendi dizininden execFile ile çalıştırır.
+// disk-runner.mjs — Disk-bound Python Runner
+// Safe executor for disk-bound python scripts (tools/ and skills/).
+// Validates file existence, file extension, and absolute path, then executes
+// with execFile from the script's directory.
 // =============================================================================
 
 import { execFile } from "node:child_process";
@@ -15,16 +14,16 @@ const execFileAsync = promisify(execFile);
 
 function sanitizeQueryArg(q) {
   const s = q == null ? "" : String(q);
-  // Kontrol karakterlerini ve null bytes'ı temizle.
+  // Strip control characters and null bytes
   return s.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, " ").slice(0, 64 * 1024);
 }
 
 /**
- * Disk üzerindeki bir python scriptini çalıştırır.
+ * Executes a python script located on disk.
  * @param {Object} opts
  * @param {string} opts.script  absolute path, must end with .py and exist
- * @param {string} [opts.query] sys.argv[1] olarak iletilir (UTF-8, max 64KB)
- * @param {Object} [opts.env]   ek environment (whitelist dışı, doğrudan birleşir)
+ * @param {string} [opts.query] passed as sys.argv[1] (UTF-8, max 64KB)
+ * @param {Object} [opts.env]   extra environment variables
  * @param {string} [opts.python] python binary; default ELARA_AGENTS_PYTHON || python3
  * @param {number} [opts.timeoutMs] hard timeout; default 60s
  */
@@ -66,7 +65,7 @@ export async function runDiskScript(opts) {
       windowsHide: true,
     }, (err, stdout, stderr) => {
       if (err) {
-        // Script non-zero çıkış yapsa bile stdout'a geçerli hata JSON'u basmış olabilir
+        // Even on non-zero exit code, capture valid error JSON from stdout if emitted
         if (stdout && stdout.trim()) {
           resolve({ stdout: String(stdout || ""), stderr: String(stderr || err.message) });
         } else {

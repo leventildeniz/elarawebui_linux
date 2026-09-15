@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { readDesk, writeDesk, scopeOwned, stampOwner, useOwnerCtx, type Owned } from "@/lib/ownership";
-import { seedSnippets } from "@/mocks/snippets";
 
 /**
  * Prompt snippets — reusable operator text blocks inserted into the composer
@@ -15,7 +14,32 @@ export type Snippet = Owned & {
 
 const KEY = "elara.snippets.v1";
 
-export { seedSnippets };
+export const seedSnippets: Snippet[] = [
+  {
+    id: "snip_brief",
+    name: "brief",
+    body: "Summarise the current thread as an executive brief: objective, decisions taken, open risks, next action.",
+    tone: "sapphire",
+  },
+  {
+    id: "snip_audit",
+    name: "audit",
+    body: "Audit the last answer for factual gaps, unstated assumptions and missing citations. Be blunt.",
+    tone: "topaz",
+  },
+  {
+    id: "snip_spec",
+    name: "spec",
+    body: "Turn this into a technical spec: scope, interfaces, data contracts, failure modes, rollout steps.",
+    tone: "emerald",
+  },
+  {
+    id: "snip_ground",
+    name: "ground",
+    body: "Answer strictly from the retrieved documents. If the corpus does not cover it, say so explicitly.",
+    tone: "amethyst",
+  },
+];
 
 let state: Snippet[] = seedSnippets;
 let hydrated = false;

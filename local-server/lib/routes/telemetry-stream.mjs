@@ -117,7 +117,7 @@ export function mountTelemetryStreamRoute(app, pool) {
               (SELECT jsonb_build_object('total', count(*), 'active', count(case when enabled=true then 1 end)) FROM skills) as skills,
               (SELECT jsonb_build_object('total', count(*), 'active', count(case when enabled=true then 1 end)) FROM adapters) as adapters,
               (SELECT jsonb_build_object('total', count(*), 'active', count(*)) FROM capability_packs) as packs,
-              (SELECT jsonb_build_object('total', count(*), 'active', count(case when enabled=true then 1 end)) FROM mcp_clients) as mcp,
+              (SELECT jsonb_build_object('total', count(*), 'active', count(case when enabled=true then 1 end)) FROM mcp_client_servers) as mcp,
               (SELECT jsonb_build_object('total', count(*), 'active', count(case when locked=false and status='active' then 1 end)) FROM app_users) as users
           `);
           
