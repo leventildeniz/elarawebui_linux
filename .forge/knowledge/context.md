@@ -1543,24 +1543,76 @@ ELARA Sovereign Studio genelinde **Zero-Trust Çoklu Kiracı (Multi-Tenancy) ve 
 
    ---
 
-   ### 📦 FAZ A: Backend & Frontend Dead Code & Schema Purge (Ölü Kod & Şema Temizliği)
+   ### 📦 FAZ A: Backend & Frontend Dead Code & Schema Purge (Dikey Dilim Modüler Temizlik)
 
-   **Odak:** Prototip/Lovable döneminden kalma, artık mount edilmeyen yetim dosyalar, mükerrer tablolar/kolonlar ve ölü frontend kodlarının ayıklanması.
+   **Odak:** Prototip/Lovable döneminden kalma, artık mount edilmeyen yetim dosyalar, mükerrer tablolar/kolonlar, ölü frontend kodları ve mock kalıntılarının cerrahi olarak ayıklanması.
+   
+   **Ana Çalışma Kuralı (Ajan Şeffaflık & Karşılıklı Kontrol İlkesi):**
+   Ajan her modülde kesinlikle tek başına hareket etmeyecek, şu 3 adımlı raporu Levent İldeniz'e sunacaktır:
+   1. *"Burayı inceledim, şunları tespit ettim (dosyalar, tablolar, kodlar)..."*
+   2. *"Düzeltmek ve temizlemek için şu aksiyonları alacağım, etki-tepki analizi şudur..."*
+   3. *"Senin aklına gelen/fark ettiğin başka bir detay var mı? Onay verirsen cerrahi müdahaleye başlayacağım."*
 
-   #### 1. Backend & Rota Temizliği:
-   * `local-server/lib/routes/` altındaki 84 dosyanın taranması: `api-v2.mjs` tarafından mount EDİLMEYEN ölü dosyaların tespiti (örneğin eski `agents.mjs`, `python.mjs`, `rbac.mjs`, `webhooks.mjs`, `rag-settings.mjs` vb. legacy kalıntılar).
-   * Bu dosyaların başka bir worker veya servis tarafından import edilip edilmediğinin etki-tepki analizi.
-   * WSL/Windows transferinden kalma `Zone.Identifier` meta dosyalarının taranıp güvenle temizlenmesi.
+   ---
 
-   #### 2. Veritabanı Şeması & Tablo Denetimi (PostgreSQL):
-   * `elara_db` içerisindeki tüm tabloların (`\dt`) listelenmesi ve aktif kod tabanı ile eşleştirilmesi.
-   * Mükerrer/yetim tabloların tespiti (Örn: `schedules` vs `trigger_schedules`, `system_config` vs `app_system_config`).
-   * Tablolardaki ölü/kullanılmayan kolonların tespiti.
-   * Foreign key kısıtları ve `ON DELETE CASCADE / SET NULL` zincirlerinin veri tutarlılığı denetimi.
+   #### 🧩 8 Dikey Dilim (Vertical Slices) İcra Takvimi:
 
-   #### 3. Frontend (Vite / React) Ölü Kod & Import Temizliği:
-   * `src/` altındaki kullanılmayan importlar, artık referans verilmeyen yardımcı fonksiyonlar ve eski mock dosyaları (`src/mocks/`).
-   * TanStack Router ağacındaki ölü veya birbiriyle çakışan rota kalıntıları.
+   * **Adım 0 — Kod Dışı Meta Dosya Hijyeni (Sıfır Risk):**
+     - WSL2 / Windows dosya transferlerinden kalan `*:Zone.Identifier` meta çöplerinin taranıp temizlenmesi.
+     - Durum: Beklemede.
+
+   * **Modül 1 — Reporting & FinOps (Overview, Cost, Usage, Operators, RAG, Invoicing):**
+     - Rotalar: `local-server/lib/routes/reporting.mjs`
+     - UI: `src/routes/reporting.*.tsx`, `src/lib/report-store.ts`, `src/lib/rag-analytics-store.ts`, `src/lib/schedule-store.ts`
+     - DB Tabloları: `provider_usage`, `usage_daily`, `schedules`, `schedule_deliveries`, `rag_queries`
+     - Durum: Doğrulandı ve mühürlendi (Phase 70 & status sütun nitelendirmesi tamamlandı).
+
+   * **Modül 2 — Identity, Users, Groups, Templates & RBAC:**
+     - Rotalar: `identity.mjs`, `identity-groups.mjs`, `identity-roles.mjs`, `identity-templates.mjs`, `actor.mjs`, `session-gate.mjs`, `auth-utils.mjs`
+     - UI: `src/routes/users.tsx`, `src/routes/rbac.tsx`, `src/routes/account.tsx`, `src/lib/rbac-store.ts`, `src/lib/group-store.ts`, `src/lib/user-template-store.ts`
+     - DB Tabloları: `app_users`, `app_groups`, `app_roles`, `app_templates`, `app_sessions`, `app_tenants`
+     - Eski/Yetim Dosya Şüphelileri: `local-server/lib/routes/rbac.mjs` (api-v2.mjs'de mount edilmeyen eski dosya mı?), `local-server/lib/routes/users.mjs`.
+     - Durum: Beklemede.
+
+   * **Modül 3 — Knowledge Hub, Document Ingestion & Agentic RAG:**
+     - Rotalar: `knowledge-spaces.mjs`, `rag-folders.mjs`, `knowledge-ingest.mjs`, `knowledge-retrieve.mjs`, `rag-ops.mjs`, `agent-rag.mjs`
+     - Worker: In-process ONNX (`onnx-pipeline.mjs`) + Python Worker (`worker.py` port 8082)
+     - UI: `src/routes/knowledge.tsx`, `src/routes/rag-documents.tsx`, `src/lib/knowledge-store.ts`, `src/lib/rag-folder-store.ts`
+     - DB Tabloları: `knowledge_sources`, `knowledge_chunks`, `knowledge_spaces`, `rag_folders`, `brand_aliases`
+     - Eski/Yetim Dosya Şüphelileri: `rag-settings.mjs` (82 knobs içeren eski dosya mı?).
+     - Durum: Beklemede.
+
+   * **Modül 4 — Capabilities, Tools, Skills & MCP Engine:**
+     - Rotalar: `tools.mjs`, `skills.mjs`, `capabilities.mjs`, `mcp.mjs`, `adapters.mjs`, `webhooks-crud.mjs`, `python-crud.mjs`, `tool-adapters.mjs`, `tools-scan.mjs`
+     - UI: `src/routes/skills.tsx`, `src/routes/factory.tsx`, `src/routes/mcp.tsx`, `src/routes/adapters.tsx`, `src/routes/targets.tsx`, `src/routes/runtime.tsx`
+     - DB Tabloları: `action_library`, `tools`, `skills`, `capabilities`, `capability_packs`, `mcp_client_servers`, `mcp_clients`, `mcp_exposures`, `adapters`, `webhooks`, `targets`, `runtimes`
+     - Eski/Yetim Dosya Şüphelileri: `webhooks.mjs` (webhooks-crud varken eski kopya mı?), `python.mjs` (python-crud varken eski kopya mı?).
+     - Durum: Beklemede.
+
+   * **Modül 5 — Workflows, DAG Canvas & MetaForge Synthesis:**
+     - Rotalar: `workflows.mjs`, `chains.mjs`, `meta-forge.mjs`, `meta-forge/apply.mjs`, `meta-forge/planner.mjs`, `meta-forge/seed.mjs`, `trigger-sync.mjs`, `self-healing.mjs`
+     - UI: `src/routes/workflows.tsx`, `src/routes/orchestration.tsx`, `src/routes/meta-forge.tsx`, `src/routes/approvals.tsx`, `src/lib/workflow-store.ts`, `src/lib/metaforge-store.ts`, `src/lib/approval-store.ts`
+     - DB Tabloları: `workflows`, `orchestrations`, `forge_plans`, `forge_artifacts`, `approval_requests`, `approval_config`, `trigger_schedules`
+     - Şüpheli Tablolar: `trigger_schedules` vs eski `schedules` çakışması kontrolü.
+     - Durum: Beklemede.
+
+   * **Modül 6 — Chat, Threads & Core Orchestration:**
+     - Rotalar: `chat-orchestrate.mjs`, `threads.mjs`, `storage-engine.mjs`, `lib/orchestrator/*`
+     - UI: `src/routes/index.tsx`, `src/components/sovereign/composer.tsx`, `src/lib/chat-store.ts`, `src/lib/orchestrate-stream.ts`
+     - DB Tabloları: `chat_threads`, `chat_messages`, `chat_files`
+     - Durum: Beklemede.
+
+   * **Modül 7 — Policy, Security, GenGuard & Secret Vault:**
+     - Rotalar: `security-policies.mjs`, `vault.mjs`, `cve.mjs`, `genguard-scanner.mjs`, `policy-engine-eval.mjs`
+     - UI: `src/routes/policy.tsx`, `src/routes/cve.tsx`, `src/lib/security-store.ts`, `src/lib/vault-store.ts`, `src/lib/cve-store.ts`
+     - DB Tabloları: `guard_rules`, `isolation_profiles`, `policy_rules`, `signed_artifacts`, `vault_secrets`, `cve_sources`, `cve_watchlists`, `cve_entries`
+     - Durum: Beklemede.
+
+   * **Modül 8 — Infrastructure, High Availability Cluster, System Engine & Settings:**
+     - Rotalar: `infra.mjs`, `redis-cache.mjs`, `rabbitmq-broker.mjs`, `models.mjs`, `providers.mjs`, `system-config.mjs`, `system-misc.mjs`, `system-certs.mjs`, `siem-api.mjs`, `siem-forwarder.mjs`, `mail-time.mjs`, `fleet-services.mjs`, `telemetry.mjs`, `telemetry-stream.mjs`, `search-providers.mjs`
+     - UI: `src/routes/services.tsx`, `src/routes/engine.tsx`, `src/routes/system.tsx`, `src/routes/fleet.tsx`, `src/routes/models.tsx`, `src/routes/web-search.tsx`, `src/routes/converter.tsx`, `src/routes/api-tokens.tsx`
+     - DB Tabloları: `app_services`, `search_providers`, `ai_providers`, `models`, `engine_config`, `system_certs`, `siem_config`, `agent_logs`, `tenant_api_keys`, `tenant_rate_limits`
+     - Durum: Beklemede.
 
    ---
 
