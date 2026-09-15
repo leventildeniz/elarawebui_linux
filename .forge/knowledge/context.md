@@ -1627,10 +1627,13 @@ ELARA Sovereign Studio genelinde **Zero-Trust Çoklu Kiracı (Multi-Tenancy) ve 
      - Durum: Doğrulandı ve mühürlendi (0 TypeScript hatası, servis aktif).
 
    * **Modül 7 — Policy, Security, GenGuard & Secret Vault:**
-     - Rotalar: `security-policies.mjs`, `vault.mjs`, `cve.mjs`, `genguard-scanner.mjs`, `policy-engine-eval.mjs`
-     - UI: `src/routes/policy.tsx`, `src/routes/cve.tsx`, `src/lib/security-store.ts`, `src/lib/vault-store.ts`, `src/lib/cve-store.ts`
-     - DB Tabloları: `guard_rules`, `isolation_profiles`, `policy_rules`, `signed_artifacts`, `vault_secrets`, `cve_sources`, `cve_watchlists`, `cve_entries`
-     - Durum: Beklemede.
+     - Rotalar: `security-policies.mjs`, `vault.mjs`, `cve.mjs`, `genguard-scanner.mjs`, `policy-engine-eval.mjs`, `local-server/lib/vault.mjs`
+     - UI: `src/routes/policy.tsx`, `src/routes/security.tsx` (CVE Feed), `src/lib/security-store.ts`, `src/lib/vault-store.ts`, `src/lib/cve-store.ts`
+     - DB Tabloları: `guard_rules`, `isolation_profiles`, `policy_rules`, `signed_artifacts`, `vault_secrets`, `vault_secret_fields`, `vault_audit`, `cve_sources`, `cve_watchlists`, `cve_entries`
+     - Yapılan Temizlik & Standardizasyon:
+       * `local-server/lib/routes/vault.mjs` ve `local-server/lib/vault.mjs` içerisindeki tüm Türkçe yorum satırları profesyonel İngilizce standartlarına çevrildi.
+       * Modülün 0 mock bağımlılığı ve %100 canlı DB/AES-256-GCM entegrasyonu doğrulandı.
+     - Durum: Doğrulandı ve mühürlendi (0 TypeScript hatası, servis aktif).
 
    * **Modül 8 — Infrastructure, High Availability Cluster, System Engine & Settings:**
      - Rotalar: `infra.mjs`, `redis-cache.mjs`, `rabbitmq-broker.mjs`, `models.mjs`, `providers.mjs`, `system-config.mjs`, `system-misc.mjs`, `system-certs.mjs`, `siem-api.mjs`, `siem-forwarder.mjs`, `mail-time.mjs`, `fleet-services.mjs`, `telemetry.mjs`, `telemetry-stream.mjs`, `search-providers.mjs`

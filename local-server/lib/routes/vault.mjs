@@ -60,11 +60,9 @@ export function mountVaultRoutes(app, deps) {
     } catch (e) { console.warn("[vault_audit]", e.message); }
   }
 
-  // Faz 2 pilot — vault okuma/yazma artık doğrulanmış admin oturumu gerektirir.
-  // Faz 7 — her erişim vault_audit'e düşer, secret asla plaintext loglanmaz.
-  // Vault v2 (2026-05-20) — body iki şekli kabul eder:
-  //   Eski:  { scope, name, value }                         → kind='api_key', fields={api_key:value}
-  //   Yeni:  { scope, name, kind, fields:{...}, meta:{...} } → çok-alanlı
+  // Vault write/update endpoint — requires authenticated session.
+  // Access events are recorded in vault_audit; secrets are never logged in plaintext.
+  // Supports multi-field credentials (scope, name, kind, fields, meta).
   app.post("/api/vault", requireSession({ roles: ["admin", "engineer", "operator", "security"] }), async (req, res) => {
     const { scope, name } = req.body ?? {};
     let { kind, fields, meta, value } = req.body ?? {};
@@ -266,7 +264,7 @@ export function mountVaultRoutes(app, deps) {
     } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
   });
 
-  // Faz 11.1 — vault_audit hash zincirini doğrula.
+  // Verifies the tamper-evident cryptographic hash chain of vault_audit logs.
   app.get("/api/vault-audit/verify", requireSession({ roles: ["admin"] }), async (req, res) => {
     try {
       const limit = Math.min(Number(req.query.limit) || 5000, 50000);
@@ -277,7 +275,7 @@ export function mountVaultRoutes(app, deps) {
     }
   });
 
-  // Faz 11.1 — zinciri sıfırdan yeniden hesapla.
+  // Rebuilds and recomputes the audit hash chain from scratch.
   app.post("/api/vault-audit/rebuild", requireSession({ roles: ["admin"] }), async (_req, res) => {
     try {
       await rebuildAuditChain(pool);

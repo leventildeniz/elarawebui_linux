@@ -1,13 +1,11 @@
 // Vault helpers — AES-256-GCM crypto + audit + scope-wide secret fetch.
 //
-// Bu modül server.mjs'teki encryptSecret/decryptSecret/vaultAudit ile
-// BİREBİR aynı davranışı sergiler (aynı VAULT_PASSPHRASE → aynı key türetimi).
-// Amaç: server.mjs dışındaki modüllerin (özellikle agent-env.mjs runtime
-// enjeksiyonu) vault'a güvenli ve audit'li erişebilmesi.
+// Provides cryptographically identical encryption/decryption (VAULT_PASSPHRASE -> key derivation)
+// and audited access for external modules (e.g. agent-env.mjs runtime injection).
 //
-// NOT: Tek scope için tüm secret'ları çekip {NAME: plaintext} map'i döner.
-// Plaintext sadece child process env'ine geçer; bu modül asla diske yazmaz,
-// asla console.log ile plaintext basmaz.
+// NOTE: Returns a {NAME: plaintext} map for a given scope.
+// Plaintext is passed strictly to child process environments; never written to disk
+// or emitted in console logs.
 
 import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "node:crypto";
 
@@ -35,9 +33,9 @@ export function decryptSecret(ct, iv, tag) {
 }
 
 /**
- * Runtime (req'siz) audit yazıcısı. Server.mjs'teki vaultAudit ile aynı
- * tabloya yazar ama `actor` parametresini explicit alır ('agent-runtime',
- * 'chat-ephemeral' vb.). Plaintext asla yazılmaz.
+ * Runtime (headless/non-request) audit writer.
+ * Records operational secret access to vault_audit table with explicit actor metadata.
+ * Plaintext values are never logged.
  *
  * @param {object} pool   pg Pool
  * @param {object} entry  {action, scope, name, actor, ok?, reason?, meta?}
@@ -66,17 +64,17 @@ export async function vaultAuditRuntime(pool, entry) {
       ],
     );
   } catch (e) {
-    // Audit hatası asla istek akışını bozmaz, sadece warn.
+    // Audit failures log warnings without disrupting operational execution flow.
     console.warn("[vaultAuditRuntime]", e.message);
   }
 }
 
 /**
- * Bir scope altındaki tüm secret'ları çek ve decrypt et.
- * Dönüş: { NAME: plaintext, ... }  (hatalı/çözülemeyen kayıtlar atlanır)
+ * Fetches and decrypts all secrets under a given scope.
+ * Returns: { NAME: plaintext, ... } (corrupted/unparseable entries are safely skipped)
  *
  * @param {object} pool  pg Pool
- * @param {string} scope  örn "agent:firewall_oracle" veya "global"
+ * @param {string} scope  e.g. "agent:firewall_oracle" or "global"
  * @returns {Promise<Record<string,string>>}
  */
 export async function getSecretsForScope(pool, scope) {
@@ -97,7 +95,7 @@ export async function getSecretsForScope(pool, scope) {
     try {
       out[row.name] = decryptSecret(row.ciphertext, row.iv, row.tag);
     } catch (e) {
-      // Tek bir kayıt bozuksa diğerlerini bloklama.
+      // Do not block remaining records if a single entry fails decryption.
       console.warn(`[vault.getSecretsForScope] decrypt failed for ${scope}:${row.name}: ${e.message}`);
     }
   }
@@ -105,7 +103,7 @@ export async function getSecretsForScope(pool, scope) {
 }
 
 /**
- * Tek bir secret'ı çek. Bulunamazsa null döner.
+ * Fetches a single secret. Returns null if not found.
  *
  * @param {object} pool
  * @param {string} scope
@@ -128,8 +126,8 @@ export async function getSecret(pool, scope, name) {
 }
 
 /**
- * Programatik (idempotent) secret yazımı — migration script'leri için.
- * UI/HTTP üzerinden gelen yazımlar /api/vault'tan geçmeli (admin auth + audit).
+ * Programmatic (idempotent) secret write — for migration scripts.
+ * Standard HTTP/UI operations route via /api/vault (session authentication + audit).
  *
  * @param {object} pool
  * @param {string} scope
@@ -153,8 +151,8 @@ export async function putSecret(pool, scope, name, value) {
 // Vault v2 — multi-field credentials (basic_auth, ssh_key, oauth2_client, ...)
 // ============================================================================
 
-// Tanınan tipler ve zorunlu alan listesi. UI Zod ile aynı şemayı doğrular.
-// 'custom' herhangi bir alanı kabul eder. Bilinmeyen kind → 'custom' davranışı.
+// Supported credential kinds and required field definitions. Validated with UI Zod schemas.
+// 'custom' permits arbitrary dynamic fields.
 export const VAULT_KIND_FIELDS = {
   api_key:       { required: ["api_key"],                   optional: [] },
   bearer_token:  { required: ["token"],                     optional: [] },
@@ -171,9 +169,8 @@ export const VAULT_KIND_FIELDS = {
 const FIELD_NAME_RE = /^[a-zA-Z_][a-zA-Z0-9_]{0,63}$/;
 
 /**
- * Multi-field secret yazımı. Idempotent: secret_id (scope:name) varsa kind/meta
- * güncellenir, gelen field'lar upsert edilir, gelmeyen field'lar SİLİNMEZ
- * (kısmi update için). Tüm field'ları yenilemek istiyorsan önce delete et.
+ * Multi-field secret write. Idempotent: if secret_id exists, updates kind/meta
+ * and upserts provided fields while preserving unmentioned fields for partial patching.
  *
  * @param {object} pool
  * @param {{scope:string, name:string, kind?:string, fields?:Record<string,string>, meta?:object}} input
@@ -187,13 +184,12 @@ export async function putSecretV2(pool, { scope, name, kind = "api_key", fields 
   for (const fn of fieldNames) {
     if (!FIELD_NAME_RE.test(fn)) throw new Error(`invalid field name: ${fn}`);
   }
-  // Şema doğrulaması (custom → bypass).
+  // Schema validation (custom skips required checks).
   const spec = VAULT_KIND_FIELDS[k];
   if (spec && k !== "custom") {
     for (const req of spec.required) {
       if (!(req in fields) || String(fields[req] ?? "").length === 0) {
-        // Kısmi update'e izin ver: secret zaten varsa ve bu çağrı diğer alanları
-        // güncelliyorsa zorunlu alanı atlayabiliriz. İlk yazımda zorla.
+        // Allow partial updates if secret already exists
         const existing = await pool.query("SELECT id FROM vault_secrets WHERE id=$1", [id]);
         if (!existing.rows.length) throw new Error(`${k} requires field: ${req}`);
       }
@@ -245,7 +241,7 @@ export async function putSecretV2(pool, { scope, name, kind = "api_key", fields 
 }
 
 /**
- * Sadece field isimleri (plaintext yok). UI dropdown'u için.
+ * Returns field names only (without plaintext). Used for UI dropdown selection.
  */
 export async function listSecretFieldNames(pool, scope, name) {
   if (!pool || !scope || !name) return null;
@@ -257,15 +253,14 @@ export async function listSecretFieldNames(pool, scope, name) {
     [id],
   );
   let names = fields.rows.map((r) => r.field_name);
-  // Geriye uyum: çok-alanlı kayıt yoksa ve eski tek-değer satırsa 'api_key' göster.
+  // Backward compatibility: default to 'api_key' if no multi-field records exist
   if (names.length === 0) names = ["api_key"];
   return { kind: head.rows[0].kind || "api_key", meta: head.rows[0].meta || {}, field_names: names };
 }
 
 /**
- * Tüm alanları decrypt edip döndür. UI 'Reveal' ve agent binding için.
- * Geriye uyum: vault_secret_fields boşsa legacy ciphertext'i 'api_key' alanı
- * olarak sunar.
+ * Decrypts and returns all fields. Used for UI 'Reveal' and runtime agent credential binding.
+ * Backward compatibility: presents legacy single-value records under the 'api_key' field.
  */
 export async function getSecretAllFields(pool, scope, name) {
   if (!pool || !scope || !name) return null;
@@ -292,7 +287,7 @@ export async function getSecretAllFields(pool, scope, name) {
   return { kind: head.rows[0].kind || "api_key", meta: head.rows[0].meta || {}, fields: out };
 }
 
-/** Tek bir alan (binding için). */
+/** Single field extraction (for runtime binding). */
 export async function getSecretField(pool, scope, name, fieldName) {
   const all = await getSecretAllFields(pool, scope, name);
   if (!all) return null;
