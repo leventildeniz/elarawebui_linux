@@ -210,39 +210,46 @@ export function mountMcpRoutes(app, deps) {
     });
   });
 
-  // --- Admin API (session-guarded) -------------------------------------------
+  // --- Admin & Operator API (session-guarded) -------------------------------------------
 
-  const admin = requireSession({ roles: ["admin"] });
+  const anySession = typeof requireSession === "function" ? requireSession() : (_req, _res, next) => next();
+  const operatorOrAdmin = typeof requireSession === "function" ? requireSession({ roles: ["admin", "engineer", "operator"] }) : (_req, _res, next) => next();
+  const admin = typeof requireSession === "function" ? requireSession({ roles: ["admin"] }) : (_req, _res, next) => next();
+  const serverAdmin = async (req, res, next) => {
+    const ctx = typeof deps.resolveActorContext === "function" ? await deps.resolveActorContext(req) : null;
+    if (ctx?.isAdmin || ctx?.canManageMcpServer) return next();
+    return res.status(403).json({ ok: false, error: "Access denied — MCP Server Gateway administration is restricted to platform administrators or granted templates." });
+  };
 
-  app.get("/api/mcp/settings", admin, async (_req, res) => {
+  app.get("/api/mcp/settings", anySession, async (_req, res) => {
     try {
       const [settings, stats] = await Promise.all([getMcpSettings(pool), callStats(pool)]);
       res.json({ ok: true, settings, stats });
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
 
-  app.patch("/api/mcp/settings", admin, async (req, res) => {
+  app.patch("/api/mcp/settings", serverAdmin, async (req, res) => {
     try {
       const s = await updateMcpSettings(pool, req.body || {});
       res.json({ ok: true, settings: s });
     } catch (e) { res.status(400).json({ error: e.message }); }
   });
 
-  app.get("/api/mcp/exposures", admin, async (_req, res) => {
+  app.get("/api/mcp/exposures", anySession, async (_req, res) => {
     try {
       const [exposures, candidates] = await Promise.all([listExposures(pool), listAllCandidates(pool)]);
       res.json({ ok: true, exposures, candidates });
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
 
-  app.post("/api/mcp/exposures", admin, async (req, res) => {
+  app.post("/api/mcp/exposures", serverAdmin, async (req, res) => {
     try {
       const row = await upsertExposure(pool, req.body || {});
       res.json({ ok: true, exposure: row });
     } catch (e) { res.status(400).json({ error: e.message }); }
   });
 
-  app.patch("/api/mcp/exposures/toggle", admin, async (req, res) => {
+  app.patch("/api/mcp/exposures/toggle", serverAdmin, async (req, res) => {
     try {
       const { kind, slug, enabled } = req.body || {};
       const row = await setExposureEnabled(pool, { kind, slug, enabled });
@@ -250,17 +257,17 @@ export function mountMcpRoutes(app, deps) {
     } catch (e) { res.status(400).json({ error: e.message }); }
   });
 
-  app.delete("/api/mcp/exposures/:id", admin, async (req, res) => {
+  app.delete("/api/mcp/exposures/:id", serverAdmin, async (req, res) => {
     try { await deleteExposure(pool, req.params.id); res.json({ ok: true }); }
     catch (e) { res.status(400).json({ error: e.message }); }
   });
 
-  app.get("/api/mcp/tokens", admin, async (_req, res) => {
+  app.get("/api/mcp/tokens", serverAdmin, async (_req, res) => {
     try { res.json({ ok: true, tokens: await listTokens(pool) }); }
     catch (e) { res.status(500).json({ error: e.message }); }
   });
 
-  app.post("/api/mcp/tokens", admin, async (req, res) => {
+  app.post("/api/mcp/tokens", serverAdmin, async (req, res) => {
     try {
       const { label } = req.body || {};
       const created = await createToken(pool, { label, createdBy: req.session?.username || null });
@@ -268,12 +275,12 @@ export function mountMcpRoutes(app, deps) {
     } catch (e) { res.status(400).json({ error: e.message }); }
   });
 
-  app.delete("/api/mcp/tokens/:id", admin, async (req, res) => {
+  app.delete("/api/mcp/tokens/:id", serverAdmin, async (req, res) => {
     try { await revokeToken(pool, req.params.id); res.json({ ok: true }); }
     catch (e) { res.status(400).json({ error: e.message }); }
   });
 
-  app.get("/api/mcp/history", admin, async (req, res) => {
+  app.get("/api/mcp/history", operatorOrAdmin, async (req, res) => {
     try {
       const limit = Math.min(500, Math.max(1, Number(req.query.limit) || 50));
       const [rows, stats] = await Promise.all([recentCalls(pool, { limit }), callStats(pool)]);
@@ -291,7 +298,7 @@ export function mountMcpRoutes(app, deps) {
 
   // --- MCP Client (outbound) — connect to remote MCP servers -----------------
 
-  app.get("/api/mcp/client/servers", admin, async (req, res) => {
+  app.get("/api/mcp/client/servers", anySession, async (req, res) => {
     try {
       const ctx = await deps.resolveActorContext(req);
       const vis = deps.buildVisibility(ctx, 1, 'owner_id');
@@ -307,7 +314,7 @@ export function mountMcpRoutes(app, deps) {
     catch (e) { res.status(500).json({ error: e.message }); }
   });
 
-  app.post("/api/mcp/client/servers", admin, async (req, res) => {
+  app.post("/api/mcp/client/servers", operatorOrAdmin, async (req, res) => {
     try {
       const payload = { ...req.body };
       
@@ -329,24 +336,44 @@ export function mountMcpRoutes(app, deps) {
     } catch (e) { res.status(400).json({ error: e.message }); }
   });
 
-  app.patch("/api/mcp/client/servers/:id", admin, async (req, res) => {
+  app.patch("/api/mcp/client/servers/:id", operatorOrAdmin, async (req, res) => {
     try {
+      const ctx = deps.resolveActorContext ? await deps.resolveActorContext(req) : null;
+      const existing = await getClientServer(pool, req.params.id);
+      if (!existing) return res.status(404).json({ ok: false, error: "server not found" });
+      if (deps.assertCanEdit && ctx) {
+        deps.assertCanEdit(ctx, existing, "MCP server");
+      }
+
       const srv = await updateClientServer(pool, req.params.id, req.body || {});
       emitMcpLog("info", "server.updated", `${srv.name || srv.slug}`, { id: srv.id, slug: srv.slug });
       res.json({ ok: true, server: srv });
-    } catch (e) { res.status(400).json({ error: e.message }); }
+    } catch (e) {
+      const status = e.status || 400;
+      res.status(status).json({ ok: false, error: e.message });
+    }
   });
 
-  app.delete("/api/mcp/client/servers/:id", admin, async (req, res) => {
+  app.delete("/api/mcp/client/servers/:id", operatorOrAdmin, async (req, res) => {
     try {
+      const ctx = deps.resolveActorContext ? await deps.resolveActorContext(req) : null;
+      const existing = await getClientServer(pool, req.params.id);
+      if (!existing) return res.status(404).json({ ok: false, error: "server not found" });
+      if (deps.assertCanEdit && ctx) {
+        deps.assertCanEdit(ctx, existing, "MCP server");
+      }
+
       await deleteClientServer(pool, req.params.id);
       emitMcpLog("warn", "server.deleted", `id=${req.params.id}`, { id: req.params.id });
       res.json({ ok: true });
     }
-    catch (e) { res.status(400).json({ error: e.message }); }
+    catch (e) {
+      const status = e.status || 400;
+      res.status(status).json({ ok: false, error: e.message });
+    }
   });
 
-  app.post("/api/mcp/client/servers/:id/probe", admin, async (req, res) => {
+  app.post("/api/mcp/client/servers/:id/probe", operatorOrAdmin, async (req, res) => {
     try {
       const srv = await getClientServer(pool, req.params.id);
       if (!srv) return res.status(404).json({ error: "server not found" });
@@ -358,7 +385,7 @@ export function mountMcpRoutes(app, deps) {
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
 
-  app.post("/api/mcp/client/servers/:id/call", admin, async (req, res) => {
+  app.post("/api/mcp/client/servers/:id/call", operatorOrAdmin, async (req, res) => {
     try {
       const srv = await getClientServer(pool, req.params.id);
       if (!srv) return res.status(404).json({ error: "server not found" });

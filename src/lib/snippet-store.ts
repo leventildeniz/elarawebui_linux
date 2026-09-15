@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { scopeOwned, stampOwner, useOwnerCtx, type Owned } from "@/lib/ownership";
+import { readDesk, writeDesk, scopeOwned, stampOwner, useOwnerCtx, type Owned } from "@/lib/ownership";
 import { seedSnippets } from "@/mocks/snippets";
 
 /**
@@ -23,23 +23,13 @@ const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((l) => l());
 
 function hydrate() {
-  if (hydrated || typeof window === "undefined") return;
-  hydrated = true;
-  try {
-    const raw = window.localStorage.getItem(KEY);
-    if (raw) state = JSON.parse(raw) as Snippet[];
-  } catch {
-    /* ignore */
-  }
+  if (typeof window === "undefined") return;
+  state = readDesk<Snippet[]>(KEY, seedSnippets);
 }
 
 function commit(next: Snippet[]) {
   state = next;
-  try {
-    window.localStorage.setItem(KEY, JSON.stringify(next));
-  } catch {
-    /* ignore */
-  }
+  writeDesk(KEY, next);
   emit();
 }
 
@@ -49,10 +39,16 @@ export function useSnippets() {
   useEffect(() => {
     hydrate();
     const l = () => force((n) => n + 1);
+    const onIdentity = () => {
+      hydrate();
+      force((n) => n + 1);
+    };
     listeners.add(l);
+    window.addEventListener("sovereign:identity", onIdentity);
     l();
     return () => {
       listeners.delete(l);
+      window.removeEventListener("sovereign:identity", onIdentity);
     };
   }, []);
 

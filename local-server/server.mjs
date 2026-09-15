@@ -10,7 +10,7 @@ import multer from 'multer';
 import { config } from './lib/deps.mjs';
 import { bootstrapDatabase, waitForDatabaseReady, attachPoolErrorHandler } from './lib/db.mjs';
 import { mountApiRoutes } from './lib/routes/api-v2.mjs';
-import { initActorRegistry, autoLinkLegacyOwnership, resolveActorContext, resolveActor, resolveDefaultActor, buildVisibility } from './lib/actor.mjs';
+import { initActorRegistry, autoLinkLegacyOwnership, resolveActorContext, resolveActor, resolveDefaultActor, buildVisibility, canActorEdit, assertCanEdit } from './lib/actor.mjs';
 import { isUuid, dummyFlushCache } from './lib/utils.mjs';
 import { tableHasColumn, inspectDirectoryAccess, normalizeDirRoot, getDefaultLibraryRoot } from './lib/rag-utils.mjs';
 import { createKnowledgeMaintenance } from './lib/knowledge/maintenance.mjs';
@@ -303,6 +303,8 @@ async function startServer() {
       resolveActor,
       resolveDefaultActor,
       buildVisibility,
+      canActorEdit,
+      assertCanEdit,
       getAllowedAgents,
       setAllowedAgents,
       getAgentsBaseDir,

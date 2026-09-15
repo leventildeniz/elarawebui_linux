@@ -1,3 +1,13 @@
+const SYSTEM_GROUP_IDS = new Set(["grp.administrators", "g2", "g3"]);
+const SYSTEM_GROUP_NAMES = new Set(["administrators", "operators", "auditors"]);
+
+export function isSystemGroup(group) {
+  if (!group) return false;
+  const id = String(group.id || "").toLowerCase();
+  const name = String(group.name || "").trim().toLowerCase();
+  return SYSTEM_GROUP_IDS.has(id) || SYSTEM_GROUP_NAMES.has(name) || Boolean(group.is_system);
+}
+
 export async function mountIdentityGroupsRoutes(app, deps) {
   const { pool, isAdminCaller, createPrefixedId, resolveActorContext } = deps;
 
@@ -38,7 +48,9 @@ export async function mountIdentityGroupsRoutes(app, deps) {
           tone: g.tone || "sapphire",
           approvers: Array.isArray(g.approvers) ? g.approvers : [],
           directoryGroups: Array.isArray(g.directory_groups) ? g.directory_groups : [],
-          approverDirectoryGroups: Array.isArray(g.approver_directory_groups) ? g.approver_directory_groups : []
+          approverDirectoryGroups: Array.isArray(g.approver_directory_groups) ? g.approver_directory_groups : [],
+          system: isSystemGroup(g),
+          is_system: isSystemGroup(g)
         };
       });
 
@@ -47,8 +59,9 @@ export async function mountIdentityGroupsRoutes(app, deps) {
   });
 
   app.post("/api/identity/groups", async (req, res) => {
-    if (!await isAdminCaller(req)) return res.status(403).json({ ok: false, error: "admin required" });
     const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
+    const isAllowed = ctx?.isAdmin || ctx?.isSuperAdmin || ctx?.isTenantAdmin || (typeof isAdminCaller === "function" && await isAdminCaller(req));
+    if (!isAllowed) return res.status(403).json({ ok: false, error: "admin required" });
     const id = req.body.id || createPrefixedId("grp.");
     const g = req.body;
     const tenantId = g.tenant_id || (ctx.isSuperAdmin ? (g.tenant_id || "default") : ctx.tenantId);
@@ -68,8 +81,9 @@ export async function mountIdentityGroupsRoutes(app, deps) {
   });
 
   app.put("/api/identity/groups/:id", async (req, res) => {
-    if (!await isAdminCaller(req)) return res.status(403).json({ ok: false, error: "admin required" });
     const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
+    const isAllowed = ctx?.isAdmin || ctx?.isSuperAdmin || ctx?.isTenantAdmin || (typeof isAdminCaller === "function" && await isAdminCaller(req));
+    if (!isAllowed) return res.status(403).json({ ok: false, error: "admin required" });
     const id = req.params.id;
     const g = req.body;
     
@@ -125,14 +139,22 @@ export async function mountIdentityGroupsRoutes(app, deps) {
   });
 
   app.delete("/api/identity/groups/:id", async (req, res) => {
-    if (!await isAdminCaller(req)) return res.status(403).json({ ok: false, error: "admin required" });
     const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
+    const isAllowed = ctx?.isAdmin || ctx?.isSuperAdmin || ctx?.isTenantAdmin || (typeof isAdminCaller === "function" && await isAdminCaller(req));
+    if (!isAllowed) return res.status(403).json({ ok: false, error: "admin required" });
     const id = req.params.id;
 
     try {
+      const gRow = await pool.query("SELECT * FROM app_groups WHERE id = $1", [id]);
+      if (!gRow.rows.length) return res.status(404).json({ ok: false, error: "Group not found" });
+      const group = gRow.rows[0];
+
+      if (isSystemGroup(group)) {
+        return res.status(400).json({ ok: false, error: "Cannot delete a baseline system group." });
+      }
+
       if (!ctx.isSuperAdmin) {
-        const chk = await pool.query("SELECT tenant_id FROM app_groups WHERE id = $1", [id]);
-        if (!chk.rows.length || chk.rows[0].tenant_id !== ctx.tenantId) {
+        if (group.tenant_id !== ctx.tenantId) {
           return res.status(403).json({ ok: false, error: "Access denied to group outside your organization" });
         }
       }

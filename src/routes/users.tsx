@@ -9,6 +9,7 @@ import {
   Check,
   ChevronDown,
   Copy,
+  Cpu,
   Download,
   Lock,
   Mail,
@@ -34,7 +35,7 @@ import { Surface, Row } from "@/components/sovereign/surface";
 import { Tag, JewelButton, StatusDot } from "@/components/sovereign/primitives";
 import { ObsidianSelect } from "@/components/sovereign/obsidian-select";
 import { SCOPE_LABELS, TAB_SCOPES, roleActions, useRoles } from "@/lib/rbac-store";
-import { useIdentity, type Account } from "@/lib/group-store";
+import { useIdentity, isSystemGroup, type Account } from "@/lib/group-store";
 import type { JewelTone } from "@/lib/rbac-store";
 import {
   DIRECTORY_KINDS,
@@ -699,6 +700,7 @@ type TenantItem = {
   admin_email: string | null;
   auth_provider?: string;
   auth_providers?: string[];
+  allowed_models?: string[];
   status: "active" | "suspended";
   retention_enabled?: boolean;
   retention_days?: number;
@@ -748,6 +750,7 @@ function TenantsTab() {
   const [tenants, setTenants] = useState<TenantItem[]>([]);
   const [tiers, setTiers] = useState<Array<{ tier: string; name: string; rpm_limit: number; monthly_token_quota: string }>>([]);
   const { providers: authProvidersList } = useAuthProviders();
+  const { models: availableModels } = useModels();
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -761,6 +764,8 @@ function TenantsTab() {
   const [tier, setTier] = useState("tier1");
   const [selectedIdps, setSelectedIdps] = useState<string[]>(["local"]);
   const [idpSelectVal, setIdpSelectVal] = useState("");
+  const [selectedModels, setSelectedModels] = useState<string[]>([]);
+  const [modelSelectVal, setModelSelectVal] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
   const [status, setStatus] = useState<"active" | "suspended">("active");
   const [retentionEnabled, setRetentionEnabled] = useState(false);
@@ -805,6 +810,8 @@ function TenantsTab() {
         ? tenant.auth_providers
         : (tenant.auth_provider ? [tenant.auth_provider] : ["local"]);
       setSelectedIdps(existingIdps);
+      setSelectedModels(Array.isArray(tenant.allowed_models) ? tenant.allowed_models : []);
+      setModelSelectVal("");
       setAdminEmail(tenant.admin_email || "");
       setStatus(tenant.status);
       setRetentionEnabled(tenant.retention_enabled === true);
@@ -819,6 +826,8 @@ function TenantsTab() {
       setDomainInput("");
       setTier("tier1");
       setSelectedIdps(["local"]);
+      setSelectedModels([]);
+      setModelSelectVal("");
       setAdminEmail("");
       setStatus("active");
       setRetentionEnabled(false);
@@ -890,6 +899,7 @@ function TenantsTab() {
             domain: domainValue,
             tier,
             auth_providers: selectedIdps.length > 0 ? selectedIdps : ["local"],
+            allowed_models: selectedModels,
             admin_email: adminEmail.trim(),
             status,
             retention_enabled: retentionEnabled,
@@ -912,6 +922,7 @@ function TenantsTab() {
             domain: domainValue,
             tier,
             auth_providers: selectedIdps.length > 0 ? selectedIdps : ["local"],
+            allowed_models: selectedModels,
             admin_email: adminEmail.trim(),
             status,
             retention_enabled: retentionEnabled,
@@ -1074,6 +1085,27 @@ function TenantsTab() {
                     <span className="font-semibold text-emerald">
                       {t.tier_name || t.tier.toUpperCase()}
                     </span>
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="text-muted-foreground text-[11px]">Model Entitlements:</span>
+                    <div className="flex flex-wrap gap-1">
+                      {t.allowed_models && t.allowed_models.length > 0 ? (
+                        t.allowed_models.map((mId) => {
+                          const found = availableModels.find((m) => m.id === mId || m.modelId === mId);
+                          return (
+                            <span
+                              key={mId}
+                              className="rounded border border-amethyst/30 bg-amethyst/15 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-amethyst"
+                            >
+                              {found?.name || mId}
+                            </span>
+                          );
+                        })
+                      ) : (
+                        <span className="font-mono text-[11px] text-muted-foreground/60">— All Global Models —</span>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center justify-between text-muted-foreground">
                     <span>Rate Limit & Quota:</span>
@@ -1331,6 +1363,75 @@ function TenantsTab() {
                       })
                     )}
                   </div>
+                </div>
+
+                {/* Allowed Models (Model Entitlement) Card */}
+                <div className="rounded-xl border border-white/8 bg-raised/30 p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-mono text-[10.5px] uppercase tracking-[0.14em] text-muted-foreground/70">
+                      Allowed AI Models · {selectedModels.length} Model{selectedModels.length === 1 ? "" : "s"}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <ObsidianSelect
+                      className="flex-1"
+                      value={modelSelectVal}
+                      onChange={(val) => setModelSelectVal(val)}
+                      placeholder="— Select Model to allow —"
+                      options={availableModels
+                        .filter((m) => !selectedModels.includes(m.id) && !selectedModels.includes(m.modelId))
+                        .map((m) => ({
+                          value: m.id,
+                          label: `${m.name} (${m.modelId})`,
+                        }))}
+                    />
+                    <JewelButton
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={!modelSelectVal}
+                      onClick={() => {
+                        if (!modelSelectVal || selectedModels.includes(modelSelectVal)) return;
+                        setSelectedModels((prev) => [...prev, modelSelectVal]);
+                        setModelSelectVal("");
+                      }}
+                    >
+                      <Plus className="h-3 w-3 mr-1" /> Add
+                    </JewelButton>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {selectedModels.length === 0 ? (
+                      <span className="font-mono text-[11px] text-muted-foreground/45">
+                        No specific restrictions · All global system models available.
+                      </span>
+                    ) : (
+                      selectedModels.map((mId) => {
+                        const found = availableModels.find((m) => m.id === mId || m.modelId === mId);
+                        return (
+                          <span
+                            key={mId}
+                            className="inline-flex items-center gap-1.5 rounded-md border border-amethyst/30 bg-amethyst/15 px-2 py-1 font-mono text-[11px] text-amethyst"
+                          >
+                            <Cpu className="h-3 w-3 text-amethyst" />
+                            {found?.name || mId}
+                            <button
+                              type="button"
+                              onClick={() => setSelectedModels((prev) => prev.filter((x) => x !== mId))}
+                              className="text-amethyst/60 hover:text-amethyst"
+                              title="Remove model entitlement"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </span>
+                        );
+                      })
+                    )}
+                  </div>
+                  <span className="mt-2 block font-mono text-[10px] text-muted-foreground/50">
+                    Empty = all global models accessible. Specifying models restricts users and agents in this organization exclusively to this list.
+                  </span>
                 </div>
 
                 {/* Data Retention & Auto-Purge SLA Policy Card */}
@@ -2020,16 +2121,22 @@ function GroupsTab() {
             </div>
             <div className="flex items-center gap-2">
               <SaveButton label="Group" entity={active.name} />
-              <DeleteButton
-                title={`Delete group ${active.name}?`}
-                body="The group and its membership rules are removed. Accounts stay, but lose this group's inherited role and template."
-                onConfirm={() => {
-                  removeGroup(active.id);
-                  toast.success("Group deleted", { description: active.name });
-                }}
-              >
-                Delete
-              </DeleteButton>
+              {isSystemGroup(active) ? (
+                <span className="flex items-center gap-1.5 rounded-lg border border-white/[0.08] bg-raised/40 px-3 py-[6px] font-mono text-[11px] tracking-[0.14em] text-muted-foreground/70">
+                  <Lock size={12} /> SYSTEM GROUP
+                </span>
+              ) : (
+                <DeleteButton
+                  title={`Delete group ${active.name}?`}
+                  body="The group and its membership rules are removed. Accounts stay, but lose this group's inherited role and template."
+                  onConfirm={() => {
+                    removeGroup(active.id);
+                    toast.success("Group deleted", { description: active.name });
+                  }}
+                >
+                  Delete
+                </DeleteButton>
+              )}
             </div>
           </header>
 
@@ -2444,89 +2551,39 @@ function ApproverDirectoryCard({
 function useGrantSources(): Record<GrantKey, { id: string; label: string; meta?: string }[]> {
   const { models } = useModels();
   const { providers } = useProviders();
-  const { agents } = useAgents();
-  const { skills } = useSkills();
-  const mcp = useMcp();
-  const { packs } = useCapabilities();
-  const { workflows } = useWorkflows();
-  const { chains } = useChains();
-  const { adapters } = useAdapters();
-  const { targets } = useTargets();
-  const vision = useVisionModels();
-  const knowledge = useKnowledge();
-  const { planners } = usePlanners();
   const { spaces } = useSpaces();
-  const { folders: ragFolders } = useRagFolders();
-  const { runtimes } = useRuntimes();
   const { roles } = useRoles();
-  const { plans } = useForgePlans();
-  const { items: blueprints } = useForge();
-  const { boards } = useTelemetryBoards();
-  const toolSandboxes = useCollection<IsolationProfile>(
-    "sovereign.security.isolation",
-    isolationSeed,
-    "iso",
-  );
-  const skillSandboxes = useCollection<IsolationProfile>(
-    "sovereign.security.skill-isolation",
-    skillIsolationSeed,
-    "siso",
-  );
-  const mcpSandboxes = useCollection<IsolationProfile>(
-    "sovereign.security.mcp-isolation",
-    mcpIsolationSeed,
-    "miso",
-  );
 
   return {
+    roles: roles.map((r) => ({ id: r.id, label: r.name, meta: `${r.scopes?.length ?? 0} scopes` })),
     models: models.map((m) => ({ id: m.id, label: m.name, meta: m.modelId })),
     providers: providers.map((p) => ({ id: p.id, label: p.name, meta: p.kind })),
-    agents: agents.map((a) => ({ id: a.id, label: a.name, meta: a.squad })),
-    tools: blueprints.filter(b => b.kind === "action").map((t) => ({ id: t.name, label: t.name, meta: "tool" })),
-    skills: skills.map((s) => ({ id: s.id, label: `!${s.name}`, meta: "skill" })),
-    mcp: mcp.clients.map((c) => ({ id: c.id, label: c.name, meta: c.transport ?? "mcp" })),
-    capabilities: packs.map((p) => ({ id: p.id, label: p.name, meta: p.sector })),
-    workflows: workflows.map((w) => ({
-      id: w.id,
-      label: w.name,
-      meta: `${w.nodes?.length ?? 0} nodes`,
-    })),
-    orchestrators: chains.map((c) => ({ id: c.id, label: c.name, meta: "chain" })),
-    adapters: adapters.map((a) => ({ id: a.id, label: a.name, meta: a.category })),
-    targets: targets.map((t) => ({ id: t.id, label: t.name, meta: t.risk })),
-    vision: vision.models.map((v) => ({ id: v.id, label: v.name, meta: v.modelId })),
-    knowledge: knowledge.sources.map((s) => ({ id: s.id, label: s.name, meta: s.kind })),
     ragSpaces: spaces.map((s) => ({ id: s.id, label: s.name, meta: s.slug })),
-    ragAgents: agents
-      .filter((a) => a.ragSpaceId)
-      .map((a) => ({
-        id: a.id,
-        label: a.name,
-        meta: spaces.find((sp) => sp.id === a.ragSpaceId)?.name ?? "space",
-      })),
-    ragFolders: ragFolders.map((f) => ({ id: f.id, label: f.name, meta: f.color ?? "collection" })),
-    vault: secretSeed.map((s) => ({ id: s.id, label: s.name, meta: s.kind })),
-    promptLayers: promptSchema.map((x) => ({ id: x.id, label: x.label, meta: x.group })),
-    planners: planners.map((x) => ({
-      id: x.id,
-      label: x.name,
-      meta: `${x.kind ?? "tool"} · ${x.mode}`,
-    })),
-    runtimes: runtimes.map((x) => ({ id: x.id, label: x.name, meta: x.status })),
-    sandboxes: [
-      ...toolSandboxes.items.map((p) => ({ id: p.id, label: p.name, meta: "tool sandbox" })),
-      ...skillSandboxes.items.map((p) => ({ id: p.id, label: p.name, meta: "skill sandbox" })),
-      ...mcpSandboxes.items.map((p) => ({ id: p.id, label: p.name, meta: "mcp sandbox" })),
+    mcpServer: [
+      { id: "gateway", label: "MCP Server Gateway", meta: "Host tools, issue tokens & manage exposures" },
     ],
-    metaForge: plans.map((p) => ({ id: p.id, label: p.prompt.slice(0, 48), meta: p.status })),
-    blueprints: blueprints.map((b) => ({ id: b.id, label: b.name, meta: b.kind })),
-    boards: boards.map((b) => ({ id: b.id, label: b.name, meta: `${b.entries.length} widgets` })),
-    reports: reportTemplates.map((r) => ({
-      id: r.id,
-      label: r.name,
-      meta: r.perUser ? "per-operator" : "studio",
-    })),
-    roles: roles.map((r) => ({ id: r.id, label: r.name, meta: `${r.scopes?.length ?? 0} scopes` })),
+    agents: [],
+    tools: [],
+    skills: [],
+    mcp: [],
+    capabilities: [],
+    workflows: [],
+    orchestrators: [],
+    adapters: [],
+    targets: [],
+    vision: [],
+    knowledge: [],
+    ragAgents: [],
+    ragFolders: [],
+    vault: [],
+    promptLayers: [],
+    planners: [],
+    runtimes: [],
+    sandboxes: [],
+    metaForge: [],
+    blueprints: [],
+    boards: [],
+    reports: [],
   };
 }
 
@@ -2832,7 +2889,13 @@ function TemplatesTab() {
             >
               User can modify
             </button>
-            <SaveButton label="Template" entity={active.name} />
+            <SaveButton
+              label="Template"
+              entity={active.name}
+              onSave={async () => {
+                await update(active.id, active);
+              }}
+            />
             <JewelButton size="sm" variant="outline" onClick={() => duplicate(active.id)}>
               <Copy className="h-3.5 w-3.5" />
             </JewelButton>

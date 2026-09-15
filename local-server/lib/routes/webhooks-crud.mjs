@@ -4,15 +4,8 @@ export async function mountWebhooksCrudRoutes(app, deps) {
   app.get("/api/webhooks", async (req, res) => {
     try {
       const ctx = typeof deps.resolveActorContext === "function" ? await deps.resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
-      let query = "SELECT * FROM webhooks";
-      const params = [];
-      if (!ctx.isSuperAdmin) {
-        query += " WHERE (tenant_id = $1 OR is_global = true OR tenant_id = 'default')";
-        params.push(ctx.tenantId || "default");
-      }
-      query += " ORDER BY created_at DESC";
-
-      const { rows } = await pool.query(query, params);
+      const vis = deps.buildVisibility ? deps.buildVisibility(ctx, 1, 'owner_id') : { clause: '1=1', params: [] };
+      const { rows } = await pool.query(`SELECT * FROM webhooks WHERE ${vis.clause} ORDER BY created_at DESC`, vis.params);
       res.json(rows.map(r => ({
         id: r.id,
         name: r.name,
@@ -75,6 +68,13 @@ export async function mountWebhooksCrudRoutes(app, deps) {
     const id = req.params.id;
     const m = req.body;
     try {
+      const ctx = typeof deps.resolveActorContext === "function" ? await deps.resolveActorContext(req) : null;
+      const existing = (await pool.query("SELECT * FROM webhooks WHERE id=$1", [id])).rows[0];
+      if (!existing) return res.status(404).json({ ok: false, error: "not found" });
+      if (deps.assertCanEdit && ctx) {
+        deps.assertCanEdit(ctx, existing, "webhook");
+      }
+
       const updates = [];
       const values = [];
       let i = 1;
@@ -120,8 +120,18 @@ export async function mountWebhooksCrudRoutes(app, deps) {
   app.delete("/api/webhooks/:id", async (req, res) => {
     if (!await isAdminCaller(req)) return res.status(403).json({ ok: false, error: "admin required" });
     try {
+      const ctx = typeof deps.resolveActorContext === "function" ? await deps.resolveActorContext(req) : null;
+      const existing = (await pool.query("SELECT * FROM webhooks WHERE id=$1", [req.params.id])).rows[0];
+      if (!existing) return res.status(404).json({ ok: false, error: "not found" });
+      if (deps.assertCanEdit && ctx) {
+        deps.assertCanEdit(ctx, existing, "webhook");
+      }
+
       await pool.query("DELETE FROM webhooks WHERE id=$1", [req.params.id]);
       res.status(204).end();
-    } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+    } catch (e) {
+      const status = e.status || 500;
+      res.status(status).json({ ok: false, error: String(e.message || e) });
+    }
   });
 }

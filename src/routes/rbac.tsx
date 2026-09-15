@@ -68,7 +68,7 @@ function RbacPage() {
               <h1 className="font-mono text-[15px] tracking-[0.06em] text-foreground">
                 {role.name}
                 <span className="ml-2 text-[11px] tracking-[0.16em] text-muted-foreground/60">
-                  {role.scopes.length}/{TAB_SCOPES.length} TABS
+                  {isSovereign(role) ? TAB_SCOPES.length : role.scopes.length}/{TAB_SCOPES.length} TABS
                 </span>
               </h1>
               <p className="mt-0.5 text-[12.5px] text-muted-foreground/70">{role.description}</p>
@@ -187,7 +187,7 @@ function RbacPage() {
                 label={a.label}
                 hint={a.hint}
                 tone={role.tone}
-                checked={roleActions(role).includes(a.id)}
+                checked={isSovereign(role) || roleActions(role).includes(a.id)}
                 locked={locked}
                 onToggle={() => toggleAction(role.id, a.id)}
               />
@@ -223,7 +223,7 @@ function RbacPage() {
                   </span>
                   <span className="h-px flex-1 bg-white/[0.06]" />
                   <span className="font-mono text-[10.5px] text-muted-foreground/45">
-                    {g.items.filter((i) => role.scopes.includes(i.id)).length}/{g.items.length}
+                    {isSovereign(role) ? g.items.length : g.items.filter((i) => role.scopes.includes(i.id)).length}/{g.items.length}
                   </span>
                 </div>
                 <div className="grid gap-x-6 gap-y-1.5 sm:grid-cols-2 lg:grid-cols-4">
@@ -232,7 +232,7 @@ function RbacPage() {
                       key={item.id}
                       label={item.label}
                       tone={role.tone}
-                      checked={role.scopes.includes(item.id)}
+                      checked={isSovereign(role) || role.scopes.includes(item.id)}
                       locked={locked}
                       onToggle={() => toggleScope(role.id, item.id)}
                     />

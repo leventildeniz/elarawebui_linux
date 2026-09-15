@@ -7,7 +7,8 @@ import { Tag } from "@/components/sovereign/primitives";
 import { IconPicker, JewelSwatches } from "@/components/sovereign/identity";
 import { getIcon } from "@/lib/icon-library";
 import { confirmAction } from "@/components/sovereign/confirm-dialog";
-import { ShareControl } from "@/components/sovereign/ownership-controls";
+import { ShareControl, ReadOnlyBanner, OwnerChip } from "@/components/sovereign/ownership-controls";
+import { canEdit as canEditOwned, editRefusal, useOwnerCtx } from "@/lib/ownership";
 import { jewelPalette } from "@/lib/avatar-library";
 import { useModels } from "@/lib/model-store";
 import { useRuntimes } from "@/lib/runtime-store";
@@ -130,14 +131,15 @@ function MiniButton({
   );
 }
 
-function Toggle({ on, onToggle, label }: { on: boolean; onToggle: () => void; label: string }) {
+function Toggle({ on, onToggle, label, disabled = false }: { on: boolean; onToggle: () => void; label: string; disabled?: boolean }) {
   return (
     <button
       type="button"
-      onClick={onToggle}
+      disabled={disabled}
+      onClick={disabled ? undefined : onToggle}
       aria-pressed={on}
       aria-label={label}
-      className="flex items-center gap-2"
+      className={cn("flex items-center gap-2", disabled && "pointer-events-none opacity-50")}
       title={label}
     >
       <span
@@ -259,6 +261,7 @@ function slugify(name: string, kind: ForgeKind) {
 function ForgeFactory() {
   const { items, create, update, remove } = useForge();
   const { kind } = useForgeKind();
+  const ownerCtx = useOwnerCtx();
   const { models } = useModels();
   const { runtimes } = useRuntimes();
   const { adapters } = useAdapters();
@@ -368,6 +371,9 @@ function ForgeFactory() {
     window.setTimeout(() => setSaved(false), 1600);
   };
 
+  const writable = creating || canEditOwned(draft, ownerCtx);
+  const refusal = writable ? "" : editRefusal(draft, ownerCtx);
+
   const kindLabel =
     kind === "all" ? "definition" : forgeKinds.find((k) => k.id === kind)!.label.toLowerCase();
 
@@ -382,12 +388,11 @@ function ForgeFactory() {
           <MiniButton onClick={startNew}>
             <Plus size={12} strokeWidth={2} /> New {kind === "all" ? "action" : kindLabel}
           </MiniButton>
-          <MiniButton onClick={duplicate}>
-            <Copy size={12} strokeWidth={2} /> Duplicate
-          </MiniButton>
-          <MiniButton tone="emerald" onClick={save}>
-            <Save size={12} strokeWidth={2} /> {saved ? "Saved" : "Save"}
-          </MiniButton>
+          {writable && (
+            <MiniButton tone="emerald" onClick={save}>
+              <Save size={12} strokeWidth={2} /> {saved ? "Saved" : "Save"}
+            </MiniButton>
+          )}
         </div>
       }
     >
@@ -463,6 +468,7 @@ function ForgeFactory() {
         {/* ---------------------------------------------------------- editor */}
         {draft ? (
           <div className="glass space-y-5 rounded-xl border border-white/[0.06] p-5">
+            <ReadOnlyBanner reason={refusal} />
             <div className="flex flex-wrap gap-1.5 border-b border-white/[0.06] pb-4">
               {(
                 [
@@ -489,7 +495,7 @@ function ForgeFactory() {
             </div>
 
             {editorTab === "identity" && (
-              <div className="space-y-5">
+              <div className={cn("space-y-5", !writable && "pointer-events-none opacity-75")}>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Field label="ID" hint="Auto-derived from the name when left empty.">
                     <input
@@ -502,9 +508,10 @@ function ForgeFactory() {
                   </Field>
                   <Field label="Kind" hint="Preset by the active header tab.">
                     <select
+                      disabled={!writable}
                       value={draft.kind}
                       onChange={(e) => patch({ kind: e.target.value as ForgeKind })}
-                      className={input}
+                      className={cn(input, !writable && "cursor-not-allowed")}
                     >
                       {forgeKinds.map((k) => (
                         <option key={k.id} value={k.id} className="bg-panel">
@@ -515,23 +522,26 @@ function ForgeFactory() {
                   </Field>
                   <Field label="Name">
                     <input
+                      disabled={!writable}
                       value={draft.name}
                       onChange={(e) => patch({ name: e.target.value })}
-                      className={input}
+                      className={cn(input, !writable && "cursor-not-allowed")}
                     />
                   </Field>
                   <Field label="Category">
                     <input
+                      disabled={!writable}
                       value={draft.category}
                       onChange={(e) => patch({ category: e.target.value })}
-                      className={input}
+                      className={cn(input, !writable && "cursor-not-allowed")}
                     />
                   </Field>
                   <Field label="Provider">
                     <input
+                      disabled={!writable}
                       value={draft.provider}
                       onChange={(e) => patch({ provider: e.target.value })}
-                      className={mono}
+                      className={cn(mono, !writable && "cursor-not-allowed")}
                     />
                   </Field>
                   <Field
@@ -541,6 +551,7 @@ function ForgeFactory() {
                     <div className="flex items-center gap-3">
                       <input
                         type="range"
+                        disabled={!writable}
                         min={1}
                         max={10}
                         value={draft.priority}
@@ -568,9 +579,10 @@ function ForgeFactory() {
                 <Field label="Description">
                   <textarea
                     rows={3}
+                    disabled={!writable}
                     value={draft.description}
                     onChange={(e) => patch({ description: e.target.value })}
-                    className={cn(input, "resize-y")}
+                    className={cn(input, "resize-y", !writable && "cursor-not-allowed")}
                   />
                 </Field>
                 
@@ -583,7 +595,7 @@ function ForgeFactory() {
                     </p>
                     <ShareControl 
                       record={{ visibility: draft.visibility, sharedWith: draft.sharedWith }} 
-                      disabled={draft.system}
+                      disabled={!writable || draft.system}
                       onChange={(patchData) => {
                         patch({ 
                           visibility: patchData.visibility ?? draft.visibility,
@@ -598,28 +610,30 @@ function ForgeFactory() {
 
             {/* input parameters */}
             {editorTab === "schema" && (
-              <div className="space-y-5">
+              <div className={cn("space-y-5", !writable && "pointer-events-none opacity-75")}>
                 <Section
                   label="Input parameters"
                   action={
-                    <MiniButton
-                      onClick={() =>
-                        patch({
-                          params: [
-                            ...draft.params,
-                            {
-                              id: `p.${Math.random().toString(36).slice(2, 7)}`,
-                              key: "",
-                              label: "",
-                              type: "string",
-                              value: "",
-                            },
-                          ],
-                        })
-                      }
-                    >
-                      <Plus size={12} strokeWidth={2} /> Field
-                    </MiniButton>
+                    writable ? (
+                      <MiniButton
+                        onClick={() =>
+                          patch({
+                            params: [
+                              ...draft.params,
+                              {
+                                id: `p.${Math.random().toString(36).slice(2, 7)}`,
+                                key: "",
+                                label: "",
+                                type: "string",
+                                value: "",
+                              },
+                            ],
+                          })
+                        }
+                      >
+                        <Plus size={12} strokeWidth={2} /> Field
+                      </MiniButton>
+                    ) : undefined
                   }
                 >
                   <div className="space-y-2">
@@ -731,24 +745,26 @@ function ForgeFactory() {
 
                 {/* outputs */}
                 <Section
-                  label="Outputs (downstream ctx)"
+                  label="Output declarations"
                   action={
-                    <MiniButton
-                      onClick={() =>
-                        patch({
-                          outputs: [
-                            ...draft.outputs,
-                            {
-                              id: `o.${Math.random().toString(36).slice(2, 7)}`,
-                              key: "",
-                              label: "",
-                            },
-                          ],
-                        })
-                      }
-                    >
-                      <Plus size={12} strokeWidth={2} /> Output
-                    </MiniButton>
+                    writable ? (
+                      <MiniButton
+                        onClick={() =>
+                          patch({
+                            outputs: [
+                              ...draft.outputs,
+                              {
+                                id: `o.${Math.random().toString(36).slice(2, 7)}`,
+                                key: "",
+                                label: "",
+                              },
+                            ],
+                          })
+                        }
+                      >
+                        <Plus size={12} strokeWidth={2} /> Output
+                      </MiniButton>
+                    ) : undefined
                   }
                 >
                   <div className="space-y-2">
@@ -803,7 +819,7 @@ function ForgeFactory() {
 
             {/* runtime */}
             {editorTab === "runtime" && (
-              <div className="space-y-5">
+              <div className={cn("space-y-5", !writable && "pointer-events-none opacity-75")}>
                 <Section label="Runtime">
                   <div className="grid gap-4 sm:grid-cols-2">
                     <Field
@@ -899,7 +915,7 @@ function ForgeFactory() {
 
             {/* execution policy */}
             {editorTab === "policy" && (
-              <div className="space-y-5">
+              <div className={cn("space-y-5", !writable && "pointer-events-none opacity-75")}>
                 <Section
                   label="Execution policy"
                   action={
@@ -908,8 +924,9 @@ function ForgeFactory() {
                         Enforce strict
                       </span>
                       <Toggle
+                        disabled={!writable}
                         on={draft.enforceStrict}
-                        onToggle={() => patch({ enforceStrict: !draft.enforceStrict })}
+                        onToggle={() => writable && patch({ enforceStrict: !draft.enforceStrict })}
                         label="Enforce strict"
                       />
                     </div>
@@ -994,22 +1011,24 @@ function ForgeFactory() {
                     <Section
                       label="Custom params (override agent)"
                       action={
-                        <MiniButton
-                          onClick={() =>
-                            patch({
-                              customParams: [
-                                ...draft.customParams,
-                                {
-                                  id: `c.${Math.random().toString(36).slice(2, 7)}`,
-                                  key: "",
-                                  value: "",
-                                },
-                              ],
-                            })
-                          }
-                        >
-                          <Plus size={12} strokeWidth={2} /> Add
-                        </MiniButton>
+                        writable ? (
+                          <MiniButton
+                            onClick={() =>
+                              patch({
+                                customParams: [
+                                  ...draft.customParams,
+                                  {
+                                    id: `c.${Math.random().toString(36).slice(2, 7)}`,
+                                    key: "",
+                                    value: "",
+                                  },
+                                ],
+                              })
+                            }
+                          >
+                            <Plus size={12} strokeWidth={2} /> Add
+                          </MiniButton>
+                        ) : undefined
                       }
                     >
                       <div className="space-y-2">
@@ -1067,35 +1086,42 @@ function ForgeFactory() {
             )}
 
             <div className="flex items-center justify-between gap-3 border-t border-white/[0.06] pt-4">
-              <button
-                type="button"
-                disabled={creating || !selectedId}
-                onClick={async () => {
-                  if (!selectedId) return;
-                  const ok = await confirmAction({
-                    title: `Delete ${draft?.name || "this definition"}?`,
-                    body: draft?.system
-                      ? "This is a system definition. Deleting it requires an admin override and places a tombstone so it won't respawn on boot."
-                      : "This definition will be permanently removed from the Forge.",
-                    confirmLabel: "Delete",
-                    tone: "ruby",
-                  });
-                  if (!ok) return;
-                  remove(selectedId);
-                  setSelectedId(null);
-                  setDraft(null);
-                }}
-                className="flex items-center gap-1.5 rounded-lg border border-ruby/40 bg-ruby/10 px-3 py-[7px] font-mono text-[12px] text-ruby transition-colors hover:bg-ruby/20 disabled:opacity-40"
-              >
-                <Trash2 size={12} strokeWidth={1.9} /> Delete
-              </button>
-              <button
-                type="button"
-                onClick={save}
-                className="flex items-center gap-2 rounded-lg border border-emerald/50 bg-emerald/15 px-4 py-[7px] font-mono text-[12.5px] text-foreground shadow-[0_0_26px_-10px_var(--emerald)] transition-colors hover:bg-emerald/25"
-              >
-                <Save size={13} strokeWidth={1.9} /> {saved ? "Saved" : "Save"}
-              </button>
+              {writable ? (
+                <button
+                  type="button"
+                  disabled={creating || !selectedId}
+                  title={refusal}
+                  onClick={async () => {
+                    if (!selectedId) return;
+                    const ok = await confirmAction({
+                      title: `Delete ${draft?.name || "this definition"}?`,
+                      body: draft?.system
+                        ? "This is a system definition. Deleting it requires an admin override and places a tombstone so it won't respawn on boot."
+                        : "This definition will be permanently removed from the Forge.",
+                      confirmLabel: "Delete",
+                      tone: "ruby",
+                    });
+                    if (!ok) return;
+                    remove(selectedId);
+                    setSelectedId(null);
+                    setDraft(null);
+                  }}
+                  className="flex items-center gap-1.5 rounded-lg border border-ruby/40 bg-ruby/10 px-3 py-[7px] font-mono text-[12px] text-ruby transition-colors hover:bg-ruby/20"
+                >
+                  <Trash2 size={12} strokeWidth={1.9} /> Delete
+                </button>
+              ) : (
+                <span className="font-mono text-[11.5px] text-muted-foreground/60 italic">Read-only definition</span>
+              )}
+              {writable && (
+                <button
+                  type="button"
+                  onClick={save}
+                  className="flex items-center gap-2 rounded-lg border border-emerald/50 bg-emerald/15 px-4 py-[7px] font-mono text-[12.5px] text-foreground shadow-[0_0_26px_-10px_var(--emerald)] transition-colors hover:bg-emerald/25"
+                >
+                  <Save size={13} strokeWidth={1.9} /> {saved ? "Saved" : "Save"}
+                </button>
+              )}
             </div>
           </div>
         ) : (

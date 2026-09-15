@@ -21,7 +21,7 @@ function sanitizeAdapterBody(body) {
 }
 
 export function mountAdaptersRoutes(app, deps) {
-  const { pool, resolveActorContext } = deps;
+  const { pool, resolveActorContext, assertCanEdit } = deps;
 
   app.get("/api/adapters", async (req, res) => {
     try {
@@ -55,10 +55,15 @@ export function mountAdaptersRoutes(app, deps) {
 
   app.get("/api/adapters/:id", async (req, res) => {
     try {
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
       const r = await pool.query(`SELECT * FROM adapters WHERE id=$1`, [req.params.id]);
       if (!r.rows[0]) return res.status(404).json({ ok: false, error: "not_found" });
       
       const row = r.rows[0];
+      if (!ctx.isSuperAdmin && row.tenant_id !== ctx.tenantId && row.tenant_id !== "default" && !row.is_global) {
+        return res.status(403).json({ ok: false, error: "Access denied" });
+      }
+
       row.adapter = row.runner;
       row.connection_type = row.connection;
       row.risk_level = row.risk;
@@ -110,6 +115,13 @@ export function mountAdaptersRoutes(app, deps) {
 
   app.patch("/api/adapters/:id", async (req, res) => {
     try {
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
+      const cur = await pool.query(`SELECT * FROM adapters WHERE id=$1`, [req.params.id]);
+      if (!cur.rows[0]) return res.status(404).json({ ok: false, error: "not_found" });
+      if (assertCanEdit) {
+        assertCanEdit(ctx, cur.rows[0], "adapter");
+      }
+
       const b = sanitizeAdapterBody(req.body);
       
       let configStr = "{}";
@@ -136,14 +148,21 @@ export function mountAdaptersRoutes(app, deps) {
       );
       if (!r.rows[0]) return res.status(404).json({ ok: false, error: "not_found" });
       res.json({ ok: true, item: r.rows[0] });
-    } catch (e) { res.status(400).json({ ok: false, error: String(e.message || e) }); }
+    } catch (e) { res.status(e.status || 400).json({ ok: false, error: String(e.message || e) }); }
   });
 
   app.delete("/api/adapters/:id", async (req, res) => {
     try {
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
+      const cur = await pool.query(`SELECT * FROM adapters WHERE id=$1`, [req.params.id]);
+      if (!cur.rows[0]) return res.status(404).json({ ok: false, error: "not_found" });
+      if (assertCanEdit) {
+        assertCanEdit(ctx, cur.rows[0], "adapter");
+      }
+
       await pool.query(`DELETE FROM adapters WHERE id=$1`, [req.params.id]);
       res.json({ ok: true });
-    } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+    } catch (e) { res.status(e.status || 500).json({ ok: false, error: String(e.message || e) }); }
   });
 
   app.post("/api/adapters/:id/test", async (req, res) => {

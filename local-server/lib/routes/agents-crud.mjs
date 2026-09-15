@@ -167,31 +167,37 @@ export function mountAgentsCrudRoutes(app, deps) {
   app.delete("/api/agents/:id", async (req, res) => {
     const id = String(req.params.id || "").trim();
     if (id === "agt.forge_master" || id.startsWith("sys.")) {
-      return res.status(403).json({ error: "System infrastructure agents cannot be deleted." });
+      return res.status(403).json({ ok: false, error: "System infrastructure agents cannot be deleted." });
     }
     const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
     try {
-      if (!ctx.isSuperAdmin) {
-        const cur = await pool.query("SELECT tenant_id, is_global FROM agents WHERE id=$1", [id]);
-        if (!cur.rows.length || cur.rows[0].is_global || (cur.rows[0].tenant_id !== ctx.tenantId && cur.rows[0].tenant_id !== "default")) {
-          return res.status(403).json({ error: "Access denied to delete this agent." });
-        }
+      const cur = await pool.query("SELECT * FROM agents WHERE id=$1", [id]);
+      if (!cur.rows.length) return res.status(404).json({ ok: false, error: "agent not found" });
+      if (deps.assertCanEdit) {
+        deps.assertCanEdit(ctx, cur.rows[0], "agent");
       }
       await pool.query("DELETE FROM agents WHERE id=$1", [id]);
       res.status(204).end();
-    } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
+    } catch (e) {
+      const status = e.status || 500;
+      res.status(status).json({ ok: false, error: String(e.message || e) });
+    }
   });
 
   app.put("/api/agents/:id", async (req, res) => {
     const id = String(req.params.id || "").trim();
     if (!id) return res.status(400).json({ ok: false, error: "id required" });
     if (id === "agt.forge_master" || id.startsWith("sys.")) {
-      return res.status(403).json({ error: "System infrastructure agents cannot be modified directly via user CRUD." });
+      return res.status(403).json({ ok: false, error: "System infrastructure agents cannot be modified directly via user CRUD." });
     }
     const a = req.body ?? {};
     try {
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
       const cur = await pool.query("SELECT * FROM agents WHERE id=$1", [id]);
       if (!cur.rows.length) return res.status(404).json({ ok: false, error: `agent ${id} not found` });
+      if (deps.assertCanEdit) {
+        deps.assertCanEdit(ctx, cur.rows[0], "agent");
+      }
 
       await pool.query(
         `UPDATE agents SET

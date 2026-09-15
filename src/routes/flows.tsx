@@ -452,7 +452,10 @@ function WorkflowDesigner() {
               <JewelButton
                 size="sm"
                 variant="primary"
+                disabled={!canvasWritable}
+                title={canvasRefusal}
                 onClick={() => {
+                  if (!canvasWritable) return;
                   update(active.id, { view: { x: pan.x, y: pan.y, zoom } });
                   const rec = signPayload(active.id, active.name, payload);
                   if (rec)
@@ -486,18 +489,18 @@ function WorkflowDesigner() {
               onPanChange={setPan}
               onSelect={setSelected}
               onMoveNode={(id, x, y) =>
-                patch((d) => ({ nodes: d.nodes.map((n) => (n.id === id ? { ...n, x, y } : n)) }))
+                canvasWritable && patch((d) => ({ nodes: d.nodes.map((n) => (n.id === id ? { ...n, x, y } : n)) }))
               }
               onConnect={(from, to) =>
-                patch((d) =>
+                canvasWritable && patch((d) =>
                   d.edges.some((e) => e.from === from && e.to === to)
                     ? {}
                     : { edges: [...d.edges, { id: `e${Date.now()}`, from, to }] },
                 )
               }
-              onDeleteNode={(id) => void removeNode(id)}
-              onDeleteEdge={(id) => patch((d) => ({ edges: d.edges.filter((e) => e.id !== id) }))}
-              onDropSkill={(label, x, y) => addNode(label, "skill", "skill · sealed", x, y)}
+              onDeleteNode={(id) => canvasWritable && void removeNode(id)}
+              onDeleteEdge={(id) => canvasWritable && patch((d) => ({ edges: d.edges.filter((e) => e.id !== id) }))}
+              onDropSkill={(label, x, y) => canvasWritable && addNode(label, "skill", "skill · sealed", x, y)}
             />
           </div>
 

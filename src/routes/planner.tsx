@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { canEdit as canEditOwned, editRefusal, useOwnerCtx } from "@/lib/ownership";
-import { SharePopover } from "@/components/sovereign/ownership-controls";
+import { canEdit as canEditOwned, editRefusal, useOwnerCtx, stampOwner } from "@/lib/ownership";
+import { SharePopover, ReadOnlyBanner } from "@/components/sovereign/ownership-controls";
 import { createFileRoute } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
 import {
@@ -1022,6 +1022,11 @@ function PlannerDialog({
   onClose: () => void;
   onSubmit: (draft: Draft) => void;
 }) {
+  const ownerCtx = useOwnerCtx();
+  const isNew = !initial;
+  const writable = isNew || canEditOwned(initial, ownerCtx);
+  const refusal = writable ? "" : editRefusal(initial, ownerCtx);
+
   const [draft, setDraft] = useState<Draft>(() => {
     if (!initial) return { ...emptyPlanner, kind: kind ?? "tool" };
     const { id: _id, createdAt: _c, runs: _r, ...rest } = initial;
@@ -1050,7 +1055,7 @@ function PlannerDialog({
       >
         <div className="flex items-center justify-between">
           <h2 className="text-[17px] font-medium tracking-tight">
-            {initial ? "Edit planner" : "New planner"}
+            {isNew ? "New planner" : writable ? "Edit planner" : "View planner (Read-Only)"}
           </h2>
           <button
             onClick={onClose}
@@ -1062,41 +1067,50 @@ function PlannerDialog({
           </button>
         </div>
 
+        {!writable && refusal ? (
+          <div className="mt-4">
+            <ReadOnlyBanner reason={refusal} />
+          </div>
+        ) : null}
+
         <form
           className="mt-6 space-y-4"
           onSubmit={(e) => {
             e.preventDefault();
-            if (!draft.name.trim()) return;
+            if (!writable || !draft.name.trim()) return;
             onSubmit({ ...draft, name: draft.name.trim() });
           }}
         >
           <Field label="name">
             <input
               autoFocus
+              disabled={!writable}
               value={draft.name}
               onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
               placeholder="Research Planner"
-              className="w-full rounded-lg border border-input bg-raised/50 px-3 py-2 text-[14px] outline-none transition-colors focus:border-sapphire/50"
+              className="w-full rounded-lg border border-input bg-raised/50 px-3 py-2 text-[14px] outline-none transition-colors focus:border-sapphire/50 disabled:opacity-50"
             />
           </Field>
 
           <Field label="description">
             <input
+              disabled={!writable}
               value={draft.description}
               onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
               placeholder="Tool orchestration layer · opt-in · shadow/active"
-              className={inputCls}
+              className={cn(inputCls, !writable && "opacity-50")}
             />
           </Field>
 
           <div className="grid grid-cols-2 gap-4">
             <Field label="mode">
               <select
+                disabled={!writable}
                 value={draft.mode}
                 onChange={(e) =>
                   setDraft((d) => ({ ...d, mode: e.target.value as Planner["mode"] }))
                 }
-                className={inputCls}
+                className={cn(inputCls, !writable && "opacity-50")}
               >
                 <option value="shadow" className="bg-panel">
                   shadow — log only
@@ -1109,7 +1123,7 @@ function PlannerDialog({
             <Field label={`max ${draftNoun}s / turn`}>
               <NumberInput
                 value={draft.maxTools}
-                onChange={(v) => setDraft((d) => ({ ...d, maxTools: v }))}
+                onChange={(v) => writable && setDraft((d) => ({ ...d, maxTools: v }))}
               />
             </Field>
           </div>
@@ -1119,14 +1133,14 @@ function PlannerDialog({
               <NumberInput
                 value={draft.toolTimeout}
                 step={500}
-                onChange={(v) => setDraft((d) => ({ ...d, toolTimeout: v }))}
+                onChange={(v) => writable && setDraft((d) => ({ ...d, toolTimeout: v }))}
               />
             </Field>
             <Field label="planner timeout (ms)">
               <NumberInput
                 value={draft.plannerTimeout}
                 step={500}
-                onChange={(v) => setDraft((d) => ({ ...d, plannerTimeout: v }))}
+                onChange={(v) => writable && setDraft((d) => ({ ...d, plannerTimeout: v }))}
               />
             </Field>
           </div>
@@ -1136,22 +1150,24 @@ function PlannerDialog({
               kind={draft.kind}
               policy={draft.toolPolicy}
               list={draft.toolList}
-              onPolicy={(p) => setDraft((d) => ({ ...d, toolPolicy: p }))}
-              onList={(next) => setDraft((d) => ({ ...d, toolList: next }))}
+              onPolicy={(p) => writable && setDraft((d) => ({ ...d, toolPolicy: p }))}
+              onList={(next) => writable && setDraft((d) => ({ ...d, toolList: next }))}
             />
           </Field>
 
           <Toggle
             label="Planner enabled"
             value={draft.enabled}
-            onChange={(v) => setDraft((d) => ({ ...d, enabled: v }))}
+            onChange={(v) => writable && setDraft((d) => ({ ...d, enabled: v }))}
           />
 
           <div className="flex justify-end gap-2 pt-2">
             <JewelButton type="button" variant="outline" onClick={onClose}>
-              Cancel
+              {writable ? "Cancel" : "Close"}
             </JewelButton>
-            <JewelButton type="submit">{initial ? "Save changes" : "Create planner"}</JewelButton>
+            {writable && (
+              <JewelButton type="submit">{initial ? "Save changes" : "Create planner"}</JewelButton>
+            )}
           </div>
         </form>
       </motion.div>

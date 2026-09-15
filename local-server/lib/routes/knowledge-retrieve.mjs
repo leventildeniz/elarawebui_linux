@@ -7,11 +7,11 @@
 import path from "node:path";
 import os from "node:os";
 
-// Module-level sources cache (single-flight + 2s TTL).
-let __sourcesCache = { at: 0, payload: null, inflight: null };
+// Module-level sources cache (per tenant, 2s TTL).
+let __sourcesCache = new Map();
 
 export function invalidateSourcesCache() {
-  __sourcesCache = { at: 0, payload: null, inflight: null };
+  __sourcesCache.clear();
 }
 
 export function mountKnowledgeRetrieveRoutes(app, deps) {
@@ -26,7 +26,7 @@ export function mountKnowledgeRetrieveRoutes(app, deps) {
     ensureKnowledgeChunksTable,
     getLibraryBrands,
     getEmbeddingHealth,
-        inspectDirectoryAccess,
+    inspectDirectoryAccess,
     getLibraryRoot,
     setLibraryRoot,
     persistLibraryRoot,
@@ -44,6 +44,7 @@ export function mountKnowledgeRetrieveRoutes(app, deps) {
     buildOrTsQuery,
     semanticAssistThreshold,
     isTechnicalQuery,
+    resolveActorContext,
   } = deps;
 
   // ---- /api/knowledge/search ------------------------------------------------
@@ -77,8 +78,11 @@ export function mountKnowledgeRetrieveRoutes(app, deps) {
   });
 
   // ---- /api/knowledge/sources ----------------------------------------------
-  async function loadKnowledgeSourcesPayload() {
+  async function loadKnowledgeSourcesPayload(ctx) {
     await ensureKnowledgeFilesTable();
+    const isSuperAdmin = ctx?.isSuperAdmin;
+    const tenantId = ctx?.tenantId || "default";
+
     const dirs = await pool.query(
       `SELECT root,
               COUNT(*)::int          AS files,
@@ -88,8 +92,8 @@ export function mountKnowledgeRetrieveRoutes(app, deps) {
         GROUP BY root
         ORDER BY MAX(indexed_at) DESC`
     );
-    const urls = await pool.query(
-      `SELECT s.id, s.name, s.type, s.tag, s.url, s.chunks, s.created_at, s.crawl_config,
+
+    let urlQuery = `SELECT s.id, s.name, s.type, s.tag, s.url, s.chunks, s.created_at, s.crawl_config,
               COALESCE(c.child_count, 0)::int  AS child_count,
               COALESCE(c.child_chunks, 0)::int AS child_chunks,
               (
@@ -106,9 +110,16 @@ export function mountKnowledgeRetrieveRoutes(app, deps) {
             WHERE parent_id IS NOT NULL
             GROUP BY parent_id
          ) c ON c.parent_id = s.id::text
-        WHERE s.parent_id IS NULL
-        ORDER BY s.created_at DESC`
-    );
+        WHERE s.parent_id IS NULL`;
+
+    const urlParams = [];
+    if (!isSuperAdmin) {
+      urlQuery += ` AND (s.tenant_id = $1 OR s.is_global = true OR s.tenant_id = 'default')`;
+      urlParams.push(tenantId);
+    }
+    urlQuery += ` ORDER BY s.created_at DESC`;
+
+    const urls = await pool.query(urlQuery, urlParams);
     const dirSources = dirs.rows.map((r) => ({
       id: `dir:${r.root}`,
       name: r.root,
@@ -141,21 +152,32 @@ export function mountKnowledgeRetrieveRoutes(app, deps) {
     return { ok: true, sources: [...dirSources, ...urlSources] };
   }
 
-  app.get("/api/knowledge/sources", async (_req, res) => {
+  app.get("/api/knowledge/sources", async (req, res) => {
     try {
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
+      const cacheKey = ctx.isSuperAdmin ? "__super_admin__" : (ctx.tenantId || "default");
       const now = Date.now();
-      if (__sourcesCache.payload && now - __sourcesCache.at < 2000) {
-        return res.json(__sourcesCache.payload);
+      const cached = __sourcesCache.get(cacheKey);
+
+      if (cached?.payload && now - cached.at < 2000) {
+        return res.json(cached.payload);
       }
-      if (!__sourcesCache.inflight) {
-        __sourcesCache.inflight = loadKnowledgeSourcesPayload()
-          .then((p) => { __sourcesCache = { at: Date.now(), payload: p, inflight: null }; return p; })
-          .catch((e) => { __sourcesCache.inflight = null; throw e; });
+      if (!cached?.inflight) {
+        const inflight = loadKnowledgeSourcesPayload(ctx)
+          .then((p) => {
+            __sourcesCache.set(cacheKey, { at: Date.now(), payload: p, inflight: null });
+            return p;
+          })
+          .catch((e) => {
+            __sourcesCache.delete(cacheKey);
+            throw e;
+          });
+        __sourcesCache.set(cacheKey, { at: cached?.at || 0, payload: cached?.payload || null, inflight });
       }
-      res.json(await __sourcesCache.inflight);
+      const entry = __sourcesCache.get(cacheKey);
+      res.json(await entry.inflight);
     } catch (e) {
       console.error("[knowledge/sources] query failed:", e?.stack || e?.message || e);
-      __sourcesCache = { at: 0, payload: null, inflight: null };
       res.status(500).json({ ok: false, error: String(e.message || e), sources: [] });
     }
   });

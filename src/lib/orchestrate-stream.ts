@@ -1,5 +1,6 @@
 import type { Mention } from "@/components/sovereign/composer";
 import type { WireMessage } from "@/lib/attachment-encode";
+import { authHeaders } from "@/lib/api";
 
 /**
  * Multi-turn orchestration transport.
@@ -226,7 +227,11 @@ export async function streamOrchestrate(
 ): Promise<void> {
   const res = await fetch(endpoint, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "text/event-stream",
+      ...authHeaders(),
+    },
     body: JSON.stringify(body),
     ...(signal ? { signal } : {}),
   });

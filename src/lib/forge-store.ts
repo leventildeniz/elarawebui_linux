@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   canEdit,
+  readDesk,
+  writeDesk,
+  readDeskRaw,
+  writeDeskRaw,
   readOwnerCtx,
   scopeOwned,
   stampOwner,
@@ -104,7 +108,7 @@ export const emptyForgeItem: Omit<ForgeItem, "id" | "createdAt"> = {
   priority: 5,
   description: "",
   system: false,
-  visibility: "workspace",
+  visibility: "private",
   sharedWith: [],
   params: [],
   outputs: [],
@@ -138,24 +142,15 @@ const EVT = "sovereign:forge";
 const KIND_KEY = "sovereign.forge.kind";
 
 function read(): ForgeItem[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as ForgeItem[];
-    if (!Array.isArray(parsed) || !parsed.length) return [];
-    return parsed.map((i) => ({ ...emptyForgeItem, ...i }));
-  } catch {
-    return [];
-  }
+  const items = readDesk<ForgeItem[]>(KEY, []);
+  if (!Array.isArray(items) || !items.length) return [];
+  return items.map((i) => ({ ...emptyForgeItem, ...i }));
 }
 
 function write(list: ForgeItem[]) {
-  try {
-    window.localStorage.setItem(KEY, JSON.stringify(list));
+  writeDesk(KEY, list);
+  if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent(EVT));
-  } catch {
-    /* ignore */
   }
 }
 
@@ -219,7 +214,11 @@ export function useForge() {
   useEffect(() => {
     sync();
     window.addEventListener(EVT, sync);
-    return () => window.removeEventListener(EVT, sync);
+    window.addEventListener("sovereign:identity", sync);
+    return () => {
+      window.removeEventListener(EVT, sync);
+      window.removeEventListener("sovereign:identity", sync);
+    };
   }, [sync]);
 
   const create = useCallback(async (draft: ForgeItem | Omit<ForgeItem, "id" | "createdAt">) => {
@@ -227,7 +226,7 @@ export function useForge() {
     const hasValidId = 'id' in draft && typeof draft.id === 'string' && draft.id.trim() !== "";
     const id = hasValidId ? draft.id : `forge.${Math.random().toString(36).slice(2, 8)}`;
 
-    const newItem = stampOwner({ ...draft, id, createdAt: Date.now() }, "workspace");
+    const newItem = stampOwner({ ...draft, id, createdAt: Date.now() }, "private");
     try {
       await fetchApi("/api/forge/actions", {
         method: "POST",
@@ -310,20 +309,22 @@ export function useForgeKind() {
 
   useEffect(() => {
     const sync = () => {
-      const raw = window.localStorage.getItem(KIND_KEY) as ForgeKind | "all" | null;
+      const raw = readDeskRaw(KIND_KEY) as ForgeKind | "all" | null;
       setKindState(raw ?? "all");
     };
     sync();
     window.addEventListener(EVT, sync);
-    return () => window.removeEventListener(EVT, sync);
+    window.addEventListener("sovereign:identity", sync);
+    return () => {
+      window.removeEventListener(EVT, sync);
+      window.removeEventListener("sovereign:identity", sync);
+    };
   }, []);
 
   const setKind = useCallback((next: ForgeKind | "all") => {
-    try {
-      window.localStorage.setItem(KIND_KEY, next);
+    writeDeskRaw(KIND_KEY, next);
+    if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent(EVT));
-    } catch {
-      /* ignore */
     }
     setKindState(next);
   }, []);

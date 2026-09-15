@@ -1,7 +1,7 @@
 import { seedNow } from "@/lib/utils";
 import { useCallback, useEffect, useState } from "react";
 import type { AvatarStyle, JewelName } from "@/lib/avatar-library";
-import { scopeOwned, stampOwner, useOwnerCtx, type Owned } from "@/lib/ownership";
+import { readDesk, writeDesk, readDeskRaw, writeDeskRaw, scopeOwned, stampOwner, useOwnerCtx, type Owned } from "@/lib/ownership";
 import { knowledgeBrands } from "@/mocks/agents";
 import { seedAgents } from "@/mocks/agents";
 
@@ -117,49 +117,24 @@ export const emptyAgent: Omit<StudioAgent, "id" | "createdAt"> = {
 };
 
 function read(): StudioAgent[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as StudioAgent[];
-    if (!Array.isArray(parsed) || !parsed.length) return [];
-    return parsed.map((a) => ({ ...emptyAgent, ...a }));
-  } catch {
-    return [];
-  }
+  return readDesk<StudioAgent[]>(KEY, []).map((a) => ({ ...emptyAgent, ...a }));
 }
 
 function write(list: StudioAgent[]) {
-  try {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(KEY, JSON.stringify(list));
-      window.dispatchEvent(new CustomEvent(EVT));
-    }
-  } catch {
-    /* ignore */
+  writeDesk(KEY, list);
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(EVT));
   }
 }
 
 function readRuns(): AgentRun[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(RUNS_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as AgentRun[];
-    return Array.isArray(parsed) && parsed.length ? parsed : [];
-  } catch {
-    return [];
-  }
+  return readDesk<AgentRun[]>(RUNS_KEY, []);
 }
 
 function writeRuns(list: AgentRun[]) {
-  try {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(RUNS_KEY, JSON.stringify(list));
-      window.dispatchEvent(new CustomEvent(EVT));
-    }
-  } catch {
-    /* ignore */
+  writeDesk(RUNS_KEY, list);
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(EVT));
   }
 }
 
@@ -314,10 +289,23 @@ export function useAgents() {
       }
     };
 
+    const onIdentitySwitch = () => {
+      _cachedAgents = [];
+      _cachedRuns = [];
+      _isAgentsLoaded = false;
+      if (mounted) {
+        setAgents([]);
+        setRuns([]);
+        sync();
+      }
+    };
+
     window.addEventListener(EVT, onEvt);
+    window.addEventListener("sovereign:identity", onIdentitySwitch);
     return () => {
       mounted = false;
       window.removeEventListener(EVT, onEvt);
+      window.removeEventListener("sovereign:identity", onIdentitySwitch);
     };
   }, []);
 
@@ -404,7 +392,16 @@ export function useAgents() {
 
 /* ------------------------------------------------------------------ squads */
 
-export type Squad = { id: string; name: string; tone: string };
+export type Squad = {
+  id: string;
+  name: string;
+  tone: string;
+  ownerId?: string;
+  owner_id?: string;
+  visibility?: string;
+  shared_with?: string[];
+  tenant_id?: string;
+};
 
 export const squadTones = ["sapphire", "emerald", "amethyst", "topaz", "ruby"] as const;
 
@@ -421,31 +418,15 @@ export const seedSquads: Squad[] = [...new Set(seedAgents.map((a) => a.squad))]
   }));
 
 function readSquads(): Squad[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(SQUADS_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as Squad[];
-    return Array.isArray(parsed) && parsed.length ? parsed : [];
-  } catch {
-    return [];
-  }
+  return readDesk<Squad[]>(SQUADS_KEY, []);
 }
 
 function writeSquads(list: Squad[]) {
-  try {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(SQUADS_KEY, JSON.stringify(list));
-      window.dispatchEvent(new CustomEvent(SQ_EVT));
-    }
-  } catch {
-    /* ignore */
-  }
+  writeDesk(SQUADS_KEY, list);
 }
 
 function readActiveSquad(): string {
-  if (typeof window === "undefined") return "all";
-  return window.localStorage.getItem(ACTIVE_SQUAD_KEY) ?? "all";
+  return readDeskRaw(ACTIVE_SQUAD_KEY) ?? "all";
 }
 
 let _cachedSquads: Squad[] = [];
@@ -472,36 +453,19 @@ export function useSquads() {
         const payload = await fetchApi("/api/agents/squads");
         const data = payload?.items || payload;
         if (mounted && Array.isArray(data)) {
-          const mapped = data.map((d: { name: string; color?: string; tone?: string }) => ({
+          const mapped: Squad[] = data.map((d: any) => ({
             id: d.name.toLowerCase().replace(/\s+/g, "-"),
             name: d.name,
             tone: d.color || d.tone || "sapphire",
+            ownerId: d.ownerId || d.owner_id,
+            owner_id: d.owner_id || d.ownerId,
+            visibility: d.visibility || 'workspace',
+            shared_with: d.shared_with || d.sharedWith || [],
           }));
 
-          const current = readSquads();
-          const currentNames = new Set(current.map((sq) => sq.name));
-          let changed = false;
-          const merged = [...current];
-
-          for (const m of mapped) {
-            if (!currentNames.has(m.name)) {
-              merged.push(m);
-              changed = true;
-            } else {
-              const idx = merged.findIndex((s) => s.name === m.name);
-              const target = merged[idx];
-              if (target && target.tone !== m.tone) {
-                target.tone = m.tone;
-                changed = true;
-              }
-            }
-          }
-
-          if (changed || mapped.length > 0) {
-            _cachedSquads = merged;
-            setSquads(merged);
-            writeSquads(merged);
-          }
+          _cachedSquads = mapped;
+          setSquads(mapped);
+          writeSquads(mapped);
         }
       } catch (e) {
         console.error("Failed to load agent squads", e);
@@ -517,10 +481,23 @@ export function useSquads() {
       }
     };
 
+    const onIdentitySwitch = () => {
+      _cachedSquads = [];
+      if (mounted) {
+        setSquads([]);
+        setActiveState("all");
+        sync();
+      }
+    };
+
     window.addEventListener(SQ_EVT, onEvt);
+    window.addEventListener("storage", onEvt);
+    window.addEventListener("sovereign:identity", onIdentitySwitch);
     return () => {
       mounted = false;
       window.removeEventListener(SQ_EVT, onEvt);
+      window.removeEventListener("storage", onEvt);
+      window.removeEventListener("sovereign:identity", onIdentitySwitch);
     };
   }, []);
 

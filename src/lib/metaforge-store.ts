@@ -37,6 +37,7 @@ export type ForgePlan = {
 
 const KEY = "sovereign.forge.plans";
 const EVT = "sovereign:forge-plans";
+import { readDesk, writeDesk } from "@/lib/ownership";
 
 const H = 3600_000;
 /** Fixed anchor so SSR and client render identical timestamps. */
@@ -126,15 +127,7 @@ export const seedForgePlans: ForgePlan[] = [
 ];
 
 function read(): ForgePlan[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as ForgePlan[];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+  return readDesk<ForgePlan[]>(KEY, []);
 }
 
 import { fetchApi } from "./api";
@@ -214,7 +207,7 @@ export function useForgePlans() {
             note: p.error || undefined,
           }));
           setPlans(mapped);
-          window.localStorage.setItem(KEY, JSON.stringify(mapped));
+          writeDesk(KEY, mapped);
           return;
         }
       } catch (err) {
@@ -231,7 +224,11 @@ export function useForgePlans() {
       fetchTrash();
     };
     window.addEventListener(EVT, onEvt);
-    return () => window.removeEventListener(EVT, onEvt);
+    window.addEventListener("sovereign:identity", onEvt);
+    return () => {
+      window.removeEventListener(EVT, onEvt);
+      window.removeEventListener("sovereign:identity", onEvt);
+    };
   }, []);
 
   const apply = useCallback(async (id: string, action: "apply" | "reject" | "rollback" | "undo" | "reapply") => {
@@ -253,7 +250,7 @@ export function useForgePlans() {
     try {
       await fetchApi(`/api/meta-forge/plans?mode=${mode}`, { method: "DELETE" });
       setPlans([]);
-      window.localStorage.removeItem(KEY);
+      writeDesk(KEY, []);
       window.dispatchEvent(new CustomEvent(EVT));
     } catch (err) {
       console.error("Failed to reset meta-forge plans", err);

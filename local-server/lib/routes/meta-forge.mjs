@@ -57,39 +57,82 @@ export function mountMetaForgeRoutes(app, deps) {
 
   // List forge plans (history + pending).
   app.get("/api/meta-forge/plans", async (req, res) => {
-    const status = req.query?.status ? String(req.query.status) : null;
-    const limit = Math.min(200, Math.max(1, parseInt(req.query?.limit, 10) || 50));
-    const params = [];
-    let where = "";
-    if (status) { params.push(status); where = `WHERE status=$1`; }
-    const { rows } = await pool.query(
-      `SELECT id, actor AS requested_by, prompt AS intent, status, rolled_back_at, note AS error, created_at, created_at AS updated_at,
-              jsonb_build_object('create', actions) AS plan_json
-         FROM forge_plans ${where}
-        ORDER BY created_at DESC
-        LIMIT ${limit}`,
-      params,
-    );
-    res.json({ ok: true, plans: rows });
+    try {
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
+      const status = req.query?.status ? String(req.query.status) : null;
+      const limit = Math.min(200, Math.max(1, parseInt(req.query?.limit, 10) || 50));
+      const params = [];
+      const whereParts = [];
+
+      if (status) {
+        params.push(status);
+        whereParts.push(`status = $${params.length}`);
+      }
+
+      if (!ctx.isSuperAdmin) {
+        if (ctx.isTenantAdmin) {
+          params.push(ctx.tenantId || "default");
+          whereParts.push(`(tenant_id = $${params.length} OR is_global = true OR tenant_id = 'default')`);
+        } else {
+          const userMatches = [ctx.userId, ctx.username, ctx.actor].filter(Boolean);
+          params.push(ctx.tenantId || "default");
+          const tenantSlot = `$${params.length}`;
+          if (userMatches.length > 0) {
+            const userSlots = userMatches.map(u => {
+              params.push(u);
+              return `$${params.length}`;
+            }).join(", ");
+            whereParts.push(`(tenant_id = ${tenantSlot} OR is_global = true OR tenant_id = 'default') AND (actor = ANY(ARRAY[${userSlots}]::text[]) OR actor = 'chat' OR actor IS NULL)`);
+          } else {
+            whereParts.push(`(tenant_id = ${tenantSlot} OR is_global = true OR tenant_id = 'default')`);
+          }
+        }
+      }
+
+      const where = whereParts.length ? `WHERE ${whereParts.join(" AND ")}` : "";
+      const { rows } = await pool.query(
+        `SELECT id, actor AS requested_by, prompt AS intent, status, rolled_back_at, note AS error, created_at, created_at AS updated_at,
+                jsonb_build_object('create', actions) AS plan_json, tenant_id
+           FROM forge_plans ${where}
+          ORDER BY created_at DESC
+          LIMIT ${limit}`,
+        params,
+      );
+      res.json({ ok: true, plans: rows });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: String(e.message || e) });
+    }
   });
 
   app.get("/api/meta-forge/plans/:id", async (req, res) => {
-    const { rows } = await pool.query(
-      `SELECT p.id, p.actor AS requested_by, p.prompt AS intent, p.status, p.rolled_back_at, p.note AS error, p.created_at, p.created_at AS updated_at,
-              jsonb_build_object('create', p.actions) AS plan_json,
-              COALESCE(json_agg(json_build_object(
-                'kind', a.kind, 'slug', a.slug,
-                'disk_path', a.disk_path, 'db_row_id', a.db_row_id,
-                'created_at', a.created_at))
-              FILTER (WHERE a.kind IS NOT NULL), '[]'::json) AS artifacts
-         FROM forge_plans p
-         LEFT JOIN forge_artifacts a ON a.plan_id=p.id
-        WHERE p.id=$1
-        GROUP BY p.id`,
-      [req.params.id],
-    );
-    if (!rows.length) return res.status(404).json({ error: "plan not found" });
-    res.json({ ok: true, plan: rows[0] });
+    try {
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
+      const { rows } = await pool.query(
+        `SELECT p.id, p.actor AS requested_by, p.prompt AS intent, p.status, p.rolled_back_at, p.note AS error, p.created_at, p.created_at AS updated_at,
+                p.tenant_id,
+                jsonb_build_object('create', p.actions) AS plan_json,
+                COALESCE(json_agg(json_build_object(
+                  'kind', a.kind, 'slug', a.slug,
+                  'disk_path', a.disk_path, 'db_row_id', a.db_row_id,
+                  'created_at', a.created_at))
+                FILTER (WHERE a.kind IS NOT NULL), '[]'::json) AS artifacts
+           FROM forge_plans p
+           LEFT JOIN forge_artifacts a ON a.plan_id=p.id
+          WHERE p.id=$1
+          GROUP BY p.id`,
+        [req.params.id],
+      );
+      if (!rows.length) return res.status(404).json({ error: "plan not found" });
+      const plan = rows[0];
+      if (!ctx.isSuperAdmin && !ctx.isTenantAdmin) {
+        if (plan.tenant_id && plan.tenant_id !== ctx.tenantId && plan.tenant_id !== "default") {
+          return res.status(403).json({ error: "access denied" });
+        }
+      }
+      res.json({ ok: true, plan });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: String(e.message || e) });
+    }
   });
 
   // Submit a plan (from the forge_master agent OR manual test from UI).
@@ -100,12 +143,14 @@ export function mountMetaForgeRoutes(app, deps) {
       const intent = String(body.intent || "").slice(0, 2000);
       if (!intent.trim()) return res.status(400).json({ error: "intent required" });
       const plan = validateForgePlan(body.plan);
-      const requestedBy = body.requested_by || (await resolveActorContext(req).catch(() => null))?.user?.email || "system";
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default", actor: "admin" };
+      const requestedBy = body.requested_by || ctx?.username || ctx?.actor || req.session?.username || "system";
+      const tenantId = body.tenant_id || (ctx.isSuperAdmin ? (body.tenant_id || "default") : ctx.tenantId);
       const { rows } = await pool.query(
-        `INSERT INTO forge_plans (id, actor, prompt, actions, status)
-         VALUES ($1, $2, $3, $4::jsonb, 'pending')
+        `INSERT INTO forge_plans (id, actor, prompt, actions, status, tenant_id)
+         VALUES ($1, $2, $3, $4::jsonb, 'pending', $5)
          RETURNING id, created_at`,
-        [`mf_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`, requestedBy, intent, JSON.stringify(plan.create || [])],
+        [`mf_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`, requestedBy, intent, JSON.stringify(plan.create || []), tenantId],
       );
       res.json({ ok: true, id: rows[0].id, created_at: rows[0].created_at });
     } catch (e) {

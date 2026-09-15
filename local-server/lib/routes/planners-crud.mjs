@@ -1,7 +1,7 @@
 export function mountPlannersRoutes(app, deps) {
   const { pool, requireSession } = deps;
 
-  app.get("/api/planners", requireSession({ roles: ["admin", "operator"] }), async (req, res) => {
+  app.get("/api/planners", requireSession({ roles: ["admin", "engineer", "operator"] }), async (req, res) => {
     try {
       const ctx = await deps.resolveActorContext(req);
       const vis = deps.buildVisibility(ctx, 1, 'owner_id');
@@ -15,11 +15,17 @@ export function mountPlannersRoutes(app, deps) {
     }
   });
 
-  app.post("/api/planners", requireSession({ roles: ["admin", "operator"] }), async (req, res) => {
+  app.post("/api/planners", requireSession({ roles: ["admin", "engineer", "operator"] }), async (req, res) => {
     try {
       const { id, name, description, mode, enabled, kind, tools, skills, mcp_servers, keywords, aliases, grounded, owner_id, owner_name, visibility, shared_with, meta } = req.body;
       const ctx = await deps.resolveActorContext(req);
-      const owner = owner_id || ctx.userId || req.actor || null;
+
+      const existing = (await pool.query("SELECT * FROM planners WHERE id=$1", [id])).rows[0];
+      if (existing && deps.assertCanEdit) {
+        deps.assertCanEdit(ctx, existing, "planner");
+      }
+
+      const owner = existing?.owner_id || owner_id || ctx.userId || req.actor || null;
       const tenantId = req.body?.tenant_id || req.body?.tenantId || (ctx.isSuperAdmin ? (req.body?.tenant_id || "default") : ctx.tenantId);
       const isGlobal = ctx.isSuperAdmin ? (req.body?.is_global || false) : false;
 
@@ -42,9 +48,16 @@ export function mountPlannersRoutes(app, deps) {
     }
   });
 
-  app.put("/api/planners/:id", requireSession({ roles: ["admin", "operator"] }), async (req, res) => {
+  app.put("/api/planners/:id", requireSession({ roles: ["admin", "engineer", "operator"] }), async (req, res) => {
     try {
       const { id } = req.params;
+      const ctx = await deps.resolveActorContext(req);
+      const existing = (await pool.query("SELECT * FROM planners WHERE id=$1", [id])).rows[0];
+      if (!existing) return res.status(404).json({ ok: false, error: "not found" });
+      if (deps.assertCanEdit) {
+        deps.assertCanEdit(ctx, existing, "planner");
+      }
+
       const { name, description, mode, enabled, kind, tools, skills, mcp_servers, keywords, aliases, grounded, owner_id, owner_name, visibility, shared_with, meta } = req.body;
       
       const out = await pool.query(
@@ -68,13 +81,21 @@ export function mountPlannersRoutes(app, deps) {
     }
   });
 
-  app.delete("/api/planners/:id", requireSession({ roles: ["admin", "operator"] }), async (req, res) => {
+  app.delete("/api/planners/:id", requireSession({ roles: ["admin", "engineer", "operator"] }), async (req, res) => {
     try {
+      const ctx = await deps.resolveActorContext(req);
+      const existing = (await pool.query("SELECT * FROM planners WHERE id=$1", [req.params.id])).rows[0];
+      if (!existing) return res.status(404).json({ ok: false, error: "not found" });
+      if (deps.assertCanEdit) {
+        deps.assertCanEdit(ctx, existing, "planner");
+      }
+
       const { rowCount } = await pool.query(`DELETE FROM planners WHERE id=$1`, [req.params.id]);
-      if (!rowCount) return res.status(404).json({ error: "not found" });
+      if (!rowCount) return res.status(404).json({ ok: false, error: "not found" });
       res.json({ ok: true });
     } catch (e) {
-      res.status(500).json({ error: String(e.message || e) });
+      const status = e.status || 500;
+      res.status(status).json({ ok: false, error: String(e.message || e) });
     }
   });
 }

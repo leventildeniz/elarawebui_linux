@@ -10,19 +10,40 @@ export class ApiError extends Error {
   }
 }
 
+export function authHeaders(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  const h: Record<string, string> = {};
+  const sessionId = localStorage.getItem("sovereign.sessionId");
+  if (sessionId) h["x-session-id"] = sessionId;
+  const operator = sessionStorage.getItem("sovereign.operator");
+  if (operator) h["x-user"] = operator;
+  const userRaw = localStorage.getItem("sovereign.user");
+  if (userRaw) {
+    try {
+      const u = JSON.parse(userRaw);
+      if (u?.username && !h["x-user"]) h["x-user"] = u.username;
+      if (u?.id) h["x-user-id"] = u.id;
+      if (u?.role) h["x-user-role"] = u.role;
+      if (u?.tenantId || u?.tenant_id) h["x-tenant-id"] = u.tenantId || u.tenant_id;
+    } catch {}
+  }
+  return h;
+}
+
 /**
  * Standard fetch wrapper for ELARA Sovereign Studio.
- * Automatically injects the `x-session-id` header if present in localStorage.
+ * Automatically injects the `x-session-id` and actor identity headers.
  */
 export async function fetchApi<T = any>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers);
-  headers.set("Content-Type", "application/json");
+  if (!headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
 
-  // In SSR environments (if any), localStorage might be undefined.
-  if (typeof window !== "undefined") {
-    const sessionId = localStorage.getItem("sovereign.sessionId");
-    if (sessionId) {
-      headers.set("x-session-id", sessionId);
+  const extra = authHeaders();
+  for (const [k, v] of Object.entries(extra)) {
+    if (!headers.has(k)) {
+      headers.set(k, v);
     }
   }
 

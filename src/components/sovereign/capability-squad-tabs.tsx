@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
 import { Check, Pencil, Plus, X } from "lucide-react";
 import { useCapabilitySquads, useCapabilities } from "@/lib/capability-store";
+import { useOwnerCtx } from "@/lib/ownership";
 import { confirmAction } from "./confirm-dialog";
 import { cn } from "@/lib/utils";
 
@@ -9,10 +10,16 @@ import { cn } from "@/lib/utils";
 export function CapabilitySquadTabs() {
   const { packs, update } = useCapabilities();
   const { squads, active, setActive, addSquad, renameSquad, removeSquad } = useCapabilitySquads();
+  const ownerCtx = useOwnerCtx();
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [name, setName] = useState("");
+  const [mounted, setMounted] = useState(false);
   const ref = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (creating) ref.current?.focus();
@@ -57,6 +64,16 @@ export function CapabilitySquadTabs() {
     if (active === id) setActive("all");
   };
 
+  if (!mounted) {
+    return (
+      <div className="ml-2 hidden items-center gap-1.5 md:flex">
+        <Tab active={true} tone="sapphire" onClick={() => {}}>
+          All
+        </Tab>
+      </div>
+    );
+  }
+
   return (
     <div className="ml-2 hidden items-center gap-1.5 md:flex">
       <Tab active={active === "all"} tone="sapphire" onClick={() => setActive("all")}>
@@ -65,6 +82,7 @@ export function CapabilitySquadTabs() {
 
       {(squads || []).map((s) => {
         const n = count(s.name);
+        const canEditThisSquad = ownerCtx.sovereign || (s.ownerId && s.ownerId === ownerCtx.userId) || (s.owner_id && s.owner_id === ownerCtx.userId);
         if (editing === s.id) {
           return (
             <InlineName
@@ -81,8 +99,8 @@ export function CapabilitySquadTabs() {
             active={active === s.id}
             tone={s.tone}
             onClick={() => setActive(s.id)}
-            onRename={() => setEditing(s.id)}
-            onRemove={() => deleteSquad(s.id, s.name, n)}
+            onRename={canEditThisSquad ? () => setEditing(s.id) : undefined}
+            onRemove={canEditThisSquad ? () => deleteSquad(s.id, s.name, n) : undefined}
           >
             {s.name} · {n}
           </Tab>

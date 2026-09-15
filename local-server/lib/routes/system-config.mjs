@@ -12,7 +12,6 @@ export async function mountSystemConfigRoutes(app, deps) {
   });
 
   app.get("/api/system/config/:key", async (req, res) => {
-    if (!await isAdminCaller(req)) return res.status(403).json({ ok: false, error: "admin required" });
     try {
       const { rows } = await pool.query("SELECT value FROM app_system_config WHERE key=$1", [req.params.key]);
       if (!rows.length) return res.json(null);

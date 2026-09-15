@@ -14,9 +14,14 @@ export const SCOPE_GROUPS = [
     items: [
       { id: "chat", label: "Chat" },
       { id: "agents", label: "Agents" },
-      { id: "memory", label: "Memory" },
       { id: "rag-documents", label: "RAG Documents" },
-      { id: "planner", label: "Planner" },
+      { id: "memory-working", label: "Working Set" },
+      { id: "memory-episodic", label: "Episodic Memory" },
+      { id: "memory-semantic", label: "Semantic Memory" },
+      { id: "memory-policy", label: "Memory Policy" },
+      { id: "planner-tool", label: "Tool Planner" },
+      { id: "planner-skill", label: "Skill Planner" },
+      { id: "planner-mcp", label: "MCP Planner" },
     ],
   },
   {
@@ -38,8 +43,10 @@ export const SCOPE_GROUPS = [
       { id: "capabilities", label: "Capabilities" },
       { id: "factory", label: "Forge Factory" },
       { id: "meta-forge", label: "Meta-Forge" },
-      { id: "mcp", label: "MCP" },
+      { id: "mcp-server", label: "MCP Server" },
+      { id: "mcp-client", label: "MCP Client" },
       { id: "adapters", label: "Adapters" },
+      { id: "webhooks", label: "Webhooks" },
     ],
   },
   {
@@ -47,10 +54,11 @@ export const SCOPE_GROUPS = [
     label: "Runtime",
     tone: "topaz" as JewelTone,
     items: [
-      { id: "engine", label: "System Engine" },
+      { id: "engine-intent", label: "Intent Router" },
+      { id: "engine-bridge", label: "Orchestrator Bridge" },
       { id: "models", label: "Models" },
-      { id: "fleet", label: "Fleet Telemetry" },
       { id: "vision", label: "Vision" },
+      { id: "fleet", label: "Fleet Telemetry" },
       { id: "runtime", label: "Python Runtime" },
       { id: "targets", label: "Targets" },
       { id: "system", label: "Logs / Audit" },
@@ -61,15 +69,46 @@ export const SCOPE_GROUPS = [
     label: "Governance",
     tone: "ruby" as JewelTone,
     items: [
-      { id: "knowledge", label: "Knowledge / RAG" },
+      { id: "knowledge-control", label: "RAG Control" },
+      { id: "knowledge-spaces", label: "Access Spaces" },
+      { id: "knowledge-aliases", label: "Brand Aliases" },
+      { id: "knowledge-tuning", label: "Advanced Tuning" },
       { id: "rbac", label: "RBAC" },
       { id: "api-tokens", label: "Developer Hub" },
-      { id: "policy", label: "Policies & Security" },
+      { id: "policy-vault", label: "Secret Vault" },
+      { id: "policy-genguard", label: "GenGuard" },
+      { id: "policy-isolation", label: "Tool Isolation" },
+      { id: "policy-skill-isolation", label: "Skill Isolation" },
+      { id: "policy-mcp-isolation", label: "MCP Isolation" },
+      { id: "policy-signed", label: "Signed Workflows" },
+      { id: "policy-engine", label: "Policy Engine" },
       { id: "approvals", label: "Approval Queue" },
       { id: "security", label: "CVE Feed / Audit" },
-      { id: "users", label: "Users & Groups" },
-      { id: "middleware", label: "Middleware" },
-      { id: "settings", label: "Settings" },
+      { id: "users-users", label: "Users" },
+      { id: "users-groups", label: "Groups" },
+      { id: "users-templates", label: "Templates" },
+      { id: "users-compliance", label: "RBAC Compliance" },
+      { id: "users-tenants", label: "Tenants" },
+    ],
+  },
+  {
+    id: "governance-settings",
+    label: "Governance Settings",
+    tone: "ruby" as JewelTone,
+    items: [
+      { id: "settings", label: "Multi-Provider Routing" },
+      { id: "converter", label: "Global Converter" },
+      { id: "services", label: "Services Infrastructure" },
+      { id: "certificates", label: "Certificates & TLS" },
+      { id: "mail", label: "Mail & Time Sync" },
+      { id: "siem", label: "SIEM Forwarder" },
+      { id: "telemetry-sources", label: "Telemetry Sources" },
+      { id: "vision-audio", label: "Vision Audio" },
+      { id: "backup", label: "Backup & Restore" },
+      { id: "registry", label: "Capability Registry" },
+      { id: "authentication", label: "Authentication Sources" },
+      { id: "theme", label: "Theme Customization" },
+      { id: "account", label: "Account Profile" },
     ],
   },
   {
@@ -84,25 +123,6 @@ export const SCOPE_GROUPS = [
       { id: "reporting-users", label: "Operator Analytics" },
       { id: "reporting-rag", label: "RAG Analytics" },
       { id: "reporting-exports", label: "Scheduled Exports" },
-    ],
-  },
-  {
-    id: "studio",
-    label: "Studio",
-    tone: "amethyst" as JewelTone,
-    items: [
-      { id: "registry", label: "Capability Registry" },
-      { id: "authentication", label: "Authentication" },
-      { id: "converter", label: "Global Converter" },
-      { id: "services", label: "Services" },
-      { id: "certificates", label: "Certificates" },
-      { id: "mail", label: "Mail & Time" },
-      { id: "siem", label: "SIEM" },
-      { id: "telemetry-sources", label: "Telemetry Sources" },
-      { id: "vision-audio", label: "Vision Audio" },
-      { id: "backup", label: "Backup & Restore" },
-      { id: "theme", label: "Theme" },
-      { id: "account", label: "Account" },
     ],
   },
 ] as const;
@@ -159,9 +179,14 @@ export type RoleAction = (typeof ROLE_ACTIONS)[number]["id"];
 export const SCOPE_ROUTES: Record<string, string> = {
   chat: "/",
   agents: "/agents",
-  memory: "/memory",
   "rag-documents": "/rag-documents",
-  planner: "/planner",
+  "memory-working": "/memory",
+  "memory-episodic": "/memory",
+  "memory-semantic": "/memory",
+  "memory-policy": "/memory",
+  "planner-tool": "/planner",
+  "planner-skill": "/planner",
+  "planner-mcp": "/planner",
   orchestration: "/orchestration",
   flows: "/flows",
   skills: "/skills",
@@ -169,32 +194,39 @@ export const SCOPE_ROUTES: Record<string, string> = {
   capabilities: "/capabilities",
   factory: "/factory",
   "meta-forge": "/meta-forge",
-  mcp: "/mcp",
+  "mcp-server": "/mcp",
+  "mcp-client": "/mcp",
   adapters: "/adapters",
-  engine: "/engine",
+  webhooks: "/adapters",
+  "engine-intent": "/engine",
+  "engine-bridge": "/engine",
   models: "/models",
   fleet: "/fleet",
   vision: "/vision",
   runtime: "/runtime",
   targets: "/targets",
   system: "/system",
-  knowledge: "/knowledge",
+  "knowledge-control": "/knowledge",
+  "knowledge-spaces": "/knowledge",
+  "knowledge-aliases": "/knowledge",
+  "knowledge-tuning": "/knowledge",
   rbac: "/rbac",
   "api-tokens": "/api-tokens",
-  policy: "/policy",
+  "policy-vault": "/policy",
+  "policy-genguard": "/policy",
+  "policy-isolation": "/policy",
+  "policy-skill-isolation": "/policy",
+  "policy-mcp-isolation": "/policy",
+  "policy-signed": "/policy",
+  "policy-engine": "/policy",
   approvals: "/approvals",
   security: "/security",
-  users: "/users",
+  "users-users": "/users",
+  "users-groups": "/users",
+  "users-templates": "/users",
+  "users-compliance": "/users",
+  "users-tenants": "/users",
   settings: "/settings",
-  "reporting-overview": "/reporting/overview",
-  "reporting-usage": "/reporting/usage",
-  "reporting-cost": "/reporting/cost",
-  "reporting-invoicing": "/reporting/invoicing",
-  "reporting-users": "/reporting/users",
-  "reporting-rag": "/reporting/rag",
-  "reporting-exports": "/reporting/exports",
-  registry: "/registry",
-  authentication: "/authentication",
   converter: "/converter",
   services: "/services",
   certificates: "/certificates",
@@ -203,8 +235,26 @@ export const SCOPE_ROUTES: Record<string, string> = {
   "telemetry-sources": "/telemetry-sources",
   "vision-audio": "/vision-audio",
   backup: "/backup",
+  registry: "/registry",
+  authentication: "/authentication",
   theme: "/theme",
   account: "/account",
+  "reporting-overview": "/reporting/overview",
+  "reporting-usage": "/reporting/usage",
+  "reporting-cost": "/reporting/cost",
+  "reporting-invoicing": "/reporting/invoicing",
+  "reporting-users": "/reporting/users",
+  "reporting-rag": "/reporting/rag",
+  "reporting-exports": "/reporting/exports",
+
+  // Legacy mappings for backward compatibility
+  memory: "/memory",
+  planner: "/planner",
+  mcp: "/mcp",
+  engine: "/engine",
+  knowledge: "/knowledge",
+  policy: "/policy",
+  users: "/users",
 };
 
 /** Reverse map: route path → scope id. */
@@ -260,6 +310,7 @@ const DEFAULT_ACTIONS: Record<string, RoleAction[]> = {
 /** Effective action set for a role — legacy records fall back to read-only. */
 export function roleActions(role: Role | undefined): RoleAction[] {
   if (!role) return [];
+  if (isSovereign(role)) return [...ROLE_ACTIONS.map((a) => a.id)];
   return role.actions ?? DEFAULT_ACTIONS[role.id] ?? ["read"];
 }
 
@@ -289,7 +340,12 @@ export const ROLE_PRESETS: {
     id: "platform",
     label: "Platform Engineer",
     hint: "Everything except RBAC, users, policy and approvals.",
-    scopes: ALL.filter((s) => !["rbac", "users", "policy", "security", "approvals"].includes(s)),
+    scopes: ALL.filter(
+      (s) =>
+        !["rbac", "security", "approvals"].includes(s) &&
+        !s.startsWith("users-") &&
+        !s.startsWith("policy-"),
+    ),
     actions: ["read", "write", "delete", "export", "vault", "rag-ingest", "plan-execute"],
   },
   {
@@ -323,9 +379,9 @@ export const ROLE_PRESETS: {
       "chat",
       "system",
       "security",
-      "policy",
+      "policy-vault",
       "rbac",
-      "users",
+      "users-users",
       "siem",
       "reporting-overview",
       "reporting-usage",
@@ -453,7 +509,17 @@ function read(): Role[] {
     const raw = window.localStorage.getItem(KEY);
     if (!raw) return defaultRoles;
     const parsed = JSON.parse(raw) as Role[];
-    return Array.isArray(parsed) && parsed.length ? parsed : defaultRoles;
+    if (!Array.isArray(parsed) || !parsed.length) return defaultRoles;
+    return parsed.map((r) => {
+      if (isSovereign(r)) {
+        return {
+          ...r,
+          scopes: [...TAB_SCOPES],
+          actions: [...ROLE_ACTIONS.map((a) => a.id)],
+        };
+      }
+      return r;
+    });
   } catch {
     return defaultRoles;
   }
@@ -474,7 +540,8 @@ function readActive(roles: Role[]): string {
 /** Sovereign principals — enforcement never applies to them. */
 export function isSovereign(role?: Role | undefined): boolean {
   if (!role) return false;
-  return role.id === "admin" || /\badmin(istrator)?s?\b/i.test(role.name);
+  const name = String(role.name || "").trim().toLowerCase();
+  return role.id === "admin" || name === "admin" || name === "super admin" || name === "sovereign";
 }
 
 /**
@@ -524,13 +591,23 @@ export function useRoles() {
 
   useEffect(() => {
     const sync = async () => {
-      let currentRoles = [];
+      let currentRoles: Role[] = [];
       try {
         const data = await fetchApi("/api/identity/roles");
         if (Array.isArray(data) && data.length > 0) {
-          setRoles(data);
-          currentRoles = data;
-          if (typeof window !== "undefined") window.localStorage.setItem(KEY, JSON.stringify(data));
+          const mapped = data.map((r: Role) => {
+            if (isSovereign(r)) {
+              return {
+                ...r,
+                scopes: [...TAB_SCOPES],
+                actions: [...ROLE_ACTIONS.map((a) => a.id)],
+              };
+            }
+            return r;
+          });
+          setRoles(mapped);
+          currentRoles = mapped;
+          if (typeof window !== "undefined") window.localStorage.setItem(KEY, JSON.stringify(mapped));
         } else {
           setRoles([]);
           if (typeof window !== "undefined") window.localStorage.setItem(KEY, JSON.stringify([]));
@@ -808,15 +885,18 @@ export function useAccess() {
     previewing: Boolean(previewId) && !bound,
     previewRole: previewId ? roles.find((r) => r.id === previewId) : undefined,
     sovereign: isSovereign(role),
-    can: (a: RoleAction) => !enforced || isSovereign(role) || actions.includes(a),
+    can: (a: RoleAction) => isSovereign(role) || actions.includes(a),
     allows: (path: string) => {
-      if (!enforced || !role || isSovereign(role)) return true;
-      // Escape hatch — the architect can never lock themselves out of the
-      // governance surfaces that disarm enforcement.
-      if ((bound ? BOUND_ESCAPE_ROUTES : ESCAPE_ROUTES).has(path)) return true;
+      if (!role || isSovereign(role)) return true;
+      if (path === "/" || path === "/account" || path === "/theme") return true;
+      if (scopes.has(path)) return true;
       const scope = ROUTE_SCOPES[path];
-      if (!scope) return true;
-      return scopes.has(scope);
+      if (scope && scopes.has(scope)) return true;
+      const matchingScopes = Object.entries(SCOPE_ROUTES).filter(([_, p]) => p === path).map(([s]) => s);
+      if (matchingScopes.length > 0) {
+        return matchingScopes.some((s) => scopes.has(s));
+      }
+      return true;
     },
   };
 }

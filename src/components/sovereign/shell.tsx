@@ -1,6 +1,8 @@
 import { AnimatePresence, motion } from "motion/react";
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import { useAccess, exitPreview } from "@/lib/rbac-store";
+import { readOwnerCtx } from "@/lib/ownership";
+import { canManageMcpServer } from "@/lib/user-template-store";
 import { emitRbac } from "@/lib/rbac-events";
 import {
   Activity,
@@ -158,9 +160,23 @@ const groups = [
   },
 ];
 
-const allItems = groups.flatMap((g) => g.items);
+const SETTINGS_PAGES = [
+  { icon: FileStack, label: "Global Converter", to: "/converter" },
+  { icon: Blocks, label: "Services", to: "/services" },
+  { icon: ShieldCheck, label: "Certificates", to: "/certificates" },
+  { icon: Settings, label: "Mail & Time", to: "/mail" },
+  { icon: Radar, label: "SIEM", to: "/siem" },
+  { icon: Activity, label: "Telemetry Sources", to: "/telemetry-sources" },
+  { icon: Boxes, label: "Vision Audio", to: "/vision-audio" },
+  { icon: FileDown, label: "Backup & Restore", to: "/backup" },
+  { icon: Layers, label: "Capability Registry", to: "/registry" },
+  { icon: KeyRound, label: "Authentication", to: "/authentication" },
+  { icon: Settings2, label: "Theme", to: "/theme" },
+];
 
-let persistedGroups: Record<string, boolean> = {};
+const allItems = [...groups.flatMap((g) => g.items), ...SETTINGS_PAGES];
+
+let persistedGroups: Record<string, boolean> = { core: true, chats: true };
 let persistedSidebar = true;
 
 const iconHover = {
@@ -190,45 +206,40 @@ export function Shell({ children, crumb }: { children: ReactNode; crumb?: string
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
   const active = allItems.find((t) => t.to === pathname);
+  const ownerCtx = readOwnerCtx();
+  const isAdmin = ownerCtx.sovereign;
   const access = useAccess();
   const spaceAccess = useSpaceAccess();
-  const scopeAllowed = access.allows(pathname);
+  const scopeAllowed = isAdmin || access.allows(pathname);
   const knowledgeOk = spaceAccess.enabled;
+
+  const firstAllowedSetting = [
+    "/settings",
+    "/converter",
+    "/services",
+    "/certificates",
+    "/mail",
+    "/siem",
+    "/telemetry-sources",
+    "/vision-audio",
+    "/backup",
+    "/registry",
+    "/authentication",
+    "/theme",
+  ].find((p) => isAdmin || access.allows(p));
+
   const visibleGroups = (
-    access.enforced
-      ? groups
-          .map((g) => ({ ...g, items: g.items.filter((i) => access.allows(i.to)) }))
-          .filter((g) => g.items.length > 0 || g.items.length === 0)
-      : groups
+    groups
+      .map((g) => ({
+        ...g,
+        items: g.items.filter((i) => isAdmin || access.allows(i.to)),
+      }))
+      .filter((g) => g.items.length > 0 || g.id === "chats" || g.id === "more")
   ).map((g) =>
     knowledgeOk ? g : { ...g, items: g.items.filter((i) => i.to !== "/rag-documents") },
   );
 
-  // Studio settings children live behind the /settings tab row. When a role is
-  // granted one of them without /settings itself, surface it directly in
-  // Governance so the scope is actually reachable.
-  const STUDIO_CHILDREN = [
-    { icon: Layers, label: "Capability Registry", to: "/registry" },
-    { icon: KeyRound, label: "Authentication", to: "/authentication" },
-    { icon: FileStack, label: "Global Converter", to: "/converter" },
-    { icon: Blocks, label: "Services", to: "/services" },
-    { icon: ShieldCheck, label: "Certificates", to: "/certificates" },
-    { icon: Settings, label: "Mail & Time", to: "/mail" },
-    { icon: Radar, label: "SIEM", to: "/siem" },
-    { icon: Activity, label: "Telemetry Sources", to: "/telemetry-sources" },
-    { icon: Boxes, label: "Vision Audio", to: "/vision-audio" },
-    { icon: FileDown, label: "Backup & Restore", to: "/backup" },
-    { icon: Settings2, label: "Theme", to: "/theme" },
-  ];
-  const orphanStudio =
-    access.enforced && !access.allows("/settings")
-      ? STUDIO_CHILDREN.filter((i) => access.allows(i.to))
-      : [];
-  const navGroups = orphanStudio.length
-    ? visibleGroups.map((g) =>
-        g.id === "governance" ? { ...g, items: [...g.items, ...orphanStudio] } : g,
-      )
-    : visibleGroups;
+  const navGroups = visibleGroups;
 
   useEffect(() => {
     if (scopeAllowed) return;
@@ -773,18 +784,20 @@ function ModuleTabs() {
 
   // Memory: context layers.
   if (pathname === "/memory") {
+    const ownerCtx = readOwnerCtx();
+    const isAdmin = ownerCtx.sovereign;
     const mv = search?.view;
-    const view = mv === "episodic" || mv === "semantic" || mv === "policy" ? mv : "working";
+    const availableTabs = [
+      { id: "working", label: "Working Set", tone: "sapphire", scope: "memory-working" },
+      { id: "episodic", label: "Episodic", tone: "amethyst", scope: "memory-episodic" },
+      { id: "semantic", label: "Semantic", tone: "emerald", scope: "memory-semantic" },
+      { id: "policy", label: "Policy", tone: "topaz", scope: "memory-policy" },
+    ].filter((t) => isAdmin || access.allows(t.scope) || access.allows("memory"));
+    const firstAllowed = availableTabs[0]?.id ?? "working";
+    const view = availableTabs.some((t) => t.id === mv) ? mv : firstAllowed;
     return (
       <div className="ml-2 hidden items-center gap-1.5 md:flex">
-        {(
-          [
-            { id: "working", label: "Working Set", tone: "sapphire" },
-            { id: "episodic", label: "Episodic", tone: "amethyst" },
-            { id: "semantic", label: "Semantic", tone: "emerald" },
-            { id: "policy", label: "Policy", tone: "topaz" },
-          ] as const
-        ).map((t) => (
+        {availableTabs.map((t) => (
           <Link
             key={t.id}
             to="/memory"
@@ -808,23 +821,26 @@ function ModuleTabs() {
 
   // Users & Groups: identity surfaces.
   if (pathname === "/users") {
+    const ownerCtx = readOwnerCtx();
+    const isSuperAdmin = ownerCtx.sovereign;
     const uv = search?.view;
-    const view = uv === "tenants" || uv === "groups" || uv === "templates" || uv === "compliance" ? uv : "users";
+    const availableTabs = [
+      { id: "users", label: "Users", tone: "sapphire", scope: "users-users" },
+      { id: "groups", label: "Groups", tone: "emerald", scope: "users-groups" },
+      { id: "templates", label: "Templates", tone: "amethyst", scope: "users-templates" },
+      { id: "compliance", label: "RBAC Compliance", tone: "topaz", scope: "users-compliance" },
+      ...(isSuperAdmin ? [{ id: "tenants", label: "Tenants", tone: "ruby", scope: "users-tenants" }] : []),
+    ].filter((t) => isSuperAdmin || access.allows(t.scope) || access.allows("users"));
+    const firstAllowed = availableTabs[0]?.id ?? "users";
+    const view = availableTabs.some((t) => t.id === uv) ? uv : firstAllowed;
+
     return (
       <div className="ml-2 hidden items-center gap-1.5 md:flex">
-        {(
-          [
-            { id: "users", label: "Users", tone: "sapphire" },
-            { id: "groups", label: "Groups", tone: "emerald" },
-            { id: "templates", label: "Templates", tone: "amethyst" },
-            { id: "compliance", label: "RBAC Compliance", tone: "topaz" },
-            { id: "tenants", label: "Tenants", tone: "ruby" },
-          ] as const
-        ).map((t) => (
+        {availableTabs.map((t) => (
           <Link
             key={t.id}
             to="/users"
-            search={{ view: t.id }}
+            search={{ view: t.id as any }}
             className={`flex items-center gap-2 rounded-lg border px-3 py-[5px] text-[13px] font-medium transition-all duration-150 ease-in-out ${
               view === t.id
                 ? "border-white/20 bg-raised/60 text-foreground"
@@ -844,25 +860,24 @@ function ModuleTabs() {
 
   // Knowledge Hub surfaces: control (health + sources + retrieval + webhooks), aliases, vector forge.
   if (pathname === "/knowledge") {
+    const ownerCtx = readOwnerCtx();
+    const isAdmin = ownerCtx.sovereign;
     const kv = search?.view;
-    const view =
-      kv === "spaces" || kv === "aliases" || kv === "vector" || kv === "tuning" || kv === "prompts"
-        ? kv
-        : "control";
+    const availableTabs = [
+      { id: "control", label: "RAG Control", tone: "sapphire", scope: "knowledge-control" },
+      { id: "spaces", label: "Access Spaces", tone: "sapphire", scope: "knowledge-spaces" },
+      { id: "aliases", label: "Brand Aliases", tone: "amethyst", scope: "knowledge-aliases" },
+      { id: "tuning", label: "Advanced Tuning", tone: "topaz", scope: "knowledge-tuning" },
+    ].filter((t) => isAdmin || access.allows(t.scope) || access.allows("knowledge"));
+    const firstAllowed = availableTabs[0]?.id ?? "control";
+    const view = availableTabs.some((t) => t.id === kv) ? kv : firstAllowed;
     return (
       <div className="ml-2 hidden items-center gap-1.5 md:flex">
-        {(
-          [
-            { id: "control", label: "RAG Control", tone: "sapphire" },
-            { id: "spaces", label: "Access Spaces", tone: "sapphire" },
-            { id: "aliases", label: "Brand Aliases", tone: "amethyst" },
-            { id: "tuning", label: "Advanced Tuning", tone: "topaz" },
-          ] as const
-        ).map((t) => (
+        {availableTabs.map((t) => (
           <Link
             key={t.id}
             to="/knowledge"
-            search={{ view: t.id }}
+            search={{ view: t.id as any }}
             className={`flex items-center gap-2 rounded-lg border px-3 py-[5px] text-[13px] font-medium transition-all duration-150 ease-in-out ${
               view === t.id
                 ? "border-white/20 bg-raised/60 text-foreground"
@@ -889,33 +904,27 @@ function ModuleTabs() {
 
   // Policy & Security surfaces, driven from the header.
   if (pathname === "/policy") {
+    const ownerCtx = readOwnerCtx();
+    const isAdmin = ownerCtx.sovereign;
     const pv = search?.view;
-    const view =
-      pv === "genguard" ||
-      pv === "isolation" ||
-      pv === "skill-isolation" ||
-      pv === "mcp-isolation" ||
-      pv === "signed" ||
-      pv === "engine"
-        ? pv
-        : "vault";
+    const availableTabs = [
+      { id: "vault", label: "Secret Vault", tone: "sapphire", scope: "policy-vault" },
+      { id: "genguard", label: "GenGuard", tone: "amethyst", scope: "policy-genguard" },
+      { id: "isolation", label: "Tool Isolation", tone: "emerald", scope: "policy-isolation" },
+      { id: "skill-isolation", label: "Skill Isolation", tone: "topaz", scope: "policy-skill-isolation" },
+      { id: "mcp-isolation", label: "MCP Isolation", tone: "sapphire", scope: "policy-mcp-isolation" },
+      { id: "signed", label: "Signed Workflows", tone: "topaz", scope: "policy-signed" },
+      { id: "engine", label: "Policy Engine", tone: "ruby", scope: "policy-engine" },
+    ].filter((t) => isAdmin || access.allows(t.scope) || access.allows("policy"));
+    const firstAllowed = availableTabs[0]?.id ?? "vault";
+    const view = availableTabs.some((t) => t.id === pv) ? pv : firstAllowed;
     return (
       <div className="ml-2 hidden items-center gap-1.5 md:flex">
-        {(
-          [
-            { id: "vault", label: "Secret Vault", tone: "sapphire" },
-            { id: "genguard", label: "GenGuard", tone: "amethyst" },
-            { id: "isolation", label: "Tool Isolation", tone: "emerald" },
-            { id: "skill-isolation", label: "Skill Isolation", tone: "topaz" },
-            { id: "mcp-isolation", label: "MCP Isolation", tone: "sapphire" },
-            { id: "signed", label: "Signed Workflows", tone: "topaz" },
-            { id: "engine", label: "Policy Engine", tone: "ruby" },
-          ] as const
-        ).map((t) => (
+        {availableTabs.map((t) => (
           <Link
             key={t.id}
             to="/policy"
-            search={{ view: t.id }}
+            search={{ view: t.id as any }}
             className={`flex items-center gap-2 rounded-lg border px-3 py-[5px] text-[13px] font-medium transition-all duration-150 ease-in-out ${
               view === t.id
                 ? "border-white/20 bg-raised/60 text-foreground"
@@ -935,19 +944,24 @@ function ModuleTabs() {
 
   // MCP: server + client surfaces.
   if (pathname === "/mcp") {
-    const view = search?.view === "client" ? "client" : "server";
+    const ownerCtx = readOwnerCtx();
+    const isAdmin = ownerCtx.sovereign;
+    const canSeeServer = isAdmin || access.allows("mcp-server") || (canManageMcpServer() && access.allows("mcp"));
+    const canSeeClient = isAdmin || access.allows("mcp-client") || access.allows("mcp");
+    const availableTabs = [
+      ...(canSeeServer ? [{ id: "server", label: "MCP Server", tone: "sapphire" }] : []),
+      ...(canSeeClient ? [{ id: "client", label: "MCP Client", tone: "emerald" }] : []),
+    ] as const;
+
+    const firstAllowed = availableTabs[0]?.id ?? "client";
+    const view = availableTabs.some((t) => t.id === search?.view) ? search?.view : firstAllowed;
     return (
       <div className="ml-2 hidden items-center gap-1.5 md:flex">
-        {(
-          [
-            { id: "server", label: "MCP Server", tone: "sapphire" },
-            { id: "client", label: "MCP Client", tone: "emerald" },
-          ] as const
-        ).map((t) => (
+        {availableTabs.map((t) => (
           <Link
             key={t.id}
             to="/mcp"
-            search={{ view: t.id }}
+            search={{ view: t.id as any }}
             className={`flex items-center gap-2 rounded-lg border px-3 py-[5px] text-[13px] font-medium transition-all duration-150 ease-in-out ${
               view === t.id
                 ? "border-white/20 bg-raised/60 text-foreground"
@@ -967,19 +981,23 @@ function ModuleTabs() {
 
   // Adapters: adapters + webhooks surfaces.
   if (pathname === "/adapters") {
-    const view = search?.view === "webhooks" ? "webhooks" : "adapters";
+    const ownerCtx = readOwnerCtx();
+    const isAdmin = ownerCtx.sovereign;
+    const canSeeAdapters = isAdmin || access.allows("adapters");
+    const canSeeWebhooks = isAdmin || access.allows("webhooks") || access.allows("adapters");
+    const availableTabs = [
+      ...(canSeeAdapters ? [{ id: "adapters", label: "Adapters", tone: "sapphire" }] : []),
+      ...(canSeeWebhooks ? [{ id: "webhooks", label: "Webhooks", tone: "topaz" }] : []),
+    ] as const;
+    const firstAllowed = availableTabs[0]?.id ?? "adapters";
+    const view = availableTabs.some((t) => t.id === search?.view) ? search?.view : firstAllowed;
     return (
       <div className="ml-2 hidden items-center gap-1.5 md:flex">
-        {(
-          [
-            { id: "adapters", label: "Adapters", tone: "sapphire" },
-            { id: "webhooks", label: "Webhooks", tone: "topaz" },
-          ] as const
-        ).map((t) => (
+        {availableTabs.map((t) => (
           <Link
             key={t.id}
             to="/adapters"
-            search={{ view: t.id }}
+            search={{ view: t.id as any }}
             className={`flex items-center gap-2 rounded-lg border px-3 py-[5px] text-[13px] font-medium transition-all duration-150 ease-in-out ${
               view === t.id
                 ? "border-white/20 bg-raised/60 text-foreground"
@@ -999,24 +1017,23 @@ function ModuleTabs() {
 
   // Planner planes: tool · skill · mcp orchestration.
   if (pathname === "/planner") {
-    const plane =
-      (search as { plane?: string } | undefined)?.plane === "skill" ||
-      (search as { plane?: string } | undefined)?.plane === "mcp"
-        ? ((search as { plane?: string }).plane as string)
-        : "tool";
+    const ownerCtx = readOwnerCtx();
+    const isAdmin = ownerCtx.sovereign;
+    const pv = (search as { plane?: string } | undefined)?.plane;
+    const availableTabs = [
+      { id: "tool", label: "Tool Planner", tone: "emerald", scope: "planner-tool" },
+      { id: "skill", label: "Skill Planner", tone: "sapphire", scope: "planner-skill" },
+      { id: "mcp", label: "MCP Planner", tone: "amethyst", scope: "planner-mcp" },
+    ].filter((t) => isAdmin || access.allows(t.scope) || access.allows("planner"));
+    const firstAllowed = availableTabs[0]?.id ?? "tool";
+    const plane = availableTabs.some((t) => t.id === pv) ? pv : firstAllowed;
     return (
       <div className="ml-2 hidden items-center gap-1.5 md:flex">
-        {(
-          [
-            { id: "tool", label: "Tool Planner", tone: "emerald" },
-            { id: "skill", label: "Skill Planner", tone: "sapphire" },
-            { id: "mcp", label: "MCP Planner", tone: "amethyst" },
-          ] as const
-        ).map((t) => (
+        {availableTabs.map((t) => (
           <Link
             key={t.id}
             to="/planner"
-            search={{ plane: t.id }}
+            search={{ plane: t.id as any }}
             className={`flex items-center gap-2 rounded-lg border px-3 py-[5px] text-[13px] font-medium transition-all duration-150 ease-in-out ${
               plane === t.id
                 ? "border-white/20 bg-raised/60 text-foreground"
@@ -1036,20 +1053,22 @@ function ModuleTabs() {
 
   // System Engine surfaces: intent router + orchestrator bridge.
   if (pathname === "/engine") {
-    const view = search?.view === "bridge" ? "bridge" : "intent";
+    const ownerCtx = readOwnerCtx();
+    const isAdmin = ownerCtx.sovereign;
+    const availableTabs = [
+      { id: "intent", label: "Intent Router", tone: "sapphire", scope: "engine-intent" },
+      { id: "bridge", label: "Orchestrator Bridge", tone: "amethyst", scope: "engine-bridge" },
+    ].filter((t) => isAdmin || access.allows(t.scope) || access.allows("engine"));
+    const firstAllowed = availableTabs[0]?.id ?? "intent";
+    const view = availableTabs.some((t) => t.id === search?.view) ? search?.view : firstAllowed;
 
     return (
       <div className="ml-2 hidden items-center gap-1.5 md:flex">
-        {(
-          [
-            { id: "intent", label: "Intent Router", tone: "sapphire" },
-            { id: "bridge", label: "Orchestrator Bridge", tone: "amethyst" },
-          ] as const
-        ).map((t) => (
+        {availableTabs.map((t) => (
           <Link
             key={t.id}
             to="/engine"
-            search={{ view: t.id }}
+            search={{ view: t.id as any }}
             className={`flex items-center gap-2 rounded-lg border px-3 py-[5px] text-[13px] font-medium transition-all duration-150 ease-in-out ${
               view === t.id
                 ? "border-white/20 bg-raised/60 text-foreground"
@@ -1071,6 +1090,8 @@ function ModuleTabs() {
 
   // Reporting: analytics surfaces.
   if (pathname.startsWith("/reporting")) {
+    const ownerCtx = readOwnerCtx();
+    const isAdmin = ownerCtx.sovereign;
     const reportTabs = [
       { to: "/reporting/overview", label: "Overview", tone: "sapphire" },
       { to: "/reporting/usage", label: "Usage Analytics", tone: "emerald" },
@@ -1079,7 +1100,8 @@ function ModuleTabs() {
       { to: "/reporting/users", label: "Operator Analytics", tone: "ruby" },
       { to: "/reporting/rag", label: "RAG Analytics", tone: "emerald" },
       { to: "/reporting/exports", label: "Scheduled Exports", tone: "topaz" },
-    ] as const;
+    ].filter((t) => isAdmin || access.allows(t.to));
+
     return (
       <div className="ml-2 hidden items-center gap-1.5 md:flex">
         {reportTabs.map((t) => (

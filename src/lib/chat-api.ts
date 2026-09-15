@@ -1,4 +1,5 @@
 import type { ChatFile, ChatMessage, ChatThread } from "@/lib/chat-store";
+import { authHeaders } from "@/lib/api";
 
 /**
  * Chat persistence transport.
@@ -54,10 +55,19 @@ export const fromDTO = (d: ThreadDTO): ChatThread => ({
 async function call<T>(path: string, init?: RequestInit): Promise<T | null> {
   if (typeof window === "undefined") return null;
   try {
+    const headers = new Headers(init?.headers);
+    if (!headers.has("Content-Type")) {
+      headers.set("Content-Type", "application/json");
+    }
+    const extra = authHeaders();
+    for (const [k, v] of Object.entries(extra)) {
+      if (!headers.has(k)) headers.set(k, v);
+    }
+
     const res = await fetch(`${BASE}${path}`, {
-      headers: { "Content-Type": "application/json" },
       credentials: "same-origin",
       ...init,
+      headers,
     });
     if (!res.ok) return null;
     if (res.status === 204) return {} as T;

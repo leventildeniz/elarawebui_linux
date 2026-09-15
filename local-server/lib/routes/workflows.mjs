@@ -127,10 +127,17 @@ export function mountWorkflowRoutes(app, deps) {
   });
   app.post("/api/workflows", async (req, res) => {
     const { id, name, nodes = [], edges = [], color, status, trigger, runs, visibility, shared_with, ownerId, ownerName } = req.body ?? {};
-    if (!id || !name) return res.status(400).json({ error: "id and name required" });
+    if (!id || !name) return res.status(400).json({ ok: false, error: "id and name required" });
     try {
       const ctx = await deps.resolveActorContext(req);
-      const owner = ownerId || ctx.userId || req.actor || null;
+
+      // Check mutation rights on existing workflow
+      const existing = (await pool.query("SELECT * FROM workflows WHERE id=$1", [id])).rows[0];
+      if (existing && deps.assertCanEdit) {
+        deps.assertCanEdit(ctx, existing, "workflow");
+      }
+
+      const owner = existing?.owner_id || ownerId || ctx.userId || req.actor || null;
       const tenantId = req.body?.tenant_id || req.body?.tenantId || (ctx.isSuperAdmin ? (req.body?.tenant_id || "default") : ctx.tenantId);
       const isGlobal = ctx.isSuperAdmin ? (req.body?.is_global || false) : false;
       
@@ -144,17 +151,26 @@ export function mountWorkflowRoutes(app, deps) {
       await syncTriggerSchedules(pool, 'workflow', id, nodes, ctxActor);
 
       res.json({ ok: true, id, nodes: nodes.length, edges: edges.length });
-    } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
+    } catch (e) {
+      const status = e.status || 500;
+      res.status(status).json({ ok: false, error: String(e.message || e) });
+    }
   });
   app.delete("/api/workflows/:id", async (req, res) => {
     const wfId = req.params.id;
     try {
-      // 1. Fetch workflow details to get ID and Name
-      const wfRes = await pool.query("SELECT id, name FROM workflows WHERE id=$1", [wfId]);
+      const ctx = await deps.resolveActorContext(req);
+
+      // 1. Fetch workflow details and check mutation rights
+      const wfRes = await pool.query("SELECT * FROM workflows WHERE id=$1", [wfId]);
       if (!wfRes.rows[0]) {
-        return res.status(404).json({ error: "Workflow not found" });
+        return res.status(404).json({ ok: false, error: "Workflow not found" });
       }
       const wf = wfRes.rows[0];
+      if (deps.assertCanEdit) {
+        deps.assertCanEdit(ctx, wf, "workflow");
+      }
+
       const wfNameLower = String(wf.name || "").trim().toLowerCase();
 
       // 2. Inspect all active Orchestration Chains for references to this workflow
@@ -574,12 +590,34 @@ export function mountWorkflowRoutes(app, deps) {
       })));
     } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
   });
+  app.get("/api/chains/:id", async (req, res) => {
+    try {
+      const { rows } = await pool.query(
+        "SELECT id, name, status, trigger, runs, nodes, edges, color, visibility, shared_with, owner_id, owner_name, created_at as updated_at FROM orchestrations WHERE id=$1",
+        [req.params.id]
+      );
+      if (!rows[0]) return res.status(404).json({ error: "Chain not found" });
+      const r = rows[0];
+      res.json({
+        id: r.id, name: r.name, updated_at: r.updated_at, visibility: r.visibility, shared_with: r.shared_with,
+        owner_id: r.owner_id, owner_name: r.owner_name,
+        graph: { status: r.status, trigger: r.trigger, runs: r.runs, nodes: r.nodes, edges: r.edges, color: r.color || 'ruby' }
+      });
+    } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
+  });
   app.post("/api/chains", async (req, res) => {
     const { id, name, nodes = [], edges = [], color, status, trigger, runs, visibility, shared_with, ownerId, ownerName } = req.body ?? {};
-    if (!id || !name) return res.status(400).json({ error: "id and name required" });
+    if (!id || !name) return res.status(400).json({ ok: false, error: "id and name required" });
     try {
       const ctx = await deps.resolveActorContext(req);
-      const owner = ownerId || ctx.userId || req.actor || null;
+
+      // Check mutation rights on existing chain
+      const existing = (await pool.query("SELECT * FROM orchestrations WHERE id=$1", [id])).rows[0];
+      if (existing && deps.assertCanEdit) {
+        deps.assertCanEdit(ctx, existing, "orchestration chain");
+      }
+
+      const owner = existing?.owner_id || ownerId || ctx.userId || req.actor || null;
       const tenantId = req.body?.tenant_id || req.body?.tenantId || (ctx.isSuperAdmin ? (req.body?.tenant_id || "default") : ctx.tenantId);
       const isGlobal = ctx.isSuperAdmin ? (req.body?.is_global || false) : false;
 
@@ -593,11 +631,26 @@ export function mountWorkflowRoutes(app, deps) {
       await syncTriggerSchedules(pool, 'orchestration', id, nodes, ctxActor);
 
       res.json({ ok: true, id });
-    } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
+    } catch (e) {
+      const status = e.status || 500;
+      res.status(status).json({ ok: false, error: String(e.message || e) });
+    }
   });
   app.delete("/api/chains/:id", async (req, res) => {
-    try { await pool.query("DELETE FROM orchestrations WHERE id=$1", [req.params.id]); res.status(204).end(); }
-    catch (e) { res.status(500).json({ error: String(e.message || e) }); }
+    try {
+      const ctx = await deps.resolveActorContext(req);
+      const existing = (await pool.query("SELECT * FROM orchestrations WHERE id=$1", [req.params.id])).rows[0];
+      if (!existing) return res.status(404).json({ ok: false, error: "Chain not found" });
+      if (deps.assertCanEdit) {
+        deps.assertCanEdit(ctx, existing, "orchestration chain");
+      }
+
+      await pool.query("DELETE FROM orchestrations WHERE id=$1", [req.params.id]);
+      res.status(200).json({ ok: true });
+    } catch (e) {
+      const status = e.status || 500;
+      res.status(status).json({ ok: false, error: String(e.message || e) });
+    }
   });
   app.get("/api/chains/:id/runs", async (req, res) => {
     try {

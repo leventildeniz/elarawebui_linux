@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
 import { Check, Pencil, Plus, X } from "lucide-react";
 import { useAgents, useSquads } from "@/lib/agent-store";
+import { useOwnerCtx } from "@/lib/ownership";
 import { confirmAction } from "./confirm-dialog";
 import { cn } from "@/lib/utils";
 
@@ -9,6 +10,7 @@ import { cn } from "@/lib/utils";
 export function SquadTabs() {
   const { agents, update } = useAgents();
   const { squads, active, setActive, addSquad, renameSquad, removeSquad } = useSquads();
+  const ownerCtx = useOwnerCtx();
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [name, setName] = useState("");
@@ -62,14 +64,25 @@ export function SquadTabs() {
     if (active === id) setActive("all");
   };
 
+  if (!mounted) {
+    return (
+      <div className="ml-2 hidden items-center gap-1.5 md:flex">
+        <Tab active={true} tone="sapphire" onClick={() => {}}>
+          All
+        </Tab>
+      </div>
+    );
+  }
+
   return (
     <div className="ml-2 hidden items-center gap-1.5 md:flex">
       <Tab active={active === "all"} tone="sapphire" onClick={() => setActive("all")}>
-        All · <span suppressHydrationWarning>{mounted ? (agents || []).length : 0}</span>
+        All · <span>{(agents || []).length}</span>
       </Tab>
 
       {(squads || []).map((s) => {
         const n = count(s.name);
+        const canEditThisSquad = ownerCtx.sovereign || (s.ownerId && s.ownerId === ownerCtx.userId) || (s.owner_id && s.owner_id === ownerCtx.userId);
         if (editing === s.id) {
           return (
             <InlineName
@@ -86,8 +99,8 @@ export function SquadTabs() {
             active={active === s.id}
             tone={s.tone}
             onClick={() => setActive(s.id)}
-            onRename={() => setEditing(s.id)}
-            onRemove={() => deleteSquad(s.id, s.name, n)}
+            onRename={canEditThisSquad ? () => setEditing(s.id) : undefined}
+            onRemove={canEditThisSquad ? () => deleteSquad(s.id, s.name, n) : undefined}
           >
             {s.name} · <span suppressHydrationWarning>{mounted ? n : 0}</span>
           </Tab>

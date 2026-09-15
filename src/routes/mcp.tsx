@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
-import { canEdit as canEditOwned, editRefusal } from "@/lib/ownership";
-import { SharePopover } from "@/components/sovereign/ownership-controls";
+import { canEdit as canEditOwned, editRefusal, useOwnerCtx } from "@/lib/ownership";
+import { canManageMcpServer } from "@/lib/user-template-store";
+import { SharePopover, ReadOnlyBanner } from "@/components/sovereign/ownership-controls";
 import { createFileRoute } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
 import {
@@ -78,18 +79,20 @@ type Entity = { id: string; name: string; hint: string };
 
 function McpPage() {
   const { view: tab } = Route.useSearch();
+  const canSeeServer = canManageMcpServer();
+  const effectiveTab = canSeeServer ? tab : "client";
 
   return (
     <Surface title="MCP" meta="model context protocol · server + client" wide>
       <AnimatePresence mode="wait">
         <motion.div
-          key={tab}
+          key={effectiveTab}
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -6 }}
           transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
         >
-          {tab === "server" ? <ServerTab /> : <ClientTab />}
+          {effectiveTab === "server" ? <ServerTab /> : <ClientTab />}
         </motion.div>
       </AnimatePresence>
     </Surface>
@@ -719,59 +722,78 @@ function ClientTab() {
       )}
 
       <AnimatePresence>
-        {draft && (
-          <ClientDialog
-            draft={draft}
-            onChange={setDraft}
-            onClose={() => setDraft(null)}
-            onSave={async () => {
-              try {
-                if (!draft.name.trim()) {
-                  toast.error("Name is required");
-                  return;
-                }
-                if (draft.transport !== "stdio" && !draft.url.trim()) {
-                  toast.error("URL is required for HTTP/SSE transport");
-                  return;
-                }
-                if (draft.transport === "stdio" && !draft.url.trim()) {
-                  toast.error("Command is required for stdio transport");
-                  return;
-                }
+        {draft && (() => {
+          const isNew = !mcp.clients.some((c) => c.id === draft.id);
+          const writable = isNew || canEditOwned(draft, mcp.ctx);
+          const refusal = writable ? "" : editRefusal(draft, mcp.ctx);
+          const handleClone = () => {
+            const cloned = stampOwner({
+              ...draft,
+              id: `mcp.${Math.random().toString(36).slice(2, 8)}`,
+              name: `${draft.name} (Copy)`,
+              visibility: "private" as const,
+            }, "private");
+            setDraft(cloned);
+            toast.success("Cloned to your desk as a private copy");
+          };
 
-                const known = mcp.clients.some((c) => c.id === draft.id);
-                if (known) {
-                  await mcp.saveClient(draft);
-                  setDraft(null);
-                } else {
-                  gateAction(
-                    {
-                      title: `Trust new MCP server ${draft.name || draft.id}`,
-                      origin: "credential",
-                      tool: "tool.mcp.trust",
-                      target: draft.url || draft.name || draft.id,
-                      policy: "pol.mcp.trust — unknown MCP endpoints require review",
-                      risk: "medium",
-                      args: JSON.stringify(
-                        { id: draft.id, name: draft.name, url: draft.url },
-                        null,
-                        2,
-                      ),
-                    },
-                    () => {
-                      mcp.saveClient(draft).catch(err => {
-                        toast.error(err.message || "Failed to save MCP client");
-                      });
-                    }
-                  );
-                  setDraft(null);
+          return (
+            <ClientDialog
+              draft={draft}
+              onChange={setDraft}
+              onClose={() => setDraft(null)}
+              writable={writable}
+              refusal={refusal}
+              onClone={handleClone}
+              onSave={async () => {
+                try {
+                  if (!draft.name.trim()) {
+                    toast.error("Name is required");
+                    return;
+                  }
+                  if (draft.transport !== "stdio" && !draft.url.trim()) {
+                    toast.error("URL is required for HTTP/SSE transport");
+                    return;
+                  }
+                  if (draft.transport === "stdio" && !draft.url.trim()) {
+                    toast.error("Command is required for stdio transport");
+                    return;
+                  }
+
+                  const known = mcp.clients.some((c) => c.id === draft.id);
+                  if (known) {
+                    await mcp.saveClient(draft);
+                    setDraft(null);
+                  } else {
+                    gateAction(
+                      {
+                        title: `Trust new MCP server ${draft.name || draft.id}`,
+                        origin: "credential",
+                        tool: "tool.mcp.trust",
+                        target: draft.url || draft.name || draft.id,
+                        policy: "pol.mcp.trust — unknown MCP endpoints require review",
+                        risk: "medium",
+                        args: JSON.stringify(
+                          { id: draft.id, name: draft.name, url: draft.url },
+                          null,
+                          2,
+                        ),
+                      },
+                      () => {
+                        mcp.saveClient(draft).catch(err => {
+                          toast.error(err.message || "Failed to save MCP client");
+                        });
+                      }
+                    );
+                    setDraft(null);
+                  }
+                } catch (err: any) {
+                  toast.error(err.message || "Failed to save MCP client");
                 }
-              } catch (err: any) {
-                toast.error(err.message || "Failed to save MCP client");
-              }
-            }}
-          />
-        )}
+              }}
+            />
+          );
+        })()}
       </AnimatePresence>
     </div>
   );
@@ -782,11 +804,17 @@ function ClientDialog({
   onChange,
   onClose,
   onSave,
+  onClone,
+  writable = true,
+  refusal = "",
 }: {
   draft: McpClientServer;
   onChange: (c: McpClientServer) => void;
   onClose: () => void;
   onSave: () => void;
+  onClone?: () => void;
+  writable?: boolean;
+  refusal?: string;
 }) {
   const set = (p: Partial<McpClientServer>) => onChange({ ...draft, ...p });
 
@@ -807,7 +835,9 @@ function ClientDialog({
         className="glass my-6 w-full max-w-[560px] rounded-xl border border-sapphire/30 p-6 shadow-[0_0_80px_-40px_var(--sapphire)]"
       >
         <div className="flex items-start justify-between gap-4">
-          <h3 className="text-[17px] font-medium tracking-tight text-foreground">MCP server</h3>
+          <h3 className="text-[17px] font-medium tracking-tight text-foreground">
+            {writable ? "MCP server" : "View MCP server (Read-Only)"}
+          </h3>
           <button onClick={onClose} aria-label="Close" title="Close">
             <X
               size={16}
@@ -816,11 +846,18 @@ function ClientDialog({
           </button>
         </div>
 
+        {!writable && refusal ? (
+          <div className="mt-4">
+            <ReadOnlyBanner reason={refusal} />
+          </div>
+        ) : null}
+
         <div className="mt-5 space-y-4">
           <div>
             <span className={label}>name</span>
             <input
               className={field}
+              disabled={!writable}
               value={draft.name}
               placeholder="GitHub MCP"
               onChange={(e) => set({ name: e.target.value })}
@@ -831,6 +868,7 @@ function ClientDialog({
               <span className={label}>transport</span>
               <select
                 className={cn(field, "appearance-none bg-canvas")}
+                disabled={!writable}
                 value={draft.transport}
                 onChange={(e) => set({ transport: e.target.value as McpClientServer["transport"] })}
               >
@@ -845,6 +883,7 @@ function ClientDialog({
                   <span className={label}>command</span>
                   <input
                     className={field}
+                    disabled={!writable}
                     value={draft.url?.split(" ")[0] || ""}
                     placeholder="npx"
                     onChange={(e) => {
@@ -857,6 +896,7 @@ function ClientDialog({
                   <span className={label}>arguments</span>
                   <input
                     className={field}
+                    disabled={!writable}
                     value={draft.url?.split(" ").slice(1).join(" ") || ""}
                     placeholder="-y @acme/mcp"
                     onChange={(e) => {
@@ -871,6 +911,7 @@ function ClientDialog({
                 <span className={label}>url</span>
                 <input
                   className={field}
+                  disabled={!writable}
                   value={draft.url}
                   placeholder="https://mcp.example.com/mcp"
                   onChange={(e) => set({ url: e.target.value })}
@@ -878,7 +919,7 @@ function ClientDialog({
               </div>
             )}
           </div>
-          <div>
+          <div className={!writable ? "pointer-events-none opacity-50" : ""}>
             <span className={label}>bearer token (vault or manual · optional)</span>
             <VaultKeyField
               value={draft.token}
@@ -887,7 +928,7 @@ function ClientDialog({
             />
           </div>
 
-          <div className="flex items-center justify-between rounded-lg border border-white/[0.06] bg-raised/25 px-4 py-3">
+          <div className={cn("flex items-center justify-between rounded-lg border border-white/[0.06] bg-raised/25 px-4 py-3", !writable && "pointer-events-none opacity-50")}>
             <div>
               <div className="text-[13.5px] text-foreground">Auto-inject tools</div>
               <div className="text-[11.5px] text-muted-foreground/70">
@@ -896,7 +937,7 @@ function ClientDialog({
             </div>
             <Switch
               checked={draft.autoInject}
-              onChange={(v) => set({ autoInject: v })}
+              onChange={(v) => writable && set({ autoInject: v })}
               aria-label="Auto-inject tools"
             />
           </div>
@@ -904,11 +945,13 @@ function ClientDialog({
 
         <div className="mt-6 flex justify-end gap-2">
           <JewelButton size="sm" variant="ghost" onClick={onClose}>
-            Cancel
+            {writable ? "Cancel" : "Close"}
           </JewelButton>
-          <JewelButton size="sm" onClick={onSave}>
-            Save
-          </JewelButton>
+          {writable && (
+            <JewelButton size="sm" onClick={onSave} disabled={!writable}>
+              Save
+            </JewelButton>
+          )}
         </div>
       </motion.div>
     </motion.div>

@@ -1,7 +1,7 @@
 import { seedNow } from "@/lib/utils";
 import { useCallback, useEffect, useState } from "react";
 import { fetchApi } from "@/lib/api";
-import { scopeOwned, stampOwner, useOwnerCtx, type Owned } from "@/lib/ownership";
+import { readDesk, writeDesk, readDeskRaw, writeDeskRaw, scopeOwned, stampOwner, useOwnerCtx, type Owned } from "@/lib/ownership";
 import type { JewelName } from "@/lib/avatar-library";
 import { emptySkill } from "@/mocks/skills";
 import { seedSkills } from "@/mocks/skills";
@@ -74,7 +74,16 @@ for (const s of seedSkills) s.squad = seedSkillSquadMap[s.id] ?? "Unassigned";
 
 /* ------------------------------------------------------- skill squads */
 
-export type SkillSquad = { id: string; name: string; tone: string };
+export type SkillSquad = {
+  id: string;
+  name: string;
+  tone: string;
+  ownerId?: string;
+  owner_id?: string;
+  visibility?: string;
+  shared_with?: string[];
+  tenant_id?: string;
+};
 
 const skillSquadTones = ["sapphire", "emerald", "amethyst", "topaz", "ruby"] as const;
 
@@ -90,101 +99,94 @@ export const seedSkillSquads: SkillSquad[] = [...new Set(seedSkills.map((s) => s
     tone: skillSquadTones[i % skillSquadTones.length]!,
   }));
 
+let _cachedSkillSquads: SkillSquad[] = [];
+
 function readSquads(): SkillSquad[] {
-  if (typeof window === "undefined") return seedSkillSquads;
-  try {
-    const raw = window.localStorage.getItem(SQ_KEY);
-    if (!raw) return seedSkillSquads;
-    const parsed = JSON.parse(raw) as SkillSquad[];
-    return Array.isArray(parsed) && parsed.length ? parsed : seedSkillSquads;
-  } catch {
-    return seedSkillSquads;
-  }
+  return readDesk<SkillSquad[]>(SQ_KEY, seedSkillSquads);
 }
 
 function writeSquads(list: SkillSquad[]) {
-  try {
-    window.localStorage.setItem(SQ_KEY, JSON.stringify(list));
+  writeDesk(SQ_KEY, list);
+  if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent(SQ_EVT));
-  } catch {
-    /* ignore */
   }
 }
 
 function readActiveSquad(): string {
-  if (typeof window === "undefined") return "all";
-  return window.localStorage.getItem(SQ_ACTIVE_KEY) ?? "all";
+  return readDeskRaw(SQ_ACTIVE_KEY) ?? "all";
 }
 
 /** Skill squad registry — drives the header tabs and scopes the library. */
 export function useSkillSquads() {
-  const [squads, setSquads] = useState<SkillSquad[]>(seedSkillSquads);
-  const [active, setActiveState] = useState<string>("all");
+  const [squads, setSquads] = useState<SkillSquad[]>(() => {
+    if (_cachedSkillSquads.length > 0) return _cachedSkillSquads;
+    const local = readSquads();
+    if (local.length > 0) {
+      _cachedSkillSquads = local;
+      return local;
+    }
+    return [];
+  });
+  const [active, setActiveState] = useState<string>(() => readActiveSquad());
 
   useEffect(() => {
     let mounted = true;
     const sync = async () => {
-      setSquads(readSquads());
-      setActiveState(readActiveSquad());
-
       try {
         const payload = await fetchApi("/api/skills/squads");
         const data = payload?.items || payload;
         if (mounted && Array.isArray(data)) {
-          const mapped = data.map((d: any) => ({
+          const mapped: SkillSquad[] = data.map((d: any) => ({
             id: d.name.toLowerCase().replace(/\s+/g, "-"),
             name: d.name,
-            tone: d.color || d.tone || "sapphire"
+            tone: d.color || d.tone || "sapphire",
+            ownerId: d.ownerId || d.owner_id,
+            owner_id: d.owner_id || d.ownerId,
+            visibility: d.visibility || "workspace",
+            shared_with: d.shared_with || d.sharedWith || [],
           }));
-          
-          const current = readSquads();
-          const currentNames = new Set(current.map((sq) => sq.name));
-          let changed = false;
-          const merged = [...current];
 
-          for (const m of mapped) {
-            if (!currentNames.has(m.name)) {
-              merged.push(m);
-              changed = true;
-            } else {
-              const idx = merged.findIndex((s) => s.name === m.name);
-              const target = merged[idx];
-              if (target && target.tone !== m.tone) {
-                target.tone = m.tone;
-                changed = true;
-              }
-            }
-          }
-
-          if (changed || mapped.length > 0) {
-            setSquads(merged);
-            window.localStorage.setItem(SQ_KEY, JSON.stringify(merged));
-            window.dispatchEvent(new CustomEvent(SQ_EVT));
-          }
+          _cachedSkillSquads = mapped;
+          setSquads(mapped);
+          writeSquads(mapped);
         }
       } catch (e) {
         console.error("Failed to load skill squads", e);
       }
     };
     sync();
-    
+
     const onEvt = () => {
-      setSquads(readSquads());
-      setActiveState(readActiveSquad());
+      if (mounted) {
+        setSquads(_cachedSkillSquads.length > 0 ? _cachedSkillSquads : readSquads());
+        setActiveState(readActiveSquad());
+      }
     };
+
+    const onIdentitySwitch = () => {
+      _cachedSkillSquads = [];
+      if (mounted) {
+        setSquads([]);
+        setActiveState("all");
+        sync();
+      }
+    };
+
     window.addEventListener(SQ_EVT, onEvt);
+    window.addEventListener("storage", onEvt);
+    window.addEventListener("sovereign:identity", onIdentitySwitch);
     return () => {
       mounted = false;
       window.removeEventListener(SQ_EVT, onEvt);
+      window.removeEventListener("storage", onEvt);
+      window.removeEventListener("sovereign:identity", onIdentitySwitch);
     };
   }, []);
 
   const setActive = useCallback((id: string) => {
-    try {
-      window.localStorage.setItem(SQ_ACTIVE_KEY, id);
+    writeDeskRaw(SQ_ACTIVE_KEY, id);
+    if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent(SQ_EVT));
-    } catch {
-      /* ignore */
     }
     setActiveState(id);
   }, []);
@@ -245,45 +247,26 @@ export function useSkillSquads() {
 export const seedSkillRuns: SkillRun[] = [];
 
 function read(): StudioSkill[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as StudioSkill[];
-    if (!Array.isArray(parsed) || !parsed.length) return [];
-    return parsed.map((s) => ({ ...emptySkill, ...s }));
-  } catch {
-    return [];
-  }
+  const items = readDesk<StudioSkill[]>(KEY, []);
+  if (!Array.isArray(items) || !items.length) return [];
+  return items.map((s) => ({ ...emptySkill, ...s }));
 }
 
 function write(list: StudioSkill[]) {
-  try {
-    window.localStorage.setItem(KEY, JSON.stringify(list));
+  writeDesk(KEY, list);
+  if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent(EVT));
-  } catch {
-    /* ignore */
   }
 }
 
 function readRuns(): SkillRun[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(RUNS_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as SkillRun[];
-    return Array.isArray(parsed) && parsed.length ? parsed : [];
-  } catch {
-    return [];
-  }
+  return readDesk<SkillRun[]>(RUNS_KEY, []);
 }
 
 function writeRuns(list: SkillRun[]) {
-  try {
-    window.localStorage.setItem(RUNS_KEY, JSON.stringify(list));
+  writeDesk(RUNS_KEY, list);
+  if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent(EVT));
-  } catch {
-    /* ignore */
   }
 }
 

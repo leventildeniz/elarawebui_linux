@@ -52,7 +52,7 @@ function sanitizeForgeAction(input) {
 export { sanitizeForgeAction };
 
 export function mountForgeRoutes(app, deps) {
-  const { pool, resolveActorContext, buildVisibility } = deps;
+  const { pool, resolveActorContext, buildVisibility, assertCanEdit } = deps;
 
   app.get("/api/forge/actions", async (req, res) => {
     try {
@@ -88,9 +88,16 @@ export function mountForgeRoutes(app, deps) {
 
   app.get("/api/forge/actions/:id", async (req, res) => {
     try {
+      const ctx = await resolveActorContext(req);
       const { rows } = await pool.query("SELECT * FROM action_library WHERE id=$1", [req.params.id]);
       if (!rows[0]) return res.status(404).end();
-      res.json(rows[0]);
+      const action = rows[0];
+      if (!ctx.isSuperAdmin && !ctx.isTenantAdmin) {
+        if (!action.is_system && !action.is_global && action.tenant_id && action.tenant_id !== ctx.tenantId && action.tenant_id !== "default") {
+          return res.status(403).json({ error: "Access denied" });
+        }
+      }
+      res.json(action);
     } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
   });
 
@@ -98,9 +105,13 @@ export function mountForgeRoutes(app, deps) {
     try {
       const a = sanitizeForgeAction(req.body);
       const ctx = await resolveActorContext(req);
-      const existing = (await pool.query("SELECT is_system, owner_user_id FROM action_library WHERE id=$1", [a.id])).rows[0];
-      if (existing?.is_system && !ctx.isAdmin) {
-        return res.status(403).json({ error: "system actions can only be edited by admin" });
+      const existing = (await pool.query("SELECT * FROM action_library WHERE id=$1", [a.id])).rows[0];
+      if (existing) {
+        if (assertCanEdit) {
+          assertCanEdit(ctx, existing, "forge action");
+        } else if (existing.is_system && !ctx.isAdmin) {
+          return res.status(403).json({ error: "system actions can only be edited by admin" });
+        }
       }
       const owner = req.body.ownerId || req.body.owner_id || existing?.owner_user_id || ctx.userId || req.actor || null;
       const policy = (req.body && typeof req.body.execution_policy === "object" && req.body.execution_policy)
@@ -138,9 +149,11 @@ export function mountForgeRoutes(app, deps) {
   app.delete("/api/forge/actions/:id", async (req, res) => {
     try {
       const ctx = await resolveActorContext(req);
-      const existing = (await pool.query("SELECT is_system FROM action_library WHERE id=$1", [req.params.id])).rows[0];
+      const existing = (await pool.query("SELECT * FROM action_library WHERE id=$1", [req.params.id])).rows[0];
       if (!existing) return res.status(404).end();
-      if (existing.is_system && !ctx.isAdmin) {
+      if (assertCanEdit) {
+        assertCanEdit(ctx, existing, "forge action");
+      } else if (existing.is_system && !ctx.isAdmin) {
         return res.status(403).json({ error: "system actions can only be deleted by admin" });
       }
       await pool.query("DELETE FROM action_library WHERE id=$1", [req.params.id]);

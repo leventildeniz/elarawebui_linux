@@ -26,6 +26,18 @@ export async function mountIdentityRoutes(app, deps) {
 
   const { ensureFederatedUser } = initAuthSchema({ pool, hashPassword, createPrefixedId, randomBytes });
 
+  // ---------- Live Identity Context (Single source of truth) ----------
+  app.get("/api/identity/context", async (req, res) => {
+    try {
+      const ctx = typeof resolveActorContext === "function"
+        ? await resolveActorContext(req)
+        : { actor: null, username: null, isAdmin: false, isSuperAdmin: false, isTenantAdmin: false, userId: null, tenantId: "default", groupIds: [], role: "viewer" };
+      res.json({ ok: true, context: ctx });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: String(e.message || e) });
+    }
+  });
+
   // ---------- Tenants (Organizations) ----------
   app.get("/api/identity/tenants", async (_req, res) => {
     try {

@@ -5,7 +5,7 @@ import { jewelNames, jewelPalette, type JewelName } from "@/lib/avatar-library";
 import { confirmAction } from "./confirm-dialog";
 import { cn } from "@/lib/utils";
 
-export type GraphTabItem = { id: string; name: string; jewel: JewelName };
+export type GraphTabItem = { id: string; name: string; jewel: JewelName; canEdit?: boolean };
 
 /** Shared header tab strip for graph designers (workflows, orchestration chains). */
 export function GraphTabs({
@@ -29,6 +29,23 @@ export function GraphTabs({
 }) {
   const [editing, setEditing] = useState<string | null>(null);
   const [painting, setPainting] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return (
+      <div className="ml-2 hidden items-center gap-1.5 md:flex">
+        {items[0] && (
+          <Tab active={true} tone={items[0].jewel} onClick={() => {}}>
+            {items[0].name}
+          </Tab>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="ml-2 hidden items-center gap-1.5 md:flex">
@@ -49,9 +66,9 @@ export function GraphTabs({
               active={activeId === w.id}
               tone={w.jewel}
               onClick={() => onSelect(w.id)}
-              onRename={() => setEditing(w.id)}
-              onPaint={() => setPainting(painting === w.id ? null : w.id)}
-              onRemove={() => {
+              onRename={w.canEdit !== false ? () => setEditing(w.id) : undefined}
+              onPaint={w.canEdit !== false ? () => setPainting(painting === w.id ? null : w.id) : undefined}
+              onRemove={w.canEdit !== false ? () => {
                 void (async () => {
                   const ok = await confirmAction({
                     title: `Delete this graph?`,
@@ -61,7 +78,7 @@ export function GraphTabs({
                   });
                   if (ok) onRemove(w.id);
                 })();
-              }}
+              } : undefined}
             >
               {w.name}
             </Tab>
@@ -156,11 +173,12 @@ function Tab({
   active: boolean;
   tone: JewelName;
   onClick: () => void;
-  onRename: () => void;
-  onPaint: () => void;
-  onRemove: () => void;
+  onRename?: (() => void) | undefined;
+  onPaint?: (() => void) | undefined;
+  onRemove?: (() => void) | undefined;
   children: React.ReactNode;
 }) {
+  const hasActions = Boolean(onRename || onPaint || onRemove);
   return (
     <div
       onClick={onClick}
@@ -180,38 +198,46 @@ function Tab({
         }}
       />
       <span className="truncate">{children}</span>
-      <span className="flex items-center gap-1 opacity-0 transition-opacity duration-100 ease-out group-hover:opacity-100">
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onPaint();
-          }}
-          aria-label="Recolour"
-          title="Recolour"
-        >
-          <Palette size={11} className="text-muted-foreground/70 hover:text-amethyst" />
-        </button>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onRename();
-          }}
-          aria-label="Rename"
-          title="Rename"
-        >
-          <Pencil size={11} className="text-muted-foreground/70 hover:text-sapphire" />
-        </button>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onRemove();
-          }}
-          aria-label="Delete"
-          title="Delete"
-        >
-          <X size={12} className="text-ruby/70 hover:text-ruby" />
-        </button>
-      </span>
+      {hasActions && (
+        <span className="flex items-center gap-1 opacity-0 transition-opacity duration-100 ease-out group-hover:opacity-100">
+          {onPaint && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onPaint();
+              }}
+              aria-label="Recolour"
+              title="Recolour"
+            >
+              <Palette size={11} className="text-muted-foreground/70 hover:text-amethyst" />
+            </button>
+          )}
+          {onRename && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onRename();
+              }}
+              aria-label="Rename"
+              title="Rename"
+            >
+              <Pencil size={11} className="text-muted-foreground/70 hover:text-sapphire" />
+            </button>
+          )}
+          {onRemove && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove();
+              }}
+              aria-label="Delete"
+              title="Delete"
+            >
+              <X size={12} className="text-ruby/70 hover:text-ruby" />
+            </button>
+          )}
+        </span>
+      )}
     </div>
   );
 }

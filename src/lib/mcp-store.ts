@@ -146,10 +146,10 @@ export function useMcp() {
         status: s.last_status === "up" || s.last_status === "ready" || s.last_status === "connected" ? "ready" : (s.last_status === "error" || s.last_status === "down" ? "error" : "idle"),
         tools: Array.isArray(s.tools_cache) ? s.tools_cache.length : 0,
         createdAt: new Date(s.created_at).getTime(),
-        ownerId: s.created_by || "", // Owned
-        ownerName: s.created_by || "",
+        ownerId: s.owner_id || s.ownerId || s.created_by || "", // Owned
+        ownerName: s.owner_name || s.ownerName || s.created_by || "",
         visibility: s.visibility || "workspace",
-        sharedWith: s.shared_with || [],
+        sharedWith: s.shared_with || s.sharedWith || [],
         toolCatalog: s.tools_cache || [] // Catalog tool metadata
       }));
 
@@ -181,7 +181,11 @@ export function useMcp() {
   useEffect(() => {
     sync();
     window.addEventListener(EVT, sync);
-    return () => window.removeEventListener(EVT, sync);
+    window.addEventListener("sovereign:identity", sync);
+    return () => {
+      window.removeEventListener(EVT, sync);
+      window.removeEventListener("sovereign:identity", sync);
+    };
   }, [sync]);
 
   /** Append an MCP audit entry (surfaced on Logs / Audit). */

@@ -3,6 +3,10 @@ import { useCallback, useEffect, useState } from "react";
 import { fetchApi } from "@/lib/api";
 import {
   canEdit,
+  readDesk,
+  writeDesk,
+  readDeskRaw,
+  writeDeskRaw,
   readOwnerCtx,
   scopeOwned,
   stampOwner,
@@ -83,25 +87,15 @@ const sectorSquad: Record<string, string> = {
 };
 
 function read(): CapabilityPack[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as CapabilityPack[];
-    return Array.isArray(parsed)
-      ? parsed.map((p) => ({ ...p, squad: p.squad || sectorSquad[p.sector] || "Unassigned" }))
-      : [];
-  } catch {
-    return [];
-  }
+  const items = readDesk<CapabilityPack[]>(KEY, []);
+  if (!Array.isArray(items) || !items.length) return [];
+  return items.map((p) => ({ ...p, squad: p.squad || sectorSquad[p.sector] || "Unassigned" }));
 }
 
 function write(list: CapabilityPack[]) {
-  try {
-    window.localStorage.setItem(KEY, JSON.stringify(list));
+  writeDesk(KEY, list);
+  if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent(EVT));
-  } catch {
-    /* ignore */
   }
 }
 
@@ -276,7 +270,16 @@ export function useCapabilities() {
 
 /* ---------------------------------------------------- capability squads */
 
-export type CapabilitySquad = { id: string; name: string; tone: string };
+export type CapabilitySquad = {
+  id: string;
+  name: string;
+  tone: string;
+  ownerId?: string;
+  owner_id?: string;
+  visibility?: string;
+  shared_with?: string[];
+  tenant_id?: string;
+};
 
 const squadTones = ["sapphire", "emerald", "amethyst", "topaz", "ruby"] as const;
 
@@ -284,79 +287,58 @@ const SQ_KEY = "elara.capabilitySquads.v1";
 const SQ_ACTIVE_KEY = "elara.capabilitySquads.active";
 const SQ_EVT = "elara:capabilitySquads";
 
+let _cachedCapabilitySquads: CapabilitySquad[] = [];
+
 export const seedCapabilitySquads: CapabilitySquad[] = [];
 
 function readSquads(): CapabilitySquad[] {
-  if (typeof window === "undefined") return seedCapabilitySquads;
-  try {
-    const raw = window.localStorage.getItem(SQ_KEY);
-    if (!raw) return seedCapabilitySquads;
-    const parsed = JSON.parse(raw) as CapabilitySquad[];
-    return Array.isArray(parsed) && parsed.length ? parsed : seedCapabilitySquads;
-  } catch {
-    return seedCapabilitySquads;
-  }
+  return readDesk<CapabilitySquad[]>(SQ_KEY, seedCapabilitySquads);
 }
 
 function writeSquads(list: CapabilitySquad[]) {
-  try {
-    window.localStorage.setItem(SQ_KEY, JSON.stringify(list));
+  writeDesk(SQ_KEY, list);
+  if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent(SQ_EVT));
-  } catch {
-    /* ignore */
   }
 }
 
 function readActiveSquad(): string {
-  if (typeof window === "undefined") return "all";
-  return window.localStorage.getItem(SQ_ACTIVE_KEY) ?? "all";
+  return readDeskRaw(SQ_ACTIVE_KEY) ?? "all";
 }
 
 /** Capability squad registry — drives the header tabs and scopes the registry. */
 export function useCapabilitySquads() {
-  const [squads, setSquads] = useState<CapabilitySquad[]>(seedCapabilitySquads);
-  const [active, setActiveState] = useState<string>("all");
+  const [squads, setSquads] = useState<CapabilitySquad[]>(() => {
+    if (_cachedCapabilitySquads.length > 0) return _cachedCapabilitySquads;
+    const local = readSquads();
+    if (local.length > 0) {
+      _cachedCapabilitySquads = local;
+      return local;
+    }
+    return [];
+  });
+  const [active, setActiveState] = useState<string>(() => readActiveSquad());
 
   useEffect(() => {
     let mounted = true;
     const sync = async () => {
-      setSquads(readSquads());
-      setActiveState(readActiveSquad());
-
       try {
         const payload = await fetchApi("/api/capabilities/squads");
         const data = payload?.items || payload;
         if (mounted && Array.isArray(data)) {
-          const mapped = data.map((d: any) => ({
+          const mapped: CapabilitySquad[] = data.map((d: any) => ({
             id: d.name.toLowerCase().replace(/\s+/g, "-"),
             name: d.name,
-            tone: d.color || d.tone || "sapphire"
+            tone: d.color || d.tone || "sapphire",
+            ownerId: d.ownerId || d.owner_id,
+            owner_id: d.owner_id || d.ownerId,
+            visibility: d.visibility || "workspace",
+            shared_with: d.shared_with || d.sharedWith || [],
           }));
-          
-          const current = readSquads();
-          const currentNames = new Set(current.map((sq) => sq.name));
-          let changed = false;
-          const merged = [...current];
 
-          for (const m of mapped) {
-            if (!currentNames.has(m.name)) {
-              merged.push(m);
-              changed = true;
-            } else {
-              const idx = merged.findIndex((s) => s.name === m.name);
-              const target = merged[idx];
-              if (target && target.tone !== m.tone) {
-                target.tone = m.tone;
-                changed = true;
-              }
-            }
-          }
-
-          if (changed || mapped.length > 0) {
-            setSquads(merged);
-            window.localStorage.setItem(SQ_KEY, JSON.stringify(merged));
-            window.dispatchEvent(new CustomEvent(SQ_EVT));
-          }
+          _cachedCapabilitySquads = mapped;
+          setSquads(mapped);
+          writeSquads(mapped);
         }
       } catch (e) {
         console.error("Failed to load capability squads", e);
@@ -365,22 +347,36 @@ export function useCapabilitySquads() {
     sync();
 
     const onEvt = () => {
-      setSquads(readSquads());
-      setActiveState(readActiveSquad());
+      if (mounted) {
+        setSquads(_cachedCapabilitySquads.length > 0 ? _cachedCapabilitySquads : readSquads());
+        setActiveState(readActiveSquad());
+      }
     };
+
+    const onIdentitySwitch = () => {
+      _cachedCapabilitySquads = [];
+      if (mounted) {
+        setSquads([]);
+        setActiveState("all");
+        sync();
+      }
+    };
+
     window.addEventListener(SQ_EVT, onEvt);
+    window.addEventListener("storage", onEvt);
+    window.addEventListener("sovereign:identity", onIdentitySwitch);
     return () => {
       mounted = false;
       window.removeEventListener(SQ_EVT, onEvt);
+      window.removeEventListener("storage", onEvt);
+      window.removeEventListener("sovereign:identity", onIdentitySwitch);
     };
   }, []);
 
   const setActive = useCallback((id: string) => {
-    try {
-      window.localStorage.setItem(SQ_ACTIVE_KEY, id);
+    writeDeskRaw(SQ_ACTIVE_KEY, id);
+    if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent(SQ_EVT));
-    } catch {
-      /* ignore */
     }
     setActiveState(id);
   }, []);

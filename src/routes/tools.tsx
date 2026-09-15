@@ -14,8 +14,8 @@ import {
 } from "lucide-react";
 import { Surface } from "@/components/sovereign/surface";
 import { Tag } from "@/components/sovereign/primitives";
-import { OwnerChip } from "@/components/sovereign/ownership-controls";
-import { useOwnerCtx } from "@/lib/ownership";
+import { OwnerChip, ReadOnlyBanner } from "@/components/sovereign/ownership-controls";
+import { canEdit as canEditOwned, editRefusal, useOwnerCtx } from "@/lib/ownership";
 import type { JewelName } from "@/lib/avatar-library";
 import { getIcon } from "@/lib/icon-library";
 import { jewelPalette } from "@/lib/avatar-library";
@@ -212,12 +212,14 @@ function Picker({
   label,
   catalog,
   selected,
+  disabled = false,
   onChange,
   hint,
 }: {
   label: string;
-  catalog: readonly PickerItem[];
+  catalog: { id: string; label: string }[];
   selected: string[];
+  disabled?: boolean;
   onChange: (next: string[]) => void;
   hint: string;
 }) {
@@ -237,9 +239,9 @@ function Picker({
         <div className="flex items-center gap-2">
           <select
             value={value}
-            disabled={!available.length}
+            disabled={disabled || !available.length}
             onChange={(e) => setPick(e.target.value)}
-            className={cn(field, mono, "h-[32px] w-auto min-w-[170px] py-0")}
+            className={cn(field, mono, "h-[32px] w-auto min-w-[170px] py-0 disabled:opacity-50")}
           >
             {available.length ? (
               available.map((c) => (
@@ -248,14 +250,14 @@ function Picker({
                 </option>
               ))
             ) : (
-              <option className="bg-panel">all granted</option>
+              <option key="all-granted" className="bg-panel">all granted</option>
             )}
           </select>
           <button
             type="button"
-            disabled={!value}
+            disabled={disabled || !value}
             onClick={() => {
-              if (!value) return;
+              if (!value || disabled) return;
               onChange([...selected, value]);
               setPick("");
             }}
@@ -276,15 +278,17 @@ function Picker({
                 className="group flex items-center gap-1.5 rounded-lg border border-sapphire/45 bg-sapphire/10 px-2 py-1 font-mono text-[11px] text-foreground"
               >
                 {displayLabel}
-                <button
-                  type="button"
-                  onClick={() => onChange(selected.filter((x) => x !== s))}
-                >
-                  <X
-                    size={10}
-                    className="text-muted-foreground/70 transition-colors hover:text-ruby"
-                  />
-                </button>
+                {!disabled && (
+                  <button
+                    type="button"
+                    onClick={() => onChange(selected.filter((x) => x !== s))}
+                  >
+                    <X
+                      size={10}
+                      className="text-muted-foreground/70 transition-colors hover:text-ruby"
+                    />
+                  </button>
+                )}
               </span>
             );
           })
@@ -309,6 +313,10 @@ function ConfigDialog({
 }) {
   const [draft, setDraft] = useState<ToolConfig>(config);
   const set = (patch: Partial<ToolConfig>) => setDraft((p) => ({ ...p, ...patch }));
+
+  const ownerCtx = useOwnerCtx();
+  const writable = canEditOwned(tool, ownerCtx);
+  const refusal = writable ? "" : editRefusal(tool, ownerCtx);
 
   const { adapters } = useAdapters();
   const { targets } = useTargets();
@@ -352,18 +360,21 @@ function ConfigDialog({
         </div>
 
         <div className="mt-5 space-y-4">
+          <ReadOnlyBanner reason={refusal} />
+
           {tool.params.length ? (
-            tool.params.map((p) => (
-              <div key={p.id}>
+            tool.params.map((p, idx) => (
+              <div key={p.id || p.key || `param-${idx}`}>
                 <div className="mono-label mb-1.5">
                   {p.label || p.key} · {p.type}
                 </div>
                 <input
                   value={draft.defaults[p.key] ?? p.value ?? ""}
+                  disabled={!writable}
                   onChange={(e) =>
                     set({ defaults: { ...draft.defaults, [p.key]: e.target.value } })
                   }
-                  className={field}
+                  className={cn(field, "disabled:opacity-50")}
                   placeholder={`default for ${p.key}`}
                 />
               </div>
@@ -379,9 +390,10 @@ function ConfigDialog({
             <textarea
               rows={5}
               value={draft.systemPrompt}
+              disabled={!writable}
               onChange={(e) => set({ systemPrompt: e.target.value })}
               placeholder="Tool-specific instructions injected into the model's system prompt before this tool runs (e.g. 'Always cite source IP, never invent flags.')."
-              className={cn(field, mono, "resize-y leading-relaxed")}
+              className={cn(field, mono, "resize-y leading-relaxed disabled:opacity-50")}
             />
             <p className="mt-1.5 text-[11.5px] text-muted-foreground/55">
               Saved into <span className="font-mono">action_library.system_prompt</span> · inherited
@@ -393,6 +405,7 @@ function ConfigDialog({
             label="Adapters"
             catalog={dynamicAdapterCatalog}
             selected={draft.adapters}
+            disabled={!writable}
             onChange={(adapters) => set({ adapters })}
             hint="No adapters bound · tool runs standalone."
           />
@@ -400,6 +413,7 @@ function ConfigDialog({
             label="Targets"
             catalog={dynamicTargetCatalog}
             selected={draft.targets}
+            disabled={!writable}
             onChange={(targets) => set({ targets })}
             hint="No targets bound."
           />
@@ -410,14 +424,17 @@ function ConfigDialog({
             onClick={onClose}
             className="rounded-lg border border-white/[0.08] bg-raised/30 px-4 py-2 font-mono text-[12.5px] text-foreground/80 transition-colors hover:text-foreground"
           >
-            Cancel
+            Close
           </button>
           <button
+            disabled={!writable}
+            title={refusal}
             onClick={() => {
+              if (!writable) return;
               onSave(draft);
               onClose();
             }}
-            className="rounded-lg border border-emerald/50 bg-emerald/15 px-4 py-2 font-mono text-[12.5px] text-foreground shadow-[0_0_26px_-10px_var(--emerald)] transition-colors hover:bg-emerald/25"
+            className="rounded-lg border border-emerald/50 bg-emerald/15 px-4 py-2 font-mono text-[12.5px] text-foreground shadow-[0_0_26px_-10px_var(--emerald)] transition-colors hover:bg-emerald/25 disabled:opacity-40 disabled:hover:bg-emerald/15"
           >
             Save
           </button>

@@ -16,7 +16,7 @@ export type StudioChain = OrchestrationPlan &
 const KEY = "sovereign.chains";
 const ACTIVE_KEY = "sovereign.chains.active";
 const EVT = "sovereign:chains";
-import { scopeOwned, stampOwner, useOwnerCtx, type Owned } from "@/lib/ownership";
+import { readDesk, writeDesk, readDeskRaw, writeDeskRaw, scopeOwned, stampOwner, useOwnerCtx, type Owned } from "@/lib/ownership";
 import { orchestrationPlans, type OrchestrationPlan } from "@/mocks/orchestrations";
 import { fetchApi } from "@/lib/api";
 
@@ -29,29 +29,19 @@ export const seedChains: StudioChain[] = orchestrationPlans.map((p, i) => ({
 }));
 
 function read(): StudioChain[] {
-  if (typeof window === "undefined") return seedChains;
-  try {
-    const raw = window.localStorage.getItem(KEY);
-    if (!raw) return seedChains;
-    const parsed = JSON.parse(raw) as StudioChain[];
-    return Array.isArray(parsed) && parsed.length ? parsed : seedChains;
-  } catch {
-    return seedChains;
-  }
+  return readDesk<StudioChain[]>(KEY, seedChains);
 }
 
 function write(list: StudioChain[]) {
-  try {
-    window.localStorage.setItem(KEY, JSON.stringify(list));
+  writeDesk(KEY, list);
+  if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent(EVT));
-  } catch {
-    /* ignore */
   }
 }
 
 function readActive(): string {
-  if (typeof window === "undefined") return seedChains[0]?.id ?? "";
-  return window.localStorage.getItem(ACTIVE_KEY) ?? seedChains[0]?.id ?? "";
+  const active = readDeskRaw(ACTIVE_KEY);
+  return active ?? (seedChains[0]?.id ?? "");
 }
 
 export function useChains() {
@@ -99,7 +89,7 @@ export function useChains() {
           }));
           if (mapped.length > 0) {
             setChains(mapped);
-            window.localStorage.setItem(KEY, JSON.stringify(mapped));
+            writeDesk(KEY, mapped);
             window.dispatchEvent(new CustomEvent(EVT));
             const a = readActive();
             setActiveIdState(mapped.some((m: any) => m.id === a) ? a : (mapped[0]?.id ?? ""));
@@ -125,15 +115,17 @@ export function useChains() {
     };
 
     window.addEventListener(EVT, onEvt);
-    return () => window.removeEventListener(EVT, onEvt);
+    window.addEventListener("sovereign:identity", sync);
+    return () => {
+      window.removeEventListener(EVT, onEvt);
+      window.removeEventListener("sovereign:identity", sync);
+    };
   }, []);
 
   const setActiveId = useCallback((id: string) => {
-    try {
-      window.localStorage.setItem(ACTIVE_KEY, id);
+    writeDeskRaw(ACTIVE_KEY, id);
+    if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent(EVT));
-    } catch {
-      /* ignore */
     }
     setActiveIdState(id);
   }, []);

@@ -5,7 +5,7 @@ import { OwnerChip, ReadOnlyBanner, ShareControl } from "@/components/sovereign/
 import { confirmAction } from "@/components/sovereign/confirm-dialog";
 import { createFileRoute } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
-import { ChevronDown, ChevronUp, Pencil, Play, Plus, Search, Trash2, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Copy, Pencil, Play, Plus, Search, Trash2, X } from "lucide-react";
 import { Surface } from "@/components/sovereign/surface";
 import { JewelButton, StatusDot, Tag } from "@/components/sovereign/primitives";
 import { IconPicker, JewelSwatches } from "@/components/sovereign/identity";
@@ -335,7 +335,7 @@ function SkillEditor({
   initialDraft: Draft;
   title: string;
   onClose: () => void;
-  onSave: (draft: Draft) => void;
+  onSave: (draft: Draft, isClone?: boolean) => void;
 }) {
   /* Draft lives inside the modal: typing never re-renders the whole page. */
   const [draft, setDraft] = useState<Draft>(initialDraft);
@@ -400,7 +400,7 @@ function SkillEditor({
           ))}
         </div>
 
-        <div className="flex-1 space-y-5 overflow-y-auto px-6 py-5">
+        <div className={cn("flex-1 space-y-5 overflow-y-auto px-6 py-5", !writable && "pointer-events-none opacity-75")}>
           <ReadOnlyBanner reason={refusal} />
           {tab === "general" && (
             <>
@@ -608,11 +608,13 @@ function SkillEditor({
 
         <div className="flex items-center justify-end gap-2 border-t border-white/[0.06] px-6 py-4">
           <JewelButton size="sm" variant="outline" onClick={onClose}>
-            Close
+            {writable ? "Cancel" : "Close"}
           </JewelButton>
-          <JewelButton size="sm" onClick={() => onSave(draft)} disabled={!writable} title={refusal}>
-            Save
-          </JewelButton>
+          {writable && (
+            <JewelButton size="sm" onClick={() => onSave(draft)} title={refusal}>
+              Save
+            </JewelButton>
+          )}
         </div>
       </motion.div>
     </div>
@@ -644,7 +646,7 @@ function SkillsEngine() {
     [skills, query, activeSquad],
   );
 
-  const save = async (d: Draft) => {
+  const save = async (d: Draft, isClone?: boolean) => {
     if (!editing) return;
     const draft = {
       ...d,
@@ -652,7 +654,8 @@ function SkillsEngine() {
       squad: d.squad && d.squad !== "Unassigned" ? d.squad : (activeSquad?.name || "Unassigned"),
     };
     try {
-      if (editing.id) await update(editing.id, draft);
+      const isCloned = isClone || (editing.id && (d as any).name?.includes("(My Copy)"));
+      if (editing.id && !isCloned) await update(editing.id, draft);
       else await create(draft);
       setEditing(null);
     } catch (err: any) {

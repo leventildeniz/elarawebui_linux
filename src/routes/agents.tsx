@@ -4,6 +4,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
 import {
   ChevronDown,
+  Copy,
   MessageSquare,
   Pencil,
   Play,
@@ -34,7 +35,7 @@ import { useForge } from "@/lib/forge-store";
 import { resolveAliases } from "@/lib/rag-keywords";
 import { isDestructiveTool } from "@/lib/rag-agent";
 import { useSpaces } from "@/lib/knowledge-space-store";
-import { canEdit as canEditOwned, editRefusal, useOwnerCtx, type Owned } from "@/lib/ownership";
+import { canEdit as canEditOwned, editRefusal, useOwnerCtx, stampOwner, type Owned } from "@/lib/ownership";
 import { OwnerChip, ReadOnlyBanner, ShareControl } from "@/components/sovereign/ownership-controls";
 import { confirmAction } from "@/components/sovereign/confirm-dialog";
 import { useModels } from "@/lib/model-store";
@@ -92,6 +93,7 @@ function Slider({
   min,
   max,
   step,
+  disabled = false,
   onChange,
 }: {
   label: string;
@@ -100,10 +102,11 @@ function Slider({
   min: number;
   max: number;
   step: number;
+  disabled?: boolean;
   onChange: (v: number) => void;
 }) {
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-raised/25 p-4">
+    <div className={cn("rounded-xl border border-white/[0.06] bg-raised/25 p-4", disabled && "opacity-60 pointer-events-none")}>
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="mono-label">{label}</div>
@@ -112,20 +115,22 @@ function Slider({
           )}
         </div>
         <input
+          disabled={disabled}
           value={Number.isFinite(value) && value % 1 !== 0 ? Number(value).toFixed(2) : value}
           onChange={(e) => onChange(Number(e.target.value) || 0)}
-          className="w-24 rounded-lg border border-white/[0.08] bg-canvas/60 px-2 py-1 text-right font-mono text-[12.5px] text-sapphire outline-none focus:border-sapphire/50"
+          className="w-24 rounded-lg border border-white/[0.08] bg-canvas/60 px-2 py-1 text-right font-mono text-[12.5px] text-sapphire outline-none focus:border-sapphire/50 disabled:opacity-50"
         />
       </div>
       <input
         type="range"
+        disabled={disabled}
         min={min}
         max={max}
         step={step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
         style={{ accentColor: "var(--sapphire)" }}
-        className="mt-3 h-1 w-full cursor-pointer appearance-none rounded-full bg-white/10"
+        className="mt-3 h-1 w-full cursor-pointer appearance-none rounded-full bg-white/10 disabled:opacity-50"
       />
     </div>
   );
@@ -160,9 +165,11 @@ function Chip({
 /** MCP grants — catalog comes from the MCP workspace's client servers. */
 function McpPickerRow({
   selected,
+  disabled = false,
   onChange,
 }: {
   selected: string[];
+  disabled?: boolean;
   onChange: (next: string[]) => void;
 }) {
   const { clients } = useMcp();
@@ -170,7 +177,7 @@ function McpPickerRow({
 
   return (
     <div>
-      <PickerRow label="mcp clients" catalog={catalog} selected={selected} onChange={onChange} />
+      <PickerRow label="mcp clients" catalog={catalog} selected={selected} disabled={disabled} onChange={onChange} />
       {!catalog.length && (
         <p className="mt-2 font-mono text-[11px] text-muted-foreground/50">
           no mcp clients registered — add them in MCP · Client
@@ -186,11 +193,13 @@ function PickerRow({
   label,
   catalog,
   selected,
+  disabled = false,
   onChange,
 }: {
   label: string;
   catalog: readonly PickerItem[];
   selected: string[];
+  disabled?: boolean;
   onChange: (next: string[]) => void;
 }) {
   const normId = (c: PickerItem) => (typeof c === "string" ? c : c.id);
@@ -212,9 +221,9 @@ function PickerRow({
       <div className="flex flex-wrap items-center gap-2">
         <select
           value={value}
-          disabled={!available.length}
+          disabled={disabled || !available.length}
           onChange={(e) => setPick(e.target.value)}
-          className={cn(input, "h-[34px] w-auto min-w-[220px] flex-1 py-1 font-mono text-[12.5px]")}
+          className={cn(input, "h-[34px] w-auto min-w-[220px] flex-1 py-1 font-mono text-[12.5px]", disabled && "opacity-50 cursor-not-allowed")}
         >
           {available.length ? (
             available.map((c) => (
@@ -228,9 +237,9 @@ function PickerRow({
         </select>
         <button
           type="button"
-          disabled={!value}
+          disabled={disabled || !value}
           onClick={() => {
-            if (!value) return;
+            if (!value || disabled) return;
             onChange([...selected, value]);
             setPick("");
           }}
@@ -250,17 +259,19 @@ function PickerRow({
                 className="group flex items-center gap-1.5 rounded-lg border border-sapphire/45 bg-sapphire/10 px-2.5 py-1 font-mono text-[11.5px] text-foreground shadow-[0_0_18px_-8px_var(--sapphire)]"
               >
                 {displayLabel}
-                <button
-                  type="button"
-                  onClick={() => onChange(selected.filter((x) => x !== s))}
-                  aria-label={`Remove ${displayLabel}`}
-                  title={`Remove ${displayLabel}`}
-                >
-                  <X
-                    size={11}
-                    className="text-muted-foreground/70 transition-colors hover:text-ruby"
-                  />
-                </button>
+                {!disabled && (
+                  <button
+                    type="button"
+                    onClick={() => onChange(selected.filter((x) => x !== s))}
+                    aria-label={`Remove ${displayLabel}`}
+                    title={`Remove ${displayLabel}`}
+                  >
+                    <X
+                      size={11}
+                      className="text-muted-foreground/70 transition-colors hover:text-ruby"
+                    />
+                  </button>
+                )}
               </span>
             );
           })
@@ -272,12 +283,13 @@ function PickerRow({
   );
 }
 
-function Toggle({ on, onToggle, label }: { on: boolean; onToggle: () => void; label?: string }) {
+function Toggle({ on, onToggle, label, disabled = false }: { on: boolean; onToggle: () => void; label?: string; disabled?: boolean }) {
   return (
     <button
       type="button"
-      onClick={onToggle}
-      className="flex items-center gap-2"
+      disabled={disabled}
+      onClick={() => { if (!disabled) onToggle(); }}
+      className={cn("flex items-center gap-2", disabled && "opacity-50 cursor-not-allowed")}
       aria-pressed={on}
       aria-label={label ?? "toggle"}
       title={label ?? "toggle"}
@@ -472,6 +484,9 @@ function AgentDetail({
   const navigate = useNavigate();
   const [prompt, setPrompt] = useState(agent.systemPrompt);
   const [dirty, setDirty] = useState(false);
+  const ownerCtx = useOwnerCtx();
+  const writable = canEditOwned(agent, ownerCtx);
+  const refusal = writable ? "" : editRefusal(agent, ownerCtx);
 
   useEffect(() => {
     setPrompt(agent.systemPrompt);
@@ -509,6 +524,7 @@ function AgentDetail({
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               <Tag tone="sapphire">{agent.provider}</Tag>
               <Tag tone="emerald">{agent.modelId}</Tag>
+              <OwnerChip record={agent} ctx={ownerCtx} />
               {agent.bridgeHost ? (
                 <Tag tone="topaz">
                   {agent.bridgeHost}:{agent.port || "3005"}
@@ -526,13 +542,19 @@ function AgentDetail({
             <Play size={13} strokeWidth={1.7} /> Dispatch
           </JewelButton>
           <JewelButton size="sm" variant="outline" onClick={onEdit} className="gap-1.5">
-            <Pencil size={13} strokeWidth={1.7} /> Edit
+            <Pencil size={13} strokeWidth={1.7} /> {writable ? "Edit" : "View"}
           </JewelButton>
           <JewelButton size="sm" onClick={() => navigate({ to: "/" })} className="gap-1.5">
             <MessageSquare size={13} strokeWidth={1.7} /> Send to chat
           </JewelButton>
         </div>
       </div>
+
+      {!writable && refusal ? (
+        <div className="mt-4">
+          <ReadOnlyBanner reason={refusal} />
+        </div>
+      ) : null}
 
       <div className="mt-5 rounded-xl border border-emerald/20 bg-emerald/[0.05] p-4">
         <div className="mono-label mb-1.5">stdout · description</div>
@@ -753,7 +775,7 @@ function AgentEditor({
   /* An agent from another desk opens read-only — sharing never grants write. */
   const ownerCtx = useOwnerCtx();
   const owned = draft as Owned;
-  const isNew = !(draft as { id?: string }).id;
+  const isNew = title === "New agent" || !(draft as { id?: string }).id;
   const writable = isNew || canEditOwned(owned, ownerCtx);
   const refusal = writable ? "" : editRefusal(owned, ownerCtx);
 
@@ -767,7 +789,9 @@ function AgentEditor({
       >
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h3 className="text-[19px] font-medium tracking-tight text-foreground">{title}</h3>
+            <h3 className="text-[19px] font-medium tracking-tight text-foreground">
+              {isNew ? "New agent" : writable ? title : "View agent (Read-Only)"}
+            </h3>
             <p className="mt-1 text-[12.5px] text-muted-foreground/70">
               Identity, inference parameters and capability grants are sealed per agent.
             </p>
@@ -776,6 +800,12 @@ function AgentEditor({
             <X size={17} className="text-muted-foreground hover:text-foreground" />
           </button>
         </div>
+
+        {!writable && refusal ? (
+          <div className="mt-4">
+            <ReadOnlyBanner reason={refusal} />
+          </div>
+        ) : null}
 
         <div className="mt-5 flex flex-wrap gap-1.5">
           {(
@@ -795,27 +825,28 @@ function AgentEditor({
         <Sheen className="my-5" />
 
         <div className="max-h-[60vh] space-y-5 overflow-y-auto pr-1">
-          <ReadOnlyBanner reason={refusal} />
           {tab === "general" && (
             <>
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="agent name">
                   <input
+                    disabled={!writable}
                     value={draft.name}
                     onChange={(e) => set({ name: e.target.value })}
-                    className={input}
+                    className={cn(input, !writable && "opacity-75 cursor-not-allowed")}
                     placeholder="New Agent"
                   />
                 </Field>
                 <Field label="squad">
                   <select
+                    disabled={!writable}
                     value={
                       draft.squad && draft.squad !== "Unassigned"
                         ? draft.squad
                         : squadNames[0] || ""
                     }
                     onChange={(e) => set({ squad: e.target.value })}
-                    className={cn(input, "font-mono")}
+                    className={cn(input, "font-mono", !writable && "opacity-75 cursor-not-allowed")}
                   >
                     {[
                       ...new Set(
@@ -835,19 +866,21 @@ function AgentEditor({
                 hint="The agent's character. Without this it speaks empty."
               >
                 <textarea
+                  disabled={!writable}
                   value={draft.systemPrompt}
                   onChange={(e) => set({ systemPrompt: e.target.value })}
                   rows={6}
-                  className={cn(input, "resize-y font-mono text-[12.5px] leading-relaxed")}
+                  className={cn(input, "resize-y font-mono text-[12.5px] leading-relaxed", !writable && "opacity-75 cursor-not-allowed")}
                 />
               </Field>
 
               <Field label="description">
                 <textarea
+                  disabled={!writable}
                   value={draft.description}
                   onChange={(e) => set({ description: e.target.value })}
                   rows={2}
-                  className={cn(input, "resize-y")}
+                  className={cn(input, "resize-y", !writable && "opacity-75 cursor-not-allowed")}
                   placeholder="Free-form notes about this agent's mission, tactics, output style…"
                 />
               </Field>
@@ -855,6 +888,7 @@ function AgentEditor({
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="model" hint="Inherit from registry or system default.">
                   <select
+                    disabled={!writable}
                     value={
                       !draft.modelId || draft.modelId === "system_default"
                         ? "system_default"
@@ -863,6 +897,7 @@ function AgentEditor({
                           : "__custom"
                     }
                     onChange={(e) => {
+                      if (!writable) return;
                       const v = e.target.value;
                       if (v === "system_default") {
                         set({ modelId: "system_default", provider: "System Default" });
@@ -876,6 +911,7 @@ function AgentEditor({
                     className={cn(
                       input,
                       "font-mono",
+                      !writable && "opacity-60 cursor-not-allowed",
                       (!draft.modelId || draft.modelId === "system_default") &&
                         "text-[#00ffaa] border-[#00ffaa]/30 shadow-[0_0_15px_-5px_#00ffaa]/20",
                     )}
@@ -901,13 +937,15 @@ function AgentEditor({
                   <input
                     value={draft.provider}
                     disabled={
+                      !writable ||
                       draft.modelId === "system_default" ||
                       models.some((m) => m.id === draft.modelId)
                     }
                     onChange={(e) => set({ provider: e.target.value })}
                     className={cn(
                       input,
-                      (draft.modelId === "system_default" ||
+                      (!writable ||
+                        draft.modelId === "system_default" ||
                         models.some((m) => m.id === draft.modelId)) &&
                         "opacity-60 cursor-not-allowed",
                     )}
@@ -937,7 +975,11 @@ function AgentEditor({
                     Per-agent override. ON enables the model's reasoning channel for this agent.
                   </div>
                 </div>
-                <Toggle on={draft.thinking} onToggle={() => set({ thinking: !draft.thinking })} />
+                <Toggle
+                  on={draft.thinking}
+                  disabled={!writable}
+                  onToggle={() => writable && set({ thinking: !draft.thinking })}
+                />
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
@@ -948,7 +990,8 @@ function AgentEditor({
                   min={1}
                   max={10}
                   step={1}
-                  onChange={(v) => set({ priority: v })}
+                  disabled={!writable}
+                  onChange={(v) => writable && set({ priority: v })}
                 />
                 <Slider
                   label="stop grace (ms)"
@@ -957,24 +1000,25 @@ function AgentEditor({
                   min={0}
                   max={30000}
                   step={500}
-                  onChange={(v) => set({ stopGraceMs: v })}
+                  disabled={!writable}
+                  onChange={(v) => writable && set({ stopGraceMs: v })}
                 />
               </div>
 
-              <div>
+              <div className={cn(!writable && "pointer-events-none opacity-50")}>
                 <div className="mono-label mb-2">identity colour</div>
                 <JewelSwatches
                   value={draft.avatar.jewel}
-                  onChange={(j) => set({ avatar: { ...draft.avatar, jewel: j } })}
+                  onChange={(j) => writable && set({ avatar: { ...draft.avatar, jewel: j } })}
                 />
               </div>
-              <div>
+              <div className={cn(!writable && "pointer-events-none opacity-50")}>
                 <div className="mono-label mb-2">icon</div>
                 <IconPicker
                   value={draft.icon}
                   jewel={draft.avatar.jewel}
                   height={180}
-                  onSelect={(name) => set({ icon: name })}
+                  onSelect={(name) => writable && set({ icon: name })}
                 />
               </div>
 
@@ -999,12 +1043,14 @@ function AgentEditor({
                 label="capability packs"
                 catalog={dynamicPackCatalog}
                 selected={draft.packs || []}
+                disabled={!writable}
                 onChange={(next) => set({ packs: next })}
               />
               <PickerRow
                 label="skills"
                 catalog={dynamicSkillCatalog}
                 selected={draft.skills || []}
+                disabled={!writable}
                 onChange={(next) => set({ skills: next })}
               />
               <PickerRow
@@ -1015,6 +1061,7 @@ function AgentEditor({
                     : dynamicToolCatalog
                 }
                 selected={(draft.tools || []).filter((t) => !boundSpace || !isDestructiveTool(t))}
+                disabled={!writable}
                 onChange={(next) => set({ tools: next })}
               />
               {boundSpace && (
@@ -1025,18 +1072,21 @@ function AgentEditor({
               )}
               <McpPickerRow
                 selected={draft.mcpServers || []}
+                disabled={!writable}
                 onChange={(next) => set({ mcpServers: next })}
               />
               <PickerRow
                 label="adapters"
                 catalog={dynamicAdapterCatalog}
                 selected={draft.adapters || []}
+                disabled={!writable}
                 onChange={(next) => set({ adapters: next })}
               />
               <PickerRow
                 label="targets"
                 catalog={dynamicTargetCatalog}
                 selected={draft.targets || []}
+                disabled={!writable}
                 onChange={(next) => set({ targets: next })}
               />
             </>
@@ -1052,6 +1102,7 @@ function AgentEditor({
                   min={4096}
                   max={131072}
                   step={4096}
+                  disabled={!writable}
                   onChange={(v) => set({ contextWindow: v })}
                 />
                 <Slider
@@ -1060,6 +1111,7 @@ function AgentEditor({
                   min={256}
                   max={16384}
                   step={256}
+                  disabled={!writable}
                   onChange={(v) => set({ maxTokens: v })}
                 />
               </div>
@@ -1067,6 +1119,7 @@ function AgentEditor({
               <Field label="stop sequences" hint="Comma separated · escapes \n and \t honoured.">
                 <input
                   value={(draft.stopSequences || []).join(", ")}
+                  disabled={!writable}
                   onChange={(e) =>
                     set({
                       stopSequences: e.target.value
@@ -1075,7 +1128,7 @@ function AgentEditor({
                         .filter(Boolean),
                     })
                   }
-                  className={cn(input, "font-mono")}
+                  className={cn(input, "font-mono", !writable && "opacity-75 cursor-not-allowed")}
                   placeholder="\n\n\n, <|endoftext|>"
                 />
               </Field>
@@ -1083,21 +1136,23 @@ function AgentEditor({
               <div className="rounded-xl border border-white/[0.07] bg-raised/25 p-4">
                 <div className="flex items-center justify-between">
                   <span className="mono-label">custom parameters</span>
-                  <JewelButton
-                    size="sm"
-                    variant="ghost"
-                    onClick={() =>
-                      set({
-                        customParams: [
-                          ...draft.customParams,
-                          { id: Math.random().toString(36).slice(2, 8), key: "", value: "" },
-                        ],
-                      })
-                    }
-                    className="gap-1.5"
-                  >
-                    <Plus size={13} /> Add
-                  </JewelButton>
+                  {writable && (
+                    <JewelButton
+                      size="sm"
+                      variant="ghost"
+                      onClick={() =>
+                        set({
+                          customParams: [
+                            ...draft.customParams,
+                            { id: Math.random().toString(36).slice(2, 8), key: "", value: "" },
+                          ],
+                        })
+                      }
+                      className="gap-1.5"
+                    >
+                      <Plus size={13} /> Add
+                    </JewelButton>
+                  )}
                 </div>
                 {!draft.customParams || draft.customParams.length === 0 ? (
                   <div className="mt-2 font-mono text-[11.5px] text-muted-foreground/50">
@@ -1109,6 +1164,7 @@ function AgentEditor({
                       <div key={p.id} className="flex items-center gap-2">
                         <input
                           value={p.key}
+                          disabled={!writable}
                           placeholder="key"
                           onChange={(e) =>
                             set({
@@ -1117,10 +1173,11 @@ function AgentEditor({
                               ),
                             })
                           }
-                          className={cn(input, "font-mono")}
+                          className={cn(input, "font-mono", !writable && "opacity-75 cursor-not-allowed")}
                         />
                         <input
                           value={p.value}
+                          disabled={!writable}
                           placeholder="value"
                           onChange={(e) =>
                             set({
@@ -1129,17 +1186,19 @@ function AgentEditor({
                               ),
                             })
                           }
-                          className={cn(input, "font-mono")}
+                          className={cn(input, "font-mono", !writable && "opacity-75 cursor-not-allowed")}
                         />
-                        <button
-                          onClick={() =>
-                            set({ customParams: draft.customParams.filter((c) => c.id !== p.id) })
-                          }
-                          aria-label="Remove parameter"
-                          title="Remove parameter"
-                        >
-                          <X size={15} className="text-ruby/70 hover:text-ruby" />
-                        </button>
+                        {writable && (
+                          <button
+                            onClick={() =>
+                              set({ customParams: draft.customParams.filter((c) => c.id !== p.id) })
+                            }
+                            aria-label="Remove parameter"
+                            title="Remove parameter"
+                          >
+                            <X size={15} className="text-ruby/70 hover:text-ruby" />
+                          </button>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -1159,7 +1218,7 @@ function AgentEditor({
                     everything.
                   </div>
                 </div>
-                <Toggle on={draft.rag} onToggle={() => set({ rag: !draft.rag })} />
+                <Toggle on={draft.rag} disabled={!writable} onToggle={() => set({ rag: !draft.rag })} />
               </div>
 
               {boundSpace && (
@@ -1175,7 +1234,7 @@ function AgentEditor({
 
               <div>
                 <div className="mono-label mb-2">brands · {(draft.ragBrands || []).length}</div>
-                <div className="flex flex-wrap gap-1.5">
+                <div className={cn("flex flex-wrap gap-1.5", !writable && "pointer-events-none opacity-75")}>
                   {k.brandAliases.map((b: { id: string; brand: string; chunks?: number }) => (
                     <Chip
                       key={b.id}
@@ -1194,9 +1253,10 @@ function AgentEditor({
               >
                 <textarea
                   value={draft.ragKeywords}
+                  disabled={!writable}
                   onChange={(e) => set({ ragKeywords: e.target.value })}
                   rows={3}
-                  className={cn(input, "resize-y font-mono")}
+                  className={cn(input, "resize-y font-mono", !writable && "opacity-75 cursor-not-allowed")}
                   placeholder="vpn, nat, policy…"
                 />
               </Field>
@@ -1232,16 +1292,18 @@ function AgentEditor({
 
         <div className="flex justify-end gap-2">
           <JewelButton variant="outline" size="sm" onClick={onClose}>
-            Cancel
+            {writable ? "Cancel" : "Close"}
           </JewelButton>
-          <JewelButton
-            size="sm"
-            onClick={() => onSave(draft)}
-            disabled={!draft.name.trim() || !writable}
-            title={refusal}
-          >
-            Save changes
-          </JewelButton>
+          {writable && (
+            <JewelButton
+              size="sm"
+              onClick={() => onSave(draft)}
+              disabled={!draft.name.trim()}
+              title={refusal}
+            >
+              Save changes
+            </JewelButton>
+          )}
         </div>
       </motion.div>
     </div>
@@ -1352,8 +1414,7 @@ function AgentOrchestrator() {
 
   const openEditor = (a?: StudioAgent) => {
     if (a) {
-      const { id: _id, createdAt: _c, ...rest } = a;
-      setDraft(rest);
+      setDraft(a);
       setEditorFor(a.id);
     } else {
       setDraft({ ...emptyAgent, squad: squadName ?? emptyAgent.squad });
@@ -1446,15 +1507,16 @@ function AgentOrchestrator() {
             title={editorFor === "new" ? "New agent" : "Edit agent"}
             onClose={() => setEditorFor(null)}
             onSave={async (draft) => {
-              if (editorFor === "new") {
+              const isCloned = editorFor !== "new" && (draft as any).id !== editorFor;
+              if (editorFor === "new" || isCloned) {
                 try {
                   const id = await create(draft);
                   setActiveId(id);
                   const target = squads.find((s) => s.name === draft.squad);
                   if (target && target.id !== activeSquad) setActiveSquad(target.id);
-                  flash("Agent sealed into the registry.");
+                  flash(isCloned ? "Agent cloned to your desk." : "Agent sealed into the registry.");
                 } catch (e) {
-                  flash("Failed to seal agent.");
+                  flash(isCloned ? "Failed to clone agent." : "Failed to seal agent.");
                 }
               } else {
                 update(editorFor, draft);

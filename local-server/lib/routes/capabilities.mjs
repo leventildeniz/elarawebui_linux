@@ -56,54 +56,106 @@ export function mountCapabilityRoutes(app, deps) {
 
   app.get("/api/capabilities/squads", async (req, res) => {
     try {
-      const { rows } = await pool.query("SELECT * FROM capability_squads ORDER BY sort_order ASC, name ASC");
-      res.json(rows);
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
+      const vis = buildVisibility ? buildVisibility(ctx, 1, 'owner_id') : { clause: '1=1', params: [] };
+
+      const { rows } = await pool.query(
+        `SELECT name, color, sort_order, created_at, owner_id, tenant_id, visibility, shared_with 
+         FROM capability_squads WHERE ${vis.clause} ORDER BY sort_order ASC, name ASC`,
+        vis.params
+      );
+
+      const packVis = buildVisibility ? buildVisibility(ctx, 1, 'owner_id') : { clause: '1=1', params: [] };
+      const { rows: counts } = await pool.query(
+        `SELECT COALESCE(NULLIF(squad,''), 'Unassigned') AS sq, COUNT(*)::int AS n 
+         FROM capability_packs WHERE (${packVis.clause}) GROUP BY 1`,
+        packVis.params
+      );
+      const countMap = new Map(counts.map(r => [r.sq, r.n]));
+
+      const filtered = rows.filter(r => {
+        const count = countMap.get(r.name) || 0;
+        const isOwner = ctx.isSuperAdmin || (r.owner_id && (r.owner_id === ctx.userId || String(r.owner_id).toLowerCase() === String(ctx.actor || "").toLowerCase()));
+        return count > 0 || isOwner;
+      });
+
+      res.json(filtered.map(r => ({ ...r, ownerId: r.owner_id, packCount: countMap.get(r.name) || 0 })));
     } catch (e) {
-      res.status(500).json({ error: String(e.message || e) });
+      res.status(500).json({ ok: false, error: String(e.message || e) });
     }
   });
 
   app.post("/api/capabilities/squads", async (req, res) => {
     try {
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
       const { name, color } = req.body || {};
       const sq = String(name || "").trim();
-      if (!sq) return res.status(400).json({ error: "name required" });
+      if (!sq) return res.status(400).json({ ok: false, error: "name required" });
+
+      const ownerId = ctx.userId || ctx.actor || null;
+      const tenantId = req.body?.tenant_id || ctx.tenantId || "default";
+      const visibility = req.body?.visibility || "workspace";
+      const sharedWith = Array.isArray(req.body?.shared_with) ? req.body.shared_with : [];
+
       const { rows } = await pool.query(
-        "INSERT INTO capability_squads (name, color) VALUES ($1, $2) ON CONFLICT (name) DO UPDATE SET color=EXCLUDED.color RETURNING *",
-        [sq, color || 'sapphire']
+        `INSERT INTO capability_squads (name, color, owner_id, tenant_id, visibility, shared_with) 
+         VALUES ($1, $2, $3, $4, $5, $6::jsonb) 
+         ON CONFLICT (name) DO UPDATE SET 
+           color = EXCLUDED.color,
+           owner_id = COALESCE(capability_squads.owner_id, EXCLUDED.owner_id),
+           tenant_id = COALESCE(capability_squads.tenant_id, EXCLUDED.tenant_id)
+         RETURNING *`,
+        [sq, color || 'sapphire', ownerId, tenantId, visibility, JSON.stringify(sharedWith)]
       );
-      res.json(rows[0]);
+      res.json({ ...rows[0], ownerId: rows[0].owner_id });
     } catch (e) {
-      res.status(500).json({ error: String(e.message || e) });
+      res.status(500).json({ ok: false, error: String(e.message || e) });
     }
   });
 
   app.put("/api/capabilities/squads/:name", async (req, res) => {
     try {
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
       const oldName = String(req.params.name).trim();
       const newName = String(req.body.name || "").trim();
-      if (!newName) return res.status(400).json({ error: "name required" });
+      if (!newName) return res.status(400).json({ ok: false, error: "name required" });
       
-      const exists = await pool.query("SELECT 1 FROM capability_squads WHERE name=$1", [oldName]);
-      if (!exists.rowCount) return res.status(404).json({ error: "not found" });
+      const exists = await pool.query("SELECT * FROM capability_squads WHERE name=$1", [oldName]);
+      if (!exists.rowCount) return res.status(404).json({ ok: false, error: "not found" });
+      const squadRow = exists.rows[0];
+
+      if (deps.assertCanEdit) {
+        deps.assertCanEdit(ctx, squadRow, "capability squad");
+      }
       
       await pool.query("UPDATE capability_squads SET name=$2 WHERE name=$1", [oldName, newName]);
       await pool.query("UPDATE capability_packs SET squad=$2 WHERE squad=$1", [oldName, newName]);
       
       res.json({ ok: true });
     } catch (e) {
-      res.status(500).json({ error: String(e.message || e) });
+      const status = e.status || 500;
+      res.status(status).json({ ok: false, error: String(e.message || e) });
     }
   });
 
   app.delete("/api/capabilities/squads/:name", async (req, res) => {
     try {
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
       const sq = String(req.params.name).trim();
+      const exists = await pool.query("SELECT * FROM capability_squads WHERE name=$1", [sq]);
+      if (!exists.rowCount) return res.status(404).json({ ok: false, error: "not found" });
+      const squadRow = exists.rows[0];
+
+      if (deps.assertCanEdit) {
+        deps.assertCanEdit(ctx, squadRow, "capability squad");
+      }
+
       await pool.query("DELETE FROM capability_squads WHERE name=$1", [sq]);
       await pool.query("UPDATE capability_packs SET squad='Unassigned' WHERE squad=$1", [sq]);
       res.json({ ok: true });
     } catch (e) {
-      res.status(500).json({ error: String(e.message || e) });
+      const status = e.status || 500;
+      res.status(status).json({ ok: false, error: String(e.message || e) });
     }
   });
 
@@ -125,27 +177,38 @@ export function mountCapabilityRoutes(app, deps) {
   app.delete("/api/capability-packs/:id", async (req, res) => {
     try {
       const ctx = await resolveActorContext(req);
-      const existing = (await pool.query("SELECT system as is_system FROM capability_packs WHERE id=$1", [req.params.id])).rows[0];
+      const existing = (await pool.query("SELECT * FROM capability_packs WHERE id=$1", [req.params.id])).rows[0];
       if (!existing) return res.status(404).end();
       if (existing.is_system && !ctx.isAdmin) {
-        return res.status(403).json({ error: "system packs can only be deleted by admin" });
+        return res.status(403).json({ ok: false, error: "system packs can only be deleted by admin" });
       }
+      if (deps.assertCanEdit) {
+        deps.assertCanEdit(ctx, existing, "capability pack");
+      }
+
       await pool.query("DELETE FROM capability_packs WHERE id=$1", [req.params.id]);
       if (existing.is_system) {
         await pool.query(`INSERT INTO pack_seed_skip(id) VALUES ($1) ON CONFLICT (id) DO NOTHING`, [req.params.id]);
       }
       res.status(204).end();
-    } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
+    } catch (e) {
+      const status = e.status || 500;
+      res.status(status).json({ ok: false, error: String(e.message || e) });
+    }
   });
 
   app.post("/api/capability-packs", async (req, res) => {
     try {
       const ctx = await resolveActorContext(req);
-      if (!ctx.isAdmin) return res.status(403).json({ error: "admin only" });
       const b = req.body || {};
       const id = String(b.id || `pack-${Date.now()}`).replace(/[^a-zA-Z0-9._-]/g, "-").slice(0, 80);
       const name = String(b.name || "").trim();
-      if (!name) return res.status(400).json({ error: "name required" });
+      if (!name) return res.status(400).json({ ok: false, error: "name required" });
+
+      const existing = (await pool.query("SELECT * FROM capability_packs WHERE id=$1", [id])).rows[0];
+      if (existing && deps.assertCanEdit) {
+        deps.assertCanEdit(ctx, existing, "capability pack");
+      }
       const sector = String(b.sector || "general").trim();
       const description = String(b.description || "").trim();
       const icon = String(b.icon || "Shield");
@@ -194,9 +257,11 @@ export function mountCapabilityRoutes(app, deps) {
   app.patch("/api/capability-packs/:id", async (req, res) => {
     try {
       const ctx = await resolveActorContext(req);
-      if (!ctx.isAdmin) return res.status(403).json({ error: "admin only" });
       const existing = (await pool.query("SELECT * FROM capability_packs WHERE id=$1", [req.params.id])).rows[0];
-      if (!existing) return res.status(404).json({ error: "not found" });
+      if (!existing) return res.status(404).json({ ok: false, error: "not found" });
+      if (deps.assertCanEdit) {
+        deps.assertCanEdit(ctx, existing, "capability pack");
+      }
       const b = req.body || {};
       const next = {
         name: typeof b.name === "string" ? b.name : existing.name,

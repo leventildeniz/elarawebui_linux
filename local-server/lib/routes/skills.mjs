@@ -34,54 +34,106 @@ export function mountSkillRoutes(app, deps) {
 
   app.get("/api/skills/squads", async (req, res) => {
     try {
-      const { rows } = await pool.query("SELECT * FROM skill_squads ORDER BY sort_order ASC, name ASC");
-      res.json(rows);
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
+      const vis = buildVisibility ? buildVisibility(ctx, 1, 'owner_id') : { clause: '1=1', params: [] };
+
+      const { rows } = await pool.query(
+        `SELECT name, color, sort_order, created_at, owner_id, tenant_id, visibility, shared_with 
+         FROM skill_squads WHERE ${vis.clause} ORDER BY sort_order ASC, name ASC`,
+        vis.params
+      );
+
+      const skillVis = buildVisibility ? buildVisibility(ctx, 1, 'owner_id') : { clause: '1=1', params: [] };
+      const { rows: counts } = await pool.query(
+        `SELECT COALESCE(NULLIF(squad,''), 'Unassigned') AS sq, COUNT(*)::int AS n 
+         FROM skills WHERE (${skillVis.clause}) GROUP BY 1`,
+        skillVis.params
+      );
+      const countMap = new Map(counts.map(r => [r.sq, r.n]));
+
+      const filtered = rows.filter(r => {
+        const count = countMap.get(r.name) || 0;
+        const isOwner = ctx.isSuperAdmin || (r.owner_id && (r.owner_id === ctx.userId || String(r.owner_id).toLowerCase() === String(ctx.actor || "").toLowerCase()));
+        return count > 0 || isOwner;
+      });
+
+      res.json(filtered.map(r => ({ ...r, ownerId: r.owner_id, skillCount: countMap.get(r.name) || 0 })));
     } catch (e) {
-      res.status(500).json({ error: String(e.message || e) });
+      res.status(500).json({ ok: false, error: String(e.message || e) });
     }
   });
 
   app.post("/api/skills/squads", async (req, res) => {
     try {
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
       const { name, color } = req.body || {};
       const sq = String(name || "").trim();
-      if (!sq) return res.status(400).json({ error: "name required" });
+      if (!sq) return res.status(400).json({ ok: false, error: "name required" });
+
+      const ownerId = ctx.userId || ctx.actor || null;
+      const tenantId = req.body?.tenant_id || ctx.tenantId || "default";
+      const visibility = req.body?.visibility || "workspace";
+      const sharedWith = Array.isArray(req.body?.shared_with) ? req.body.shared_with : [];
+
       const { rows } = await pool.query(
-        "INSERT INTO skill_squads (name, color) VALUES ($1, $2) ON CONFLICT (name) DO UPDATE SET color=EXCLUDED.color RETURNING *",
-        [sq, color || 'sapphire']
+        `INSERT INTO skill_squads (name, color, owner_id, tenant_id, visibility, shared_with) 
+         VALUES ($1, $2, $3, $4, $5, $6::jsonb) 
+         ON CONFLICT (name) DO UPDATE SET 
+           color = EXCLUDED.color,
+           owner_id = COALESCE(skill_squads.owner_id, EXCLUDED.owner_id),
+           tenant_id = COALESCE(skill_squads.tenant_id, EXCLUDED.tenant_id)
+         RETURNING *`,
+        [sq, color || 'sapphire', ownerId, tenantId, visibility, JSON.stringify(sharedWith)]
       );
-      res.json(rows[0]);
+      res.json({ ...rows[0], ownerId: rows[0].owner_id });
     } catch (e) {
-      res.status(500).json({ error: String(e.message || e) });
+      res.status(500).json({ ok: false, error: String(e.message || e) });
     }
   });
 
   app.put("/api/skills/squads/:name", async (req, res) => {
     try {
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
       const oldName = String(req.params.name).trim();
       const newName = String(req.body.name || "").trim();
-      if (!newName) return res.status(400).json({ error: "name required" });
+      if (!newName) return res.status(400).json({ ok: false, error: "name required" });
       
-      const exists = await pool.query("SELECT 1 FROM skill_squads WHERE name=$1", [oldName]);
-      if (!exists.rowCount) return res.status(404).json({ error: "not found" });
+      const exists = await pool.query("SELECT * FROM skill_squads WHERE name=$1", [oldName]);
+      if (!exists.rowCount) return res.status(404).json({ ok: false, error: "not found" });
+      const squadRow = exists.rows[0];
+
+      if (deps.assertCanEdit) {
+        deps.assertCanEdit(ctx, squadRow, "skill squad");
+      }
       
       await pool.query("UPDATE skill_squads SET name=$2 WHERE name=$1", [oldName, newName]);
       await pool.query("UPDATE skills SET squad=$2 WHERE squad=$1", [oldName, newName]);
       
       res.json({ ok: true });
     } catch (e) {
-      res.status(500).json({ error: String(e.message || e) });
+      const status = e.status || 500;
+      res.status(status).json({ ok: false, error: String(e.message || e) });
     }
   });
 
   app.delete("/api/skills/squads/:name", async (req, res) => {
     try {
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
       const sq = String(req.params.name).trim();
+      const exists = await pool.query("SELECT * FROM skill_squads WHERE name=$1", [sq]);
+      if (!exists.rowCount) return res.status(404).json({ ok: false, error: "not found" });
+      const squadRow = exists.rows[0];
+
+      if (deps.assertCanEdit) {
+        deps.assertCanEdit(ctx, squadRow, "skill squad");
+      }
+
       await pool.query("DELETE FROM skill_squads WHERE name=$1", [sq]);
       await pool.query("UPDATE skills SET squad='Unassigned' WHERE squad=$1", [sq]);
       res.json({ ok: true });
     } catch (e) {
-      res.status(500).json({ error: String(e.message || e) });
+      const status = e.status || 500;
+      res.status(status).json({ ok: false, error: String(e.message || e) });
     }
   });
 
@@ -120,14 +172,22 @@ export function mountSkillRoutes(app, deps) {
 
   app.get("/api/skills/:id", async (req, res) => {
     try {
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
       const { rows } = await pool.query("SELECT * FROM skills WHERE id=$1 LIMIT 1", [req.params.id]);
       if (!rows[0]) return res.status(404).end();
-      res.json(rows[0]);
+      const skill = rows[0];
+      if (!ctx.isSuperAdmin && !ctx.isTenantAdmin) {
+        if (!skill.system && !skill.is_global && skill.tenant_id && skill.tenant_id !== ctx.tenantId && skill.tenant_id !== "default") {
+          return res.status(403).json({ error: "Access denied" });
+        }
+      }
+      res.json(skill);
     } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
   });
 
   app.post("/api/skills", async (req, res) => {
     try {
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
       const b = req.body || {};
       const cleanSlug = String(b.id || b.slug || b.name || "")
         .replace(/^(sk[._]|skill[._])+/i, "")
@@ -135,8 +195,8 @@ export function mountSkillRoutes(app, deps) {
         .slice(0, 64);
       const id = String(b.id && b.id.startsWith("sk.") ? b.id : `sk.${cleanSlug || Math.random().toString(36).slice(2, 8)}`).trim();
       const name = String(b.name || "Untitled Skill").trim();
-      const owner = b.ownerId || b.owner_id || ctx.userId || req.actor || null;
-      const ownerName = b.ownerName || b.owner_name || null;
+      const owner = b.ownerId || b.owner_id || ctx.userId || ctx.actor || req.actor || null;
+      const ownerName = b.ownerName || b.owner_name || ctx.actor || null;
 
       const type = String(b.type || "native");
       if (!["native", "python", "workflow", "mcp"].includes(type)) {
@@ -159,9 +219,12 @@ export function mountSkillRoutes(app, deps) {
         mcpClientId = String(b.mcpClientId || b.mcp_client_id || "").trim() || null;
       }
 
-      const existing = (await pool.query("SELECT system FROM skills WHERE id=$1", [id])).rows[0];
+      const existing = (await pool.query("SELECT * FROM skills WHERE id=$1", [id])).rows[0];
       if (existing?.system && !ctx.isAdmin) {
-        return res.status(403).json({ error: "system skills require admin" });
+        return res.status(403).json({ ok: false, error: "system skills require admin" });
+      }
+      if (existing && deps.assertCanEdit) {
+        deps.assertCanEdit(ctx, existing, "skill");
       }
       const keepSystem = !!existing?.system;
 
@@ -258,14 +321,20 @@ export function mountSkillRoutes(app, deps) {
   app.delete("/api/skills/:id", async (req, res) => {
     try {
       const ctx = await resolveActorContext(req);
-      const existing = (await pool.query("SELECT system, name FROM skills WHERE id=$1", [req.params.id])).rows[0];
-      if (!existing) return res.status(404).json({ error: "not found" });
+      const existing = (await pool.query("SELECT * FROM skills WHERE id=$1", [req.params.id])).rows[0];
+      if (!existing) return res.status(404).json({ ok: false, error: "not found" });
       if (existing.system && !ctx.isAdmin) {
-        return res.status(403).json({ error: "system skills can only be deleted by admin" });
+        return res.status(403).json({ ok: false, error: "system skills can only be deleted by admin" });
+      }
+      if (deps.assertCanEdit) {
+        deps.assertCanEdit(ctx, existing, "skill");
       }
       await pool.query("DELETE FROM skills WHERE id=$1", [req.params.id]);
       res.status(204).end();
-    } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
+    } catch (e) {
+      const status = e.status || 500;
+      res.status(status).json({ ok: false, error: String(e.message || e) });
+    }
   });
 
   app.post("/api/skills/:slugOrId/run", async (req, res) => {
@@ -273,7 +342,7 @@ export function mountSkillRoutes(app, deps) {
       const key = req.params.slugOrId;
       const { rows } = await pool.query("SELECT * FROM skills WHERE id=$1 OR slug=$1 LIMIT 1", [key]);
       const skill = rows[0]; if (!skill) return res.status(404).json({ error: "skill not found" });
-      const actor = req.actor || null;
+      const actor = req.session?.username || req.actor || null;
       const role = await getActorRole(actor);
       const userLvl = ROLE_LEVEL[role] ?? 0;
       const need = RISK_LEVEL[skill.risk_level] ?? 0;
@@ -326,7 +395,7 @@ export function mountSkillRoutes(app, deps) {
   app.post("/api/skills/runs/:runId/approve", async (req, res) => {
     try {
       const runId = req.params.runId;
-      const actor = req.actor; const role = await getActorRole(actor);
+      const actor = req.session?.username || req.actor || null; const role = await getActorRole(actor);
       if ((ROLE_LEVEL[role] ?? 0) < 2) return res.status(403).json({ error: "Admin role required" });
       const r = liveRuns.get(runId);
       if (!r) return res.status(404).json({ error: "run not in memory" });

@@ -60,36 +60,80 @@ export async function resolveActorContext(req) {
   }
   try {
     const { rows } = await _pool.query(
-      "SELECT id, role, tenant_id FROM app_users WHERE lower(username)=lower($1) LIMIT 1",
+      "SELECT id, role, tenant_id, groups, template_id FROM app_users WHERE lower(username)=lower($1) LIMIT 1",
       [actor]
     );
-    const role = String(rows[0]?.role ?? "").toLowerCase();
-    const userId = rows[0]?.id || null;
-    const userTenantId = rows[0]?.tenant_id || sessionTenantId || "default";
+    const userRow = rows[0];
+    const role = String(userRow?.role ?? "").toLowerCase();
+    const userId = userRow?.id || null;
+    const userTenantId = userRow?.tenant_id || sessionTenantId || "default";
     
-    let groupIds = [];
+    let groupIds = Array.isArray(userRow?.groups) ? [...userRow.groups] : [];
+    let groupRoles = [];
+    let templateIds = [userRow?.template_id].filter(Boolean);
+
     if (userId) {
       const gRes = await _pool.query(
-        "SELECT id FROM app_groups WHERE members ? $1 AND (tenant_id = $2 OR tenant_id = 'default')",
-        [userId, userTenantId]
+        "SELECT id, role, template_id FROM app_groups WHERE (members ? $1 OR id = ANY($2::text[])) AND (tenant_id = $3 OR tenant_id = 'default' OR is_global = true)",
+        [userId, groupIds.length > 0 ? groupIds : ['__none__'], userTenantId]
       );
-      groupIds = gRes.rows.map(g => g.id);
+      groupIds = Array.from(new Set([...groupIds, ...gRes.rows.map(g => g.id)]));
+      groupRoles = gRes.rows.map(g => String(g.role || '').toLowerCase()).filter(Boolean);
+      for (const g of gRes.rows) {
+        if (g.template_id) templateIds.push(g.template_id);
+      }
+    }
+
+    let templateRoles = [];
+    let templateGrantsMcpServer = false;
+    if (templateIds.length > 0) {
+      const tRes = await _pool.query(
+        "SELECT grants FROM app_templates WHERE id = ANY($1::text[])",
+        [Array.from(new Set(templateIds))]
+      );
+      for (const tRow of tRes.rows) {
+        const rArr = tRow?.grants?.roles;
+        if (Array.isArray(rArr)) {
+          templateRoles.push(...rArr.map(r => String(r).toLowerCase()));
+        }
+        const g = tRow?.grants;
+        if (g?.mcpServer?.length > 0 || g?.mcp?.includes("server") || g?.mcp?.includes("gateway") || g?.mcp?.includes("*")) {
+          templateGrantsMcpServer = true;
+        }
+      }
+    }
+
+    const allRoles = [role, ...groupRoles, ...templateRoles].filter(Boolean).map(r => String(r).toLowerCase());
+    let effectiveRole = role || "viewer";
+    if (allRoles.includes("admin") || allRoles.includes("sovereign")) {
+      effectiveRole = "admin";
+    } else if (allRoles.includes("tenant-admin") || allRoles.includes("tenantadmin") || allRoles.includes("tenant admin")) {
+      effectiveRole = "tenant-admin";
+    } else if (allRoles.includes("engineer") || allRoles.includes("platform")) {
+      effectiveRole = "engineer";
+    } else if (allRoles.includes("operator")) {
+      effectiveRole = "operator";
+    } else if (allRoles.includes("security")) {
+      effectiveRole = "security";
     }
     
     const defaultActor = await resolveDefaultActor();
     const isFirstMimar = !!defaultActor && actor === defaultActor;
-    const isSuperAdmin = (role === "admin" || role === "sovereign" || isFirstMimar) && userTenantId === "default";
-    const isTenantAdmin = (role === "admin" || role === "sovereign") && userTenantId !== "default";
+    const isSuperAdmin = (effectiveRole === "admin" || effectiveRole === "sovereign" || isFirstMimar) && userTenantId === "default";
+    const isTenantAdmin = isSuperAdmin || ((effectiveRole === "admin" || effectiveRole === "sovereign" || effectiveRole === "tenant-admin") && userTenantId !== "default") || effectiveRole === "tenant-admin";
+    const canManageMcpServer = isSuperAdmin || templateGrantsMcpServer;
     
     return {
       actor,
+      username: actor,
       isAdmin: isSuperAdmin,
       isSuperAdmin,
       isTenantAdmin,
+      canManageMcpServer,
       userId,
       tenantId: userTenantId,
       groupIds,
-      role
+      role: effectiveRole
     };
   } catch {}
 
@@ -98,6 +142,7 @@ export async function resolveActorContext(req) {
   const isSuperAdmin = !!defaultActor && actor === defaultActor;
   return {
     actor,
+    username: actor,
     isAdmin: isSuperAdmin,
     isSuperAdmin,
     isTenantAdmin: false,
@@ -129,6 +174,43 @@ export async function autoLinkLegacyOwnership({ migrateReady } = {}) {
 
 
 // ---- pure helpers ----------------------------------------------------------
+
+/**
+ * Check if the calling actor has mutation rights (edit / delete) on a specific entity row.
+ * - SuperAdmin can mutate any row.
+ * - TenantAdmin can mutate rows in their tenant.
+ * - Regular users can ONLY mutate rows they own (row.owner_id === ctx.userId OR row.owner_id === ctx.actor).
+ */
+export function canActorEdit(ctx, row) {
+  if (!ctx) return false;
+  if (ctx.isSuperAdmin) return true;
+  if (ctx.isTenantAdmin && (row?.tenant_id === ctx.tenantId || row?.tenant_id === "default")) return true;
+  if (!row) return false;
+
+  const ownerId = String(row.owner_id || row.owner_user_id || row.owner || row.created_by || "").trim().toLowerCase();
+  if (!ownerId) {
+    // Unowned system or legacy seed rows are read-only for regular users
+    return false;
+  }
+
+  const matches = [ctx.userId, ctx.username, ctx.actor]
+    .filter(Boolean)
+    .map(s => String(s).trim().toLowerCase());
+
+  return matches.includes(ownerId);
+}
+
+/**
+ * Assert that the calling actor has mutation rights, throwing an HTTP 403 error if not.
+ */
+export function assertCanEdit(ctx, row, entityLabel = "object") {
+  if (!canActorEdit(ctx, row)) {
+    const error = new Error(`Read-only ${entityLabel} — only the author or administrator may modify or delete this item.`);
+    error.status = 403;
+    error.code = "forbidden_read_only";
+    throw error;
+  }
+}
 
 // Build a visibility WHERE clause + params. Super-Admin → 1=1 (unconstrained).
 // Tenant / User → Zero-Trust Boundary: (is_global = true OR tenant_id = $tenantId) AND (mine/group/workspace).

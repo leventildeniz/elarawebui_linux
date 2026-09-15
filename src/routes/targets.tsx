@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState, useEffect } from "react";
-import { canEdit as canEditOwned, editRefusal } from "@/lib/ownership";
+import { canEdit as canEditOwned, editRefusal, useOwnerCtx, stampOwner } from "@/lib/ownership";
+import { ReadOnlyBanner } from "@/components/sovereign/ownership-controls";
 import { createFileRoute } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
 import {
@@ -81,17 +82,23 @@ function Toggle({
   on,
   onClick,
   tone = "emerald",
+  disabled = false,
 }: {
   on: boolean;
   onClick: () => void;
   tone?: string;
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
-      onClick={onClick}
+      disabled={disabled}
+      onClick={disabled ? undefined : onClick}
+      className={cn(
+        "relative h-5 w-9 shrink-0 rounded-full border transition-colors duration-150",
+        disabled && "pointer-events-none opacity-50",
+      )}
       aria-pressed={on}
-      className="relative h-5 w-9 shrink-0 rounded-full border transition-colors duration-150"
       style={{
         borderColor: on
           ? `color-mix(in oklab, var(--${tone}) 55%, transparent)`
@@ -122,18 +129,21 @@ function Select({
   options,
   onChange,
   className,
+  disabled = false,
 }: {
   label?: string;
   value: string;
   options: { value: string; label: string }[];
   onChange: (v: string) => void;
   className?: string;
+  disabled?: boolean;
 }) {
   return (
-    <div className={className}>
+    <div className={cn(className, disabled && "pointer-events-none opacity-50")}>
       {label && <div className="mono-label mb-1.5">{label}</div>}
       <div className="relative">
         <select
+          disabled={disabled}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           className={cn(field, mono, "appearance-none pr-8")}
@@ -305,6 +315,11 @@ function TargetDialog({
   onClose: () => void;
   onSave: (t: Target) => void;
 }) {
+  const ownerCtx = useOwnerCtx();
+  const isNew = !target.name && (!target.id || target.id.startsWith("tgt-draft"));
+  const writable = isNew || canEditOwned(target, ownerCtx);
+  const refusal = writable ? "" : editRefusal(target, ownerCtx);
+
   const [draft, setDraft] = useState<Target>(target);
   const set = (p: Partial<Target>) => setDraft((d) => ({ ...d, ...p }));
 
@@ -348,33 +363,41 @@ function TargetDialog({
 
   return (
     <Dialog
-      title={target.name ? `Edit target · ${target.name}` : "New Target"}
+      title={isNew ? "New Target" : writable ? `Edit target · ${target.name}` : `View target · ${target.name} (Read-Only)`}
       description="Register a single host, firewall or service. Bind it to an adapter + vault entry for one-click agent connect."
       onClose={onClose}
       width="820px"
       footer={
         <>
           <MiniButton tone="platinum" onClick={onClose}>
-            Cancel
+            {writable ? "Cancel" : "Close"}
           </MiniButton>
-          <MiniButton
-            tone="emerald"
-            onClick={() => {
-              if (!draft.name.trim()) return;
-              onSave(draft);
-              onClose();
-            }}
-          >
-            Save target
-          </MiniButton>
+          {writable && (
+            <MiniButton
+              tone="emerald"
+              onClick={() => {
+                if (!draft.name.trim()) return;
+                onSave(draft);
+                onClose();
+              }}
+            >
+              Save target
+            </MiniButton>
+          )}
         </>
       }
     >
+      {!writable && refusal ? (
+        <div className="mb-4">
+          <ReadOnlyBanner reason={refusal} />
+        </div>
+      ) : null}
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <div className="mono-label mb-1.5">name *</div>
           <input
             autoFocus
+            disabled={!writable}
             value={draft.name}
             onChange={(e) => set({ name: e.target.value })}
             className={field}
@@ -383,11 +406,12 @@ function TargetDialog({
         <Select
           label="group"
           value={draft.groupId}
+          disabled={!writable}
           options={[
             { value: "", label: "— ungrouped —" },
             ...groups.map((g) => ({ value: g.id, label: g.name })),
           ]}
-          onChange={(groupId) => set({ groupId })}
+          onChange={(groupId) => writable && set({ groupId })}
         />
       </div>
 
@@ -395,6 +419,7 @@ function TargetDialog({
         <div>
           <div className="mono-label mb-1.5">ip</div>
           <input
+            disabled={!writable}
             value={draft.ip}
             onChange={(e) => set({ ip: e.target.value })}
             placeholder="10.0.0.1"
@@ -404,6 +429,7 @@ function TargetDialog({
         <div>
           <div className="mono-label mb-1.5">host (fqdn)</div>
           <input
+            disabled={!writable}
             value={draft.host}
             onChange={(e) => set({ host: e.target.value })}
             placeholder="fw01.corp.local"
@@ -413,6 +439,7 @@ function TargetDialog({
         <div>
           <div className="mono-label mb-1.5">port(s)</div>
           <input
+            disabled={!writable}
             value={draft.ports}
             onChange={(e) => set({ ports: e.target.value })}
             placeholder="443,22,8443"
@@ -424,6 +451,7 @@ function TargetDialog({
       <div>
         <div className="mono-label mb-1.5">tags (comma)</div>
         <input
+          disabled={!writable}
           value={draft.tags.join(", ")}
           onChange={(e) =>
             set({
@@ -442,24 +470,27 @@ function TargetDialog({
         <Select
           label="default adapter"
           value={draft.adapter}
+          disabled={!writable}
           options={adapterOptions}
-          onChange={(adapter) => set({ adapter })}
+          onChange={(adapter) => writable && set({ adapter })}
         />
         <Select
           label="vault scope"
           value={draft.vaultScope}
+          disabled={!writable}
           options={["none", ...Object.keys(vaultNames)].map((v) => ({ value: v, label: v }))}
-          onChange={(vaultScope) => set({ vaultScope, vaultName: "" })}
+          onChange={(vaultScope) => writable && set({ vaultScope, vaultName: "" })}
         />
         <Select
           label="vault name"
           value={draft.vaultName}
+          disabled={!writable}
           options={
             draft.vaultScope === "none"
               ? [{ value: "", label: "—" }]
               : (vaultNames[draft.vaultScope] || []).map((name) => ({ value: name, label: name }))
           }
-          onChange={(vaultName) => set({ vaultName })}
+          onChange={(vaultName) => writable && set({ vaultName })}
         />
       </div>
 
@@ -467,20 +498,23 @@ function TargetDialog({
         <Select
           label="risk"
           value={draft.risk}
+          disabled={!writable}
           options={targetRisks.map((r) => ({ value: r, label: r }))}
-          onChange={(risk) => set({ risk: risk as TargetRisk })}
+          onChange={(risk) => writable && set({ risk: risk as TargetRisk })}
         />
         <div className="flex items-center gap-2.5 pb-2">
           <Toggle
             tone="ruby"
+            disabled={!writable}
             on={draft.requiresApproval}
-            onClick={() => set({ requiresApproval: !draft.requiresApproval })}
+            onClick={() => writable && set({ requiresApproval: !draft.requiresApproval })}
           />
           <span className="text-[13px] text-muted-foreground/85">Requires approval</span>
         </div>
         <div>
           <div className="mono-label mb-1.5">owner</div>
           <input
+            disabled={!writable}
             value={draft.owner}
             onChange={(e) => set({ owner: e.target.value })}
             className={field}
@@ -492,6 +526,7 @@ function TargetDialog({
         <div className="mono-label mb-1.5">notes</div>
         <textarea
           rows={3}
+          disabled={!writable}
           value={draft.notes}
           onChange={(e) => set({ notes: e.target.value })}
           className={cn(field, "resize-y leading-relaxed")}
@@ -506,22 +541,24 @@ function TargetDialog({
           <span className="font-mono text-[11.5px] text-muted-foreground/55">
             {draft.endpoints.length}
           </span>
-          <div className="ml-auto flex items-center gap-2">
-            <MiniButton tone="platinum" onClick={generateFromPorts}>
-              Generate from port(s)
-            </MiniButton>
-            <MiniButton
-              tone="sapphire"
-              onClick={() =>
-                setDraft((d) => ({
-                  ...d,
-                  endpoints: [...d.endpoints, emptyEndpoint(!d.endpoints.length)],
-                }))
-              }
-            >
-              <Plus size={12} strokeWidth={2} /> Add endpoint
-            </MiniButton>
-          </div>
+          {writable && (
+            <div className="ml-auto flex items-center gap-2">
+              <MiniButton tone="platinum" onClick={generateFromPorts}>
+                Generate from port(s)
+              </MiniButton>
+              <MiniButton
+                tone="sapphire"
+                onClick={() =>
+                  setDraft((d) => ({
+                    ...d,
+                    endpoints: [...d.endpoints, emptyEndpoint(!d.endpoints.length)],
+                  }))
+                }
+              >
+                <Plus size={12} strokeWidth={2} /> Add endpoint
+              </MiniButton>
+            </div>
+          )}
         </div>
 
         <div className="mt-4 space-y-3">
@@ -553,6 +590,7 @@ function TargetDialog({
                 <div className="min-w-[160px] flex-1">
                   <div className="mono-label mb-1.5">label</div>
                   <input
+                    disabled={!writable}
                     value={ep.label}
                     onChange={(e) => setEndpoint(ep.id, { label: e.target.value })}
                     placeholder="api, ssh, mgmt"
@@ -562,26 +600,29 @@ function TargetDialog({
                 <div className="w-[110px]">
                   <div className="mono-label mb-1.5">port</div>
                   <input
+                    disabled={!writable}
                     value={ep.port}
                     onChange={(e) => setEndpoint(ep.id, { port: e.target.value })}
                     placeholder="443"
                     className={cn(field, mono)}
                   />
                 </div>
-                <button
-                  type="button"
-                  aria-label="Remove endpoint"
-                  onClick={() =>
-                    setDraft((d) => ({
-                      ...d,
-                      endpoints: d.endpoints.filter((x) => x.id !== ep.id),
-                    }))
-                  }
-                  className="mb-1 rounded-lg border border-white/[0.07] p-2 text-ruby/75 transition-colors hover:border-ruby/40 hover:text-ruby"
-                  title="Remove endpoint"
-                >
-                  <Trash2 size={12} strokeWidth={1.8} />
-                </button>
+                {writable && (
+                  <button
+                    type="button"
+                    aria-label="Remove endpoint"
+                    title="Remove endpoint"
+                    onClick={() =>
+                      setDraft((d) => ({
+                        ...d,
+                        endpoints: d.endpoints.filter((x) => x.id !== ep.id),
+                      }))
+                    }
+                    className="mb-1 rounded-lg border border-white/[0.07] p-2 text-ruby/75 transition-colors hover:border-ruby/40 hover:text-ruby"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                )}
               </div>
 
               <div className="mt-3 grid gap-3 sm:grid-cols-3">

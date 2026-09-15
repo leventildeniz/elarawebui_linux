@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { canEdit as canEditOwned, editRefusal } from "@/lib/ownership";
-import { OwnerChip, ShareControl } from "@/components/sovereign/ownership-controls";
+import { OwnerChip, ShareControl, ReadOnlyBanner } from "@/components/sovereign/ownership-controls";
 import { confirmAction } from "@/components/sovereign/confirm-dialog";
 import { createFileRoute } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
@@ -78,12 +78,14 @@ function GrantPicker({
   title,
   items,
   selected,
+  disabled = false,
   onToggle,
   emptyHint,
 }: {
   title: string;
   items: PickItem[];
   selected: string[];
+  disabled?: boolean;
   onToggle: (id: string) => void;
   emptyHint?: string;
 }) {
@@ -100,9 +102,9 @@ function GrantPicker({
       <div className="flex flex-wrap items-center gap-2">
         <select
           value={value}
-          disabled={!available.length}
+          disabled={disabled || !available.length}
           onChange={(e) => setPick(e.target.value)}
-          className={cn(input, "h-[34px] w-auto min-w-[220px] flex-1 py-1 font-mono text-[12.5px]")}
+          className={cn(input, "h-[34px] w-auto min-w-[220px] flex-1 py-1 font-mono text-[12.5px]", disabled && "opacity-50 cursor-not-allowed")}
         >
           {available.length ? (
             available.map((i) => (
@@ -118,9 +120,9 @@ function GrantPicker({
         </select>
         <button
           type="button"
-          disabled={!value}
+          disabled={disabled || !value}
           onClick={() => {
-            if (!value) return;
+            if (!value || disabled) return;
             onToggle(value);
             setPick("");
           }}
@@ -143,17 +145,19 @@ function GrantPicker({
                   style={{ background: item?.tone ?? "var(--sapphire)" }}
                 />
                 {item?.label ?? id}
-                <button
-                  type="button"
-                  onClick={() => onToggle(id)}
-                  aria-label={`Remove ${id}`}
-                  title={`Remove ${id}`}
-                >
-                  <X
-                    size={11}
-                    className="text-muted-foreground/70 transition-colors hover:text-ruby"
-                  />
-                </button>
+                {!disabled && (
+                  <button
+                    type="button"
+                    onClick={() => onToggle(id)}
+                    aria-label={`Remove ${id}`}
+                    title={`Remove ${id}`}
+                  >
+                    <X
+                      size={11}
+                      className="text-muted-foreground/70 transition-colors hover:text-ruby"
+                    />
+                  </button>
+                )}
               </span>
             );
           })
@@ -172,6 +176,8 @@ function GrantPicker({
 function PackEditor({
   initialPack,
   isNew,
+  readOnly = false,
+  refusal = "",
   squadNames,
   models,
   runtimes,
@@ -180,9 +186,12 @@ function PackEditor({
   mcpItems,
   onClose,
   onSave,
+  onClone,
 }: {
   initialPack: CapabilityPack;
   isNew: boolean;
+  readOnly?: boolean;
+  refusal?: string;
   squadNames: string[];
   models: { id: string; name: string }[];
   runtimes: { id: string; name: string }[];
@@ -191,18 +200,23 @@ function PackEditor({
   mcpItems: PickItem[];
   onClose: () => void;
   onSave: (pack: CapabilityPack) => void;
+  onClone?: (id: string) => void;
 }) {
   const [draft, setDraft] = useState<CapabilityPack>(initialPack);
   const patch = useCallback(
-    (p: Partial<CapabilityPack>) => setDraft((cur) => ({ ...cur, ...p })),
-    [],
+    (p: Partial<CapabilityPack>) => {
+      if (readOnly) return;
+      setDraft((cur) => ({ ...cur, ...p }));
+    },
+    [readOnly],
   );
   const toggle = useCallback((key: "tools" | "skills" | "mcpServers", id: string) => {
+    if (readOnly) return;
     setDraft((cur) => {
       const list = cur[key];
       return { ...cur, [key]: list.includes(id) ? list.filter((x) => x !== id) : [...list, id] };
     });
-  }, []);
+  }, [readOnly]);
 
   return (
     <motion.div
@@ -222,7 +236,7 @@ function PackEditor({
       >
         <div className="mb-5 flex items-center justify-between">
           <h2 className="text-[17px] font-medium tracking-tight text-foreground">
-            {isNew ? "New pack" : "Edit pack"}
+            {isNew ? "New pack" : readOnly ? "View pack" : "Edit pack"}
           </h2>
           <button
             type="button"
@@ -234,6 +248,12 @@ function PackEditor({
             <X className="h-4 w-4" />
           </button>
         </div>
+
+        {readOnly && refusal ? (
+          <div className="mb-4">
+            <ReadOnlyBanner reason={refusal} />
+          </div>
+        ) : null}
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
@@ -255,14 +275,16 @@ function PackEditor({
           </div>
           <Field label="name">
             <input
-              className={input}
+              disabled={readOnly}
+              className={cn(input, readOnly && "opacity-75 cursor-not-allowed")}
               value={draft.name}
               onChange={(e) => patch({ name: e.target.value })}
             />
           </Field>
           <Field label="sector">
             <select
-              className={input}
+              disabled={readOnly}
+              className={cn(input, readOnly && "opacity-75 cursor-not-allowed")}
               value={draft.sector}
               onChange={(e) => patch({ sector: e.target.value })}
             >
@@ -275,7 +297,8 @@ function PackEditor({
           </Field>
           <Field label="squad" hint="Header tabs scope the registry to one squad.">
             <select
-              className={input}
+              disabled={readOnly}
+              className={cn(input, readOnly && "opacity-75 cursor-not-allowed")}
               value={draft.squad && draft.squad !== "Unassigned" ? draft.squad : (squadNames[0] || "")}
               onChange={(e) => patch({ squad: e.target.value })}
             >
@@ -290,12 +313,13 @@ function PackEditor({
             <JewelSwatches
               value={draft.jewel}
               onChange={(j) => patch({ jewel: j })}
-              className="pt-1.5"
+              className={cn("pt-1.5", readOnly && "pointer-events-none opacity-75")}
             />
           </Field>
           <Field label="visibility">
             <ShareControl
               record={draft}
+              disabled={readOnly}
               onChange={(p) => patch(p)}
             />
           </Field>
@@ -303,19 +327,22 @@ function PackEditor({
 
         <div className="mt-4">
           <span className="mono-label mb-2 block">icon</span>
-          <IconPicker
-            value={draft.icon}
-            jewel={draft.jewel}
-            height={150}
-            onSelect={(name) => patch({ icon: name })}
-          />
+          <div className={cn(readOnly && "pointer-events-none opacity-75")}>
+            <IconPicker
+              value={draft.icon}
+              jewel={draft.jewel}
+              height={150}
+              onSelect={(name) => patch({ icon: name })}
+            />
+          </div>
         </div>
 
         <div className="mt-4 grid gap-4">
           <Field label="description">
             <textarea
               rows={2}
-              className={area}
+              disabled={readOnly}
+              className={cn(area, readOnly && "opacity-75 cursor-not-allowed")}
               value={draft.description}
               onChange={(e) => patch({ description: e.target.value })}
             />
@@ -326,7 +353,8 @@ function PackEditor({
             hint="RAG retrieval filter — bound agents are restricted to these brands. Empty = unrestricted."
           >
             <input
-              className={cn(input, "font-mono text-[12px]")}
+              disabled={readOnly}
+              className={cn(input, "font-mono text-[12px]", readOnly && "opacity-75 cursor-not-allowed")}
               placeholder="checkpoint, fortigate, palo alto… (comma separated)"
               value={draft.brandKeywords.join(", ")}
               onChange={(e) =>
@@ -346,7 +374,8 @@ function PackEditor({
           >
             <textarea
               rows={3}
-              className={area}
+              disabled={readOnly}
+              className={cn(area, readOnly && "opacity-75 cursor-not-allowed")}
               value={draft.systemOverlay}
               onChange={(e) => patch({ systemOverlay: e.target.value })}
             />
@@ -358,15 +387,17 @@ function PackEditor({
               hint="Inherited when the bound agent has no brain of its own."
             >
               <select
+                disabled={readOnly}
                 className={cn(
                   input, 
                   "font-mono", 
+                  readOnly && "opacity-75 cursor-not-allowed",
                   (!draft.brainModelId || draft.brainModelId === "system_default") && "text-[#00ffaa] border-[#00ffaa]/30 shadow-[0_0_15px_-5px_#00ffaa]/20"
                 )}
                 value={(!draft.brainModelId || draft.brainModelId === "system_default") ? "system_default" : draft.brainModelId}
                 onChange={(e) => {
                   const v = e.target.value;
-                  if (v === "system_default") patch({ brainModelId: "" }); // or null/system_default
+                  if (v === "system_default") patch({ brainModelId: "" });
                   else patch({ brainModelId: v });
                 }}
               >
@@ -382,7 +413,8 @@ function PackEditor({
             </Field>
             <Field label="default interpreter (python)" hint="Leave blank to skip.">
               <select
-                className={input}
+                disabled={readOnly}
+                className={cn(input, readOnly && "opacity-75 cursor-not-allowed")}
                 value={draft.interpreterId}
                 onChange={(e) => patch({ interpreterId: e.target.value })}
               >
@@ -402,18 +434,21 @@ function PackEditor({
             title="tools"
             items={toolItems}
             selected={draft.tools}
+            disabled={readOnly}
             onToggle={(id: string) => toggle("tools", id)}
           />
           <GrantPicker
             title="skills"
             items={skillItems}
             selected={draft.skills}
+            disabled={readOnly}
             onToggle={(id: string) => toggle("skills", id)}
           />
           <GrantPicker
             title="mcp clients"
             items={mcpItems}
             selected={draft.mcpServers}
+            disabled={readOnly}
             onToggle={(id: string) => toggle("mcpServers", id)}
             emptyHint="no mcp clients registered — add them in MCP · Client"
           />
@@ -421,11 +456,13 @@ function PackEditor({
 
         <div className="mt-6 flex justify-end gap-2">
           <JewelButton variant="ghost" size="sm" onClick={() => onClose()}>
-            Cancel
+            {readOnly ? "Close" : "Cancel"}
           </JewelButton>
-          <JewelButton size="sm" onClick={() => onSave(draft)} disabled={!draft.name.trim()}>
-            Save
-          </JewelButton>
+          {!readOnly && (
+            <JewelButton size="sm" onClick={() => onSave(draft)} disabled={!draft.name.trim()}>
+              Save
+            </JewelButton>
+          )}
         </div>
       </motion.div>
     </motion.div>
@@ -647,6 +684,8 @@ function CapabilityRegistry() {
             key={editing.id || "new"}
             initialPack={editing}
             isNew={isNew}
+            readOnly={!isNew && !canEditOwned(editing, ctx)}
+            refusal={!isNew ? editRefusal(editing, ctx) : ""}
             squadNames={squadNames}
             models={models}
             runtimes={runtimes}
@@ -655,6 +694,7 @@ function CapabilityRegistry() {
             mcpItems={mcpItems}
             onClose={() => setEditing(null)}
             onSave={save}
+            onClone={(id) => duplicate(id)}
           />
         )}
       </AnimatePresence>

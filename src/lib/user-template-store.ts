@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { JewelName } from "@/lib/avatar-library";
+import { currentAccount, readGroups } from "@/lib/group-store";
+import { readOwnerCtx } from "@/lib/ownership";
 
 /**
  * User Model Templates — the provisioning contract bound to a user or group.
@@ -88,6 +90,7 @@ export type GrantKey =
   | "tools"
   | "skills"
   | "mcp"
+  | "mcpServer"
   | "capabilities"
   | "workflows"
   | "orchestrators"
@@ -163,150 +166,66 @@ export const grantMeta: {
   tone: JewelName;
 }[] = [
   {
+    key: "roles",
+    label: "Bound RBAC Roles",
+    hint: "The baseline RBAC role provisioned to users bound to this template.",
+    tone: "ruby",
+  },
+  {
     key: "models",
-    label: "Allowed Models",
-    hint: "Empty = every enabled model.",
+    label: "Allowed AI Models",
+    hint: "AI models available to this template. Empty = all tenant models.",
     tone: "sapphire",
   },
   {
     key: "providers",
     label: "LLM Providers",
-    hint: "Empty = global routing across all active providers.",
+    hint: "Allowed upstream LLM providers. Empty = global routing across all active providers.",
     tone: "sapphire",
-  },
-  { key: "agents", label: "Allowed Agents", hint: "Empty = the full roster.", tone: "amethyst" },
-  { key: "tools", label: "Allowed Tools", hint: "Empty = every active tool.", tone: "emerald" },
-  {
-    key: "skills",
-    label: "Allowed Skills",
-    hint: "Sealed procedures (! triggers). Empty = all skills.",
-    tone: "topaz",
-  },
-  {
-    key: "mcp",
-    label: "Allowed MCP Servers",
-    hint: "Client connections this template may reach.",
-    tone: "sapphire",
-  },
-  {
-    key: "capabilities",
-    label: "Allowed Capability Packs",
-    hint: "Sector packs inherited by bound users.",
-    tone: "amethyst",
-  },
-  { key: "workflows", label: "Allowed Workflows", hint: "Runnable flow graphs.", tone: "emerald" },
-  {
-    key: "orchestrators",
-    label: "Allowed Orchestrators",
-    hint: "Multi-agent chains this template may dispatch.",
-    tone: "topaz",
-  },
-  {
-    key: "adapters",
-    label: "Allowed Adapters",
-    hint: "Vendor connectors reachable from chat.",
-    tone: "sapphire",
-  },
-  {
-    key: "targets",
-    label: "Allowed Targets",
-    hint: "Devices / groups actions may touch.",
-    tone: "ruby",
-  },
-  {
-    key: "vision",
-    label: "Allowed Vision Profiles",
-    hint: "Empty = no restriction.",
-    tone: "amethyst",
-  },
-  {
-    key: "knowledge",
-    label: "Knowledge Sources",
-    hint: "RAG scopes visible to this template.",
-    tone: "emerald",
   },
   {
     key: "ragSpaces",
-    label: "Knowledge Spaces",
-    hint: "RAG spaces bound users may query and ingest into. Empty = spaces resolved from group membership.",
+    label: "Allowed Knowledge Spaces",
+    hint: "RAG spaces bound users may query and ingest into. Empty = resolved from group membership.",
     tone: "emerald",
   },
   {
-    key: "ragAgents",
-    label: "Allowed RAG Agents",
-    hint: "Space librarians bound users may call from chat. Empty = every librarian whose space they read.",
-    tone: "emerald",
-  },
-  {
-    key: "ragFolders",
-    label: "RAG Collections",
-    hint: "Document collections surfaced on /rag-documents. Empty = every collection the space allows.",
-    tone: "topaz",
-  },
-  {
-    key: "vault",
-    label: "Vault Scopes",
-    hint: "Secrets this template may resolve at runtime.",
-    tone: "ruby",
-  },
-  {
-    key: "promptLayers",
-    label: "Prompt Layers",
-    hint: "Advanced System Prompt layers this template may load. Empty = the studio default stack.",
-    tone: "sapphire",
-  },
-  {
-    key: "planners",
-    label: "Planner Profiles",
-    hint: "Planning engines (tool / skill / MCP planes) allowed to run for bound users.",
+    key: "mcpServer",
+    label: "MCP Server Gateway",
+    hint: "Grant permission to host studio tools over MCP, issue tokens and manage exposures.",
     tone: "amethyst",
-  },
-  {
-    key: "runtimes",
-    label: "Python Runtimes",
-    hint: "Sandboxes code execution may attach to. Empty = none reachable unless a tool grants it.",
-    tone: "emerald",
-  },
-  {
-    key: "sandboxes",
-    label: "Isolation Profiles",
-    hint: "Sandbox profiles (tool / skill / MCP) bound users execute under. Empty = studio fallback profiles.",
-    tone: "ruby",
-  },
-  {
-    key: "metaForge",
-    label: "Meta-Forge Plans",
-    hint: "Self-evolution plans this template may propose or execute. Empty = none reachable.",
-    tone: "amethyst",
-  },
-  {
-    key: "blueprints",
-    label: "Forge Blueprints",
-    hint: "Forge Factory definitions bound users may instantiate.",
-    tone: "topaz",
-  },
-  {
-    key: "boards",
-    label: "Telemetry Boards",
-    hint: "Runtime monitor boards visible to bound users. Empty = the studio default board.",
-    tone: "sapphire",
-  },
-  {
-    key: "reports",
-    label: "Report Templates",
-    hint: "Reporting documents this template may render and export.",
-    tone: "emerald",
-  },
-  {
-    key: "roles",
-    label: "Bound RBAC Roles",
-    hint: "Roles applied on assignment. Empty = role stays as provisioned on the user.",
-    tone: "topaz",
   },
 ];
 
-export const emptyGrants = (): Record<GrantKey, string[]> =>
-  grantMeta.reduce((acc, g) => ({ ...acc, [g.key]: [] }), {} as Record<GrantKey, string[]>);
+export const emptyGrants = (): Record<GrantKey, string[]> => ({
+  roles: [],
+  models: [],
+  providers: [],
+  ragSpaces: [],
+  mcpServer: [],
+  agents: [],
+  tools: [],
+  skills: [],
+  mcp: [],
+  capabilities: [],
+  workflows: [],
+  orchestrators: [],
+  adapters: [],
+  targets: [],
+  vision: [],
+  knowledge: [],
+  ragAgents: [],
+  ragFolders: [],
+  vault: [],
+  promptLayers: [],
+  planners: [],
+  runtimes: [],
+  sandboxes: [],
+  metaForge: [],
+  blueprints: [],
+  boards: [],
+  reports: [],
+});
 
 export const defaultParams: UserTemplate["params"] = {
   systemPrompt: "",
@@ -396,6 +315,25 @@ function write(list: UserTemplate[]) {
 export function readTemplates(): UserTemplate[] {
   if (typeof window === "undefined") return seedTemplates;
   return read();
+}
+
+export function canManageMcpServer(): boolean {
+  if (typeof window === "undefined") return false;
+  const ownerCtx = readOwnerCtx();
+  if (ownerCtx.sovereign) return true;
+  const me = currentAccount();
+  if (!me) return false;
+  const groups = readGroups();
+  const group = groups.find((g) => g.members.includes(me.id));
+  const templateId = me.template || group?.defaultTemplate || "";
+  if (!templateId) return false;
+  const tpls = readTemplates();
+  const tpl = tpls.find((t) => t.id === templateId);
+  if (!tpl || !tpl.grants) return false;
+  const g = tpl.grants;
+  if (g.mcpServer && g.mcpServer.length > 0) return true;
+  if (g.mcp && (g.mcp.includes("server") || g.mcp.includes("gateway") || g.mcp.includes("*"))) return true;
+  return false;
 }
 
 export function useUserTemplates() {

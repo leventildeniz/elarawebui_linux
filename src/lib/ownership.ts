@@ -78,12 +78,18 @@ export function readOwnerCtx(): OwnerCtx {
   if (typeof window === "undefined") return ANON_CTX;
   const me = currentAccount();
   if (!me) return ANON_CTX;
-  const groupIds = readGroups()
-    .filter((g) => g.members.includes(me.id))
-    .map((g) => g.id);
+  const directGroups = (me as any)?.groups || [];
+  const groupIds = Array.from(
+    new Set([
+      ...directGroups,
+      ...readGroups()
+        .filter((g) => g.members.includes(me.id))
+        .map((g) => g.id),
+    ]),
+  );
   const sovereign = isGodPrincipal(me.id, me.role, groupIds);
-  /* Enforcement disarmed = a lab studio: nothing is hidden from anyone. */
-  const override = sovereign || !readEnforcement() || readRoleActions().includes("workspace-all");
+  /* Zero-Trust: override is strictly for sovereigns (SuperAdmin) or roles holding explicit 'workspace-all' action */
+  const override = sovereign || readRoleActions().includes("workspace-all");
   return { userId: me.id, name: me.name || me.username, groupIds, sovereign, override };
 }
 
@@ -122,7 +128,7 @@ export function canSee(rec: Owned | undefined | null, ctx: OwnerCtx): boolean {
 /** May this principal mutate or destroy the record? */
 export function canEdit(rec: Owned | undefined | null, ctx: OwnerCtx): boolean {
   if (!rec) return false;
-  if (ctx.override) return true;
+  if (ctx.sovereign) return true;
   if (visibilityOf(rec) === "system") return false;
   /* Sharing widens reading, never writing — a shared object stays the author's. */
   return isMine(rec, ctx);

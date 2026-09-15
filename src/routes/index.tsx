@@ -56,7 +56,7 @@ import {
 } from "@/components/sovereign/message-actions";
 import { toast } from "sonner";
 import { compactContextWithModel } from "@/lib/context-compact.functions";
-import { fetchApi } from "@/lib/api"; // Keep fetchApi just in case
+import { fetchApi, authHeaders } from "@/lib/api"; // Keep fetchApi just in case
 import { ToolActivityBlock } from "@/components/sovereign/tool-activity";
 import { ToolApprovalCard } from "@/components/sovereign/tool-approval-card";
 import {
@@ -330,7 +330,7 @@ function SovereignChat() {
         signal: abortCtrl.current.signal,
         headers: {
           "Content-Type": "application/json",
-          "x-session-id": typeof window !== "undefined" ? sessionStorage.getItem("sovereign.operator") || "" : ""
+          ...authHeaders(),
         },
         body: JSON.stringify({
           thread_id: active?.id,

@@ -64,7 +64,24 @@ export type Group = {
    * these claims inherits this group's role and template.
    */
   directoryGroups?: string[];
+  system?: boolean;
+  is_system?: boolean;
 };
+
+export function isSystemGroup(group?: { id?: string; name?: string; system?: boolean; is_system?: boolean } | null): boolean {
+  if (!group) return false;
+  if (group.system || group.is_system) return true;
+  const id = String(group.id || "").toLowerCase();
+  const name = String(group.name || "").trim().toLowerCase();
+  return (
+    id === "grp.administrators" ||
+    id === "g2" ||
+    id === "g3" ||
+    name === "administrators" ||
+    name === "operators" ||
+    name === "auditors"
+  );
+}
 
 
 
@@ -320,6 +337,11 @@ export function useIdentity() {
   };
 
   const removeGroup = async (id: string) => {
+    const target = groups.find((g) => g.id === id);
+    if (isSystemGroup(target)) {
+      console.warn("[group-store] cannot delete system group", id);
+      return;
+    }
     try {
       await fetchApi(`/api/identity/groups/${id}`, { method: "DELETE" });
       setGroups(prev => {

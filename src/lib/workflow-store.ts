@@ -18,7 +18,7 @@ export type StudioWorkflow = WorkflowDraft &
 const KEY = "sovereign.workflows";
 const ACTIVE_KEY = "sovereign.workflows.active";
 const EVT = "sovereign:workflows";
-import { scopeOwned, stampOwner, useOwnerCtx, type Owned } from "@/lib/ownership";
+import { readDesk, writeDesk, readDeskRaw, writeDeskRaw, scopeOwned, stampOwner, useOwnerCtx, type Owned } from "@/lib/ownership";
 import { workflowDrafts, type WorkflowDraft } from "@/mocks/workflows";
 import { fetchApi } from "@/lib/api";
 import { confirmAction } from "@/components/sovereign/confirm-dialog";
@@ -32,29 +32,19 @@ export const seedWorkflows: StudioWorkflow[] = workflowDrafts.map((d, i) => ({
 }));
 
 function read(): StudioWorkflow[] {
-  if (typeof window === "undefined") return seedWorkflows;
-  try {
-    const raw = window.localStorage.getItem(KEY);
-    if (!raw) return seedWorkflows;
-    const parsed = JSON.parse(raw) as StudioWorkflow[];
-    return Array.isArray(parsed) && parsed.length ? parsed : seedWorkflows;
-  } catch {
-    return seedWorkflows;
-  }
+  return readDesk<StudioWorkflow[]>(KEY, seedWorkflows);
 }
 
 function write(list: StudioWorkflow[]) {
-  try {
-    window.localStorage.setItem(KEY, JSON.stringify(list));
+  writeDesk(KEY, list);
+  if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent(EVT));
-  } catch {
-    /* ignore */
   }
 }
 
 function readActive(): string {
-  if (typeof window === "undefined") return seedWorkflows[0]?.id ?? "";
-  return window.localStorage.getItem(ACTIVE_KEY) ?? seedWorkflows[0]?.id ?? "";
+  const active = readDeskRaw(ACTIVE_KEY);
+  return active ?? (seedWorkflows[0]?.id ?? "");
 }
 
 export function useWorkflows() {
@@ -103,7 +93,7 @@ export function useWorkflows() {
           }));
           if (mapped.length > 0) {
             setWorkflows(mapped);
-            window.localStorage.setItem(KEY, JSON.stringify(mapped));
+            writeDesk(KEY, mapped);
             window.dispatchEvent(new CustomEvent(EVT));
             activeWfs = mapped;
             const a = readActive();
@@ -130,15 +120,17 @@ export function useWorkflows() {
     };
 
     window.addEventListener(EVT, onEvt);
-    return () => window.removeEventListener(EVT, onEvt);
+    window.addEventListener("sovereign:identity", sync);
+    return () => {
+      window.removeEventListener(EVT, onEvt);
+      window.removeEventListener("sovereign:identity", sync);
+    };
   }, []);
 
   const setActiveId = useCallback((id: string) => {
-    try {
-      window.localStorage.setItem(ACTIVE_KEY, id);
+    writeDeskRaw(ACTIVE_KEY, id);
+    if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent(EVT));
-    } catch {
-      /* ignore */
     }
     setActiveIdState(id);
   }, []);

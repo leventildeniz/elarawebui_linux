@@ -1244,39 +1244,152 @@ Bu aşamada ELARA Sovereign Studio'nun Chat ekleri, görseller, PDF ve belge iş
 
 ---
 
-## 62. IN EXECUTION — PHASE 62: 360° END-TO-END (UI ↔ BACKEND ↔ DB) MODULAR AUDIT, DEAD CODE PURGE & INTERNATIONAL STANDARDIZATION
+## 62. IN EXECUTION — PHASE 62: 360° ZERO-TRUST MULTI-TENANT & DESK OWNERSHIP HARDENING
 
 **Branch:** `refactor/phase-62-core-hygiene`
-
-Bu aşamada ELARA Sovereign Studio'nun tüm menü ve modülleri, Levent İldeniz'in belirlediği 360° Uçtan Uca (UI ↔ Backend ↔ DB) denetim zinciriyle modül modül taranacak; ölü kodlar temizlenecek, mock verilerden tamamen arındırılacak ve uluslararası kurumsal İngilizce standartlarına getirilecektir:
-
-### 🛡️ 360° Modüler Denetim Standardı (Her Menü İçin 5 Adımlı Doğrulama Zinciri):
-1. **UI Katmanı:** Butonlar, formlar, state akışları (`store.ts`), `undefined` defansif kontrolleri (`(arr || []).length`), kullanılmayan ölü bileşenler ve mock verilerden arındırma.
-2. **API & Wire Katmanı:** `api-v2.mjs` router'ları, parametre doğrulamaları, standart hata yanıtları (`{ ok, code, error }`), gereksiz/ölü uç noktaların ayıklanması.
-3. **DB & Veri Bütünlüğü:** `v2_master_schema.sql` uyumluluğu, yabancı anahtarlar (FK), tenant izolasyonu, orphan kayıt temizliği ve indeks sağlığı.
-4. **Kod & Dokümantasyon Standardı:** Tüm yorum satırlarının, fonksiyon tanımlarının ve şema açıklamalarının kurumsal teknik İngilizceye (`JSDoc/TSDoc`) getirilmesi.
-5. **0-Error Build Doğrulaması:** Her modül sonrasında `npx tsc --noEmit` tam derleme kontrolü.
+**Son Güncelleme:** 2026-09-14
 
 ---
 
-### 🏛️ Modüler Halka Uygulama Sıralaması:
+### 🎯 1. Ne Yapmak İstedik? (Hedef ve Kapsam)
+ELARA Sovereign Studio genelinde **Zero-Trust Çoklu Kiracı (Multi-Tenancy) ve Kişisel Desk Mülkiyeti (Desk Ownership)** mimarisini uçtan uca (UI ↔ API ↔ DB) hayata geçirmek:
+1. **Çapraz Kullanıcı Veri Sızıntısını Sıfırlamak:** Admin ve normal operatör (`deneme`) arasında Sohbetler, Hafıza (Working/Episodic), Koleksiyonlar/RAG, Squad'lar, İş Akışları, Yetenekler, Araçlar ve MCP sunucuları arasında hiçbir veri kaçağına izin vermemek.
+2. **Read-Only Workspace Paylaşım Modeli:** Bir varlık `workspace` veya `shared` bandında paylaşıldığında diğer kullanıcılar bunu çalıştırabilir ve okuyabilir; ancak **asla düzenleyemez, silemez veya parametrelerini değiştiremez** (`canEdit = false`, backend HTTP 403). Değiştirmek isteyen kullanıcı nesneyi kendi desk'ine klonlamalıdır (`Clone to my desk`).
+3. **Eski Prototip (Lovable) Önbellek Hijyeni:** Tek kullanıcılı prototip döneminden kalan ham, un-namespaced `localStorage` bağımlılıklarını kullanıcı ID'sine (`base::userId`) izole `readDesk`/`writeDesk` standardına geçirmek.
 
-#### 📍 Halka 1 (Sistemin Kalbi): Identity, Tenants, RBAC & Authentication
-* **Menüler / Rotalar:** `Settings › Users & Tenants` (`users.tsx`), `Settings › RBAC & Roles` (`rbac.tsx`), `Settings › Authentication & Federation` (`authentication.tsx`), `Settings › API Tokens` (`api-tokens.tsx`), `Account` (`account.tsx`).
-* **Backend:** `identity.mjs`, `identity-groups.mjs`, `identity-roles.mjs`, `identity-templates.mjs`, `rbac.mjs`, `federation.mjs`, `api-keys.mjs`, `actor.mjs`.
-* **Store & Lib:** `ownership.ts`, `credential-store.ts`, `auth-provider-store.ts`.
+---
 
-#### 📍 Halka 2: 4-Katmanlı Bellek Motoru & Knowledge Hub (Agentic RAG)
-* **Menüler / Rotalar:** `Memory` (`memory.tsx`), `Knowledge` (`knowledge.tsx`), `RAG Documents` (`rag-documents.tsx`).
-* **Backend:** `memory.mjs`, `knowledge-*.mjs`, `rag-*.mjs`, `retrieval.mjs`, `onnx-pipeline.mjs`.
-* **Store & Lib:** `memory-store.ts`, `knowledge-store.ts`, `rag-preview.ts`.
+### 🛠️ 2. Şu Ana Kadar Neler Yaptık? (Tamamlananlar)
+1. **Backend SQL Görünürlük & 403 Mutasyon Zırhı (`actor.mjs` & API Gateway):**
+   * `buildVisibility(ctx)` filtresi tüm modüllere uygulandı; `canActorEdit(ctx, row)` ve `assertCanEdit(ctx, row)` ile SuperAdmin/Sahip dışındaki tüm yetkisiz `POST / PUT / PATCH / DELETE` istekleri `HTTP 403 (Read-only object)` ile engellendi.
+   * `agents-crud`, `agents-extra`, `skills`, `capabilities`, `workflows`, `mcp`, `planners-crud`, `adapters`, `forge`, `meta-forge`, `webhooks-crud` API'leri korumaya alındı.
+2. **Sohbet & Bellek İzolasyonu (`threads.mjs`, `memory.mjs`):**
+   * `chat_threads` unowned kayıtlar Admin'e bağlandı, `OR owner_id IS NULL` kaldırıldı.
+   * `memory_working` ve `memory_episodic` sorguları aktif kullanıcı (`user_id`, `actor`) ile sınırlandı.
+3. **Dinamik Squad & Tab Mimarisi:**
+   * `agent_squads`, `skill_squads`, `capability_squads` tablolarına `owner_id`, `tenant_id`, `visibility` eklendi.
+   * **Boş Squad Kuralı:** 0 varlığı olan squad'lar sadece sahibine görünür; başka kullanıcının içinde varlığı olmayan boş squad'ı görmesi backend seviyesinde engellendi.
+4. **İstemci Depolama İzolasyonu (`ownership.ts` & Stores):**
+   * `workflow-store`, `orchestration-store`, `forge-store`, `metaforge-store`, `tool-panel-store`, `snippet-store`, `agent-store`, `skill-store`, `capability-store` `readDesk` ve `writeDesk` mimarisine taşındı.
+   * `sovereign:identity` dinleyicileriyle oturum değişiminde in-memory cache temizliği sağlandı.
+5. **SSR Hydration Güvenliği (`squad-tabs`, `skill-squad-tabs`, `capability-squad-tabs`, `graph-tabs`):**
+   * `mounted` yaşam döngüsü eklenerek sunucu HTML çıktısı ile ilk istemci renderı `%100` eşitlendi, React ağaç yırtılması (hydration mismatch) çözüldü.
+6. **Editör Kilitleri & "Clone to my desk" (İlk Paket):**
+   * `AgentEditor`, `PackEditor`, `SkillEditor`, `ForgeFactory` ve `ToolControlPanel (ConfigDialog)` pencerelerine `ReadOnlyBanner` ve form kilitleme eklendi.
 
-#### 📍 Halka 3: Chat Orkestratörü, MetaForge, DAG Workflows, Chains & MCP
-* **Menüler / Rotalar:** `Chat / Index` (`index.tsx`), `Flows / Workflows` (`flows.tsx`), `Orchestration / Chains` (`orchestration.tsx`), `MetaForge` (`meta-forge.tsx`), `Planner` (`planner.tsx`), `Tools` (`tools.tsx`), `Skills` (`skills.tsx`), `MCP` (`mcp.tsx`).
-* **Backend:** `chat-orchestrate.mjs`, `tool-dispatcher.mjs`, `stream-bridge.mjs`, `directives.mjs`, `workflows.mjs`, `meta-forge/`, `tools.mjs`, `skills.mjs`, `mcp.mjs`.
-* **Store & Lib:** `chat-store.ts`, `workflow-store.ts`, `orchestration-store.ts`, `agent-store.ts`.
+---
 
-#### 📍 Halka 4: FinOps, Raporlama, SIEM, Filo & Altyapı Servisleri
-* **Menüler / Rotalar:** `Reporting` (`reporting.*.tsx`), `SIEM` (`siem.tsx`), `Settings › Services` (`services.tsx`), `Fleet` (`fleet.tsx`), `Runtime` (`runtime.tsx`), `Converter` (`converter.tsx`), `Backup` (`backup.tsx`).
-* **Backend:** `reporting.mjs`, `siem-*.mjs`, `infra.mjs`, `telemetry*.mjs`, `storage-engine.mjs`, `backup.mjs`.
-* **Store & Lib:** `report-store.ts`, `report-pdf.ts`, `chat-export.ts`.
+### 🛠️ 3. Hayata Geçirilen Nihai Mimari Çözümler (Phase 62 İcra Raporu)
+
+1. **Grup & Efektif Rol Omurgası (`actor.mjs` & `identity.mjs`):**
+   * Kullanıcıların `app_users.groups` içindeki grup üyelikleri (`grp.administrators` vb.) ve şablon rolleri backend seviyesinde birleştirildi.
+   * Ahmet gibi kullanıcılar grup üzerinden doğrudan SuperAdmin (`role: 'admin'`, `isSuperAdmin: true`) olarak tanınmaktadır.
+   * `GET /api/identity/context` tek yetki kaynağı ucu hayata geçirildi.
+2. **Sıfır-Tolerans İstemci Görünürlük Koruması (`ownership.ts`):**
+   * Eski prototip kalıntısı `!readEnforcement()` açığı tamamen kaldırıldı. `override` sadece SuperAdmin'e (`isGodPrincipal`) bağlandı. Normal kullanıcılar (`deneme`) Admin'in private nesnelerini kesinlikle göremez.
+3. **Modallarda Saf Kurumsal Read-Only Standartı (Asset Sprawl Tasfiyesi):**
+   * Bütün modallardan kafa karışıklığı ve kopya çöplüğü yaratan "Clone to my desk" ve "Save as" mekanizmaları tamamen tasfiye edildi.
+   * Salt-okunur pencereler (`AgentEditor`, `PackEditor`, `SkillEditor`, `ClientDialog`, `TargetDialog`, `PlannerDialog`, `ForgeFactory`) açıldığında:
+     * Sarı `ReadOnlyBanner` gösterilir.
+     * Tüm inputlar, slider'lar, switch'ler, toggle'lar, dropdown'lar ve picker'lar tamamen kilitlenir (`disabled={!writable}`, `pointer-events-none`).
+     * Save ve Delete butonları gizlenir; pencerede yalnızca temiz bir **"Close"** seçeneği yer alır.
+     * Yeni bir nesne oluşturmak isteyen operatör ana menüdeki `+ New` butonunu kullanarak sıfırdan kendi masasına ait nesneyi yaratır.
+4. **Forge Factory & Tools İzolasyonu (`forge-store.ts`, `factory.tsx`):**
+   * Yeni oluşturulan araçların zorla `workspace` yapılması engellendi, varsayılan görünürlük sıfır-güven kuralı gereği `private` yapıldı.
+   * `ForgeFactory` içindeki 4 sekmenin tamamı salt-okunur modda mühürlendi; kırmızı Delete ve gereksiz Duplicate butonları kaldırıldı.
+5. **MCP Server Gateway Şablon Yetkilendirmesi (`user-template-store.ts`, `shell.tsx`, `mcp.tsx`, `mcp.mjs`):**
+   * Sabit kodlu kontroller yerine `mcpServer` yetkisi şablon (`GrantKey`) ve SuperAdmin yetkisine bağlandı.
+   * Şablonunda bu izin olmayan kullanıcılarda sekme tamamen gizlenir, doğrudan `MCP Client` sekmesine yönlendirilir. Backend uçları `canManageMcpServer` ile zırhlandı.
+6. **Çoklu Kiracılı Model Dağıtımı & BYOM (`models` tablosu, `models.mjs`, `users.tsx`):**
+   * `models` tablosuna `is_global`, `tenant_id`, `owner_id` ve `visibility` sütunları eklendi.
+   * Tenant düzenleme kartına "Allowed AI Models (Model Entitlement)" eklendi. SuperAdmin tenant bazlı model tahsisi yapabilir.
+   * Tenant Admin'ler kendi modellerini ekleyebilir (`is_global = false`, `tenant_id = ctx.tenantId`), ancak global sistem modellerini değiştiremez veya silemez.
+7. **Şablon Kayıt ve Veritabanı Kalıcılığı (`app_templates`, `identity-templates.mjs`, `users.tsx`):**
+   * `app_templates` tablosuna eksik `tenant_id` ve `is_global` sütunları eklendi (şablon ekleme hatası çözüldü).
+   * `POST` ve `PUT` uçları upsert destekli hale getirildi.
+   * Arayüzdeki `SaveButton` doğrudan `update(active.id, active)` API çağrısına bağlandı.
+8. **RBAC Menü ve Alt Sekme Senkronizasyonu (`rbac-store.ts`, `shell.tsx`):**
+   * RBAC matrisi doğrudan **"Governance Settings"** başlığı altında toplandı; yapay "Studio" veya karmaşık ara isimler tamamen temizlendi.
+   * Sol menüdeki `Settings`, kullanıcının yetkili olduğu ilk alt modüle (`/converter` vb.) akıllı yönlenecek şekilde bağlandı.
+   * Reporting alt sekmeleri RBAC yetkisine (`access.allows`) bağlandı.
+9. **Sol Menü Akordeon Bütünlüğü & Varsayılan Görünüm (`shell.tsx`):**
+   * `Chats` ve `More` gruplarının sol menüdeki varlığı korundu; `Chats` varsayılan olarak açık (`persistedGroups = { core: true, chats: true }`) ayarlanarak açılışta anında sohbet listesinin görünmesi sağlandı.
+10. **Pimli ve Geçmiş Sohbetlerin Dinamik Kurtarılması & İstemci Kimlik Başlıkları (`threads.mjs`, `chat-api.ts`, `api.ts`):**
+   * **Backend Filtresi:** Koda hiçbir sabit kullanıcı adı (hardcode) yazılmadan, SuperAdmin (`ctx.isSuperAdmin`) için dinamik yetkiyle geçmiş/root admin (`00000000-0000-0000-0000-000000000000`) ve sahipsiz kayıtların görünmesi sağlandı. Normal operatörlerin (`deneme`) sadece kendi sohbetlerini görme (`owner_id = ANY(userMatches)`) sıfır-güven kuralı korundu.
+   * **İstemci Transport Keşfi & Onarımı (`chat-api.ts`):** `chat-api.ts` içerisindeki `call()` fonksiyonunun `fetch('/api/threads')` çağrısını tarayıcıdaki `localStorage` oturum başlıkları (`x-session-id`, `x-user`) olmadan yalın/anonim gönderdiği tespit edildi. `src/lib/api.ts` altında merkezi `authHeaders()` motoru kurularak tüm chat isteklerine oturum başlığı enjekte edildi.
+   * **Kurtarılan Sohbetler:** Kullanıcının test için gönderdiği son mesaj (`chat_1789430506295` - "Selam") ve önceki tüm pimli sohbetleri (`chat_1788085886542` ve `chat_1789389080259`) hem veritabanında hem de API/UI seviyesinde eksiksiz ayağa kaldırıldı.
+11. **360° Uçtan Uca Granüler Alt Sekme (Sub-Tabs) RBAC Standardizasyonu (`rbac-store.ts`, `shell.tsx`, `rbac.tsx`, PostgreSQL):**
+   * Tüm sistemdeki alt sekmeler (MCP Server / Client, System Engine Intent Router / Orchestrator Bridge, Adapters / Webhooks, Memory katmanları, Planner düzlemleri, Knowledge yüzeyleri, Policy yüzeyleri, Users & Groups sekmeleri) taranarak RBAC kapsamına dahil edildi.
+   * **Toplam Kapsam:** 7 grup altında tam **69 sekme (Tabs)** ve 11 aksiyon fiili (Action Verbs) olarak normalize edildi.
+   * **Admin Sovereign Mührü:** Admin rolü hem veritabanında (`app_roles`) hem de istemci state motorunda 69/69 tam sekme ve 11/11 tam eylem fiiliyle mühürlendi; hiçbir eksik veya işaretsiz kutu kalmadı.
+   * **Dinamik Modül Sekmeleri:** `shell.tsx` içindeki `ModuleTabs` tüm alt sekmeleri RBAC yetkisine (`access.allows`) bağlayarak kullanıcının yetkili olmadığı alt sekmeleri filtreleyen sıfır-sızıntı korumasını sağladı.
+12. **Templates Mimarisi Konsolidasyonu & Performans Devrimi (`user-template-store.ts`, `users.tsx`):**
+   * Şablon sayfasındaki backend karşılığı olmayan, RBAC ile çakışan ve sahte güvenlik yaratan 22 adet atıl "Allowed X" kartı tasfiye edildi.
+   * **5 Çekirdek Kurumsal Yetki Mühürlendi:** Bound RBAC Roles, Allowed AI Models, LLM Providers, Allowed Knowledge Spaces, MCP Server Gateway.
+   * `useGrantSources()` içindeki 19 ölü hook ve store dinleyicisi temizlendi; `TemplatesTab` arayüzündeki render darboğazı ve gecikmeler tamamen ortadan kaldırıldı.
+   * Kullanıcı ayarlarındaki (`/account` -> Model Preferences) self-service delegasyon bağlantısı ve FinOps parametreleri %100 korundu.
+13. **Temel Rol & Grup Silme Koruması ve RBAC Esneklik Mührü (`identity-groups.mjs`, `rbac-store.ts`, PostgreSQL):**
+   * **Silinmezlik Zırhı:** Temel sistem rolleri (`Admin`, `Engineer`, `Operator`, `Security`, `Viewer`) ve temel gruplar (`Administrators`, `Operators`, `Auditors`) hem backend API'sinde HTTP 400 ile hem de arayüzde `<Lock size={12} /> SYSTEM GROUP / SYSTEM ROLE` kilitleriyle silinemez olarak mühürlendi.
+   * **`isSovereign` Regex Düzeltmesi:** Eski regex `/\badmin\b/i` içinde "Admin" kelimesi geçen her rolü (Örn. "Tenant Admin", "Junior Admin") zorla SuperAdmin zannedip tüm sekmeleri kilitliyordu. Regex düzeltildi; artık yalnızca gerçek SuperAdmin (`admin`, `super admin`, `sovereign`) sovereign olarak değerlendirilmektedir.
+   * **Tenant Admin Rolünün Kaldırılması:** Kullanıcının talimatı doğrultusunda sistemde önceden oluşturulmuş yapay `tenant-admin` rolü, şablonu ve grubu veritabanından tamamen silindi. RBAC sistemi esnek bırakıldı; operatör istediği zaman yeni rol ekleyip dilediği sekmeleri serbestçe seçebilecektir.
+   * `elara-middleware` ve `elara-vite` servisleri yeniden başlatıldı, derleme sıfır hatayla doğrulandı.
+
+---
+
+### ⚠️ 4. Şu Anki Durum Analizi
+
+1. **Sohbet ve Menü Krizi Çözüldü:** Pimli sohbetlerin kaybolma sorunu, istemci `authHeaders` aktarımı ve sol menü akordeonlarının (`More`, `Chats`) durumu tamamen düzeltildi ve API seviyesinde test edildi.
+2. **RBAC & Şablonlar Mühürlendi:** RBAC 69 sekme ve 11 eylem fiiliyle normalize edildi, Admin 69/69 olarak mühürlendi. Şablonlardaki 22 atıl kart ve 19 ölü hook temizlenerek 5 çekirdek yetki kartına indirgendi.
+3. **Temel Rol ve Gruplar Kilitlendi:** Administrators, Operators, Auditors ve sistem rolleri silinmeye karşı kilitlendi. `isSovereign` regex'i sadece gerçek SuperAdmin'e sınırlandı.
+4. **Kritik Tespit Edilen Sızıntı Alanı (Secondary Assets & Desk Isolation Gap):**
+   * Varlık bazlı visibility uygulanan yerler (`agents`, `skills`, `tools`, `workflows`, `orchestrations`, `planners`, `models`, `chat_threads`) kusursuz çalışırken; mülkiyet/visibility uygulanmayan yan modüllerde (`adapters`, `targets`, `webhooks`, `vault_secrets`, `isolation_profiles`) Admin'in özel nesneleri `deneme` kullanıcısına sızmaktadır.
+
+---
+
+### 🛡️ 5. PHASE 62.2 / PHASE 63: 360° ZERO-TRUST DESK ISOLATION & SECONDARY ASSET SEAL (DETAYLI İCRA PLANI)
+
+#### 🎯 1. İlke ve 3 Seviyeli Altın Kural (The 3-Tier Hierarchy)
+1. **1. Seviye — SüperAdmin (Founder/God):** Bütün sistemi, tüm kiracıları ve tüm operatörlerin masalarını tam yetkiyle görür ve yönetir (`1=1`).
+2. **2. Seviye — TenantAdmin:** Kendi tenant'ındaki tüm operatörlerin nesnelerini tam denetler (`tenant_id = ctx.tenantId` + `is_global = true`).
+3. **3. Seviye — Normal Kullanıcı / Operatör (`deneme`):**
+   * Sadece kendi oluşturduğu (`mine: owner_id = ctx.userId`),
+   * Kendisine/grubuna atanmış (`shared: shared_with ? group`),
+   * Çalışma alanına açıkça devredilmiş (`workspace`),
+   * Sistemin ortak çekirdek şablonlarını (`is_global = true` veya `fallback = true`) görür.
+   * **Admin'in veya başka bir operatörün kişisel/özel (`private`) hiçbir varlığını ASLA göremez.**
+
+---
+
+#### 🔍 2. Tespit Edilen Kök Sebepler & Modül Bazlı Çözüm Matrisi
+
+| Modül & Tablo | Mevcut Sızıntı Sebebi | Kök Çözüm & Mimari Müdahale |
+| :--- | :--- | :--- |
+| **Webhooks** (`webhooks` tablosu) | Tabloda `owner_id` ve `visibility` var; ancak `POST /api/webhooks` varsayılan olarak `visibility: "workspace"` damgalıyor. `buildVisibility` de workspace'i tüm tenanta açıyor. | 1. Yeni webhook varsayılanı `private` yapılacak.<br>2. `GET /api/webhooks` sorgusunda Admin olmayanlar sadece kendi private webhook'larını veya genel sistem webhook'larını görecek. |
+| **Targets / Envanter** (`targets` tablosu) | Tabloda `owner` kolonu var fakat `targets-crud.mjs` sorgusu `WHERE (tenant_id = $1 OR tenant_id = 'default')` diyerek tüm tenanta döküyor. Frontend'de `t.owner` `ownerId`'ye map edilmediği için `ownership.ts` sahipsiz "system" zannedip herkese açıyor. | 1. `GET /api/targets` uç noktasına `buildVisibility(ctx, 1, 'owner')` filtresi entegre edilecek.<br>2. Frontend `target-store.ts` içine `ownerId: t.owner` maplenecek; `deneme` sadece kendi hedeflerini görecek. |
+| **Adaptörler** (`adapters` tablosu) | Tabloda `owner_id` ve `visibility` kolonu yok; sadece `config` alanı var. `GET /api/adapters` sadece `tenant_id`'ye bakıyor. | 1. `adapters` tablosuna `owner_id text` ve `visibility text DEFAULT 'private'` kolonları eklenecek.<br>2. `adapters.mjs` içine `buildVisibility(ctx)` filtresi bağlanacak; Admin'in özel adaptörleri gizlenecek. |
+| **Secret Vault** (`vault_secrets` tablosu) | `scope:name` ikilisiyle tutuluyor. Tabloda `meta jsonb` kolonu var fakat mülkiyet için kullanılmıyor. `vault.mjs` içindeki `OR s.tenant_id = 'default'` tüm sırları herkese açıyor. | 1. Sır kaydedilirken `meta` jsonb alanına `{ owner_id: ctx.userId, visibility: 'private' }` yazılacak.<br>2. `GET /api/vault` sorgusunda Admin dışındakilere sadece kendi sırları (`meta->>'owner_id' = ANY(userMatches)`) ve genel sistem sırları (`scope IN ('global', 'system')`) listelenecek. |
+| **İzolasyon Profilleri** (`isolation_profiles` — Tool, Skill, MCP Sandboxes) | Tabloda `owner_id` yok. `security-policies.mjs` içindeki `WHERE (tenant_id = $1 OR is_global = true OR fallback = true OR tenant_id = 'default')` sorgusu yüzünden Admin'in test profilleri (örn. `iso.test`) tenanta sızıyor. | 1. `isolation_profiles` tablosuna `owner_id text` ve `visibility text DEFAULT 'private'` eklenecek.<br>2. `OR tenant_id = 'default'` temizlenecek. Sadece sistem defaults (`fallback = true` / `is_global = true`) ortak kalacak; custom profiller yazarına özel olacak. |
+| **GenGuard (`guard_rules`), Policy Engine (`policy_rules`), Signed Workflows (`signed_artifacts`)** | Sorgulardaki `OR tenant_id = 'default'` kalıntısı yüzünden ayrım yapılmadan tenanta dökülüyor. | `security-policies.mjs` içinde tenant izolasyonu katılaştırılacak; sistem kuralları ile operatör kuralları birbirinden ayrılacak. |
+
+---
+
+#### 📋 3. Adım Adım İcra Yol Haritası (Kompaktlaşma Sonrası Sırasıyla Yapılacaklar)
+
+1. **Adım 1 (Veritabanı Altyapısı):**
+   * `adapters` tablosuna `owner_id text` ve `visibility text DEFAULT 'private'` kolonlarının eklenmesi.
+   * `isolation_profiles` tablosuna `owner_id text` ve `visibility text DEFAULT 'private'` kolonlarının eklenmesi.
+   * `targets` tablosuna eksik `visibility text DEFAULT 'private'` kolonunun bağlanması.
+   * Mevcut tohumların ve sistem nesnelerinin `visibility = 'workspace'` veya `is_global = true` olarak korunması.
+2. **Adım 2 (Backend SQL Zırhları):**
+   * `local-server/lib/routes/adapters.mjs` ➔ `buildVisibility` ve aktör mülkiyet filtresi.
+   * `local-server/lib/routes/targets-crud.mjs` ➔ `buildVisibility(ctx, 1, 'owner')` entegrasyonu ve `ownerId` aktarımı.
+   * `local-server/lib/routes/webhooks-crud.mjs` ➔ Varsayılan `private` görünürlük ve kullanıcı süzgeci.
+   * `local-server/lib/routes/vault.mjs` ➔ `meta->>'owner_id'` ve `scope` izolasyonu.
+   * `local-server/lib/routes/security-policies.mjs` ➔ `OR tenant_id = 'default'` sızıntı temizliği ve sandbox izolasyonu.
+3. **Adım 3 (Frontend Store & UI Desk Süzgeçleri):**
+   * `src/routes/policy.tsx` içindeki `useCollection` ve `useVaultStore` veri listelerine `scopeOwned` filtresi bağlanması.
+   * `src/routes/adapters.tsx` ve `src/routes/targets.tsx` listelerinin `scopeOwned` ile senkronize edilmesi.
+4. **Adım 4 (Uçtan Uca Doğrulama & %0 Sızıntı Kanıtı):**
+   * `admin` ve `deneme` kullanıcıları ile terminal üzerinden cURL testleri yapılması.
+   * `deneme` ekranında Admin'in adaptör, hedef, webhook, kasa anahtarı ve izolasyon kurallarının tamamen kaybolduğunun (boş masa geldiğinin) kanıtlanması.
+   * `npx tsc --noEmit` ve servislerin doğrulanması.

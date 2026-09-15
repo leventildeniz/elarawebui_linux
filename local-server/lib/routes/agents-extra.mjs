@@ -38,31 +38,54 @@ export function mountAgentsExtraRoutes(app, deps) {
   });
 
   // ===================================================== squads CRUD (Tur-3b)
-  app.get("/api/agents/squads", async (_req, res) => {
+  app.get("/api/agents/squads", async (req, res) => {
     try {
       await ensureAgentSquadsTable();
+      const ctx = typeof deps.resolveActorContext === "function" ? await deps.resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
+      const vis = deps.buildVisibility ? deps.buildVisibility(ctx, 1, 'owner_id') : { clause: '1=1', params: [] };
+
       const { rows: defined } = await pool.query(
-        "SELECT name, icon, color, sort_order, created_at FROM agent_squads"
+        `SELECT name, icon, color, sort_order, created_at, owner_id, tenant_id, visibility, shared_with 
+         FROM agent_squads WHERE ${vis.clause}`,
+        vis.params
       );
+
+      const agentVis = deps.buildVisibility ? deps.buildVisibility(ctx, 1, 'a.owner_id') : { clause: '1=1', params: [] };
       const { rows: counts } = await pool.query(
-        `SELECT COALESCE(NULLIF(squad,''), 'Unassigned') AS sq,
+        `SELECT COALESCE(NULLIF(a.squad,''), 'Unassigned') AS sq,
                 COUNT(*)::int AS n
-           FROM agents
-          WHERE id != 'agt.forge_master'
-          GROUP BY 1`
+           FROM agents a
+          WHERE a.id != 'agt.forge_master' AND (${agentVis.clause})
+          GROUP BY 1`,
+        agentVis.params
       );
+
       const countMap = new Map(counts.map((r) => [r.sq, r.n]));
       const merged = new Map();
       for (const r of defined) {
+        const count = countMap.get(r.name) || 0;
+        const isOwner = ctx.isSuperAdmin || (r.owner_id && (r.owner_id === ctx.userId || String(r.owner_id).toLowerCase() === String(ctx.actor || "").toLowerCase()));
+        
+        // Empty squads (0 agents visible to this user) are private to their creator
+        if (count === 0 && !isOwner) {
+          continue;
+        }
+
         merged.set(r.name, {
           name: r.name,
           icon: r.icon || "Shield",
           color: r.color || null,
           sortOrder: r.sort_order ?? 100,
           fromDisk: false,
-          agentCount: countMap.get(r.name) || 0,
+          agentCount: count,
+          ownerId: r.owner_id,
+          owner_id: r.owner_id,
+          visibility: r.visibility || 'workspace',
+          sharedWith: r.shared_with || []
         });
       }
+
+      // Dynamic discovery: also include squads that have at least 1 agent visible to this user
       for (const [sq, n] of countMap) {
         if (merged.has(sq)) continue;
         merged.set(sq, {
@@ -72,51 +95,74 @@ export function mountAgentsExtraRoutes(app, deps) {
           sortOrder: sq === "Unassigned" ? 999 : 200,
           fromDisk: false,
           agentCount: n,
+          visibility: 'workspace',
+          ownerId: null,
+          owner_id: null
         });
       }
       const items = [...merged.values()].sort((a, b) =>
         (a.sortOrder - b.sortOrder) || a.name.localeCompare(b.name)
       );
       res.json({ items });
-    } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
+    } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
   });
 
   app.post("/api/agents/squads", async (req, res) => {
     try {
       await ensureAgentSquadsTable();
+      const ctx = typeof deps.resolveActorContext === "function" ? await deps.resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
       const name = String(req.body?.name || "").trim();
       if (!name) return res.status(400).json({ ok: false, error: "name required" });
       if (name.length > 64) return res.status(400).json({ ok: false, error: "name too long (max 64)" });
       if (!/^[A-Za-z0-9][A-Za-z0-9 _.-]*$/.test(name)) {
         return res.status(400).json({ ok: false, error: "invalid characters" });
       }
+
       const icon = String(req.body?.icon || "Shield").trim() || "Shield";
       const color = req.body?.color ? String(req.body.color).trim() : null;
+      const ownerId = ctx.userId || ctx.actor || null;
+      const tenantId = req.body?.tenant_id || ctx.tenantId || "default";
+      const visibility = req.body?.visibility || "workspace";
+      const sharedWith = Array.isArray(req.body?.shared_with) ? req.body.shared_with : [];
+
       await pool.query(
-        `INSERT INTO agent_squads(name, icon, color, sort_order)
-         VALUES ($1, $2, $3, 100)
-         ON CONFLICT (name) DO NOTHING`,
-        [name, icon, color]
+        `INSERT INTO agent_squads(name, icon, color, sort_order, owner_id, tenant_id, visibility, shared_with)
+         VALUES ($1, $2, $3, 100, $4, $5, $6, $7::jsonb)
+         ON CONFLICT (name) DO UPDATE SET 
+           icon = EXCLUDED.icon, color = EXCLUDED.color,
+           owner_id = COALESCE(agent_squads.owner_id, EXCLUDED.owner_id),
+           tenant_id = COALESCE(agent_squads.tenant_id, EXCLUDED.tenant_id)`,
+        [name, icon, color, ownerId, tenantId, visibility, JSON.stringify(sharedWith)]
       );
       res.json({ ok: true, name });
-    } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
+    } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
   });
 
   app.delete("/api/agents/squads/:name", async (req, res) => {
     try {
       await ensureAgentSquadsTable();
+      const ctx = typeof deps.resolveActorContext === "function" ? await deps.resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
       const name = String(req.params.name || "").trim();
       if (!name) return res.status(400).json({ ok: false, error: "name required" });
+
       const { rows } = await pool.query(
-        "SELECT sort_order FROM agent_squads WHERE name=$1", [name]
+        "SELECT * FROM agent_squads WHERE name=$1", [name]
       );
       if (!rows.length) return res.status(404).json({ ok: false, error: "not found" });
-      if ((rows[0].sort_order ?? 100) === DISK_SQUAD_SORT) {
+      const squadRow = rows[0];
+
+      if ((squadRow.sort_order ?? 100) === DISK_SQUAD_SORT) {
         return res.status(400).json({
           ok: false,
           error: "Disk-defined squad; remove the folder under agents/ to delete",
         });
       }
+
+      // Enforce mutation guard: only the creator or SuperAdmin may delete
+      if (deps.assertCanEdit) {
+        deps.assertCanEdit(ctx, squadRow, "squad");
+      }
+
       await pool.query(
         `UPDATE agents SET squad = 'Unassigned'
           WHERE squad = $1`,
@@ -124,12 +170,16 @@ export function mountAgentsExtraRoutes(app, deps) {
       );
       await pool.query("DELETE FROM agent_squads WHERE name=$1", [name]);
       res.json({ ok: true });
-    } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
+    } catch (e) {
+      const status = e.status || 500;
+      res.status(status).json({ ok: false, error: String(e.message || e) });
+    }
   });
 
   app.patch("/api/agents/squads/:name", async (req, res) => {
     try {
       await ensureAgentSquadsTable();
+      const ctx = typeof deps.resolveActorContext === "function" ? await deps.resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
       const oldName = String(req.params.name || "").trim();
       const newName = String(req.body?.newName || "").trim();
       if (!oldName || !newName) return res.status(400).json({ ok: false, error: "oldName and newName required" });
@@ -138,20 +188,30 @@ export function mountAgentsExtraRoutes(app, deps) {
         return res.status(400).json({ ok: false, error: "invalid characters in newName" });
       }
       if (oldName === newName) return res.json({ ok: true, unchanged: true });
+
       const { rows } = await pool.query(
-        "SELECT sort_order FROM agent_squads WHERE name=$1", [oldName]
+        "SELECT * FROM agent_squads WHERE name=$1", [oldName]
       );
       if (!rows.length) return res.status(404).json({ ok: false, error: "squad not found" });
-      if ((rows[0].sort_order ?? 100) === DISK_SQUAD_SORT) {
+      const squadRow = rows[0];
+
+      if ((squadRow.sort_order ?? 100) === DISK_SQUAD_SORT) {
         return res.status(400).json({
           ok: false,
           error: "Disk-defined squad; rename the folder under agents/ instead",
         });
       }
+
+      // Enforce mutation guard: only the creator or SuperAdmin may rename
+      if (deps.assertCanEdit) {
+        deps.assertCanEdit(ctx, squadRow, "squad");
+      }
+
       const { rows: clash } = await pool.query(
         "SELECT 1 FROM agent_squads WHERE name=$1", [newName]
       );
       if (clash.length) return res.status(409).json({ ok: false, error: "newName already exists" });
+
       const client = await pool.connect();
       try {
         await client.query("BEGIN");
@@ -171,7 +231,10 @@ export function mountAgentsExtraRoutes(app, deps) {
         client.release();
       }
       res.json({ ok: true, name: newName });
-    } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
+    } catch (e) {
+      const status = e.status || 500;
+      res.status(status).json({ ok: false, error: String(e.message || e) });
+    }
   });
 
   app.post("/api/agents/:id/squad", async (req, res) => {

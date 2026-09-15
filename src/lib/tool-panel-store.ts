@@ -27,6 +27,7 @@ export type ToolPanelState = {
 
 const KEY = "elara.tool.panel.v1";
 const EVT = "elara:tool-panel";
+import { readDesk, writeDesk } from "@/lib/ownership";
 
 export const emptyToolConfig: ToolConfig = {
   enabled: true,
@@ -39,44 +40,29 @@ export const emptyToolConfig: ToolConfig = {
 const emptyState: ToolPanelState = { orphans: [], dismissed: [], configs: {} };
 
 function read(): ToolPanelState {
-  if (typeof window === "undefined") return emptyState;
-  try {
-    const raw = window.localStorage.getItem(KEY);
-    if (!raw) return emptyState;
-    const parsed = JSON.parse(raw) as ToolPanelState;
-    return {
-      orphans: parsed.orphans ?? [],
-      dismissed: parsed.dismissed ?? [],
-      configs: parsed.configs ?? {},
-    };
-  } catch {
-    return emptyState;
-  }
+  const parsed = readDesk<ToolPanelState>(KEY, emptyState);
+  return {
+    orphans: parsed?.orphans ?? [],
+    dismissed: parsed?.dismissed ?? [],
+    configs: parsed?.configs ?? {},
+  };
 }
 
 function write(state: ToolPanelState) {
-  try {
-    window.localStorage.setItem(KEY, JSON.stringify(state));
+  writeDesk(KEY, state);
+  if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent(EVT));
-  } catch {
-    /* ignore */
   }
 }
 
 export function unorphanTool(id: string) {
   if (typeof window === "undefined") return;
-  try {
-    const raw = window.localStorage.getItem(KEY);
-    if (!raw) return;
-    const parsed = JSON.parse(raw) as ToolPanelState;
-    if (parsed.orphans?.includes(id) || parsed.dismissed?.includes(id)) {
-      parsed.orphans = (parsed.orphans || []).filter(x => x !== id);
-      parsed.dismissed = (parsed.dismissed || []).filter(x => x !== id);
-      window.localStorage.setItem(KEY, JSON.stringify(parsed));
-      window.dispatchEvent(new CustomEvent(EVT));
-    }
-  } catch {
-    /* ignore */
+  const parsed = readDesk<ToolPanelState>(KEY, emptyState);
+  if (parsed.orphans?.includes(id) || parsed.dismissed?.includes(id)) {
+    parsed.orphans = (parsed.orphans || []).filter(x => x !== id);
+    parsed.dismissed = (parsed.dismissed || []).filter(x => x !== id);
+    writeDesk(KEY, parsed);
+    window.dispatchEvent(new CustomEvent(EVT));
   }
 }
 
@@ -87,7 +73,11 @@ export function useToolPanel() {
     const sync = () => setState(read());
     sync();
     window.addEventListener(EVT, sync);
-    return () => window.removeEventListener(EVT, sync);
+    window.addEventListener("sovereign:identity", sync);
+    return () => {
+      window.removeEventListener(EVT, sync);
+      window.removeEventListener("sovereign:identity", sync);
+    };
   }, []);
 
   const mutate = useCallback((fn: (prev: ToolPanelState) => ToolPanelState) => {

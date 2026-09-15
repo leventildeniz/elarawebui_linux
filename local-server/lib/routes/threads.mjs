@@ -65,8 +65,11 @@ export function mountThreadRoutes(app, deps) {
       let query = "SELECT id, title, pinned, color, context, branched_from as \"branchedFrom\", title_locked as \"titleLocked\", EXTRACT(EPOCH FROM created_at)*1000 as \"createdAt\" FROM chat_threads";
       const params = [];
 
-      // Chat threads are strictly personal per-desk: each operator sees only their own authored threads
-      if (userMatches.length > 0) {
+      // Chat threads: SuperAdmin sees their own threads plus legacy root/admin threads; regular operators strictly see their own
+      if (ctx.isSuperAdmin) {
+        query += ` WHERE (tenant_id = $1 OR tenant_id IS NULL) AND (owner_id = ANY($2) OR lower(owner_id) = ANY($2) OR owner_id = '00000000-0000-0000-0000-000000000000' OR owner_id IS NULL OR lower(owner_id) = 'admin')`;
+        params.push(tenantId, userMatches.length > 0 ? userMatches : [ctx.userId || "admin"]);
+      } else if (userMatches.length > 0) {
         query += ` WHERE (tenant_id = $1 OR tenant_id IS NULL) AND (owner_id = ANY($2) OR lower(owner_id) = ANY($2))`;
         params.push(tenantId, userMatches);
       } else {

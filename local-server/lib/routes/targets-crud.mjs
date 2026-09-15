@@ -1,7 +1,7 @@
 import { isUuid } from "../utils.mjs";
 
 export function mountTargetsRoutes(app, deps) {
-  const { pool, requireSession, resolveActorContext } = deps;
+  const { pool, requireSession, resolveActorContext, assertCanEdit, buildVisibility } = deps;
 
   app.post("/api/targets/reset", requireSession({ roles: ["admin", "engineer"] }), async (req, res) => {
     const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
@@ -222,6 +222,10 @@ export function mountTargetsRoutes(app, deps) {
         return res.status(404).json({ ok: false, error: "not found" });
       }
       const row = existing.rows[0];
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : null;
+      if (ctx && assertCanEdit) {
+        assertCanEdit(ctx, row, "target");
+      }
 
       const r_name = name !== undefined ? name : row.name;
       const r_group = groupId !== undefined ? (groupId || null) : row.group_id;
@@ -272,11 +276,20 @@ export function mountTargetsRoutes(app, deps) {
 
   app.delete("/api/targets/:id", requireSession({ roles: ["admin", "engineer"] }), async (req, res) => {
     try {
+      const existing = await pool.query("SELECT * FROM targets WHERE id=$1", [req.params.id]);
+      if (!existing.rowCount) return res.status(404).json({ ok: false, error: "not found" });
+      const row = existing.rows[0];
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : null;
+      if (ctx && assertCanEdit) {
+        assertCanEdit(ctx, row, "target");
+      }
+
       const out = await pool.query(`DELETE FROM targets WHERE id=$1`, [req.params.id]);
       if (!out.rowCount) return res.status(404).json({ ok: false, error: "not found" });
       res.json({ ok: true });
     } catch (e) {
-      res.status(500).json({ ok: false, error: String(e.message || e) });
+      const status = e.status || 500;
+      res.status(status).json({ ok: false, error: String(e.message || e) });
     }
   });
 

@@ -31,6 +31,10 @@ export type StudioModel = {
   avatar: { seed: string; style: AvatarStyle; jewel: JewelName };
   group: string;
   enabled: boolean;
+  isGlobal?: boolean;
+  tenantId?: string;
+  ownerId?: string;
+  visibility?: string;
   createdAt: number;
 };
 
@@ -121,7 +125,11 @@ export function useModels() {
     };
     sync();
     window.addEventListener(MOD_EVT, sync);
-    return () => window.removeEventListener(MOD_EVT, sync);
+    window.addEventListener("sovereign:identity", sync);
+    return () => {
+      window.removeEventListener(MOD_EVT, sync);
+      window.removeEventListener("sovereign:identity", sync);
+    };
   }, []);
 
   const create = useCallback(
