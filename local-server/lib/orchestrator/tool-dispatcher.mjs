@@ -50,7 +50,7 @@ export async function dispatchToolCall({
       pool.query(`SELECT id, name, trigger, status FROM workflows WHERE ${wfClause} ORDER BY updated_at DESC`, wfParams),
       pool.query(`SELECT id, name, trigger, status FROM orchestrations WHERE ${orcClause} ORDER BY created_at DESC`, orcParams),
       pool.query(`SELECT id, name, slug, description, category, connection, enabled FROM webhooks WHERE enabled = true AND (${whClause}) ORDER BY created_at DESC`, whParams).catch(() => ({ rows: [] })),
-      pool.query(`SELECT slug, name, tools_cache FROM mcp_client_servers WHERE enabled = true AND (${mcpClause})`, mcpParams).catch(() => ({ rows: [] })),
+      pool.query(`SELECT slug, name, transport, url, enabled, last_status, last_error, tools_cache FROM mcp_client_servers WHERE (${mcpClause}) ORDER BY name ASC`, mcpParams).catch(() => ({ rows: [] })),
     ]);
 
     const standardTools = actRes.rows.map((t) => {
@@ -72,15 +72,28 @@ export async function dispatchToolCall({
     });
 
     const mcpTools = [];
+    const mcpServers = [];
     for (const server of mcpRes.rows) {
       const tools = Array.isArray(server.tools_cache) ? server.tools_cache : [];
-      for (const t of tools) {
-        mcpTools.push({
-          id: `mcp.${server.slug}.${t.name}`,
-          name: `[MCP: ${server.name}] ${t.name}`,
-          desc: (t.description || "").slice(0, 120),
-          params: t.inputSchema?.properties ? Object.keys(t.inputSchema.properties) : [],
-        });
+      mcpServers.push({
+        slug: server.slug,
+        name: server.name,
+        transport: server.transport,
+        enabled: server.enabled,
+        status: server.last_status || (server.enabled ? "ready" : "disabled"),
+        error: server.last_error || null,
+        tool_count: tools.length,
+        tools: tools.map((t) => t.name),
+      });
+      if (server.enabled) {
+        for (const t of tools) {
+          mcpTools.push({
+            id: `mcp.${server.slug}.${t.name}`,
+            name: `[MCP: ${server.name}] ${t.name}`,
+            desc: (t.description || "").slice(0, 120),
+            params: t.inputSchema?.properties ? Object.keys(t.inputSchema.properties) : [],
+          });
+        }
       }
     }
 
@@ -96,10 +109,11 @@ export async function dispatchToolCall({
     toolResultStr = JSON.stringify({
       agents: agtRes.rows.map((a) => ({ id: a.id, name: a.name, squad: a.squad, desc: (a.description || "").slice(0, 120) })),
       tools: [...standardTools, ...skillsList, ...mcpTools],
+      mcp_servers: mcpServers,
       workflows: wfRes.rows.map((w) => ({ id: w.id, name: w.name, trigger: w.trigger, status: w.status })),
       orchestrations: orcRes.rows.map((o) => ({ id: o.id, name: o.name, trigger: o.trigger, status: o.status })),
       webhooks: whRes.rows.map((w) => ({ id: w.id, name: w.name, slug: w.slug, description: (w.description || "").slice(0, 120) })),
-      message: "Directory loaded. Contains available agents, tools, skills, MCP servers, workflows, orchestrations, and webhooks.",
+      message: "Directory loaded. Contains available agents, tools, skills, active and configured MCP servers with status and errors, workflows, orchestrations, and webhooks.",
     });
   }
 
@@ -498,6 +512,13 @@ export async function dispatchToolCall({
 
   // 5. LIVE WEB SEARCH
   else if (realToolId === "sys_web_search") {
+    if (!context?.web_search) {
+      toolResultStr = JSON.stringify({
+        error: "Live web search is disabled by the operator for this turn. Enable the Web Search toggle in the chat composer to search the live internet.",
+      });
+      toolStatus = "failed";
+      return { toolResultStr, toolStatus, toolDetail: "web search disabled" };
+    }
     const query = parsedArgs.query;
     try {
       const tenantId = context?.actorCtx?.tenantId || "default";

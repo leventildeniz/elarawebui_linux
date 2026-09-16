@@ -8,7 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildInventory, validateForgePlan } from "../meta-forge/planner.mjs";
-import { applyForgePlan, rollbackForgePlan } from "../meta-forge/apply.mjs";
+import { applyForgePlan, rollbackForgePlan, resolveDbOwner } from "../meta-forge/apply.mjs";
 import { refreshCapabilitiesAfterForgeApply } from "../meta-forge/refresh.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -543,11 +543,11 @@ export function mountMetaForgeRoutes(app, deps) {
 
   // Restore a trashed artifact
   app.post("/api/meta-forge/trash/:fileName/restore", async (req, res) => {
-    const ctx = await requireAdmin(req, res); if (!ctx) return;
+    const ctx = await requireApprover(req, res); if (!ctx) return;
     const fileName = req.params.fileName;
     const filePath = path.join(TRASH_DIR, fileName);
     if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ error: "file not found in trash" });
+      return res.status(404).json({ ok: false, error: "file not found in trash" });
     }
     try {
       const m = fileName.match(/^(tool|agent)-(.*?)-(\d{4}-\d{2}-\d{2}T.*?)\.py$/);
@@ -562,6 +562,30 @@ export function mountMetaForgeRoutes(app, deps) {
       fs.copyFileSync(filePath, targetPath);
       fs.unlinkSync(filePath);
 
+      // Re-hydrate DB row for the restored artifact locked to operator's private desk
+      const callerUsername = req.session?.username || ctx.username || req.actor || "operator";
+      const { ownerId, ownerName, tenantId } = await resolveDbOwner(pool, callerUsername);
+      const relPath = path.relative(PROJECT_ROOT, targetPath);
+
+      if (kind === "agent") {
+        const agentId = `agt.${slug}`;
+        await pool.query(
+          `INSERT INTO agents (id, name, squad, role, description, script_path, enabled, owner_id, owner_name, visibility, tenant_id)
+           VALUES ($1, $2, 'Custom', 'Specialist', $3, $4, true, $5, $6, 'private', $7)
+           ON CONFLICT (id) DO UPDATE SET enabled = true, script_path = EXCLUDED.script_path, updated_at = now()`,
+          [agentId, slug, `Restored agent ${slug}`, relPath, ownerId, ownerName, tenantId]
+        ).catch(() => {});
+      } else if (kind === "tool") {
+        const toolId = `tool.${slug}`;
+        const src = fs.existsSync(targetPath) ? fs.readFileSync(targetPath, "utf8") : "";
+        await pool.query(
+          `INSERT INTO action_library (id, name, category, description, source, language, owner_user_id, visibility, tenant_id)
+           VALUES ($1, $2, 'Custom', $3, $4, 'python', $5, 'private', $6)
+           ON CONFLICT (id) DO NOTHING`,
+          [toolId, slug, `Restored tool ${slug}`, src, ownerId, tenantId]
+        ).catch(() => {});
+      }
+
       let refresh = null;
       try {
         refresh = await refreshCapabilitiesAfterForgeApply({ pool, plan: { create: [{ kind, slug }] } });
@@ -571,29 +595,32 @@ export function mountMetaForgeRoutes(app, deps) {
 
       res.json({ ok: true, restored: slug, kind, targetPath, refresh });
     } catch (e) {
-      res.status(500).json({ error: String(e?.message || e) });
+      res.status(500).json({ ok: false, error: String(e?.message || e) });
     }
   });
 
   // Delete a specific trashed artifact
   app.delete("/api/meta-forge/trash/:fileName", async (req, res) => {
-    const ctx = await requireAdmin(req, res); if (!ctx) return;
+    const ctx = await requireApprover(req, res); if (!ctx) return;
     const fileName = req.params.fileName;
     const filePath = path.join(TRASH_DIR, fileName);
     if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ error: "file not found in trash" });
+      return res.status(404).json({ ok: false, error: "file not found in trash" });
     }
     try {
       fs.unlinkSync(filePath);
       res.json({ ok: true, deleted: fileName });
     } catch (e) {
-      res.status(500).json({ error: String(e?.message || e) });
+      res.status(500).json({ ok: false, error: String(e?.message || e) });
     }
   });
 
-  // Empty trash entirely
+  // Empty trash entirely (Admins only)
   app.delete("/api/meta-forge/trash", async (req, res) => {
-    const ctx = await requireAdmin(req, res); if (!ctx) return;
+    const ctx = await requireApprover(req, res); if (!ctx) return;
+    if (!ctx.isSuperAdmin && !ctx.isTenantAdmin) {
+      return res.status(403).json({ ok: false, error: "Emptying entire trash is restricted to administrators." });
+    }
     try {
       if (fs.existsSync(TRASH_DIR)) {
         const files = fs.readdirSync(TRASH_DIR);
@@ -603,7 +630,7 @@ export function mountMetaForgeRoutes(app, deps) {
       }
       res.json({ ok: true });
     } catch (e) {
-      res.status(500).json({ error: String(e?.message || e) });
+      res.status(500).json({ ok: false, error: String(e?.message || e) });
     }
   });
 

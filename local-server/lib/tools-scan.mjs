@@ -67,7 +67,7 @@ function parseHeader(text, fallbackSlug) {
     const key = m[1].toLowerCase();
     const val = m[2].trim();
     if (!val) continue;
-    if (key === "tool") meta.slug = val.toLowerCase();
+    if (key === "tool") meta.slug = val.replace(/^tool[._]/i, "").toLowerCase();
     else if (key === "description") meta.description = val;
     else if (key === "args") {
       try { meta.args = JSON.parse(val); }
@@ -141,7 +141,7 @@ export async function scanToolsDir({ pool, roots }) {
     for (const file of listPyFiles(root)) {
       let text = "";
       try { text = fs.readFileSync(file, "utf8"); } catch { continue; }
-      const fallbackSlug = path.basename(file, ".py").toLowerCase().replace(/[^a-z0-9_-]+/g, "-");
+      const fallbackSlug = path.basename(file, ".py").toLowerCase().replace(/^tool[._]/i, "").replace(/[^a-z0-9_-]+/g, "-");
       const meta = parseHeader(text, fallbackSlug);
       if (!SLUG_RE.test(meta.slug)) continue;
       const id = `tool.${meta.slug}`;
@@ -174,8 +174,8 @@ export async function scanToolsDir({ pool, roots }) {
     const exists = cur.rows.length > 0;
     await pool.query(
       `INSERT INTO action_library
-         (id, kind, name, category, provider, icon, color, description, params, outputs, runtime, tags, is_system, updated_at)
-       VALUES ($1,'action',$2,$3,'',$4,$5,$6,$7,'[]'::jsonb,$8,$9,false,now())
+         (id, kind, name, category, provider, icon, color, description, params, outputs, runtime, tags, adapter, is_system, updated_at)
+       VALUES ($1,'action',$2,$3,'',$4,$5,$6,$7,'[]'::jsonb,$8,$9,'python',false,now())
        ON CONFLICT (id) DO UPDATE SET
          name=EXCLUDED.name,
          category=EXCLUDED.category,
@@ -184,6 +184,7 @@ export async function scanToolsDir({ pool, roots }) {
          description=EXCLUDED.description,
          params=EXCLUDED.params,
          runtime=EXCLUDED.runtime,
+         adapter='python',
          tags=EXCLUDED.tags,
          updated_at=now()`,
       [

@@ -256,7 +256,11 @@ async function updateInvocation(id, patch) {
   const sets = [], args = [];
   for (const [k, v] of Object.entries(patch)) {
     if (!ALLOWED_INVOCATION_COLS.has(k)) continue;
-    args.push(v); sets.push(`${k}=$${args.length}`);
+    let val = v;
+    if ((k === "output" || k === "params") && typeof v === "object" && v !== null && !(v instanceof Date)) {
+      val = JSON.stringify(v);
+    }
+    args.push(val); sets.push(`${k}=$${args.length}`);
   }
   if (!sets.length) return;
   args.push(id);

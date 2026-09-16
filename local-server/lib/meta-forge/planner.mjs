@@ -23,6 +23,12 @@ export function validateForgePlan(plan) {
     if (!VALID_KINDS.has(item.kind)) throw new Error(`invalid kind: ${item.kind}`);
     if (!item.slug || typeof item.slug !== "string") throw new Error("item.slug required");
 
+    // Normalize MCP items
+    if (item.kind === "mcp") {
+      if (!item.url && item.command) item.url = item.command;
+      if (!item.transport) item.transport = (item.url && /^https?:\/\//i.test(item.url)) ? "http" : "stdio";
+    }
+
     // Enforce Orchestration Chain invariants (Macro-Orchestration cannot execute raw tools directly)
     if (item.kind === "chain") {
       let chainNodes = Array.isArray(item.nodes) ? item.nodes : [];
@@ -146,7 +152,7 @@ export async function buildInventory(pool) {
                 FROM capability_packs ORDER BY id`).catch(() => ({ rows: [] })),
     pool.query(`SELECT kind, slug FROM mcp_exposures WHERE enabled=true`)
       .catch(() => ({ rows: [] })),
-    pool.query(`SELECT slug, name, tools_cache FROM mcp_client_servers WHERE enabled=true`)
+    pool.query(`SELECT slug, name, tools_cache, last_status, last_error FROM mcp_client_servers`)
       .catch(() => ({ rows: [] })),
     pool.query(`SELECT id AS slug, name FROM workflows ORDER BY id`).catch(() => ({ rows: [] })),
     pool.query(`SELECT id AS slug, name FROM orchestrations ORDER BY id`).catch(() => ({ rows: [] })),
@@ -169,6 +175,7 @@ export async function buildInventory(pool) {
     tools: tools.rows.map(t => ({ slug: t.slug, name: t.name, desc: (t.description || "").slice(0, 100), cat: t.category })),
     skills: skills.rows.map(s => ({ slug: s.slug, name: s.name, desc: (s.description || "").slice(0, 100) })),
     packs: packs.rows.map(p => ({ slug: p.slug, name: p.name })),
+    mcp_servers: mcpClients.rows.map(s => ({ slug: s.slug, name: s.name, status: s.last_status, error: s.last_error, tool_count: Array.isArray(s.tools_cache) ? s.tools_cache.length : 0 })),
     mcp_tools: mcpTools,
     mcp_exposed: mcpExposed.rows,
     workflows: workflows.rows.map(w => ({ slug: w.slug, name: w.name })),

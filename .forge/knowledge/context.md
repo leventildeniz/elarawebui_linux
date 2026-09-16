@@ -1851,11 +1851,77 @@ ELARA Sovereign Studio genelinde **Zero-Trust Çoklu Kiracı (Multi-Tenancy) ve 
       - **MCP Keşif & İcra Koruması:** `tool-dispatcher.mjs` içindeki `sys_get_directory` ve `sys_execute_tool` MCP sorgularına `buildVisibility(actorCtx, 'owner_id')` filtresi bağlandı. Admin'in masasında `[MINE]` duran MCP sunucularının (GitHub, Filesystem) yabancı operatörlere (`deneme2`) sızması ve çalıştırılması kökten engellendi.
       - **Chat Zarfı Koruması:** `chat-orchestrate.mjs` içerisindeki auto-inject MCP, talep edilen tool ve skill seçimlerine `buildVisibility` bağlandı.
       - **Workflow & Orchestration Tetikleme Kalkanı:** `/api/workflows/:id/trigger`, `/api/chains/:id/run` ve `/api/agents/:id/run` uç noktalarına IDOR ve Zero-Desk masa kontrolü eklendi; özel (`private`) iş akışları, orkestrasyonlar ve ajanların yetkisiz operatörlerce çalıştırılması `HTTP 403 Forbidden` ile engellendi.
-   9. **Canlı Doğrulama:**
+   9. **Canlı Web Search Kapısı & Prompt Direktifi Senkronizasyonu (`directives.mjs`, `tool-dispatcher.mjs`):**
+      - Chat kutusunda web search butonu kapalıyken (`web_search = false`), prompt direktifindeki sabit "TIER 2 — Use 'sys_web_search'" talimatı dinamik hale getirildi; arama kapalıyken modelin kafasına göre `sys_web_search` çağırması direktifle yasaklandı.
+      - `tool-dispatcher.mjs` içerisinde `sys_web_search` icra köprüsünün başına `context.web_search` kontrolü takıldı; kullanıcı açıkça butonu açmadıkça web arama motorunun çalıştırılması backend seviyesinde engellendi.
+   10. **MetaForge Otonom MCP Sunucusu Sentez Motoru (`apply.mjs`, `planner.mjs`, `directives.mjs`, `mcp/client.mjs`):**
+      - `applyForgePlan` motoruna eksik olan `applyMcpCreate(pool, planId, item, meta)` işleyicisi entegre edildi.
+      - MetaForge plan onaylandığında (`apply`), sentezlenen MCP istemcisi/sunucusu doğrudan yazarın masasına (`owner_id = forgedBy`, `visibility = 'private'`) tescil edilir ve anında `probeServer()` ile araçları (`tools_cache`) keşfedilir.
+      - `rollbackForgePlan` içerisine MCP geri alma/silme temizliği eklendi.
+   11. **Proaktif Yetenek Tamamlama Direktifi (Autonomous Capability Gap Synthesis — `directives.mjs`):**
+      - Modele TIER 2 ve TIER 3 direktiflerinde yer alan "Answer from existing knowledge" ve pasif "istersen oluştururum" kaçış rampaları kapatıldı.
+      - Canlı harici servis gerektiren (GitHub, Jira, Docker, DB, Filesystem vb.) bir görev geldiğinde ve masada araç/MCP bulunmadığında; modelin lafı uzatmadan ilk turda otonom olarak `sys_delegate_to_metaforge` çağırarak resmi MCP/araç planını sentezlemesi ve kullanıcıya doğrudan interaktif onay kartını sunması zorunlu kılındı.
+      - Direktif metinleri tamamen standart ve profesyonel İngilizceye çevrildi.
+   12. **MetaForge Trash & Arşiv Çekmecesi Yetki ve Sistem Dizini Onarımı (`meta-forge.mjs`, `metaforge-store.ts`, `meta-forge.tsx`, `.gitignore`):**
+      - `.forge-trash` çekmecesindeki `RESTORE` ve `PURGE` butonlarını kilitleyen aşırı katı `requireAdmin` kontrolü `requireApprover` yetkisine bağlandı. Geri alma yetkisine sahip operatörlerin (`deneme2`) arşivdeki varlıkları tek tıkla stüdyoya geri yükleyebilmesi veya silebilmesi sağlandı.
+      - Geri yüklenen varlıklar operatörün masasına (`owner_id = caller`, `visibility = 'private'`) tescil edilir.
+      - `.gitignore` içerisinden `.forge-trash` ve `uploads` sistem dizinleri kaldırılarak kod tabanının ve sistem bütünlüğünün bir parçası olarak git tarafından takip edilmesi sağlandı.
+   13. **Evrensel Mükerrerlik Kalkanı & Şeffaf MCP Durum Raporlaması (`apply.mjs`, `planner.mjs`, `tool-dispatcher.mjs`, `directives.mjs`):**
+      - `sys_get_directory` ve `buildInventory` sorgularına `mcp_servers` durum envanteri (`slug`, `name`, `status`, `error`, `tool_count`) eklendi; hata veren veya araçsız kalan sunucuların durum ve gerçek hata nedenleri modele şeffaf olarak sunuldu. Modelin sahte "sandbox kısıtlamam var" halüsinasyonu kökten engellendi.
+      - `applyForgePlan` içerisindeki `plan_json` yazım hatası `actions` olarak düzeltildi; daha önce uygulanmış planların mükerrer üretilmesini engelleyen idempotency zırhı aktif kılındı.
+      - `applyMcpCreate` içerisinde mevcut sunucuları sessizce `-2`, `-3` ile kopyalayan mantık kaldırıldı; var olan sunucuları yerinde güncelleyen (`in-place update & deduplication`) akış sağlandı.
+   14. **Araç İcra JSONB Dizi & Doğrudan Action Library Kayıt Onarımı (`tool-adapters.mjs`, `apply.mjs`, `tools-scan.mjs`):**
+      - `updateInvocation` içerisindeki JSON/JSONB çıktı kaydında nesne ve dizilerin (`output`, `params`) PostgreSQL'e gönderilirken `JSON.stringify` edilmemesi nedeniyle oluşan `invalid input syntax for type json` hatası giderildi; Python araçlarının JSON dizi çıktılarının başarıyla kaydedilmesi sağlandı.
+      - `applyToolCreate` fonksiyonunun üretilen aracı yalnızca `tools` tablosuna yazıp `action_library`'ye yazmaması ve `tools-scan.mjs` içindeki `tool.` ön ek ayrıştırma hatası düzeltildi; üretilen araçların anında `action_library`'ye `visibility = 'private'` ile kaydedilerek icra köprüsüne (`invokeTool`) bağlanması sağlandı.
+   15. **Canlı Doğrulama:**
       - Canlı testle doğrulandı: `deneme2` için `buildVisibility` MCP sayısı **0** dönerken, `admin` için tüm 5 MCP listelendi (Tam Masa İzolasyonu).
       - `deneme2` (`Operators`) oturumu ile sorgulandığında diğer departmanların biletleri listede görünmedi (Sıfır Sızıntı).
       - `deneme2` düşük riskli biletini self-approve ile onaylayabildi; kritik riskli bilette self-approve `HTTP 403 Four-Eyes Principle Violation` ile engellendi.
+      - `applyMcpCreate` ile üretilen MCP sunucusu `deneme2`'nin masasına `private` olarak tescillendi ve rollback ile temizlendi.
+      - `deneme2` oturumu ile `.forge-trash` arşivinden bir ajan başarıyla geri yüklendi (`RESTORE` 200 OK) ve doğrulandı.
+      - `tool.docker-hub-tag-fetcher` canlı Docker Hub API'sini sorgulayarak `[{"tag": "8.8.2-trixie", ...}]` 5 etiketi başarıyla çekti (`INVOKE TOOL SUCCESS: 5`).
       - `node --check` 0 hata, `npx tsc --noEmit` 0 hata; tüm systemd servisleri aktif ve sağlıklı.
+
+   ---
+
+   ### 🏆 RESOLVED — WORKFLOW & ORCHESTRATION CHAIN EXECUTION OUTPUT DRAWER & ZERO-TRUST MULTI-TENANT SEAL
+
+   **Tarih:** 2026-09-17  
+   **Durum:** %100 Tamamlandı, Canlıda Doğrulandı & Mühürlendi (Zero-Trust Multi-Tenant Paritesi)
+
+   #### 🎯 1. Hayata Geçirilen Mimari Bileşenler & Çözümler
+   1. **Evrensel Canlı Koşu & Çıktı Çekmecesi (`src/components/sovereign/run-output-drawer.tsx`):**
+      - Radix `Sheet` tabanlı, sağdan kayarak açılan obsidian/sapphire tasarımlı Slide-Over çekmece oluşturuldu.
+      - **Header:** Koşu Başlığı, Durum Rozeti (`RUNNING` pulsing topaz, `DONE` emerald, `ERROR` ruby, `STOPPED` amber), Süre sayacı (`ms` / `s`), Canlı icra sırasında durdurma butonu (`Stop`).
+      - **Tab 1 — Report (Markdown Görünümü):** Üretilen `markdown_report` (örneğin SSL sertifika tablosu, güvenlik denetim bulguları vb.) `RichMessage` motoru ile tam teşekküllü (markdown tabloları, kod blokları, kalın başlıklar) canlı olarak render edilir. "Copy Report" ve "Download .md" butonları içerir.
+      - **Tab 2 — Execution Trace (DAG Yolu):** İcra edilen tüm düğümlerin sırası, tür rozeti (`tool`, `agent`, `skill`, `logic`, `workflow`, `output`), harcanan süre, durum rozeti (`ok`, `error`) ve adım bazlı girdi/çıktı detayları akordeon şeklinde incelenebilir.
+      - **Tab 3 — Raw JSON:** Tüm `output` ve `context` verisi formatlanmış JSON olarak tek tıkla kopyalama özelliğiyle gösterilir.
+      - Çekmece açıkken koşu `running` durumundaysa arka planı kitlemeden her 600ms'de bir otomatik durum tazeler; koşu `done` veya `failed` olduğunda polling anında durur.
+   2. **Canvas Entegrasyonu (`src/routes/flows.tsx` & `src/routes/orchestration.tsx`):**
+      - Hem **Workflow Canvas (`/flows`)** hem de **Orchestration Chain Canvas (`/orchestration`)** üst kontrol çubuğuna (`RunControls`'ün hemen yanına):
+        - **"Output"** butonu eklendi.
+        - Koşarken canlı atan sarı/topaz nokta, koşu bittiğinde yeşil/emerald nokta gösterir.
+        - Canvas üzerinden Play ile koşu başlatıldığında çekmece **otomatik olarak açılarak** operatöre anlık icra durumunu ve üretilen nihai raporu sunar.
+        - Operatör istediği zaman üstteki "Output" butonuna basarak çekmeceyi tekrar açıp kapatabilir.
+   3. **Arka Uç Sıfır-Güven (Zero-Trust) & Masa/Kiracı İzolasyonu (`local-server/lib/routes/workflows.mjs`):**
+      - **Metadata Damgalama:** Hem akış (`/api/workflows/:id/trigger`) hem de orkestrasyon zinciri (`/api/chains/:id/run`) tetiklendiğinde, canlı bellek kaydına (`WORKFLOW_RUNS_LIVE` ve `CHAIN_RUNS_LIVE`) çağıran operatörün `tenantId`, `ownerId`, `runnerId`, `runnerUsername`, `visibility` ve `sharedWith` bilgileri mühürlendi.
+      - **`assertRunAccess` Güvenlik Motoru:** 
+        - `GET /api/workflows/runs/:runId`
+        - `POST /api/workflows/runs/:runId/stop`
+        - `GET /api/chains/runs/:runId`
+        - `POST /api/chains/runs/:runId/stop`
+        - `GET /api/chains/:id/runs`
+        uç noktalarının tümüne `requireSession()` ve sıkı **Masa (Desk) & Tenant İzolasyonu** eklendi.
+      - **Orchestration Chain İçinde Alt Workflow İcrası:**
+        - Zincir adımlarında bir `workflow` düğümü (`kind === "workflow"`) çalıştığında, çağrılan alt workflow'un çağıran operatörün organizasyonuna/masasına ait olup olmadığı doğrulandı (`workflows` tablosunda `nodes`, `edges` şema paritesi sağlandı).
+        - Zincir tamamlandığında `liveEntry.output = { ...ctx, markdown_report: ctx.markdown_report, ok: true, ts: Date.now() }` olarak standart hale getirildi.
+   4. **Canlı Doğrulama & Penetrasyon Testleri:**
+      - Oturumsuz bir istek `GET /api/chains/runs/:runId` sorguladığında $\rightarrow$ **`HTTP 401 Unauthorized`** ile kapıdan çevrildi.
+      - Başka bir mühendis (`deneme`), `deneme2`'nin private koşu UUID'sine erişmek istediğinde $\rightarrow$ **`HTTP 403 Forbidden: Private orchestration run — only author or administrator may view this execution.`** yanıtı ile engellendi (Tam Masa ve Kiracı İzolasyonu).
+      - `deneme2` oturumu ile `orc_security_audit_chain` tetiklendi $\rightarrow$ `run-1789596176844-9ws83` koşusu **51ms** içinde 5 adımı başarıyla icra edip `status: done` olarak tamamlandı.
+      - `deneme2` oturumu ile `wf_ssl-expiry-monitor-workflow` tetiklendi $\rightarrow$ `wfr-1789596238954-kokbx` koşusu **175ms** içinde 6 adımı başarıyla icra etti ve nihai Markdown raporunu (`## 🟢 SSL Certificate Status...`) eksiksiz üretti.
+      - `admin` (SuperAdmin) sorguladığında $\rightarrow$ Yetkili denetim kapsamında **`200 OK`** ile sonuç döndü.
+      - `node --check` 0 hata, `npx tsc --noEmit` 0 hata; tüm systemd servisleri (`elara-middleware`, `elara-vite`, `elara-worker`) aktif ve sağlıklı.
 
    ---
 

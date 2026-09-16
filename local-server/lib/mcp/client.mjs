@@ -118,6 +118,10 @@ async function mcpExecute(server, sessionFn) {
         cleanup();
       });
 
+      child.stdin.on("error", () => {
+        // Suppress EPIPE when child process exits prematurely
+      });
+
       child.on("exit", (code) => {
         if (!isFinished) resolve({ ok: false, reason: "exit", body: `Exited with code ${code}` });
         cleanup();
@@ -138,6 +142,7 @@ async function mcpExecute(server, sessionFn) {
       });
 
       const sendRpc = (method, params, isNotif = false) => {
+        if (isFinished || !child.stdin.writable) return Promise.resolve({ ok: false, reason: "stdin_closed" });
         if (isNotif) {
           try { child.stdin.write(JSON.stringify({ jsonrpc: "2.0", method, params }) + "\n"); } catch(e){}
           return Promise.resolve({ ok: true });

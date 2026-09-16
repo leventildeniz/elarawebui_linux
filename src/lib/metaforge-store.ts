@@ -151,36 +151,39 @@ export function useForgePlans() {
 
   const restoreTrash = useCallback(
     async (fileName: string) => {
-      try {
-        await fetchApi(`/api/meta-forge/trash/${encodeURIComponent(fileName)}/restore`, { method: "POST" });
-        await fetchTrash();
-        window.dispatchEvent(new CustomEvent(EVT));
-      } catch (err) {
-        console.error("Failed to restore trash artifact", err);
+      const res = await fetchApi<{ ok?: boolean; error?: string }>(
+        `/api/meta-forge/trash/${encodeURIComponent(fileName)}/restore`,
+        { method: "POST" }
+      );
+      if (res && res.ok === false) {
+        throw new Error(res.error || "Failed to restore");
       }
+      await fetchTrash();
+      window.dispatchEvent(new CustomEvent(EVT));
     },
     [fetchTrash],
   );
 
   const purgeTrash = useCallback(
     async (fileName: string) => {
-      try {
-        await fetchApi(`/api/meta-forge/trash/${encodeURIComponent(fileName)}`, { method: "DELETE" });
-        await fetchTrash();
-      } catch (err) {
-        console.error("Failed to purge trash artifact", err);
+      const res = await fetchApi<{ ok?: boolean; error?: string }>(
+        `/api/meta-forge/trash/${encodeURIComponent(fileName)}`,
+        { method: "DELETE" }
+      );
+      if (res && res.ok === false) {
+        throw new Error(res.error || "Failed to purge");
       }
+      await fetchTrash();
     },
     [fetchTrash],
   );
 
   const emptyTrash = useCallback(async () => {
-    try {
-      await fetchApi(`/api/meta-forge/trash`, { method: "DELETE" });
-      setTrash([]);
-    } catch (err) {
-      console.error("Failed to empty trash", err);
+    const res = await fetchApi<{ ok?: boolean; error?: string }>(`/api/meta-forge/trash`, { method: "DELETE" });
+    if (res && res.ok === false) {
+      throw new Error(res.error || "Failed to empty trash");
     }
+    setTrash([]);
   }, []);
 
   useEffect(() => {

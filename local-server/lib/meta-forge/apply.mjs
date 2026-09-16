@@ -17,6 +17,7 @@ import { fileURLToPath } from "node:url";
 import { lintPython } from "./guard.mjs";
 import { refreshCapabilitiesAfterForgeApply } from "./refresh.mjs";
 import { runToolSmoke } from "./smoke.mjs";
+import { createServer, probeServer, recordProbe } from "../mcp/client.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, "..", "..", "..");
@@ -28,7 +29,8 @@ const AUTO_LIVE_CONFIDENCE_MIN = 0.7;
 const DEFAULT_MAX_ITEMS_PER_TURN = 25;
 
 function safeFileSlug(raw) {
-  const slug = String(raw || "").replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 64);
+  const stripped = String(raw || "").replace(/^(tool|agent|skill)[._]/i, "");
+  const slug = stripped.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 64);
   if (!slug) throw new Error("empty slug");
   return slug;
 }
@@ -70,7 +72,7 @@ function clampConfidence(raw) {
 }
 
 // Look up existing capability by intent_hash or exact slug/kind. Returns row or null.
-async function resolveDbOwner(pool, forgedBy) {
+export async function resolveDbOwner(pool, forgedBy) {
   let ownerId = null;
   let ownerName = forgedBy || "admin";
   let tenantId = "default";
@@ -459,6 +461,47 @@ async function applyToolCreate(pool, planId, item, meta) {
     [toolId, item.name || slug, item.description || "", item.risk || "low", ownerId, ownerName, tenantId]
   ).catch(() => {});
 
+  let toolParams = [];
+  try {
+    const argsMatch = source.match(/#\s*@args:\s*(.*)$/m);
+    if (argsMatch) {
+      const parsed = JSON.parse(argsMatch[1].trim());
+      if (typeof parsed === "object" && parsed !== null) {
+        toolParams = Object.entries(parsed).map(([k, t]) => ({
+          name: k,
+          key: k,
+          label: k.replace(/_/g, " "),
+          type: typeof t === "string" ? t : "string"
+        }));
+      }
+    }
+  } catch {}
+
+  await pool.query(
+    `INSERT INTO action_library (id, kind, name, category, description, params, source, language, adapter, runtime, owner_user_id, visibility, tenant_id, is_system, updated_at)
+     VALUES ($1, 'action', $2, 'Custom', $3, $4::jsonb, $5, 'python', 'python', $6::jsonb, $7, 'private', $8, false, now())
+     ON CONFLICT (id) DO UPDATE SET
+       name = EXCLUDED.name,
+       description = EXCLUDED.description,
+       params = EXCLUDED.params,
+       source = EXCLUDED.source,
+       runtime = EXCLUDED.runtime,
+       owner_user_id = COALESCE(action_library.owner_user_id, EXCLUDED.owner_user_id),
+       visibility = COALESCE(action_library.visibility, 'private'),
+       tenant_id = COALESCE(action_library.tenant_id, EXCLUDED.tenant_id),
+       updated_at = now()`,
+    [
+      toolId,
+      item.name || slug,
+      item.description || "",
+      JSON.stringify(toolParams),
+      source,
+      JSON.stringify({ handler: "python", script: rel, source: "meta-forge" }),
+      ownerId,
+      tenantId
+    ]
+  ).catch((e) => console.warn("[forge:apply] action_library insert notice:", e.message));
+
   await pool.query(
     `INSERT INTO forge_artifacts (plan_id, kind, slug, disk_path)
      VALUES ($1, 'tool', $2, $3) ON CONFLICT DO NOTHING`,
@@ -508,6 +551,68 @@ async function applyAgentCreate(pool, planId, item, meta) {
   // Agents always pending_review (hybrid gate — never auto-live).
   await stampCapabilityMeta(pool, { slug, kind: "agent", ...meta });
   return { kind: "agent", slug, disk_path: rel, autoLive: false, ...meta };
+}
+
+async function applyMcpCreate(pool, planId, item, meta) {
+  const slug = safeFileSlug(item.slug || item.name || "mcp_server");
+  const name = item.name || slug;
+  const transport = item.transport === "http" || item.transport === "sse" ? item.transport : "stdio";
+  const url = item.url || item.command || (transport === "stdio" ? `npx -y @modelcontextprotocol/server-${slug}` : "http://localhost:8080/sse");
+  const authType = item.auth_type || item.authType || "none";
+  const authConfig = item.auth_config || item.authConfig || {};
+
+  const { ownerId, ownerName, tenantId } = await resolveDbOwner(pool, meta.forgedBy);
+
+  // Deduplication check: verify if an MCP server with this slug or name already exists in this tenant
+  const existing = await pool.query(
+    `SELECT * FROM mcp_client_servers 
+      WHERE (slug = $1 OR lower(name) = lower($2))
+        AND (tenant_id = $3 OR is_global = true)
+      LIMIT 1`,
+    [slug, name, tenantId]
+  );
+
+  let srv;
+  if (existing.rows.length > 0) {
+    srv = existing.rows[0];
+    // Update existing server in-place instead of creating duplicate with -2
+    await pool.query(
+      `UPDATE mcp_client_servers 
+         SET url = $1, transport = $2, enabled = true, updated_at = now() 
+       WHERE id = $3`,
+      [url, transport, srv.id]
+    );
+  } else {
+    srv = await createServer(pool, {
+      name,
+      url,
+      transport,
+      auth_type: authType,
+      auth_config: authConfig,
+      auto_inject: false,
+      owner_id: ownerId,
+      owner_name: ownerName,
+      visibility: "private",
+      shared_with: [],
+      tenant_id: tenantId,
+      is_global: false,
+    });
+  }
+
+  try {
+    const probeRes = await probeServer(srv);
+    await recordProbe(pool, srv.id, probeRes);
+  } catch (err) {
+    console.warn("[forge:apply] Initial MCP probe notice:", err?.message || err);
+  }
+
+  await pool.query(
+    `INSERT INTO forge_artifacts (plan_id, kind, slug, disk_path, db_row_id)
+     VALUES ($1, 'mcp', $2, $3, $4) ON CONFLICT DO NOTHING`,
+    [planId, srv.slug, url, srv.id],
+  );
+
+  return { kind: "mcp", slug: srv.slug, id: srv.id, disk_path: url, autoLive: true, deduped: existing.rows.length > 0, ...meta };
 }
 
 /**
@@ -561,7 +666,7 @@ export async function applyForgePlan({ pool, planId, plan, maxItems = DEFAULT_MA
                 OR COALESCE(smoke_report->'intent_hashes','[]'::jsonb) @> $3::jsonb
                 OR EXISTS (
                      SELECT 1
-                       FROM jsonb_array_elements(COALESCE(plan_json->'create','[]'::jsonb)) AS elem
+                       FROM jsonb_array_elements(COALESCE(actions,'[]'::jsonb)) AS elem
                       WHERE elem->>'kind' = $4 AND elem->>'slug' = $5
                    )
               )
@@ -613,6 +718,7 @@ export async function applyForgePlan({ pool, planId, plan, maxItems = DEFAULT_MA
       else if (item.kind === "workflow")   res = await applyWorkflowCreate(pool, planId, item, meta);
       else if (item.kind === "chain" || item.kind === "orchestration") res = await applyChainCreate(pool, planId, item, meta);
       else if (item.kind === "webhook")    res = await applyWebhookCreate(pool, planId, item, meta);
+      else if (item.kind === "mcp")        res = await applyMcpCreate(pool, planId, item, meta);
       else {
         failed.push({ kind: item.kind, slug: item.slug, reason: `unknown kind: ${item.kind}` });
         processed++;
@@ -725,6 +831,9 @@ export async function rollbackForgePlan({ pool, planId }) {
       } else if (a.kind === "webhook" && a.db_row_id) {
         await pool.query(`DELETE FROM webhooks WHERE id=$1`, [a.db_row_id]);
         removed.push({ kind: "webhook", slug: a.slug });
+      } else if (a.kind === "mcp" && a.db_row_id) {
+        await pool.query(`DELETE FROM mcp_client_servers WHERE id=$1`, [a.db_row_id]);
+        removed.push({ kind: "mcp", slug: a.slug });
       } else if (a.kind === "tool") {
         // Clean from action_library and tools tables
         const toolIds = [a.db_row_id, `tool.${a.slug}`, a.slug].filter(Boolean);

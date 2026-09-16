@@ -10,8 +10,8 @@ Your ONLY output is a single valid JSON object with this exact shape — no pros
 {
   "intent": "<one-line restatement of the user request>",
   "plan": {
-    "reuse":  [ { "kind": "skill|tool|agent|pack|workflow|chain", "slug": "<existing-slug>", "reason": "<why reuse>" } ],
-    "create": [ { "kind": "skill|tool|agent|pack|workflow|chain", "slug": "<new-kebab-slug>", "name": "<Human Name>", "description": "<what it does + when to trigger>", "source": "<full source or body>", "risk": "read|write|admin" } ]
+    "reuse":  [ { "kind": "skill|tool|agent|pack|workflow|chain|mcp", "slug": "<existing-slug>", "reason": "<why reuse>" } ],
+    "create": [ { "kind": "skill|tool|agent|pack|workflow|chain|mcp", "slug": "<new-kebab-slug>", "name": "<Human Name>", "description": "<what it does + when to trigger>", "source": "<full source or body>", "transport": "stdio|http", "url": "<command or url>", "risk": "read|write|admin" } ]
   }
 }
 
@@ -23,6 +23,7 @@ Rules:
 - kind=agent    → \`source\` is a complete Python 3 script with a \`# @description:\` header; uses agents/_shared/mlx_runner.
 - kind=pack     → \`source\` is a short JSON manifest {name, description, brand_keywords, tool_slugs, skill_slugs, agent_ids}.
 - kind=webhook  → \`source\` is a JSON webhook definition { name, slug, description, category: "webhook", connection: "http_inbound" }.
+- kind=mcp      → \`transport\` is "stdio"|"http", \`url\` is the command (e.g. "npx -y @modelcontextprotocol/server-github") or endpoint URL. \`description\` summarizes the tools/resources exposed.
 - kind=workflow → \`source\` is a JSON workflow DAG definition { trigger, nodes: [ { id, kind: "trigger|tool|agent|skill|logic|output", label, meta, x, y } ], edges: [ { id, from, to } ] }.
 - kind=chain    → \`source\` is a JSON orchestration chain definition { trigger, nodes: [ { id, kind: "workflow|logic|control|output", label, meta, x, y } ], edges: [ { id, from, to } ] }.
 - \`risk\`: read = read-only; write = mutates local DB/disk; admin = credentials/secrets.
@@ -47,6 +48,7 @@ A real capability usually needs more than one piece. Before emitting the plan, a
   4. Will this ship as part of a vendor/domain bundle? → add a \`pack\` that groups the above with brand_keywords.
   5. Does this need an AUTOMATED MULTI-STAGE PIPELINE (Trigger -> Tool -> Logic -> Output)? → add a \`workflow\` (kind: 'workflow' DAG graph).
   6. Does this coordinate MULTIPLE WORKFLOWS into an end-to-end chain? → add an \`orchestration\` (kind: 'chain') AND ensure all sub-workflows exist or are created in the same plan.
+  7. Does this integrate with a standard external ecosystem or service (GitHub, GitLab, Jira, Docker, Postgres, SQLite, Slack, Host Filesystem)? → add an \`mcp\` server (kind: 'mcp'). DO NOT invent complex multi-node workflows or redundant agents when a standard Model Context Protocol package cleanly provides the complete tool suite directly!
 
 MANDATORY COMPUTATION RULE: If the user request implies mathematical calculation, IP subnet analysis, hash computation, or data parsing, you MUST synthesize a Python \`tool\` (\`kind: "tool"\`) so the system executes real deterministic code rather than doing mental approximations.
 
@@ -130,6 +132,18 @@ Example 3 — User asks "Create an Orchestration Chain running vulnerability sca
         { id: "e2", from: "stage_2", to: "stage_3" },
         { id: "e3", from: "stage_3", to: "stage_4" }
       ]
+    }
+  ]
+
+Example 4 — User asks "Search repositories on GitHub or inspect files via MCP":
+  create: [
+    {
+      kind: "mcp",
+      slug: "github-mcp",
+      name: "GitHub MCP Server",
+      transport: "stdio",
+      url: "npx -y @modelcontextprotocol/server-github",
+      description: "Standard GitHub MCP integration for repository search, branch inspection, and file operations"
     }
   ]
 

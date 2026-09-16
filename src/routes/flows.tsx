@@ -3,7 +3,7 @@ import { canEdit as canEditOwned, editRefusal } from "@/lib/ownership";
 import { ReadOnlyBanner, SharePopover } from "@/components/sovereign/ownership-controls";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "motion/react";
-import { Copy, Plus, Save, Trash2 } from "lucide-react";
+import { Copy, FileText, Plus, Save, Trash2 } from "lucide-react";
 import { Shell } from "@/components/sovereign/shell";
 import { JewelButton } from "@/components/sovereign/primitives";
 import { confirmAction } from "@/components/sovereign/confirm-dialog";
@@ -11,9 +11,11 @@ import { WorkflowCanvas } from "@/components/sovereign/workflow-canvas";
 import { TriggerScheduleCard } from "@/components/sovereign/trigger-schedule-card";
 import { OutputBindingCard } from "@/components/sovereign/output-binding-card";
 import { RunControls } from "@/components/sovereign/run-controls";
+import { RunOutputDrawer } from "@/components/sovereign/run-output-drawer";
 import { useRunController } from "@/lib/run-controller";
 import { toast } from "sonner";
 import { fetchApi } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import { guardRun, signPayload, useVerdict } from "@/lib/signing";
 import { SignatureBadge } from "@/components/sovereign/signature-badge";
 import { useWorkflows, type StudioWorkflow } from "@/lib/workflow-store";
@@ -77,6 +79,7 @@ function WorkflowDesigner() {
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [liveRunId, setLiveRunId] = useState<string | null>(null);
+  const [outputDrawerOpen, setOutputDrawerOpen] = useState(false);
 
   const active = workflows.find((w) => w.id === activeId) ?? workflows[0];
   const activeKey = active?.id;
@@ -168,7 +171,10 @@ function WorkflowDesigner() {
         method: "POST",
         body: JSON.stringify(payload)
       }).then(res => {
-        if (res.runId) setLiveRunId(res.runId);
+        if (res.runId) {
+          setLiveRunId(res.runId);
+          setOutputDrawerOpen(true);
+        }
       }).catch(err => console.error("Failed to trigger workflow", err));
 
       return true;
@@ -192,7 +198,10 @@ function WorkflowDesigner() {
         method: "POST",
         body: JSON.stringify(payload)
       }).then(res => {
-        if (res.runId) setLiveRunId(res.runId);
+        if (res.runId) {
+          setLiveRunId(res.runId);
+          setOutputDrawerOpen(true);
+        }
       }).catch(err => console.error("Failed to trigger workflow", err));
     },
     steps: runSteps,
@@ -470,6 +479,29 @@ function WorkflowDesigner() {
               <motion.button
                 whileHover={{ y: -1 }}
                 whileTap={{ y: 0, scale: 0.985 }}
+                onClick={() => setOutputDrawerOpen(true)}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 font-mono text-[11.5px] tracking-[0.06em] transition-all",
+                  run.state === "running"
+                    ? "border-topaz/50 bg-topaz/15 text-topaz shadow-[0_0_16px_-4px_var(--topaz)]"
+                    : liveRunId
+                      ? "border-emerald/40 bg-emerald/10 text-emerald hover:bg-emerald/20"
+                      : "border-border/80 bg-raised/40 text-muted-foreground/80 hover:text-foreground"
+                )}
+                title="Open execution output & report drawer"
+              >
+                <FileText className="h-3.5 w-3.5" strokeWidth={1.7} />
+                <span>Output</span>
+                {run.state === "running" && (
+                  <span className="h-1.5 w-1.5 rounded-full bg-topaz animate-pulse" />
+                )}
+                {run.state !== "running" && liveRunId && (
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald" />
+                )}
+              </motion.button>
+              <motion.button
+                whileHover={{ y: -1 }}
+                whileTap={{ y: 0, scale: 0.985 }}
                 onClick={() => duplicate(active.id)}
                 className="flex items-center gap-2 rounded-lg border border-sapphire/40 bg-sapphire/12 px-3 py-1.5 font-mono text-[11.5px] tracking-[0.1em] text-sapphire transition-all duration-200 hover:bg-sapphire/20 hover:shadow-[0_0_28px_-8px_var(--sapphire)]"
               >
@@ -506,6 +538,15 @@ function WorkflowDesigner() {
           {!activeId && <span className="sr-only" onClick={() => setActiveId(active.id)} />}
         </section>
       </div>
+
+      <RunOutputDrawer
+        open={outputDrawerOpen}
+        onOpenChange={setOutputDrawerOpen}
+        runId={liveRunId}
+        type="workflow"
+        title={active.name}
+        onStop={run.stop}
+      />
     </Shell>
   );
 }

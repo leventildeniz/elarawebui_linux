@@ -81,6 +81,40 @@ function resolveNodeParams(node, ctx = {}) {
   return resolved;
 }
 
+// Assert caller access to a live or persisted run (Zero-Trust Multi-Tenant & Desk Isolation)
+function assertRunAccess(ctx, runEntry, label = "run") {
+  if (!ctx || ctx.isSuperAdmin) return;
+  const callerTenant = ctx.tenantId || "default";
+  if (runEntry.tenantId && runEntry.tenantId !== callerTenant && !runEntry.isGlobal) {
+    const err = new Error(`Access denied to ${label} outside your organization`);
+    err.status = 403;
+    throw err;
+  }
+  if (runEntry.visibility === "private") {
+    const matches = [ctx.userId, ctx.username, ctx.actor].filter(Boolean).map(s => String(s).toLowerCase());
+    const isOwner = (runEntry.ownerId && matches.includes(String(runEntry.ownerId).toLowerCase())) ||
+                    (runEntry.runnerId && matches.includes(String(runEntry.runnerId).toLowerCase())) ||
+                    (runEntry.runnerUsername && matches.includes(String(runEntry.runnerUsername).toLowerCase()));
+    if (!isOwner && !ctx.isTenantAdmin) {
+      const err = new Error(`Private ${label} — only author or administrator may view this execution.`);
+      err.status = 403;
+      throw err;
+    }
+  }
+  if (runEntry.visibility === "shared" && Array.isArray(runEntry.sharedWith) && runEntry.sharedWith.length > 0) {
+    const groupMatch = ctx.groupIds && ctx.groupIds.some(g => runEntry.sharedWith.includes(g));
+    const matches = [ctx.userId, ctx.username, ctx.actor].filter(Boolean).map(s => String(s).toLowerCase());
+    const isOwner = (runEntry.ownerId && matches.includes(String(runEntry.ownerId).toLowerCase())) ||
+                    (runEntry.runnerId && matches.includes(String(runEntry.runnerId).toLowerCase())) ||
+                    (runEntry.runnerUsername && matches.includes(String(runEntry.runnerUsername).toLowerCase()));
+    if (!groupMatch && !isOwner && !ctx.isTenantAdmin) {
+      const err = new Error(`Access denied to ${label}`);
+      err.status = 403;
+      throw err;
+    }
+  }
+}
+
 
 export function mountWorkflowRoutes(app, deps) {
   const {
@@ -301,15 +335,16 @@ export function mountWorkflowRoutes(app, deps) {
     let { nodes = [], edges = [], context = {} } = req.body ?? {};
     const wfId = req.params.id;
     let wfName = wfId;
+    let wfItem, ctx;
 
     try {
-      const ctx = await deps.resolveActorContext(req);
+      ctx = await deps.resolveActorContext(req);
       const { rows: wfRows } = await pool.query(
         "SELECT id, name, visibility, owner_id, tenant_id, is_global, nodes, edges FROM workflows WHERE id=$1",
         [wfId]
       );
       if (!wfRows[0]) return res.status(404).json({ ok: false, error: "Workflow not found" });
-      const wfItem = wfRows[0];
+      wfItem = wfRows[0];
 
       // Multi-Tenant & Desk Isolation check
       if (!ctx.isSuperAdmin) {
@@ -353,6 +388,13 @@ export function mountWorkflowRoutes(app, deps) {
       stepsTotal: nodes.length,
       stepsDone: 0,
       currentNode: null,
+      tenantId: wfItem.tenant_id || ctx.tenantId || "default",
+      ownerId: wfItem.owner_id || null,
+      runnerId: ctx.userId || null,
+      runnerUsername: ctx.username || ctx.actor || "system",
+      isGlobal: Boolean(wfItem.is_global),
+      visibility: wfItem.visibility || "private",
+      sharedWith: Array.isArray(wfItem.shared_with) ? wfItem.shared_with : [],
     };
     WORKFLOW_RUNS_LIVE.set(runId, entry);
     console.log(`[workflow:trigger] ${wfName} runId=${runId} nodes=${nodes.length} edges=${edges.length}`);
@@ -582,35 +624,49 @@ export function mountWorkflowRoutes(app, deps) {
   });
 
   // --- Live workflow run polling + stop ----------------------------------
-  app.get("/api/workflows/runs/:runId", async (req, res) => {
-    const entry = WORKFLOW_RUNS_LIVE.get(req.params.runId);
-    if (!entry) return res.status(404).json({ ok: false, error: "run not found" });
-    res.json({
-      ok: true,
-      runId: entry.runId,
-      wfId: entry.wfId,
-      status: entry.status,
-      startedAt: entry.startedAt,
-      endedAt: entry.endedAt,
-      durationMs: (entry.endedAt ?? Date.now()) - entry.startedAt,
-      stepsDone: entry.stepsDone,
-      stepsTotal: entry.stepsTotal,
-      currentNode: entry.currentNode,
-      output: entry.output,
-      trace: entry.trace,
-      error: entry.error,
-    });
-  });
-  app.post("/api/workflows/runs/:runId/stop", async (req, res) => {
-    const entry = WORKFLOW_RUNS_LIVE.get(req.params.runId);
-    if (!entry) return res.status(404).json({ ok: false, error: "run not found" });
-    if (entry.status === "running") {
-      entry.aborted = true;
-      entry.status = "stopped";
-      entry.endedAt = Date.now();
-      entry.error = "operator stop";
+  app.get("/api/workflows/runs/:runId", requireSession(), async (req, res) => {
+    try {
+      const ctx = await deps.resolveActorContext(req);
+      const entry = WORKFLOW_RUNS_LIVE.get(req.params.runId);
+      if (!entry) return res.status(404).json({ ok: false, error: "run not found" });
+      assertRunAccess(ctx, entry, "workflow run");
+      res.json({
+        ok: true,
+        runId: entry.runId,
+        wfId: entry.wfId,
+        status: entry.status,
+        startedAt: entry.startedAt,
+        endedAt: entry.endedAt,
+        durationMs: (entry.endedAt ?? Date.now()) - entry.startedAt,
+        stepsDone: entry.stepsDone,
+        stepsTotal: entry.stepsTotal,
+        currentNode: entry.currentNode,
+        output: entry.output,
+        trace: entry.trace,
+        error: entry.error,
+      });
+    } catch (e) {
+      const status = e.status || 500;
+      res.status(status).json({ ok: false, error: String(e.message || e) });
     }
-    res.json({ ok: true, runId: entry.runId, status: entry.status });
+  });
+  app.post("/api/workflows/runs/:runId/stop", requireSession(), async (req, res) => {
+    try {
+      const ctx = await deps.resolveActorContext(req);
+      const entry = WORKFLOW_RUNS_LIVE.get(req.params.runId);
+      if (!entry) return res.status(404).json({ ok: false, error: "run not found" });
+      assertRunAccess(ctx, entry, "workflow run");
+      if (entry.status === "running") {
+        entry.aborted = true;
+        entry.status = "stopped";
+        entry.endedAt = Date.now();
+        entry.error = "operator stop";
+      }
+      res.json({ ok: true, runId: entry.runId, status: entry.status });
+    } catch (e) {
+      const status = e.status || 500;
+      res.status(status).json({ ok: false, error: String(e.message || e) });
+    }
   });
 
   // --- Workflow Chains (Orchestration Layer) ------------------------------
@@ -705,14 +761,32 @@ export function mountWorkflowRoutes(app, deps) {
       res.status(status).json({ ok: false, error: String(e.message || e) });
     }
   });
-  app.get("/api/chains/:id/runs", async (req, res) => {
+  app.get("/api/chains/:id/runs", requireSession(), async (req, res) => {
     try {
+      const ctx = await deps.resolveActorContext(req);
+      const { rows: orcRows } = await pool.query(
+        "SELECT id, name, visibility, owner_id, tenant_id, is_global, shared_with FROM orchestrations WHERE id=$1",
+        [req.params.id]
+      );
+      if (!orcRows[0]) return res.status(404).json({ ok: false, error: "Chain not found" });
+      const orcItem = orcRows[0];
+      assertRunAccess(ctx, {
+        tenantId: orcItem.tenant_id,
+        isGlobal: orcItem.is_global,
+        visibility: orcItem.visibility,
+        ownerId: orcItem.owner_id,
+        sharedWith: orcItem.shared_with,
+      }, "chain history");
+
       const { rows } = await pool.query(
-        "SELECT id, chain_id, status, current_node, context, trace, started_at, finished_at FROM chain_runs WHERE chain_id=$1 ORDER BY started_at DESC LIMIT 25",
+        "SELECT id, chain_id, status, current_node, context, trace, started_at, finished_at, username, error FROM chain_runs WHERE chain_id=$1 ORDER BY started_at DESC LIMIT 25",
         [req.params.id]
       );
       res.json(rows);
-    } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+    } catch (e) {
+      const status = e.status || 500;
+      res.status(status).json({ ok: false, error: String(e.message || e) });
+    }
   });
   app.post("/api/chains/:id/run", requireSession(), async (req, res) => {
     const chainId = req.params.id;
@@ -720,15 +794,16 @@ export function mountWorkflowRoutes(app, deps) {
     let runId;
     let nodes, edges, startNode;
     let chainName = chainId;
+    let orcItem, ctx;
 
     try {
-      const ctx = await deps.resolveActorContext(req);
+      ctx = await deps.resolveActorContext(req);
       const { rows } = await pool.query(
         "SELECT id, name, visibility, owner_id, tenant_id, is_global, nodes, edges FROM orchestrations WHERE id=$1",
         [chainId]
       );
       if (!rows[0]) return res.status(404).json({ ok: false, error: "chain not found" });
-      const orcItem = rows[0];
+      orcItem = rows[0];
 
       // Multi-Tenant & Desk Isolation check
       if (!ctx.isSuperAdmin) {
@@ -755,9 +830,10 @@ export function mountWorkflowRoutes(app, deps) {
       if (!startNode) return res.status(400).json({ ok: false, error: "chain has no start node" });
 
       runId = newRunId("run");
+      const callerUser = req.session?.username || ctx.username || ctx.actor || "system";
       await pool.query(
-        "INSERT INTO chain_runs(id, chain_id, status, current_node, context, trace) VALUES ($1,$2,'running',$3,$4,$5)",
-        [runId, chainId, startNode.id, seedCtx, []]
+        "INSERT INTO chain_runs(id, chain_id, status, current_node, context, trace, username) VALUES ($1,$2,'running',$3,$4,$5,$6)",
+        [runId, chainId, startNode.id, seedCtx, [], callerUser]
       );
     } catch (e) {
       const status = e.status || 500;
@@ -775,8 +851,16 @@ export function mountWorkflowRoutes(app, deps) {
       stepsDone: 0,
       trace: [],
       context: { ...seedCtx },
+      output: null,
       aborted: false,
       error: null,
+      tenantId: orcItem.tenant_id || ctx.tenantId || "default",
+      ownerId: orcItem.owner_id || null,
+      runnerId: ctx.userId || null,
+      runnerUsername: ctx.username || ctx.actor || "system",
+      isGlobal: Boolean(orcItem.is_global),
+      visibility: orcItem.visibility || "private",
+      sharedWith: Array.isArray(orcItem.shared_with) ? orcItem.shared_with : [],
     };
     CHAIN_RUNS_LIVE.set(runId, liveEntry);
     
@@ -833,19 +917,39 @@ export function mountWorkflowRoutes(app, deps) {
           liveEntry.currentNode = current.id;
           try {
             if (current.kind === "workflow" && current.workflowId) {
-              const wfRow = await pool.query("SELECT graph, name FROM workflows WHERE id=$1", [current.workflowId]);
+              const wfRow = await pool.query(
+                "SELECT id, name, nodes, edges, visibility, owner_id, tenant_id, is_global, shared_with FROM workflows WHERE id=$1",
+                [current.workflowId]
+              );
               if (wfRow.rows[0]) {
-                const g = wfRow.rows[0].graph || {};
-                const out = {
-                  severity: ctx.severity ?? "info",
-                  summary: `workflow ${wfRow.rows[0].name} executed`,
-                  ok: true,
-                  ts: Date.now(),
-                };
-                ctx = { ...ctx, ...out };
-                step.output = out;
-                step.workflowId = current.workflowId;
-                logStep(step);
+                const wf = wfRow.rows[0];
+                let denied = false;
+                if (!ctx.isSuperAdmin) {
+                  const callerTenant = ctx.tenantId || "default";
+                  if (wf.tenant_id && wf.tenant_id !== callerTenant && !wf.is_global) denied = true;
+                  if (wf.visibility === "private") {
+                    const matches = [ctx.userId, ctx.username, ctx.actor].filter(Boolean).map(s => String(s).toLowerCase());
+                    const isOwner = wf.owner_id && matches.includes(String(wf.owner_id).toLowerCase());
+                    if (!isOwner && !ctx.isTenantAdmin) denied = true;
+                  }
+                }
+                if (denied) {
+                  step.workflowId = current.workflowId;
+                  step.error = "access denied to private workflow";
+                  chainError = step.error;
+                  logStep(step);
+                } else {
+                  const out = {
+                    severity: ctx.severity ?? "info",
+                    summary: `workflow ${wf.name} executed`,
+                    ok: true,
+                    ts: Date.now(),
+                  };
+                  ctx = { ...ctx, ...out };
+                  step.output = out;
+                  step.workflowId = current.workflowId;
+                  logStep(step);
+                }
               } else {
                 step.workflowId = current.workflowId;
                 step.error = "workflow not found";
@@ -1042,10 +1146,18 @@ export function mountWorkflowRoutes(app, deps) {
           "UPDATE chain_runs SET status='completed', current_node=NULL, context=$1, trace=$2, finished_at=now() WHERE id=$3",
           [ctx, JSON.stringify(trace), runId]
         ).catch(() => {});
+        const output = {
+          severity: ctx.severity ?? "info",
+          summary: ctx.summary ?? `chain ${chainId} executed`,
+          ok: true,
+          ts: Date.now(),
+          ...ctx,
+        };
         liveEntry.status = "done";
         liveEntry.endedAt = Date.now();
         liveEntry.currentNode = null;
         liveEntry.context = ctx;
+        liveEntry.output = output;
       } catch (e) {
         liveEntry.status = liveEntry.aborted ? "stopped" : "failed";
         liveEntry.error = String(e.message || e);
@@ -1058,33 +1170,87 @@ export function mountWorkflowRoutes(app, deps) {
   });
 
   // --- Live chain run polling + stop ----------------------------------
-  app.get("/api/chains/runs/:runId", async (req, res) => {
-    const entry = CHAIN_RUNS_LIVE.get(req.params.runId);
-    if (!entry) return res.status(404).json({ ok: false, error: "run not found" });
-    res.json({
-      ok: true,
-      runId: entry.runId,
-      chainId: entry.chainId,
-      status: entry.status,
-      startedAt: entry.startedAt,
-      endedAt: entry.endedAt,
-      durationMs: (entry.endedAt ?? Date.now()) - entry.startedAt,
-      stepsDone: entry.stepsDone,
-      stepsTotal: entry.stepsTotal,
-      currentNode: entry.currentNode,
-      trace: entry.trace,
-      context: entry.context,
-      error: entry.error,
-    });
-  });
-  app.post("/api/chains/runs/:runId/stop", async (req, res) => {
-    const entry = CHAIN_RUNS_LIVE.get(req.params.runId);
-    if (!entry) return res.status(404).json({ ok: false, error: "run not found" });
-    if (entry.status === "running") {
-      entry.aborted = true;
-      // Status flip happens in the background loop after the current await resolves.
+  app.get("/api/chains/runs/:runId", requireSession(), async (req, res) => {
+    try {
+      const ctx = await deps.resolveActorContext(req);
+      const entry = CHAIN_RUNS_LIVE.get(req.params.runId);
+      if (entry) {
+        assertRunAccess(ctx, entry, "orchestration run");
+        return res.json({
+          ok: true,
+          runId: entry.runId,
+          chainId: entry.chainId,
+          status: entry.status,
+          startedAt: entry.startedAt,
+          endedAt: entry.endedAt,
+          durationMs: (entry.endedAt ?? Date.now()) - entry.startedAt,
+          stepsDone: entry.stepsDone,
+          stepsTotal: entry.stepsTotal,
+          currentNode: entry.currentNode,
+          trace: entry.trace,
+          output: entry.output || entry.context,
+          context: entry.context,
+          error: entry.error,
+        });
+      }
+
+      // Fallback to persisted chain_runs
+      const { rows } = await pool.query(
+        `SELECT cr.id, cr.chain_id, cr.status, cr.current_node, cr.context, cr.trace, cr.started_at, cr.finished_at, cr.username, cr.error,
+                o.name as chain_name, o.tenant_id, o.visibility, o.owner_id, o.is_global, o.shared_with
+         FROM chain_runs cr
+         LEFT JOIN orchestrations o ON cr.chain_id = o.id
+         WHERE cr.id = $1`,
+        [req.params.runId]
+      );
+      if (!rows[0]) return res.status(404).json({ ok: false, error: "run not found" });
+      const row = rows[0];
+      const dbEntry = {
+        tenantId: row.tenant_id,
+        isGlobal: row.is_global,
+        visibility: row.visibility,
+        ownerId: row.owner_id,
+        runnerUsername: row.username,
+        sharedWith: Array.isArray(row.shared_with) ? row.shared_with : [],
+      };
+      assertRunAccess(ctx, dbEntry, "orchestration run");
+      const startedMs = new Date(row.started_at).getTime();
+      const endedMs = row.finished_at ? new Date(row.finished_at).getTime() : null;
+      res.json({
+        ok: true,
+        runId: row.id,
+        chainId: row.chain_id,
+        status: row.status === "completed" ? "done" : row.status,
+        startedAt: startedMs,
+        endedAt: endedMs,
+        durationMs: (endedMs ?? Date.now()) - startedMs,
+        stepsDone: Array.isArray(row.trace) ? row.trace.length : 0,
+        stepsTotal: Array.isArray(row.trace) ? row.trace.length : 0,
+        currentNode: row.current_node,
+        trace: Array.isArray(row.trace) ? row.trace : [],
+        output: row.context,
+        context: row.context,
+        error: row.error,
+      });
+    } catch (e) {
+      const status = e.status || 500;
+      res.status(status).json({ ok: false, error: String(e.message || e) });
     }
-    res.json({ ok: true, runId: entry.runId, status: entry.status });
+  });
+  app.post("/api/chains/runs/:runId/stop", requireSession(), async (req, res) => {
+    try {
+      const ctx = await deps.resolveActorContext(req);
+      const entry = CHAIN_RUNS_LIVE.get(req.params.runId);
+      if (!entry) return res.status(404).json({ ok: false, error: "run not found" });
+      assertRunAccess(ctx, entry, "orchestration run");
+      if (entry.status === "running") {
+        entry.aborted = true;
+      }
+      res.json({ ok: true, runId: entry.runId, status: entry.status });
+    } catch (e) {
+      const status = e.status || 500;
+      res.status(status).json({ ok: false, error: String(e.message || e) });
+    }
   });
 }
 

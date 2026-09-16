@@ -333,8 +333,12 @@ function MetaForge() {
                       <button
                         type="button"
                         onClick={async () => {
-                          await restoreTrash(item.fileName);
-                          toast.success(`Restored ${item.slug} back to active catalog!`);
+                          try {
+                            await restoreTrash(item.fileName);
+                            toast.success(`Restored ${item.slug} back to active catalog!`);
+                          } catch (err: any) {
+                            toast.error(err.message || "Failed to restore artifact");
+                          }
                         }}
                         className="rounded-md border border-emerald/40 bg-emerald/10 px-2.5 py-1 font-mono text-[11px] uppercase tracking-[0.14em] text-emerald transition-all hover:bg-emerald/20 hover:shadow-[0_0_12px_-4px_var(--emerald)]"
                       >
@@ -343,8 +347,12 @@ function MetaForge() {
                       <button
                         type="button"
                         onClick={async () => {
-                          await purgeTrash(item.fileName);
-                          toast("Permanently purged artifact.");
+                          try {
+                            await purgeTrash(item.fileName);
+                            toast("Permanently purged artifact.");
+                          } catch (err: any) {
+                            toast.error(err.message || "Failed to purge artifact");
+                          }
                         }}
                         title="Delete permanently"
                         className="rounded-md border border-border p-1.5 text-muted-foreground/50 transition-colors hover:text-ruby hover:border-ruby/40 hover:bg-ruby/10"
@@ -363,7 +371,7 @@ function MetaForge() {
               </div>
 
               <div className="mt-5 pt-3 border-t border-white/[0.07] flex items-center justify-between">
-                {trash.length > 0 ? (
+                {trash.length > 0 && (ownerCtx.sovereign || ownerCtx.isTenantAdmin) ? (
                   <button
                     type="button"
                     onClick={async () => {
@@ -374,8 +382,12 @@ function MetaForge() {
                         tone: "ruby",
                       });
                       if (ok) {
-                        await emptyTrash();
-                        toast("Emptied all trash.");
+                        try {
+                          await emptyTrash();
+                          toast("Emptied all trash.");
+                        } catch (err: any) {
+                          toast.error(err.message || "Failed to empty trash");
+                        }
                       }
                     }}
                     className="rounded-md border border-ruby/30 bg-ruby/[0.06] px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.14em] text-ruby transition-colors hover:bg-ruby/15"
