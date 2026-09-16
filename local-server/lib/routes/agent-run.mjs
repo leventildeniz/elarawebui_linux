@@ -130,6 +130,24 @@ export function mountAgentRunRoute(app, deps) {
       const { rows } = await pool.query("SELECT * FROM agents WHERE id=$1", [id]);
       if (!rows.length) return res.status(404).json({ ok: false, error: `agent ${id} not found` });
       const a = rows[0];
+
+      // Multi-Tenant & Desk Isolation check
+      if (typeof deps.resolveActorContext === "function") {
+        const ctx = await deps.resolveActorContext(req);
+        if (ctx && !ctx.isSuperAdmin) {
+          const callerTenant = ctx.tenantId || "default";
+          if (a.tenant_id && a.tenant_id !== callerTenant && !a.is_global) {
+            return res.status(403).json({ ok: false, error: "Access denied to agent outside your organization" });
+          }
+          if (a.visibility === "private") {
+            const matches = [ctx.userId, ctx.username, ctx.actor].filter(Boolean).map((s) => String(s).toLowerCase());
+            const isOwner = a.owner_id && matches.includes(String(a.owner_id).toLowerCase());
+            if (!isOwner && !ctx.isTenantAdmin) {
+              return res.status(403).json({ ok: false, error: "Private agent — only author or administrator may run this agent." });
+            }
+          }
+        }
+      }
       const meta = a.meta && typeof a.meta === "object" ? a.meta : {};
       console.error(`[agent-run] request id=${id} bridgeScript=${String(a.script_path || "")} hasAgentPath=${!!a.script_path} textLen=${String(req.body?.text || req.body?.query || "").length}`);
 

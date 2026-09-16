@@ -299,26 +299,45 @@ export function mountWorkflowRoutes(app, deps) {
   // Status polled via GET /api/workflows/runs/:runId, cancelled via POST .../stop.
   app.post("/api/workflows/:id/trigger", requireSession(), async (req, res) => {
     let { nodes = [], edges = [], context = {} } = req.body ?? {};
+    const wfId = req.params.id;
+    let wfName = wfId;
+
     try {
-      if ((!nodes || nodes.length === 0) && (!edges || edges.length === 0)) {
-        const { rows } = await pool.query("SELECT nodes, edges FROM workflows WHERE id=$1", [req.params.id]);
-        if (rows[0]) {
-          nodes = Array.isArray(rows[0].nodes) ? rows[0].nodes : [];
-          edges = Array.isArray(rows[0].edges) ? rows[0].edges : [];
+      const ctx = await deps.resolveActorContext(req);
+      const { rows: wfRows } = await pool.query(
+        "SELECT id, name, visibility, owner_id, tenant_id, is_global, nodes, edges FROM workflows WHERE id=$1",
+        [wfId]
+      );
+      if (!wfRows[0]) return res.status(404).json({ ok: false, error: "Workflow not found" });
+      const wfItem = wfRows[0];
+
+      // Multi-Tenant & Desk Isolation check
+      if (!ctx.isSuperAdmin) {
+        const callerTenant = ctx.tenantId || "default";
+        if (wfItem.tenant_id && wfItem.tenant_id !== callerTenant && !wfItem.is_global) {
+          return res.status(403).json({ ok: false, error: "Access denied to workflow outside your organization" });
+        }
+        if (wfItem.visibility === "private") {
+          const matches = [ctx.userId, ctx.username, ctx.actor].filter(Boolean).map((s) => String(s).toLowerCase());
+          const isOwner = wfItem.owner_id && matches.includes(String(wfItem.owner_id).toLowerCase());
+          if (!isOwner && !ctx.isTenantAdmin) {
+            return res.status(403).json({ ok: false, error: "Private workflow — only author or administrator may run this workflow." });
+          }
         }
       }
-    } catch (e) {
-      return res.status(500).json({ ok: false, error: `hydrate failed: ${e.message}` });
-    }
-    const wfId = req.params.id;
-    // Normalize edge properties (UI uses 'from'/'to', Execution Engine uses 'source'/'target')
-    edges = edges.map(e => ({ ...e, source: e.source || e.from, target: e.target || e.to }));
 
-    let wfName = wfId;
-    try {
-      const { rows } = await pool.query("SELECT name FROM workflows WHERE id=$1", [wfId]);
-      if (rows[0]) wfName = rows[0].name;
-    } catch { /* ignore */ }
+      if ((!nodes || nodes.length === 0) && (!edges || edges.length === 0)) {
+        nodes = Array.isArray(wfItem.nodes) ? wfItem.nodes : [];
+        edges = Array.isArray(wfItem.edges) ? wfItem.edges : [];
+      }
+      wfName = wfItem.name || wfId;
+    } catch (e) {
+      const status = e.status || 500;
+      return res.status(status).json({ ok: false, error: `Authorization/hydrate failed: ${e.message || e}` });
+    }
+
+    // Normalize edge properties (UI uses 'from'/'to', Execution Engine uses 'source'/'target')
+    edges = edges.map((e) => ({ ...e, source: e.source || e.from, target: e.target || e.to }));
 
     const runId = newRunId("wfr");
     const entry = {
@@ -700,13 +719,37 @@ export function mountWorkflowRoutes(app, deps) {
     const seedCtx = req.body?.context ?? {};
     let runId;
     let nodes, edges, startNode;
+    let chainName = chainId;
+
     try {
-      const { rows } = await pool.query("SELECT nodes, edges FROM orchestrations WHERE id=$1", [chainId]);
+      const ctx = await deps.resolveActorContext(req);
+      const { rows } = await pool.query(
+        "SELECT id, name, visibility, owner_id, tenant_id, is_global, nodes, edges FROM orchestrations WHERE id=$1",
+        [chainId]
+      );
       if (!rows[0]) return res.status(404).json({ ok: false, error: "chain not found" });
-      nodes = Array.isArray(rows[0].nodes) ? rows[0].nodes : [];
-      edges = Array.isArray(rows[0].edges) ? rows[0].edges : [];
+      const orcItem = rows[0];
+
+      // Multi-Tenant & Desk Isolation check
+      if (!ctx.isSuperAdmin) {
+        const callerTenant = ctx.tenantId || "default";
+        if (orcItem.tenant_id && orcItem.tenant_id !== callerTenant && !orcItem.is_global) {
+          return res.status(403).json({ ok: false, error: "Access denied to orchestration outside your organization" });
+        }
+        if (orcItem.visibility === "private") {
+          const matches = [ctx.userId, ctx.username, ctx.actor].filter(Boolean).map((s) => String(s).toLowerCase());
+          const isOwner = orcItem.owner_id && matches.includes(String(orcItem.owner_id).toLowerCase());
+          if (!isOwner && !ctx.isTenantAdmin) {
+            return res.status(403).json({ ok: false, error: "Private orchestration — only author or administrator may run this chain." });
+          }
+        }
+      }
+
+      chainName = orcItem.name || chainId;
+      nodes = Array.isArray(orcItem.nodes) ? orcItem.nodes : [];
+      edges = Array.isArray(orcItem.edges) ? orcItem.edges : [];
       // Normalize edge properties (UI uses 'from'/'to', Execution Engine uses 'source'/'target')
-      edges = edges.map(e => ({ ...e, source: e.source || e.from, target: e.target || e.to }));
+      edges = edges.map((e) => ({ ...e, source: e.source || e.from, target: e.target || e.to }));
 
       startNode = nodes.find((n) => n.kind === "start" || n.kind === "trigger" || n.type === "trigger" || n.label?.toLowerCase().includes("trigger")) || nodes[0];
       if (!startNode) return res.status(400).json({ ok: false, error: "chain has no start node" });
@@ -717,14 +760,9 @@ export function mountWorkflowRoutes(app, deps) {
         [runId, chainId, startNode.id, seedCtx, []]
       );
     } catch (e) {
-      return res.status(500).json({ ok: false, error: String(e.message || e) });
+      const status = e.status || 500;
+      return res.status(status).json({ ok: false, error: String(e.message || e) });
     }
-
-    let chainName = chainId;
-    try {
-      const { rows } = await pool.query("SELECT name FROM orchestrations WHERE id=$1", [chainId]);
-      if (rows[0]) chainName = rows[0].name;
-    } catch { /* ignore */ }
 
     const liveEntry = {
       runId,

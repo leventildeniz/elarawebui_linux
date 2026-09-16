@@ -90,62 +90,49 @@ export function useApprovalAuthority(): ApprovalAuthority {
   const isSuperUser = account?.role ? /^admin(istrator)?s?$/i.test(account.role.trim()) : false;
 
   // Identify groups the active user belongs to for departmental approval routing
-  const myGroupIds = useMemo(() => {
-    if (!account) return new Set<string>();
-    const gids = new Set<string>((account as any).groups || []);
-    for (const g of groups) {
-      if (g.members?.includes(account.id)) gids.add(g.id);
-    }
-    return gids;
+  const myGroups = useMemo(() => {
+    if (!account) return [];
+    return groups.filter((g) => {
+      const userGroupIds = Array.isArray((account as any).groups) ? (account as any).groups : [];
+      return userGroupIds.includes(g.id) || g.members?.includes(account.id);
+    });
   }, [account, groups]);
+
+  const myGroupIds = useMemo(() => new Set(myGroups.map((g) => g.id)), [myGroups]);
 
   const approverRoles = useMemo(
     () => roles.filter((r) => isSovereign(r) || roleActions(r).includes("approve")),
     [roles],
   );
-  const approverNames = useMemo(
-    () => new Set(approverRoles.map((r) => r.name ? r.name.toLowerCase() : "")),
-    [approverRoles],
-  );
-  const approverGroups = useMemo(
-    () => groups.filter((g) => {
-      if (!g.defaultRole || !approverNames.has(g.defaultRole.toLowerCase())) return false;
-      if (isSuperUser) return true;
-      const gTenant = (g as any).tenant_id || (g as any).tenantId || "default";
-      if (gTenant !== tenantId && gTenant !== "default") return false;
-      // Departmental alignment: only show Administrators group OR groups the active user belongs to
-      const isAdminGroup = g.id === "grp.administrators" || g.defaultRole.toLowerCase() === "admin";
-      const isMyGroup = myGroupIds.has(g.id);
-      return isAdminGroup || isMyGroup;
-    }),
-    [groups, approverNames, isSuperUser, tenantId, myGroupIds],
-  );
 
-  const approverGroupMemberIds = useMemo(() => {
-    const ids = new Set<string>();
-    for (const g of approverGroups) {
-      if (g.members) for (const m of g.members) ids.add(m);
+  // Scoped to the active user's actual department groups
+  const approverGroups = myGroups;
+
+  // Designated approver accounts explicitly assigned to user's department groups
+  const approverAccounts = useMemo(() => {
+    if (!account) return [];
+    const approverUserIds = new Set<string>();
+
+    for (const g of myGroups) {
+      if (Array.isArray(g.approvers)) {
+        for (const id of g.approvers) approverUserIds.add(id);
+      }
+      // Also include accounts mapped via approverDirectoryGroups / local approver groups
+      const claims = g.approverDirectoryGroups || [];
+      for (const claim of claims) {
+        const targetGroup = groups.find((tg) => tg.id === claim || tg.name === claim);
+        if (targetGroup?.members) {
+          for (const mId of targetGroup.members) approverUserIds.add(mId);
+        }
+      }
     }
-    return ids;
-  }, [approverGroups]);
 
-  const approverAccounts = useMemo(
-    () => accounts.filter((a) => {
-      if (!a.role || !approverNames.has(a.role.toLowerCase())) return false;
-      if (isSuperUser) return true;
+    return accounts.filter((a) => {
       const aTenant = (a as any).tenant_id || (a as any).tenantId || "default";
       if (aTenant !== tenantId && aTenant !== "default") return false;
-      const isAdmin = a.role.toLowerCase() === "admin" || a.role.toLowerCase() === "sovereign";
-      // Only include admins OR designated approvers for groups the active user belongs to
-      const isMyGroupApprover = Array.from(myGroupIds).some((gid) => {
-        const grp = groups.find((g) => g.id === gid);
-        return grp?.approvers?.includes(a.id);
-      });
-      const isMember = approverGroupMemberIds.has(a.id) || a.id === account?.id;
-      return isAdmin || isMyGroupApprover || isMember;
-    }),
-    [accounts, approverNames, isSuperUser, tenantId, myGroupIds, groups, approverGroupMemberIds, account],
-  );
+      return approverUserIds.has(a.id);
+    });
+  }, [account, myGroups, groups, accounts, tenantId]);
 
   const handle = account?.username ?? "operator";
 

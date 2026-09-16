@@ -13,6 +13,7 @@ import { buildMasterDirectives } from "../orchestrator/directives.mjs";
 import { streamFromProvider, mapJsonSchemaType } from "../orchestrator/stream-bridge.mjs";
 import { dispatchToolCall } from "../orchestrator/tool-dispatcher.mjs";
 import { calculateTurnTokens, calculateTurnCost, persistTurnTelemetry } from "../orchestrator/finops-meter.mjs";
+import { buildVisibility } from "../actor.mjs";
 
 export async function mountChatOrchestrateRoutes(app, deps) {
   const { pool, approxTokens, trace, invokeTool, broadcastAudit, enqueueWrite, logCheckpoint } = deps;
@@ -178,7 +179,10 @@ export async function mountChatOrchestrateRoutes(app, deps) {
           ? pool.query("SELECT label, origin FROM memory_working WHERE thread_id = $1 AND pinned = true ORDER BY updated_at ASC", [thread_id]).catch(() => ({ rows: [] }))
           : Promise.resolve({ rows: [] }),
         pool.query("SELECT id FROM action_library WHERE is_system = true AND COALESCE((runtime->>'orphan')::boolean, false) = false").catch(() => ({ rows: [] })),
-        pool.query("SELECT slug, name, tools_cache, auto_inject FROM mcp_client_servers WHERE enabled = true AND last_status = 'ready'").catch(() => ({ rows: [] })),
+        (() => {
+          const { clause: mcpVisClause, params: mcpVisParams } = buildVisibility(actorCtx, 1, "owner_id");
+          return pool.query(`SELECT slug, name, tools_cache, auto_inject FROM mcp_client_servers WHERE enabled = true AND last_status = 'ready' AND (${mcpVisClause})`, mcpVisParams).catch(() => ({ rows: [] }));
+        })(),
       ]);
 
       availableModels = [...dbRes.rows];
@@ -733,11 +737,13 @@ export async function mountChatOrchestrateRoutes(app, deps) {
             const bareToolIds = dbToolIds.map((id) => id.replace(/^tool\./, ""));
             const allPossibleIds = [...new Set([...dbToolIds, ...cleanToolIds, ...bareToolIds])];
 
+            const { clause: actVisClause, params: actVisParams } = buildVisibility(actorCtx, 2, "owner_user_id");
             const toolRes = await pool.query(
               `SELECT id, name, description, params FROM action_library 
                 WHERE (id = ANY($1) OR name = ANY($1)) 
+                  AND (${actVisClause})
                   AND COALESCE((runtime->>'orphan')::boolean, false) = false`,
-              [allPossibleIds]
+              [allPossibleIds, ...actVisParams]
             );
             for (const t of toolRes.rows) {
               const properties = {};
@@ -784,7 +790,11 @@ export async function mountChatOrchestrateRoutes(app, deps) {
             const bareSkillIds = capabilities.skills.map((id) => id.replace(/^(sk\.|skill\.)/, ""));
             const allSkillIds = [...new Set([...capabilities.skills, ...cleanSkillIds, ...bareSkillIds])];
 
-            const skillRes = await pool.query(`SELECT id, name, description, params FROM skills WHERE id = ANY($1) AND enabled = true`, [allSkillIds]);
+            const { clause: skillVisClause, params: skillVisParams } = buildVisibility(actorCtx, 2, "owner_id");
+            const skillRes = await pool.query(
+              `SELECT id, name, description, params FROM skills WHERE id = ANY($1) AND enabled = true AND (${skillVisClause})`,
+              [allSkillIds, ...skillVisParams]
+            );
             for (const s of skillRes.rows) {
               const properties = {};
               const required = [];

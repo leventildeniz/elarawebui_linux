@@ -159,6 +159,10 @@ function ApprovalsPage() {
   };
 
   const pending = items.filter((r) => r.status === "pending");
+  const isAdminUser =
+    auth.sovereign ||
+    auth.role?.name?.toLowerCase() === "admin" ||
+    (auth.account?.role ? /^admin(istrator)?s?$/i.test(auth.account.role.trim()) : false);
 
   return (
     <Surface
@@ -173,7 +177,7 @@ function ApprovalsPage() {
         {description}
       </p>
 
-      <QueueMasterSwitch queue={queue} onTriggerScan={emitSwitch} />
+      {isAdminUser && <QueueMasterSwitch queue={queue} onTriggerScan={emitSwitch} />}
 
       <ApproverBanner auth={auth} gate="queue" notify="approval" />
 

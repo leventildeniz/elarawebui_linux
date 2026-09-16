@@ -17,11 +17,12 @@ export function ApproverBanner({
   /** when set, renders the "page approvers by email" switch for that gate */
   notify?: "approval" | "forge";
 }) {
-  const roleNames = auth.approverRoles.map((r) => r.name);
-  const groupNames = auth.approverGroups.map((g) => g.name);
   const ok = auth.canApprove;
   const { prefs, update } = useNotifyPrefs();
   const mailOn = notify ? (notify === "approval" ? prefs.approvals : prefs.forge) : false;
+
+  const myDepartments = auth.approverGroups.map((g) => g.name);
+  const approverNames = auth.approverAccounts.map((a) => a.username);
 
   return (
     <div
@@ -49,14 +50,10 @@ export function ApproverBanner({
         </p>
         <p className="font-mono text-[11px] leading-relaxed text-muted-foreground/65" suppressHydrationWarning>
           delegated authority ·{" "}
-          {auth.approverAccounts.length > 0
-            ? `approvers: ${
-                auth.approverAccounts.length <= 4
-                  ? auth.approverAccounts.map((a) => a.username).join(", ")
-                  : `${auth.approverAccounts.slice(0, 3).map((a) => a.username).join(", ")} +${auth.approverAccounts.length - 3} others`
-              } & administrators`
-            : "department peer reviewers & administrators"}
-          {groupNames.length > 0 ? ` · scope: ${groupNames.join(", ")}` : ""}
+          {approverNames.length > 0
+            ? `designated approvers: ${approverNames.join(", ")} & administrators`
+            : "department peer review & administrators"}
+          {myDepartments.length > 0 ? ` · department: ${myDepartments.join(", ")}` : ""}
         </p>
       </div>
 

@@ -353,6 +353,12 @@ export async function mountApprovalRoutes(app, deps) {
   // --- CONFIG ---
   app.patch("/api/approvals/config", admin, async (req, res) => {
     try {
+      const ctx = typeof deps.resolveActorContext === "function" ? await deps.resolveActorContext(req) : null;
+      const isAllowed = ctx?.isSuperAdmin || ctx?.isTenantAdmin || (typeof deps.isAdminCaller === "function" && await deps.isAdminCaller(req));
+      if (!isAllowed) {
+        return res.status(403).json({ ok: false, error: "Administrative privileges required to modify approval queue configuration." });
+      }
+
       const { queue_armed, allow_self_approve } = req.body;
       const cur = await pool.query("SELECT * FROM approval_config WHERE id='singleton'");
       const cfg = cur.rows[0] || {};

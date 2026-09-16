@@ -41,6 +41,7 @@ export async function dispatchToolCall({
     const { clause: wfClause, params: wfParams } = buildVisibility(actorCtx, 1, "owner_id");
     const { clause: orcClause, params: orcParams } = buildVisibility(actorCtx, 1, "owner_id");
     const { clause: whClause, params: whParams } = buildVisibility(actorCtx, 1, "owner_id");
+    const { clause: mcpClause, params: mcpParams } = buildVisibility(actorCtx, 1, "owner_id");
 
     const [agtRes, actRes, skillRes, wfRes, orcRes, whRes, mcpRes] = await Promise.all([
       pool.query(`SELECT id, name, squad, description FROM agents WHERE ${agtClause}`, agtParams),
@@ -49,7 +50,7 @@ export async function dispatchToolCall({
       pool.query(`SELECT id, name, trigger, status FROM workflows WHERE ${wfClause} ORDER BY updated_at DESC`, wfParams),
       pool.query(`SELECT id, name, trigger, status FROM orchestrations WHERE ${orcClause} ORDER BY created_at DESC`, orcParams),
       pool.query(`SELECT id, name, slug, description, category, connection, enabled FROM webhooks WHERE enabled = true AND (${whClause}) ORDER BY created_at DESC`, whParams).catch(() => ({ rows: [] })),
-      pool.query(`SELECT slug, name, tools_cache FROM mcp_client_servers WHERE enabled = true`).catch(() => ({ rows: [] })),
+      pool.query(`SELECT slug, name, tools_cache FROM mcp_client_servers WHERE enabled = true AND (${mcpClause})`, mcpParams).catch(() => ({ rows: [] })),
     ]);
 
     const standardTools = actRes.rows.map((t) => {
@@ -254,7 +255,11 @@ export async function dispatchToolCall({
       canonicalId = `mcp.${cleanMcp}`;
     } else if (targetToolId.includes(".") || dotId.includes(".")) {
       const firstPart = (targetToolId.includes(".") ? targetToolId : dotId).split(".")[0];
-      const mcpServerCheck = await pool.query(`SELECT slug FROM mcp_client_servers WHERE slug = $1 AND enabled = true`, [firstPart]);
+      const { clause: mcpChkClause, params: mcpChkParams } = buildVisibility(actorCtx, 2, "owner_id");
+      const mcpServerCheck = await pool.query(
+        `SELECT slug FROM mcp_client_servers WHERE slug = $1 AND enabled = true AND (${mcpChkClause})`,
+        [firstPart, ...mcpChkParams]
+      );
       if (mcpServerCheck.rows.length > 0) {
         isMcp = true;
         serverSlug = firstPart;
@@ -263,7 +268,11 @@ export async function dispatchToolCall({
     }
 
     if (isMcp) {
-      const mcpRow = await pool.query(`SELECT id FROM mcp_client_servers WHERE slug = $1 AND enabled = true`, [serverSlug]);
+      const { clause: mcpExecClause, params: mcpExecParams } = buildVisibility(actorCtx, 2, "owner_id");
+      const mcpRow = await pool.query(
+        `SELECT id FROM mcp_client_servers WHERE slug = $1 AND enabled = true AND (${mcpExecClause})`,
+        [serverSlug, ...mcpExecParams]
+      );
       if (mcpRow.rows.length > 0) isAllowed = true;
     } else {
       const possibleSkillIds = [targetToolId, `sk.${normalizedId}`, `sk.${targetToolId}`, normalizedId, dotId];

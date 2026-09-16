@@ -1832,7 +1832,8 @@ ELARA Sovereign Studio genelinde **Zero-Trust Çoklu Kiracı (Multi-Tenancy) ve 
         - `PATCH /api/approvals/decide` ve MetaForge plan işlemleri (`apply`, `reject`, `rollback`, `reapply`, `undo`): Yabancı departmanların biletlerine onay basılması backend seviyesinde `HTTP 403 Department Isolation` ile engellenir.
         - Delege onaycı atanmamış gruplarda, aynı departman içindeki akranlar (Peer Review) biletleri onaylayabilir.
    3. **ApproverBanner & Bildirim Hijyeni (`approver-banner.tsx`, `approver-gate.ts`):**
-      - 50 kişilik ham rol ve kullanıcı dökümü kaldırıldı; oturum açmış kullanıcının departmanına göre yetkili otoriteyi gösteren şık bir özet sağlandı (örn: `delegated authority · approvers: [isimler] & administrators · scope: [Departman]`).
+      - `approverAccounts` hesaplamasında gruptaki tüm üyeleri (`isMember`) ve tüm adminleri torbaya dolduran filtreleme kaldırıldı. Yalnızca ilgili departmana açıkça atanmış onaycı hesaplar (`designatedApprovers`) bağlandı.
+      - 50 kişilik ve "+5 others" gibi ham kullanıcı/rol dökümü tamamen temizlendi. Eğer departmanda özel onaycı atanmamışsa `department peer review & administrators`, atanmışsa `designated approvers: [isimler] & administrators` şeklinde sade ve kurumsal özet getirildi; `scope` yerine kullanıcının gerçek departmanı (`department: [Departmanlar]`) yazdırıldı.
    4. **Birleşik Onaycı Grupları (Local Studio & External Directory Approver Groups — `users.tsx`, `group-store.ts`, `approvals.mjs`, `meta-forge.mjs`):**
       - Sağdaki grup delegasyon kartı yalnızca Entra ID/LDAP ile sınırlı kalmaktan çıkarılıp `Approver groups` adıyla hem yerel stüdyo gruplarını (`[Studio] Administrators`, `[Studio] Auditors` vb.) hem de harici dizin gruplarını (`[Directory]`) kapsayacak şekilde birleştirildi.
       - Bir yerel stüdyo grubu (örn. `Administrators`) onaycı grup olarak atandığında, o grubun tüm üyeleri backend seviyesinde ilgili departmanın yetkili onaycısı olarak kabul edilir (`isGroupAppr = true`).
@@ -1843,11 +1844,17 @@ ELARA Sovereign Studio genelinde **Zero-Trust Çoklu Kiracı (Multi-Tenancy) ve 
       - `ShareControl` bileşeni `GROUP` görünürlüğü seçildiğinde 50'den fazla grubun alt alta butonlar halinde yığılmasını engelleyen **Searchable Group Dropdown (`+ Add group to share…`)** ve **Removable Chips (`✕`)** mimarisine geçirildi.
       - Seçim listesinde `[Studio] GrupAdı` gösterilirken, eklendikten sonra rozette temiz ve standart olarak `GrupAdı (Local)` basılması sağlandı.
       - Bu geliştirme merkezi bileşen üzerinden stüdyodaki tüm 8 varlık yüzeyine (`Agents`, `Capabilities/Packs`, `Skills`, `Forge Factory/Tools`, `Flows`, `Orchestrations`, `Planners`, `MCP Clients`) aynı anda uygulandı. `SharePopover` genişliği `w-[340px]` olarak rahatlatıldı.
-   7. **Canlı Doğrulama:**
+   7. **Approval Queue Master Switch Güvenlik Kilidi (`approvals.tsx`, `approvals.mjs`):**
+      - Küresel onay ana şalteri (`QUEUE ARMED`, `Disable`, `SELF-APPROVAL ON/OFF`, `Sim Anomaly`, `Watchdog Scan`) standart operatör ve mühendislerin arayüzünden tamamen kaldırıldı (`isAdminUser` koşulu). Yalnızca SuperAdmin ve TenantAdmin'lerin erişimine açıldı.
+      - Arka uç `PATCH /api/approvals/config` uç noktası `isSuperAdmin || isTenantAdmin` kontrolüyle mühürlendi; yetkisiz kullanıcıların API üzerinden şalteri kapatması `HTTP 403 Forbidden` ile engellendi.
+   8. **Chat & Orchestration Zero-Desk MCP / Tool / Workflow Mührü (`tool-dispatcher.mjs`, `chat-orchestrate.mjs`, `workflows.mjs`, `agent-run.mjs`):**
+      - **MCP Keşif & İcra Koruması:** `tool-dispatcher.mjs` içindeki `sys_get_directory` ve `sys_execute_tool` MCP sorgularına `buildVisibility(actorCtx, 'owner_id')` filtresi bağlandı. Admin'in masasında `[MINE]` duran MCP sunucularının (GitHub, Filesystem) yabancı operatörlere (`deneme2`) sızması ve çalıştırılması kökten engellendi.
+      - **Chat Zarfı Koruması:** `chat-orchestrate.mjs` içerisindeki auto-inject MCP, talep edilen tool ve skill seçimlerine `buildVisibility` bağlandı.
+      - **Workflow & Orchestration Tetikleme Kalkanı:** `/api/workflows/:id/trigger`, `/api/chains/:id/run` ve `/api/agents/:id/run` uç noktalarına IDOR ve Zero-Desk masa kontrolü eklendi; özel (`private`) iş akışları, orkestrasyonlar ve ajanların yetkisiz operatörlerce çalıştırılması `HTTP 403 Forbidden` ile engellendi.
+   9. **Canlı Doğrulama:**
+      - Canlı testle doğrulandı: `deneme2` için `buildVisibility` MCP sayısı **0** dönerken, `admin` için tüm 5 MCP listelendi (Tam Masa İzolasyonu).
       - `deneme2` (`Operators`) oturumu ile sorgulandığında diğer departmanların biletleri listede görünmedi (Sıfır Sızıntı).
-      - `deneme2` düşük riskli biletini self-approve ile onaylayabildi.
-      - `deneme2` kritik riskli bilette self-approve denediğinde `HTTP 403 Four-Eyes Principle Violation` ile engellendi.
-      - `self_approval: false` olan departman biletinde self-approve denendiğinde `HTTP 403 Self-Approval Disabled` ile engellendi.
+      - `deneme2` düşük riskli biletini self-approve ile onaylayabildi; kritik riskli bilette self-approve `HTTP 403 Four-Eyes Principle Violation` ile engellendi.
       - `node --check` 0 hata, `npx tsc --noEmit` 0 hata; tüm systemd servisleri aktif ve sağlıklı.
 
    ---
