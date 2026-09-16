@@ -1812,6 +1812,26 @@ ELARA Sovereign Studio genelinde **Zero-Trust Çoklu Kiracı (Multi-Tenancy) ve 
    - **Vektör 2 (SSRF & Egress Filtreleme):** Tool, Skill ve MCP Isolation Sandboxes icra motoruna bağlandı; `web_fetch`, `url-crawler` ve `mcp/client` üzerinden loopback, intranet ve cloud metadata (`169.254.169.254`) aranması engellendi.
    - **Vektör 3 (SQL Injection):** Rota genelinde $1, $2 parametrik parite doğrulandı; dinamik UPDATE builder'lar kapalı izin kümesine bağlandı.
    - **Vektör 4 (Secret Vault):** Backend'e `access.can('vault')` yetki kapısı takıldı; yetkisiz rollerin açık metin sırları API ile çekmesi 403 ile engellendi. Sıfır açık metin loglama teyit edildi.
-   - **Vektör 5 (Zero-Trust IDOR & Four-Eyes Onay Kapısı):** Sohbet mesajları, workflow'lar ve kiracı başlıkları IDOR saldırılarına karşı kapatıldı. Approval Queue (`approvals.mjs`) ve MetaForge (`meta-forge.mjs`) içerisine Dört Göz (Four-Eyes / Self-Approval prevention) kalkanı, `"approve"` rol aksiyon denetimi ve kriptografik `decided_by` oturum bağı entegre edildi. Kendi talebini onaylama açığı kapatıldı.
+   - **Vektör 5 (Zero-Trust IDOR & Four-Eyes Onay Kapısı):** Sohbet mesajları, workflow'lar ve kiracı başlıkları IDOR saldırılarına karşı kapatıldı. Approval Queue (`approvals.mjs`) ve MetaForge (`meta-forge.mjs`) içerisine Dört Göz (Four-Eyes / Self-Approval prevention) kalkanı, `"approve"` rol aksiyon denetimi ve kriptografik `decided_by` oturum bağı entegre edildi. MetaForge plan onayları (`/api/meta-forge/plans/:id/apply`), geri alımları (`/rollback`) ve yeniden uygulamaları (`/reapply`) salt SuperAdmin tekelinden çıkarılıp RBAC'ta `"approve"` yetkisi verilmiş rollere (`Engineer`) açıldı; üretilen varlıklar yazarının özel masasına (`visibility: private`) bağlandı.
+   - **3-Seviyeli MetaForge Kütük Sıfırlama (Reset Ledger):** SuperAdmin (küme genelinde Clean Sweep / Log Purge), TenantAdmin (kendi kiracısında Clean Sweep / Log Purge), Standart Operatör (yalnızca kendi masasının kütük geçmişini silme, Clean Sweep ise kilitli ve `🔒 ADMIN ONLY` rozetli) olarak mühürlendi.
+
+   ---
+
+   ### 🚨 POST-FAZ C TESPİT & YOL HARİTASI: APPROVERS & BİLDİRİM ROTALAMA MİMARİSİ (LEVENT İLDENİZ AUDIT NOTU)
+
+   **Mevcut Durum & Problem Tespiti:**
+   - `src/lib/approver-gate.ts` ve `ApproverBanner` (`approver-banner.tsx`), onaycıları listelerken veritabanında `approve` yetkisine sahip tüm rolleri, bu rollere atanmış tüm grupları ve kullanıcıları tek bir torbada toplayarak ekrana basıyor.
+   - **Kurumsal Güvenlik & Yönetişim Çelişkisi:**
+     Bir kurumda 50 farklı departman ve grup (örneğin Teknik Servis vs Satış vs İnsan Kaynakları) olduğunda; her gruba kendi yetki alanı için `approve` izni verildiğinde, onay bandı sistemdeki tüm bu 50 grubu ve onlarca kullanıcıyı alt alta listelemektedir.
+     Sonuç olarak `notify approvers` açıldığında alakasız departmanlara toplu e-posta bildirimi gitme riski oluşmakta ve teknik bir akış için satış grubunun onaycı görünmesi gibi anlamsız bir tablo ortaya çıkmaktadır.
+
+   **Taze Zihinle Yeni Oturumda Ele Alınacak Mimari Çözüm:**
+   1. **Kapı / Departman Bazlı Onaycı Yönlendirmesi (Targeted Approver Routing):**
+      - Tıpkı RAG alanlarındaki `reader_groups` ve `contributor_groups` gibi; onay gerektiren varlıklarda (`approval_requests`, `tools`, `targets`, `forge_plans`) onay yetkilisinin spesifik hedef grubu (`assigned_groups` / `target_group`) üzerinden çözümlenmesi.
+      - Teknik bir işlemde yalnızca **Teknik Onaycılar ve Yöneticiler** listelenecek ve bildirim yalnızca onlara gidecek; diğer departmanlar asla bu listeye dahil edilmeyecektir.
+   2. **ApproverBanner Sadeleştirmesi:**
+      - Tüm rollerin ve kullanıcıların ham veritabanı dökümü şeklinde listelenmesi yerine, o bilet/kapı için doğrudan yetkilendirilmiş birincil otorite (örn. `Administrators & Technical Leads`) şeklinde kurumsal ve sade bir gösterime kavuşturulması.
+
+   ---
 
    **Sistem Durumu:** `node --check` 0 hata, `npx tsc --noEmit` 0 hata; tüm systemd servisleri aktif, sağlıklı ve operasyonel.

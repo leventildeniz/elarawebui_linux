@@ -51,7 +51,11 @@ export function ApproverBanner({
           approvers · roles: {roleNames.length ? roleNames.join(", ") : "none"}
           {groupNames.length ? ` · groups: ${groupNames.join(", ")}` : ""}
           {auth.approverAccounts.length
-            ? ` · principals: ${auth.approverAccounts.map((a) => a.username).join(", ")}`
+            ? ` · principals: ${
+                auth.approverAccounts.length <= 4
+                  ? auth.approverAccounts.map((a) => a.username).join(", ")
+                  : `${auth.approverAccounts.slice(0, 3).map((a) => a.username).join(", ")} +${auth.approverAccounts.length - 3} others`
+              }`
             : ""}
         </p>
       </div>

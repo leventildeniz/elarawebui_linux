@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Archive, Check, CheckCircle2, Clock, Gem, RotateCcw, Trash2, Undo2, X, XCircle } from "lucide-react";
+import { Archive, Check, CheckCircle2, Clock, Gem, Lock, RotateCcw, Trash2, Undo2, X, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Shell } from "@/components/sovereign/shell";
@@ -123,11 +123,11 @@ function MetaForge() {
               <Archive className="h-3 w-3 text-amethyst" strokeWidth={1.6} />
               trash ({trash.length})
             </button>
-            {ownerCtx.sovereign && (
+            {auth.canApprove && (
               <button
                 onClick={() => setConfirmReset(true)}
                 className="flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 transition-colors hover:text-foreground hover:border-ruby/50"
-                title="SuperAdmin: Reset Meta-Forge Ledger"
+                title={ownerCtx.sovereign ? "SuperAdmin: Reset Meta-Forge Ledger" : "Clear Ledger History"}
               >
                 <RotateCcw className="h-3 w-3 text-ruby/70" strokeWidth={1.6} /> reset ledger
               </button>
@@ -135,9 +135,9 @@ function MetaForge() {
           </div>
         </header>
 
-        {confirmReset && ownerCtx.sovereign && (
+        {confirmReset && auth.canApprove && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-            <div className="w-[min(480px,94vw)] rounded-[14px] border border-border bg-panel p-6 shadow-2xl">
+            <div className="w-[min(560px,94vw)] rounded-[14px] border border-border bg-panel p-6 shadow-2xl">
               <h2 className="font-mono text-[13px] uppercase tracking-[0.2em] text-foreground">
                 Reset Forge Ledger
               </h2>
@@ -170,37 +170,58 @@ function MetaForge() {
                     </div>
                   </div>
                   <p className="mt-1 text-[12px] text-muted-foreground pr-5">
-                    Removes plan records from the ledger. All active tools, workflows and webhooks remain deployed and functioning.
+                    {ownerCtx.sovereign
+                      ? "Removes all plan records from the global ledger. All active tools, workflows and webhooks remain deployed."
+                      : ownerCtx.isTenantAdmin
+                        ? "Removes plan records for this organization. All active tools, workflows and webhooks remain deployed."
+                        : "Removes your own plan records from your desk ledger. Your active tools, workflows and webhooks remain deployed."}
                   </p>
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => setResetMode("clean_sweep")}
-                  className={cn(
-                    "w-full text-left rounded-xl border p-3.5 transition-all duration-150 relative",
-                    resetMode === "clean_sweep"
-                      ? "border-ruby/70 bg-ruby/[0.12] shadow-[0_0_24px_-10px_var(--ruby)]"
-                      : "border-white/[0.08] bg-raised/30 hover:border-white/20 hover:bg-raised/50"
-                  )}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="font-mono text-[12px] font-semibold uppercase tracking-[0.14em] text-ruby">
-                      2. Clean Sweep & Rollback (Factory Reset)
-                    </div>
-                    <div className={cn(
-                      "h-4 w-4 rounded-full border flex items-center justify-center transition-colors",
-                      resetMode === "clean_sweep"
-                        ? "border-ruby bg-ruby text-white"
-                        : "border-white/20 bg-transparent"
-                    )}>
-                      {resetMode === "clean_sweep" && <Check className="h-2.5 w-2.5 stroke-[3]" />}
-                    </div>
-                  </div>
-                  <p className="mt-1 text-[12px] text-muted-foreground pr-5">
-                    Rolls back all generated tools and workflows (moves files to .forge-trash, clears DB records) and purges the ledger.
-                  </p>
-                </button>
+                {(() => {
+                  const canCleanSweep = ownerCtx.sovereign || ownerCtx.isTenantAdmin;
+                  return (
+                    <button
+                      type="button"
+                      disabled={!canCleanSweep}
+                      onClick={() => canCleanSweep && setResetMode("clean_sweep")}
+                      className={cn(
+                        "w-full text-left rounded-xl border p-3.5 transition-all duration-150 relative",
+                        !canCleanSweep && "opacity-50 cursor-not-allowed",
+                        resetMode === "clean_sweep"
+                          ? "border-ruby/70 bg-ruby/[0.12] shadow-[0_0_24px_-10px_var(--ruby)]"
+                          : "border-white/[0.08] bg-raised/30 hover:border-white/20 hover:bg-raised/50"
+                      )}
+                      title={!canCleanSweep ? "Clean sweep factory reset is restricted to administrators" : undefined}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-[12px] font-semibold uppercase tracking-[0.14em] text-ruby">
+                            2. Clean Sweep & Rollback (Factory Reset)
+                          </span>
+                          {!canCleanSweep && (
+                            <span className="inline-flex items-center gap-1 rounded border border-topaz/35 bg-topaz/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-topaz shrink-0 whitespace-nowrap">
+                              <Lock className="h-2.5 w-2.5" /> admin only
+                            </span>
+                          )}
+                        </div>
+                        <div className={cn(
+                          "h-4 w-4 rounded-full border flex items-center justify-center transition-colors shrink-0",
+                          resetMode === "clean_sweep"
+                            ? "border-ruby bg-ruby text-white"
+                            : "border-white/20 bg-transparent"
+                        )}>
+                          {resetMode === "clean_sweep" && <Check className="h-2.5 w-2.5 stroke-[3]" />}
+                        </div>
+                      </div>
+                      <p className="mt-1 text-[12px] text-muted-foreground pr-5">
+                        {ownerCtx.sovereign
+                          ? "Rolls back all generated tools and workflows cluster-wide (moves files to .forge-trash, clears DB records) and purges the ledger."
+                          : "Rolls back all generated tools and workflows in this organization and purges the tenant ledger."}
+                      </p>
+                    </button>
+                  );
+                })()}
               </div>
 
               <div className="mt-6 flex items-center justify-end gap-2.5">

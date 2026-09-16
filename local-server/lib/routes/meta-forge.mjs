@@ -30,6 +30,21 @@ export function mountMetaForgeRoutes(app, deps) {
   const { pool, resolveActorContext, hydrateAllowedAgentsFromDb } = deps;
   ensureForgeTables(pool).catch(e => console.error("[meta-forge] ensure failed:", e?.message || e));
 
+  async function requireApprover(req, res) {
+    try {
+      const ctx = await resolveActorContext(req);
+      const canApprove = ctx?.isSuperAdmin || ctx?.isTenantAdmin || ctx?.actions?.includes("approve") || ctx?.actions?.includes("*");
+      if (!canApprove) {
+        res.status(403).json({ ok: false, error: "Approval permission ('approve' action verb) required" });
+        return null;
+      }
+      return ctx;
+    } catch {
+      res.status(401).json({ ok: false, error: "unauthorized" });
+      return null;
+    }
+  }
+
   async function requireAdmin(req, res) {
     try {
       const ctx = await resolveActorContext(req);
@@ -158,9 +173,9 @@ export function mountMetaForgeRoutes(app, deps) {
     }
   });
 
-  // Approve + apply. Admin only with Multi-Tenant & Four-Eyes guards.
+  // Approve + apply MetaForge plan. Requires 'approve' role action verb or admin.
   app.post("/api/meta-forge/plans/:id/apply", async (req, res) => {
-    const ctx = await requireAdmin(req, res); if (!ctx) return;
+    const ctx = await requireApprover(req, res); if (!ctx) return;
     const { rows } = await pool.query(
       `SELECT id, jsonb_build_object('create', actions) AS plan_json, status, actor, tenant_id, is_global FROM forge_plans WHERE id=$1`,
       [req.params.id],
@@ -168,9 +183,17 @@ export function mountMetaForgeRoutes(app, deps) {
     if (!rows.length) return res.status(404).json({ ok: false, error: "plan not found" });
     const p = rows[0];
 
-    // Multi-tenant isolation check
+    // Multi-tenant & Zero-Desk isolation check
     if (!ctx.isSuperAdmin && p.tenant_id && p.tenant_id !== ctx.tenantId && !p.is_global) {
       return res.status(403).json({ ok: false, error: "Access denied: cannot apply plan outside your organization." });
+    }
+
+    const operatorUser = ctx?.username || ctx?.user?.name || req.session?.username || req.actor || "system";
+    if (!ctx.isSuperAdmin && !ctx.isTenantAdmin && p.actor) {
+      const isCreator = String(p.actor).toLowerCase() === String(operatorUser).toLowerCase();
+      if (!isCreator) {
+        return res.status(403).json({ ok: false, error: "Access denied: this MetaForge proposal belongs to another operator's desk." });
+      }
     }
 
     if (p.status === "applied") {
@@ -180,20 +203,6 @@ export function mountMetaForgeRoutes(app, deps) {
       return res.status(409).json({ ok: false, error: `plan status is ${p.status}` });
     }
     try {
-      const operatorUser = ctx?.username || ctx?.user?.name || req.session?.username || req.actor || "system";
-
-      // Four-Eyes check: If self-approval is disabled, creator cannot self-approve their plan
-      if (!ctx.isSuperAdmin) {
-        const cfgRes = await pool.query("SELECT allow_self_approve FROM approval_config WHERE id='singleton'");
-        const allowSelf = cfgRes.rows[0]?.allow_self_approve === true;
-        if (!allowSelf && p.actor && String(p.actor).toLowerCase() === String(operatorUser).toLowerCase()) {
-          return res.status(403).json({
-            ok: false,
-            error: "Four-Eyes Principle Violation: You cannot approve your own MetaForge plan. An independent reviewer must sign it off."
-          });
-        }
-      }
-
       const result = await applyForgePlan({ pool, planId: p.id, plan: p.plan_json, forgedBy: operatorUser });
       const finalStatus = result.failed.length && !result.applied.length ? "failed" : "applied";
       await pool.query(
@@ -215,15 +224,23 @@ export function mountMetaForgeRoutes(app, deps) {
   });
 
   app.post("/api/meta-forge/plans/:id/reject", async (req, res) => {
-    const ctx = await requireAdmin(req, res); if (!ctx) return;
+    const ctx = await requireApprover(req, res); if (!ctx) return;
     const { rows } = await pool.query(
-      `SELECT id, tenant_id, is_global FROM forge_plans WHERE id=$1`,
+      `SELECT id, actor, tenant_id, is_global FROM forge_plans WHERE id=$1`,
       [req.params.id]
     );
     if (!rows.length) return res.status(404).json({ ok: false, error: "plan not found" });
     const p = rows[0];
     if (!ctx.isSuperAdmin && p.tenant_id && p.tenant_id !== ctx.tenantId && !p.is_global) {
       return res.status(403).json({ ok: false, error: "Access denied: cannot reject plan outside your organization." });
+    }
+
+    const operatorUser = ctx?.username || ctx?.user?.name || req.session?.username || req.actor || "system";
+    if (!ctx.isSuperAdmin && !ctx.isTenantAdmin && p.actor) {
+      const isCreator = String(p.actor).toLowerCase() === String(operatorUser).toLowerCase();
+      if (!isCreator) {
+        return res.status(403).json({ ok: false, error: "Access denied: this MetaForge proposal belongs to another operator's desk." });
+      }
     }
 
     const reason = String(req.body?.reason || "").slice(0, 500);
@@ -235,7 +252,27 @@ export function mountMetaForgeRoutes(app, deps) {
   });
 
   app.post("/api/meta-forge/plans/:id/rollback", async (req, res) => {
-    const ctx = await requireAdmin(req, res); if (!ctx) return;
+    const ctx = await requireApprover(req, res); if (!ctx) return;
+    const { rows } = await pool.query(
+      `SELECT id, actor, tenant_id, is_global FROM forge_plans WHERE id=$1`,
+      [req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ ok: false, error: "plan not found" });
+    const p = rows[0];
+
+    // Multi-tenant & Zero-Desk isolation check
+    if (!ctx.isSuperAdmin && p.tenant_id && p.tenant_id !== ctx.tenantId && !p.is_global) {
+      return res.status(403).json({ ok: false, error: "Access denied: cannot rollback plan outside your organization." });
+    }
+
+    const operatorUser = ctx?.username || ctx?.user?.name || req.session?.username || req.actor || "system";
+    if (!ctx.isSuperAdmin && !ctx.isTenantAdmin && p.actor) {
+      const isCreator = String(p.actor).toLowerCase() === String(operatorUser).toLowerCase();
+      if (!isCreator) {
+        return res.status(403).json({ ok: false, error: "Access denied: this MetaForge plan belongs to another operator's desk." });
+      }
+    }
+
     try {
       const result = await rollbackForgePlan({ pool, planId: req.params.id });
       await pool.query(
@@ -249,15 +286,28 @@ export function mountMetaForgeRoutes(app, deps) {
   });
 
   app.post("/api/meta-forge/plans/:id/reapply", async (req, res) => {
-    const ctx = await requireAdmin(req, res); if (!ctx) return;
+    const ctx = await requireApprover(req, res); if (!ctx) return;
     const { rows } = await pool.query(
-      `SELECT id, jsonb_build_object('create', actions) AS plan_json, status FROM forge_plans WHERE id=$1`,
+      `SELECT id, jsonb_build_object('create', actions) AS plan_json, status, actor, tenant_id, is_global FROM forge_plans WHERE id=$1`,
       [req.params.id],
     );
     if (!rows.length) return res.status(404).json({ ok: false, error: "plan not found" });
     const p = rows[0];
+
+    // Multi-tenant & Zero-Desk isolation check
+    if (!ctx.isSuperAdmin && p.tenant_id && p.tenant_id !== ctx.tenantId && !p.is_global) {
+      return res.status(403).json({ ok: false, error: "Access denied: cannot reapply plan outside your organization." });
+    }
+
+    const operatorUser = ctx?.username || ctx?.user?.name || req.session?.username || req.actor || "system";
+    if (!ctx.isSuperAdmin && !ctx.isTenantAdmin && p.actor) {
+      const isCreator = String(p.actor).toLowerCase() === String(operatorUser).toLowerCase();
+      if (!isCreator) {
+        return res.status(403).json({ ok: false, error: "Access denied: this MetaForge plan belongs to another operator's desk." });
+      }
+    }
+
     try {
-      const operatorUser = ctx?.username || ctx?.user?.name || req.session?.username || req.actor || "system";
       const result = await applyForgePlan({ pool, planId: p.id, plan: p.plan_json, forgedBy: operatorUser });
       const finalStatus = result.failed.length && !result.applied.length ? "failed" : "applied";
       await pool.query(
@@ -274,14 +324,33 @@ export function mountMetaForgeRoutes(app, deps) {
     }
   });
 
-  // Auto-Creator: Undo alias (admin-only)
-  // Same as rollback but sets status='undone' so the log distinguishes admin-driven undo.
+  // Auto-Creator: Undo alias (approver allowed for their own plan or admin)
   app.post("/api/meta-forge/plans/:id/undo", async (req, res) => {
-    const ctx = await requireAdmin(req, res); if (!ctx) return;
+    const ctx = await requireApprover(req, res); if (!ctx) return;
+    const { rows } = await pool.query(
+      `SELECT id, actor, tenant_id, is_global FROM forge_plans WHERE id=$1`,
+      [req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ ok: false, error: "plan not found" });
+    const p = rows[0];
+
+    // Multi-tenant & Zero-Desk isolation check
+    if (!ctx.isSuperAdmin && p.tenant_id && p.tenant_id !== ctx.tenantId && !p.is_global) {
+      return res.status(403).json({ ok: false, error: "Access denied: cannot undo plan outside your organization." });
+    }
+
+    const operatorUser = ctx?.username || ctx?.user?.name || req.session?.username || req.actor || "system";
+    if (!ctx.isSuperAdmin && !ctx.isTenantAdmin && p.actor) {
+      const isCreator = String(p.actor).toLowerCase() === String(operatorUser).toLowerCase();
+      if (!isCreator) {
+        return res.status(403).json({ ok: false, error: "Access denied: this MetaForge plan belongs to another operator's desk." });
+      }
+    }
+
     try {
       const result = await rollbackForgePlan({ pool, planId: req.params.id });
       await pool.query(
-        `UPDATE forge_plans SET status='rolled_back', note=COALESCE(note,'') || ' [undone by admin]' WHERE id=$1`,
+        `UPDATE forge_plans SET status='rolled_back', note=COALESCE(note,'') || ' [undone]' WHERE id=$1`,
         [req.params.id],
       );
       res.json({ ok: true, ...result });
@@ -291,9 +360,43 @@ export function mountMetaForgeRoutes(app, deps) {
   });
 
   app.delete("/api/meta-forge/plans", async (req, res) => {
-    const ctx = await requireAdmin(req, res); if (!ctx) return;
+    const ctx = await requireApprover(req, res); if (!ctx) return;
     const mode = String(req.query?.mode || "logs_only");
+    const callerUsername = req.session?.username || ctx?.username || req.actor || "operator";
+    const tenantId = ctx?.tenantId || req.session?.tenant_id || "default";
+
     try {
+      // Tier 3: Standard Operator (own desk only, clean sweep strictly forbidden)
+      if (!ctx.isSuperAdmin && !ctx.isTenantAdmin) {
+        if (mode === "clean_sweep") {
+          return res.status(403).json({
+            ok: false,
+            error: "Clean sweep factory reset is restricted to administrators. You may only clear your own ledger history."
+          });
+        }
+        await pool.query(
+          "DELETE FROM forge_plans WHERE (actor = $1 OR lower(actor) = lower($1)) AND (tenant_id = $2 OR tenant_id IS NULL)",
+          [callerUsername, tenantId]
+        );
+        return res.json({ ok: true, mode: "logs_only", scope: "own_desk" });
+      }
+
+      // Tier 2: Tenant Admin (scoped to their own organization only)
+      if (!ctx.isSuperAdmin && ctx.isTenantAdmin) {
+        if (mode === "clean_sweep") {
+          const { rows } = await pool.query(
+            "SELECT id FROM forge_plans WHERE status IN ('applied', 'pending') AND tenant_id = $1 AND is_global = false",
+            [tenantId]
+          );
+          for (const r of rows) {
+            await rollbackForgePlan({ pool, planId: r.id }).catch(() => {});
+          }
+        }
+        await pool.query("DELETE FROM forge_plans WHERE tenant_id = $1 AND is_global = false", [tenantId]);
+        return res.json({ ok: true, mode, scope: "tenant", tenantId });
+      }
+
+      // Tier 1: SuperAdmin (cluster-wide factory reset or log purge)
       if (mode === "clean_sweep") {
         const { rows } = await pool.query("SELECT id FROM forge_plans WHERE status IN ('applied', 'pending')");
         for (const r of rows) {
@@ -302,7 +405,7 @@ export function mountMetaForgeRoutes(app, deps) {
       }
       await pool.query("DELETE FROM forge_artifacts");
       await pool.query("DELETE FROM forge_plans");
-      res.json({ ok: true, mode });
+      res.json({ ok: true, mode, scope: "cluster" });
     } catch (e) {
       res.status(500).json({ ok: false, error: String(e?.message || e) });
     }

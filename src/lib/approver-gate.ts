@@ -86,6 +86,19 @@ export function useApprovalAuthority(): ApprovalAuthority {
   const sovereign = isSovereign(role);
   const canApprove = !enforced || sovereign || verbs.includes("approve");
 
+  const tenantId = account?.tenantId || (account as any)?.tenant_id || "default";
+  const isSuperUser = account?.role ? /^admin(istrator)?s?$/i.test(account.role.trim()) : false;
+
+  // Identify groups the active user belongs to for departmental approval routing
+  const myGroupIds = useMemo(() => {
+    if (!account) return new Set<string>();
+    const gids = new Set<string>((account as any).groups || []);
+    for (const g of groups) {
+      if (g.members?.includes(account.id)) gids.add(g.id);
+    }
+    return gids;
+  }, [account, groups]);
+
   const approverRoles = useMemo(
     () => roles.filter((r) => isSovereign(r) || roleActions(r).includes("approve")),
     [roles],
@@ -95,12 +108,38 @@ export function useApprovalAuthority(): ApprovalAuthority {
     [approverRoles],
   );
   const approverGroups = useMemo(
-    () => groups.filter((g) => g.defaultRole && approverNames.has(g.defaultRole.toLowerCase())),
-    [groups, approverNames],
+    () => groups.filter((g) => {
+      if (!g.defaultRole || !approverNames.has(g.defaultRole.toLowerCase())) return false;
+      if (isSuperUser) return true;
+      const gTenant = (g as any).tenant_id || (g as any).tenantId || "default";
+      if (gTenant !== tenantId && gTenant !== "default") return false;
+      // Departmental alignment: only show Administrators group OR groups the active user belongs to
+      const isAdminGroup = g.id === "grp.administrators" || g.defaultRole.toLowerCase() === "admin";
+      const isMyGroup = myGroupIds.has(g.id);
+      return isAdminGroup || isMyGroup;
+    }),
+    [groups, approverNames, isSuperUser, tenantId, myGroupIds],
   );
+
+  const approverGroupMemberIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const g of approverGroups) {
+      if (g.members) for (const m of g.members) ids.add(m);
+    }
+    return ids;
+  }, [approverGroups]);
+
   const approverAccounts = useMemo(
-    () => accounts.filter((a) => a.role && approverNames.has(a.role.toLowerCase())),
-    [accounts, approverNames],
+    () => accounts.filter((a) => {
+      if (!a.role || !approverNames.has(a.role.toLowerCase())) return false;
+      if (isSuperUser) return true;
+      const aTenant = (a as any).tenant_id || (a as any).tenantId || "default";
+      if (aTenant !== tenantId && aTenant !== "default") return false;
+      const isAdmin = a.role.toLowerCase() === "admin" || a.role.toLowerCase() === "sovereign";
+      const isMember = approverGroupMemberIds.has(a.id) || a.id === account?.id;
+      return isAdmin || isMember;
+    }),
+    [accounts, approverNames, isSuperUser, tenantId, approverGroupMemberIds, account],
   );
 
   const handle = account?.username ?? "operator";

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 
 /**
  * Meta-Forge plans — every proposal the system forged for itself,
@@ -233,10 +234,16 @@ export function useForgePlans() {
 
   const apply = useCallback(async (id: string, action: "apply" | "reject" | "rollback" | "undo" | "reapply") => {
     try {
-      await fetchApi(`/api/meta-forge/plans/${id}/${action}`, { method: "POST" });
+      const res = await fetchApi(`/api/meta-forge/plans/${id}/${action}`, { method: "POST" });
+      if (res && res.ok === false) {
+        toast.error(res.error || `Failed to ${action} plan`);
+        return;
+      }
+      toast.success(`Plan ${action === "rollback" ? "rolled back" : action + "ed"} successfully!`);
       window.dispatchEvent(new CustomEvent(EVT));
-    } catch (err) {
+    } catch (err: any) {
       console.error(`Failed to ${action} meta-forge plan`, err);
+      toast.error(err?.message || `Failed to ${action} plan`);
     }
   }, []);
 
