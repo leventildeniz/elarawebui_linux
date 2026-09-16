@@ -103,13 +103,28 @@ function ApprovalsPage() {
       return r ? !auth.canDecide(r) : false;
     });
     if (foreign.length) {
+      const firstBlocked = list.find((x) => x.id === foreign[0]);
+      const isOwn = firstBlocked && firstBlocked.requester.toLowerCase() === auth.handle.toLowerCase();
+      const isHighRisk = firstBlocked && (firstBlocked.risk === "high" || firstBlocked.risk === "critical");
+
+      let title = "Routed to another approver";
+      let body = `${foreign.length} of the selected request${foreign.length > 1 ? "s are" : " is"} delegated to the approvers of the requester's group. Only they — or a sovereign role — can clear it.`;
+
+      if (isOwn && isHighRisk) {
+        title = "Mandatory Four-Eyes Approval";
+        body = `High and Critical risk operations (${firstBlocked?.tool || "action"}) require mandatory Four-Eyes approval. You cannot self-approve production scope commands.`;
+      } else if (isOwn) {
+        title = "Self-Approval Disabled";
+        body = `Self-approval is disabled for your department group. An assigned group approver or administrator must sign off.`;
+      }
+
       auth.denied(
         "approvals",
-        `${auth.handle} tried to decide ${foreign.length} ticket(s) routed to another approver`,
+        `${auth.handle} tried to decide ${foreign.length} ticket(s) without required authority: ${title}`,
       );
       await confirmAction({
-        title: "Routed to another approver",
-        body: `${foreign.length} of the selected request${foreign.length > 1 ? "s are" : " is"} delegated to the approvers of the requester's group. Only they — or a sovereign role — can clear it.`,
+        title,
+        body,
         confirmLabel: "Understood",
         tone: "ruby",
       });

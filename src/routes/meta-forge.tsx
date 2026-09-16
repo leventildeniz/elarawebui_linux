@@ -73,6 +73,26 @@ function MetaForge() {
       });
       return;
     }
+    const targetPlan = plans.find((p) => p.id === planId);
+    if (targetPlan && targetPlan.actor?.toLowerCase() === auth.handle.toLowerCase()) {
+      const isSuper = auth.sovereign || (auth.account?.role ? /^admin(istrator)?s?$/i.test(auth.account.role.trim()) : false);
+      if (!isSuper) {
+        const myGroup = auth.approverGroups.find((g) => g.defaultRole?.toLowerCase() === auth.role?.name?.toLowerCase());
+        if (myGroup && myGroup.selfApproval === false && myGroup.self_approval === false) {
+          auth.denied(
+            "meta-forge",
+            `${auth.handle} tried to self-approve plan ${planId} but self-approval is disabled for group ${myGroup.name}`,
+          );
+          await confirmAction({
+            title: "Self-Approval Disabled",
+            body: `Self-approval is disabled for your department group (${myGroup.name}). An assigned group approver or administrator must sign off on this proposal.`,
+            confirmLabel: "Understood",
+            tone: "ruby",
+          });
+          return;
+        }
+      }
+    }
     run();
   };
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("all");

@@ -45,6 +45,12 @@ export type Group = {
   tenant_id?: string;
   tenantId?: string;
   /**
+   * Whether members of this group may self-approve their own private desk artifacts (MetaForge).
+   * Defaults to true; when false, an assigned group approver or administrator must sign off.
+   */
+  selfApproval?: boolean;
+  self_approval?: boolean;
+  /**
    * Accounts that clear approval requests raised by this group's members.
    * Empty → requests fall back to the shared pool (any principal holding the
    * `approve` verb). This is the delegation chain: marketing requests go to
@@ -163,15 +169,27 @@ export function approverPrincipals(group: Group): string[] {
     .filter((u): u is string => Boolean(u));
 
   const claims = group.approverDirectoryGroups ?? [];
+  const allGroups = readGroups();
+
+  // 1. Members of delegated local studio groups
+  const viaLocalGroups = claims.length
+    ? allGroups
+        .filter((g) => claims.includes(g.id) || claims.includes(g.name))
+        .flatMap((g) => g.members)
+        .map((id) => accounts.find((a) => a.id === id)?.username)
+        .filter((u): u is string => Boolean(u))
+    : [];
+
+  // 2. Members of external directory groups mapped to studio groups
   const viaDirectory = claims.length
-    ? readGroups()
+    ? allGroups
         .filter((g) => (g.directoryGroups ?? []).some((dn) => claims.includes(dn)))
         .flatMap((g) => g.members)
         .map((id) => accounts.find((a) => a.id === id)?.username)
         .filter((u): u is string => Boolean(u))
     : [];
 
-  return Array.from(new Set([...direct, ...viaDirectory]));
+  return Array.from(new Set([...direct, ...viaLocalGroups, ...viaDirectory]));
 }
 
 /** Resolve the signed-in principal from the session username. */
@@ -251,6 +269,8 @@ export function useIdentity() {
           members: g.members || [],
           tone: g.tone || "sapphire",
           approvers: g.approvers || [],
+          selfApproval: g.selfApproval !== undefined ? g.selfApproval : (g.self_approval !== false),
+          self_approval: g.self_approval !== undefined ? g.self_approval : (g.selfApproval !== false),
           directoryGroups: g.directoryGroups || [],
           approverDirectoryGroups: g.approverDirectoryGroups || [],
         }));
@@ -300,6 +320,8 @@ export function useIdentity() {
       description: "",
       members: [],
       approvers: [],
+      selfApproval: true,
+      self_approval: true,
       directoryGroups: [],
       approverDirectoryGroups: [],
       tone: TONES[groups.length % TONES.length]!,
@@ -361,6 +383,14 @@ export function useIdentity() {
     const isMember = g.members.includes(userId);
     const newMembers = isMember ? g.members.filter((m) => m !== userId) : [...g.members, userId];
     await updateGroup(id, { members: newMembers });
+  };
+
+  const toggleSelfApproval = async (id: string) => {
+    const g = groups.find((x) => x.id === id);
+    if (!g) return;
+    const current = g.selfApproval !== false && g.self_approval !== false;
+    const nextVal = !current;
+    await updateGroup(id, { selfApproval: nextVal, self_approval: nextVal });
   };
 
   const toggleApprover = async (id: string, userId: string) => {
@@ -469,6 +499,7 @@ export function useIdentity() {
     updateGroup,
     removeGroup,
     toggleMember,
+    toggleSelfApproval,
     toggleApprover,
     toggleApproverGroup,
     updateAccount,

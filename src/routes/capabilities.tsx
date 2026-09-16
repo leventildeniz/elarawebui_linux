@@ -320,6 +320,7 @@ function PackEditor({
             <ShareControl
               record={draft}
               disabled={readOnly}
+              searchable={true}
               onChange={(p) => patch(p)}
             />
           </Field>

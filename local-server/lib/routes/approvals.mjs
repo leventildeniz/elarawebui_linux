@@ -1,6 +1,70 @@
 import { requireSession } from "../session-gate.mjs";
 import { applySelfHealingRefactor } from "../self-healing.mjs";
 
+// Resolve caller's department context: member groups, designated approver groups, and group attributes
+async function getCallerDeptContext(pool, username, userId, tenantId) {
+  let userRow = null;
+  if (userId) {
+    const uRes = await pool.query("SELECT id, username, groups, tenant_id FROM app_users WHERE id = $1", [userId]);
+    userRow = uRes.rows[0];
+  }
+  if (!userRow && username) {
+    const uRes = await pool.query("SELECT id, username, groups, tenant_id FROM app_users WHERE lower(username) = lower($1)", [username]);
+    userRow = uRes.rows[0];
+  }
+  const resolvedUserId = userRow?.id || userId || "";
+  const groupIds = Array.isArray(userRow?.groups) ? userRow.groups : [];
+
+  const { rows: groups } = await pool.query(
+    `SELECT id, name, tenant_id, approvers, self_approval 
+     FROM app_groups 
+     WHERE (tenant_id = $1 OR tenant_id = 'default' OR is_global = true)`,
+    [tenantId || "default"]
+  );
+
+  const myGroupIds = [];
+  const myGroupNames = [];
+  const approverForGroupIds = [];
+  const approverForGroupNames = [];
+  const groupMap = new Map();
+
+  for (const g of groups) {
+    groupMap.set(g.id, g);
+    groupMap.set(g.name.toLowerCase(), g);
+    if (groupIds.includes(g.id)) {
+      myGroupIds.push(g.id);
+      myGroupNames.push(g.name);
+    }
+    const approvers = Array.isArray(g.approvers) ? g.approvers : [];
+    const approverGroups = Array.isArray(g.approver_directory_groups) ? g.approver_directory_groups : [];
+
+    const isDirectAppr = approvers.includes(resolvedUserId) || 
+      (username && approvers.map(x => String(x).toLowerCase()).includes(username.toLowerCase()));
+
+    const isGroupAppr = approverGroups.some(ag => 
+      groupIds.includes(ag) || 
+      myGroupNames.map(x => x.toLowerCase()).includes(String(ag).toLowerCase()) ||
+      ag === resolvedUserId ||
+      (username && String(ag).toLowerCase() === username.toLowerCase())
+    );
+
+    if (isDirectAppr || isGroupAppr) {
+      approverForGroupIds.push(g.id);
+      approverForGroupNames.push(g.name);
+    }
+  }
+
+  return {
+    userId: resolvedUserId,
+    username: userRow?.username || username,
+    myGroupIds,
+    myGroupNames,
+    approverForGroupIds,
+    approverForGroupNames,
+    groupMap
+  };
+}
+
 export async function mountApprovalRoutes(app, deps) {
   const { pool, broadcastAudit, enqueueWrite } = deps;
   const admin = requireSession();
@@ -36,16 +100,23 @@ export async function mountApprovalRoutes(app, deps) {
     try {
       const ctx = typeof deps.resolveActorContext === "function" ? await deps.resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
       const tenantId = req.session?.tenant_id || ctx.tenantId || "default";
+      const callerUsername = req.session?.username || ctx.username || req.actor || "operator";
 
-      const reqQuery = ctx.isSuperAdmin
-        ? `SELECT 
+      let reqQuery;
+      let queryParams = [];
+
+      if (ctx.isSuperAdmin) {
+        // SuperAdmin can view all tickets across all tenants
+        reqQuery = `SELECT 
             id, title, requester, requester_group, agent_id as agent, 
             tool, target, policy, risk, args, origin, status, note, 
             assigned_to, ttl_ms, expires_at, decided_at, decided_by, created_at, tenant_id 
           FROM approval_requests 
           ORDER BY created_at DESC 
-          LIMIT 200`
-        : `SELECT 
+          LIMIT 200`;
+      } else if (ctx.isTenantAdmin) {
+        // TenantAdmin can view all tickets inside their tenant
+        reqQuery = `SELECT 
             id, title, requester, requester_group, agent_id as agent, 
             tool, target, policy, risk, args, origin, status, note, 
             assigned_to, ttl_ms, expires_at, decided_at, decided_by, created_at, tenant_id 
@@ -53,9 +124,37 @@ export async function mountApprovalRoutes(app, deps) {
           WHERE (tenant_id = $1 OR is_global = true OR tenant_id = 'default')
           ORDER BY created_at DESC 
           LIMIT 200`;
+        queryParams = [tenantId];
+      } else {
+        // Standard Operator: Department-based & Zero-Interference isolation
+        const deptCtx = await getCallerDeptContext(pool, callerUsername, ctx.userId, tenantId);
+        const relevantGroups = Array.from(new Set([
+          ...deptCtx.myGroupNames,
+          ...deptCtx.myGroupIds,
+          ...deptCtx.approverForGroupNames,
+          ...deptCtx.approverForGroupIds
+        ]));
+
+        reqQuery = `SELECT 
+            id, title, requester, requester_group, agent_id as agent, 
+            tool, target, policy, risk, args, origin, status, note, 
+            assigned_to, ttl_ms, expires_at, decided_at, decided_by, created_at, tenant_id 
+          FROM approval_requests 
+          WHERE (tenant_id = $1 OR is_global = true OR tenant_id = 'default')
+            AND (
+              lower(requester) = lower($2)
+              OR assigned_to @> jsonb_build_array($2::text)
+              ${relevantGroups.length > 0 ? "OR requester_group = ANY($3::text[])" : ""}
+            )
+          ORDER BY created_at DESC 
+          LIMIT 200`;
+        queryParams = relevantGroups.length > 0
+          ? [tenantId, callerUsername, relevantGroups]
+          : [tenantId, callerUsername];
+      }
 
       const [reqRes, configRes] = await Promise.all([
-        pool.query(reqQuery, ctx.isSuperAdmin ? [] : [tenantId]),
+        pool.query(reqQuery, queryParams),
         pool.query("SELECT * FROM approval_config WHERE id='singleton'")
       ]);
 
@@ -111,19 +210,58 @@ export async function mountApprovalRoutes(app, deps) {
         }
       }
 
-      // 3. Four-Eyes Principle Check (Self-Approval Gate)
-      // Map 'rejected' from UI to 'denied' in DB
+      // 3. Multi-Tenant, Four-Eyes & Department Isolation Gate
       const dbStatus = status === 'rejected' ? 'denied' : status;
-      if (dbStatus === "approved" && !ctx?.isSuperAdmin) {
-        const cfgRes = await pool.query("SELECT allow_self_approve FROM approval_config WHERE id='singleton'");
-        const allowSelf = cfgRes.rows[0]?.allow_self_approve === true;
-        if (!allowSelf) {
-          const selfTicket = targets.find(t => t.requester && String(t.requester).toLowerCase() === String(callerUsername).toLowerCase());
-          if (selfTicket) {
-            return res.status(403).json({
-              ok: false,
-              error: `Four-Eyes Principle Violation: You cannot approve your own request (${selfTicket.id}). An independent reviewer must sign it off.`
-            });
+      if (dbStatus === "approved") {
+        const deptCtx = await getCallerDeptContext(pool, callerUsername, ctx?.userId, callerTenant);
+
+        for (const t of targets) {
+          const isRequester = t.requester && String(t.requester).toLowerCase() === String(callerUsername).toLowerCase();
+
+          // Layer 1: Scope & Risk Distinction
+          if (isRequester) {
+            // High / Critical risk demands mandatory Four-Eyes approval (even for admins)
+            if (t.risk === "high" || t.risk === "critical") {
+              return res.status(403).json({
+                ok: false,
+                error: `Four-Eyes Principle Violation: High and Critical risk operations require mandatory Four-Eyes approval. You cannot approve your own request (${t.id}). An independent reviewer must sign off.`
+              });
+            }
+
+            // Low / Medium risk: Check requester's group self-approval policy
+            if (!ctx?.isSuperAdmin) {
+              const grp = t.requester_group ? (deptCtx.groupMap.get(t.requester_group.toLowerCase()) || deptCtx.groupMap.get(t.requester_group)) : null;
+              const allowSelf = grp ? grp.self_approval !== false : false;
+              if (!allowSelf) {
+                return res.status(403).json({
+                  ok: false,
+                  error: `Self-Approval Disabled: Group '${t.requester_group || 'unassigned'}' requires an assigned group approver or administrator.`
+                });
+              }
+            }
+          } else if (!ctx?.isSuperAdmin && !ctx?.isTenantAdmin) {
+            // Layer 2: Department-Based Isolation & Delegation Check (Non-requester operator)
+            const assignedList = Array.isArray(t.assigned_to) ? t.assigned_to.map(x => String(x).toLowerCase()) : [];
+            const isAssigned = assignedList.includes(callerUsername.toLowerCase());
+
+            const grp = t.requester_group ? (deptCtx.groupMap.get(t.requester_group.toLowerCase()) || deptCtx.groupMap.get(t.requester_group)) : null;
+            const approverList = Array.isArray(grp?.approvers) ? grp.approvers : [];
+            const isGroupApprover = approverList.includes(deptCtx.userId) || 
+              approverList.map(x => String(x).toLowerCase()).includes(callerUsername.toLowerCase());
+
+            // If no specific approvers declared on the group, peer review inside the same group
+            const noSpecificApprovers = assignedList.length === 0 && approverList.length === 0;
+            const isSameGroupPeer = noSpecificApprovers && (
+              deptCtx.myGroupNames.includes(t.requester_group) ||
+              deptCtx.myGroupIds.includes(t.requester_group)
+            );
+
+            if (!isAssigned && !isGroupApprover && !isSameGroupPeer) {
+              return res.status(403).json({
+                ok: false,
+                error: `Department Isolation: You are not a designated approver or peer reviewer for group '${t.requester_group || 'unassigned'}' (ticket ${t.id}).`
+              });
+            }
           }
         }
       }
@@ -166,17 +304,40 @@ export async function mountApprovalRoutes(app, deps) {
       const draft = req.body;
       const ctx = typeof deps.resolveActorContext === "function" ? await deps.resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
       const tenantId = draft.tenant_id || req.session?.tenant_id || ctx.tenantId || "default";
+      const callerUsername = req.session?.username || ctx?.username || req.actor || "operator";
+      const requester = draft.requester || callerUsername;
+
+      // Server-side department routing fallback
+      const deptCtx = await getCallerDeptContext(pool, requester, null, tenantId);
+      const requesterGroup = draft.requesterGroup || (deptCtx.myGroupNames[0] || "");
+      
+      let assignedTo = draft.assignedTo;
+      if (!Array.isArray(assignedTo) || assignedTo.length === 0) {
+        const grp = requesterGroup ? (deptCtx.groupMap.get(requesterGroup.toLowerCase()) || deptCtx.groupMap.get(requesterGroup)) : null;
+        if (grp && Array.isArray(grp.approvers) && grp.approvers.length > 0) {
+          const { rows: appUsers } = await pool.query(
+            "SELECT username FROM app_users WHERE id = ANY($1::text[])",
+            [grp.approvers]
+          );
+          assignedTo = appUsers.map(u => u.username);
+        } else {
+          assignedTo = [];
+        }
+      }
+
+      const ttlMs = parseInt(draft.ttl_ms, 10) || 7200000;
+      const expiresAt = new Date(Date.now() + ttlMs);
 
       const { rows } = await pool.query(
         `INSERT INTO approval_requests 
           (id, title, requester, requester_group, agent_id, tool, target, policy, risk, args, origin, status, ttl_ms, expires_at, assigned_to, tenant_id)
          VALUES 
-          ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'pending', $12, now() + interval '1 millisecond' * $12, $13, $14)
+          ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'pending', $12, $13, $14, $15)
          RETURNING *`,
         [
-          draft.id, draft.title, draft.requester, draft.requesterGroup, draft.agent, 
+          draft.id, draft.title, requester, requesterGroup, draft.agent, 
           draft.tool, draft.target, draft.policy, draft.risk, draft.args || '{}', 
-          draft.origin || 'seed', draft.ttl_ms || 7200000, JSON.stringify(draft.assignedTo || []),
+          draft.origin || 'seed', ttlMs, expiresAt, JSON.stringify(assignedTo || []),
           tenantId
         ]
       );

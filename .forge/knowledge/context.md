@@ -1817,21 +1817,39 @@ ELARA Sovereign Studio genelinde **Zero-Trust Çoklu Kiracı (Multi-Tenancy) ve 
 
    ---
 
-   ### 🚨 POST-FAZ C TESPİT & YOL HARİTASI: APPROVERS & BİLDİRİM ROTALAMA MİMARİSİ (LEVENT İLDENİZ AUDIT NOTU)
+   ### 🏆 RESOLVED — TARGETED APPROVER ROUTING & MULTI-TENANT 2-LAYER GOVERNANCE SEAL
 
-   **Mevcut Durum & Problem Tespiti:**
-   - `src/lib/approver-gate.ts` ve `ApproverBanner` (`approver-banner.tsx`), onaycıları listelerken veritabanında `approve` yetkisine sahip tüm rolleri, bu rollere atanmış tüm grupları ve kullanıcıları tek bir torbada toplayarak ekrana basıyor.
-   - **Kurumsal Güvenlik & Yönetişim Çelişkisi:**
-     Bir kurumda 50 farklı departman ve grup (örneğin Teknik Servis vs Satış vs İnsan Kaynakları) olduğunda; her gruba kendi yetki alanı için `approve` izni verildiğinde, onay bandı sistemdeki tüm bu 50 grubu ve onlarca kullanıcıyı alt alta listelemektedir.
-     Sonuç olarak `notify approvers` açıldığında alakasız departmanlara toplu e-posta bildirimi gitme riski oluşmakta ve teknik bir akış için satış grubunun onaycı görünmesi gibi anlamsız bir tablo ortaya çıkmaktadır.
-
-   **Taze Zihinle Yeni Oturumda Ele Alınacak Mimari Çözüm:**
-   1. **Kapı / Departman Bazlı Onaycı Yönlendirmesi (Targeted Approver Routing):**
-      - Tıpkı RAG alanlarındaki `reader_groups` ve `contributor_groups` gibi; onay gerektiren varlıklarda (`approval_requests`, `tools`, `targets`, `forge_plans`) onay yetkilisinin spesifik hedef grubu (`assigned_groups` / `target_group`) üzerinden çözümlenmesi.
-      - Teknik bir işlemde yalnızca **Teknik Onaycılar ve Yöneticiler** listelenecek ve bildirim yalnızca onlara gidecek; diğer departmanlar asla bu listeye dahil edilmeyecektir.
-   2. **ApproverBanner Sadeleştirmesi:**
-      - Tüm rollerin ve kullanıcıların ham veritabanı dökümü şeklinde listelenmesi yerine, o bilet/kapı için doğrudan yetkilendirilmiş birincil otorite (örn. `Administrators & Technical Leads`) şeklinde kurumsal ve sade bir gösterime kavuşturulması.
+   **Uygulanan Mimari & Kök Çözümler:**
+   1. **1. Katman: Kapsam & Risk Ayrımı (Scope & Risk Differentiation):**
+      - **MetaForge & Düşük/Orta Risk (Private Desk):** Yazarın grubu `self_approval: true` olarak yapılandırılmışsa, yazar kendi özel masasındaki MetaForge planını ve düşük/orta riskli biletleri tek tıkla kendisi onaylayabilir (**Grup Bazlı Self-Service**).
+      - **Grup Self-Approval Off:** Grupta `self_approval: false` yapılmışsa, yazar kendi planını veya biletini onaylayamaz; işlem grup onaycısına veya yöneticisine düşer (`HTTP 403 Self-Approval Disabled`).
+      - **Canlı Sistem Komutları & Cluster Tools (Yüksek/Kritik Risk):** Grupta `self-approval` açık olsa dahi, biletin riski `high` veya `critical` ise **Zorunlu Dört-Göz (Four-Eyes)** devreye girer. Yazar kendi biletini asla onaylayamaz (`HTTP 403 Four-Eyes Principle Violation`), bağımsız bir onaycının veya yöneticinin imzası şart koşulur.
+   2. **2. Katman: Departman Bazlı İzolasyon (Zero-Interference & Multi-Tenant):**
+      - **SuperAdmin:** Tüm kümedeki bilet ve planları görebilir ve yönetebilir (Kritik riskte Four-Eyes hariç).
+      - **TenantAdmin:** Yalnızca kendi organizasyonundaki (`tenant_id`) tüm bilet ve planları görebilir ve yönetebilir.
+      - **Standart Operatör / Delege Onaycı:**
+        - `GET /api/approvals` ve `GET /api/meta-forge/plans`: Yalnızca kendi açtığı, kendisine atanan (`assigned_to`) veya onaycısı olduğu departmanın bilet ve planlarını görür. İK veya Satış departmanının biletleri listeye dahi gelmez (Kuyruk İzolasyonu).
+        - `PATCH /api/approvals/decide` ve MetaForge plan işlemleri (`apply`, `reject`, `rollback`, `reapply`, `undo`): Yabancı departmanların biletlerine onay basılması backend seviyesinde `HTTP 403 Department Isolation` ile engellenir.
+        - Delege onaycı atanmamış gruplarda, aynı departman içindeki akranlar (Peer Review) biletleri onaylayabilir.
+   3. **ApproverBanner & Bildirim Hijyeni (`approver-banner.tsx`, `approver-gate.ts`):**
+      - 50 kişilik ham rol ve kullanıcı dökümü kaldırıldı; oturum açmış kullanıcının departmanına göre yetkili otoriteyi gösteren şık bir özet sağlandı (örn: `delegated authority · approvers: [isimler] & administrators · scope: [Departman]`).
+   4. **Birleşik Onaycı Grupları (Local Studio & External Directory Approver Groups — `users.tsx`, `group-store.ts`, `approvals.mjs`, `meta-forge.mjs`):**
+      - Sağdaki grup delegasyon kartı yalnızca Entra ID/LDAP ile sınırlı kalmaktan çıkarılıp `Approver groups` adıyla hem yerel stüdyo gruplarını (`[Studio] Administrators`, `[Studio] Auditors` vb.) hem de harici dizin gruplarını (`[Directory]`) kapsayacak şekilde birleştirildi.
+      - Bir yerel stüdyo grubu (örn. `Administrators`) onaycı grup olarak atandığında, o grubun tüm üyeleri backend seviyesinde ilgili departmanın yetkili onaycısı olarak kabul edilir (`isGroupAppr = true`).
+      - Local provider gruplarında da yerel onaycı grup atama menüsü aktif kılındı.
+   5. **Knowledge Hub Access Spaces UI Standartlaştırması (`knowledge-spaces.tsx`):**
+      - `Knowledge Hub -> Access Spaces` altındaki `Readers` ve `Contributors` grup seçici açılır menüsüne (`SearchPicker`) `[Studio]` ön eki, üye sayıları ve rol ipuçları eklendi. Seçilen rozetler/chipler ise stüdyo kuralı uyarınca `GrupAdı (Local)` formatına kavuşturuldu.
+   6. **Tüm Varlıklarda Evrensel Aranabilir Paylaşım Kontrolü (Universal Searchable ShareControl & Removable Badges — `ownership-controls.tsx`):**
+      - `ShareControl` bileşeni `GROUP` görünürlüğü seçildiğinde 50'den fazla grubun alt alta butonlar halinde yığılmasını engelleyen **Searchable Group Dropdown (`+ Add group to share…`)** ve **Removable Chips (`✕`)** mimarisine geçirildi.
+      - Seçim listesinde `[Studio] GrupAdı` gösterilirken, eklendikten sonra rozette temiz ve standart olarak `GrupAdı (Local)` basılması sağlandı.
+      - Bu geliştirme merkezi bileşen üzerinden stüdyodaki tüm 8 varlık yüzeyine (`Agents`, `Capabilities/Packs`, `Skills`, `Forge Factory/Tools`, `Flows`, `Orchestrations`, `Planners`, `MCP Clients`) aynı anda uygulandı. `SharePopover` genişliği `w-[340px]` olarak rahatlatıldı.
+   7. **Canlı Doğrulama:**
+      - `deneme2` (`Operators`) oturumu ile sorgulandığında diğer departmanların biletleri listede görünmedi (Sıfır Sızıntı).
+      - `deneme2` düşük riskli biletini self-approve ile onaylayabildi.
+      - `deneme2` kritik riskli bilette self-approve denediğinde `HTTP 403 Four-Eyes Principle Violation` ile engellendi.
+      - `self_approval: false` olan departman biletinde self-approve denendiğinde `HTTP 403 Self-Approval Disabled` ile engellendi.
+      - `node --check` 0 hata, `npx tsc --noEmit` 0 hata; tüm systemd servisleri aktif ve sağlıklı.
 
    ---
 
-   **Sistem Durumu:** `node --check` 0 hata, `npx tsc --noEmit` 0 hata; tüm systemd servisleri aktif, sağlıklı ve operasyonel.
+   **Sistem Durumu:** `node --check` 0 hata, `npx tsc --noEmit` 0 hata; tüm systemd servisleri (`elara-middleware`, `elara-vite`, `elara-worker`) aktif, sağlıklı ve operasyonel.

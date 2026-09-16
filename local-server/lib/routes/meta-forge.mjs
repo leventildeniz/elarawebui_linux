@@ -30,6 +30,119 @@ export function mountMetaForgeRoutes(app, deps) {
   const { pool, resolveActorContext, hydrateAllowedAgentsFromDb } = deps;
   ensureForgeTables(pool).catch(e => console.error("[meta-forge] ensure failed:", e?.message || e));
 
+  async function getCallerDeptContext(pool, username, userId, tenantId) {
+    let userRow = null;
+    if (userId) {
+      const uRes = await pool.query("SELECT id, username, groups, tenant_id FROM app_users WHERE id = $1", [userId]);
+      userRow = uRes.rows[0];
+    }
+    if (!userRow && username) {
+      const uRes = await pool.query("SELECT id, username, groups, tenant_id FROM app_users WHERE lower(username) = lower($1)", [username]);
+      userRow = uRes.rows[0];
+    }
+    const resolvedUserId = userRow?.id || userId || "";
+    const groupIds = Array.isArray(userRow?.groups) ? userRow.groups : [];
+
+    const { rows: groups } = await pool.query(
+      `SELECT id, name, tenant_id, approvers, self_approval, approver_directory_groups 
+       FROM app_groups 
+       WHERE (tenant_id = $1 OR tenant_id = 'default' OR is_global = true)`,
+      [tenantId || "default"]
+    );
+
+    const myGroupIds = [];
+    const myGroupNames = [];
+    const approverForGroupIds = [];
+    const approverForGroupNames = [];
+    const groupMap = new Map();
+
+    for (const g of groups) {
+      groupMap.set(g.id, g);
+      groupMap.set(g.name.toLowerCase(), g);
+      if (groupIds.includes(g.id)) {
+        myGroupIds.push(g.id);
+        myGroupNames.push(g.name);
+      }
+      const approvers = Array.isArray(g.approvers) ? g.approvers : [];
+      const approverGroups = Array.isArray(g.approver_directory_groups) ? g.approver_directory_groups : [];
+
+      const isDirectAppr = approvers.includes(resolvedUserId) || 
+        (username && approvers.map(x => String(x).toLowerCase()).includes(username.toLowerCase()));
+
+      const isGroupAppr = approverGroups.some(ag => 
+        groupIds.includes(ag) || 
+        myGroupNames.map(x => x.toLowerCase()).includes(String(ag).toLowerCase()) ||
+        ag === resolvedUserId ||
+        (username && String(ag).toLowerCase() === username.toLowerCase())
+      );
+
+      if (isDirectAppr || isGroupAppr) {
+        approverForGroupIds.push(g.id);
+        approverForGroupNames.push(g.name);
+      }
+    }
+
+    return {
+      userId: resolvedUserId,
+      username: userRow?.username || username,
+      myGroupIds,
+      myGroupNames,
+      approverForGroupIds,
+      approverForGroupNames,
+      groupMap
+    };
+  }
+
+  async function assertPlanActionAccess(pool, ctx, plan, operatorUser, actionName = "manage") {
+    if (ctx.isSuperAdmin) return true;
+    if (ctx.isTenantAdmin) {
+      if (plan.tenant_id && plan.tenant_id !== ctx.tenantId && !plan.is_global) {
+        return { ok: false, status: 403, error: `Access denied: cannot ${actionName} plan outside your organization.` };
+      }
+      return true;
+    }
+    // Standard Operator
+    if (plan.tenant_id && plan.tenant_id !== ctx.tenantId && !plan.is_global) {
+      return { ok: false, status: 403, error: `Access denied: cannot ${actionName} plan outside your organization.` };
+    }
+    if (!plan.actor) return true;
+
+    const isCreator = String(plan.actor).toLowerCase() === String(operatorUser).toLowerCase();
+    const creatorDeptCtx = await getCallerDeptContext(pool, plan.actor, null, plan.tenant_id || "default");
+    const callerDeptCtx = await getCallerDeptContext(pool, operatorUser, ctx?.userId, ctx?.tenantId || "default");
+
+    if (isCreator) {
+      // Layer 1: Scope & Risk Check (Private Desk Self-Approval)
+      if (actionName === "apply" || actionName === "reapply") {
+        const primaryGroup = creatorDeptCtx.myGroupIds[0] ? creatorDeptCtx.groupMap.get(creatorDeptCtx.myGroupIds[0]) : null;
+        const allowSelf = primaryGroup ? primaryGroup.self_approval !== false : true;
+        if (!allowSelf) {
+          return {
+            ok: false,
+            status: 403,
+            error: `Self-Approval Disabled: Group '${primaryGroup?.name || 'your group'}' requires an assigned group approver or administrator to ${actionName} MetaForge plans.`
+          };
+        }
+      }
+      return true;
+    } else {
+      // Layer 2: Department Isolation (Caller is managing another operator's proposal)
+      const isApproverForCreator = creatorDeptCtx.myGroupIds.some(gid => callerDeptCtx.approverForGroupIds.includes(gid));
+      const creatorGroup = creatorDeptCtx.myGroupIds[0] ? creatorDeptCtx.groupMap.get(creatorDeptCtx.myGroupIds[0]) : null;
+      const noSpecificApprovers = !creatorGroup?.approvers || !creatorGroup.approvers.length;
+      const isSameGroupPeer = noSpecificApprovers && creatorDeptCtx.myGroupIds.some(gid => callerDeptCtx.myGroupIds.includes(gid));
+
+      if (!isApproverForCreator && !isSameGroupPeer) {
+        return {
+          ok: false,
+          status: 403,
+          error: "Department Isolation: Access denied. This MetaForge proposal belongs to another department's desk."
+        };
+      }
+      return true;
+    }
+  }
+
   async function requireApprover(req, res) {
     try {
       const ctx = await resolveActorContext(req);
@@ -89,18 +202,27 @@ export function mountMetaForgeRoutes(app, deps) {
           params.push(ctx.tenantId || "default");
           whereParts.push(`(tenant_id = $${params.length} OR is_global = true OR tenant_id = 'default')`);
         } else {
-          const userMatches = [ctx.userId, ctx.username, ctx.actor].filter(Boolean);
+          const callerUsername = req.session?.username || ctx.username || req.actor || "operator";
+          const deptCtx = await getCallerDeptContext(pool, callerUsername, ctx.userId, ctx.tenantId || "default");
+
+          // Standard Operator: view own plans + plans created by members of groups where caller is approver/peer
+          const targetGroupIds = Array.from(new Set([...deptCtx.approverForGroupIds, ...deptCtx.myGroupIds]));
+          let authorizedAuthors = [callerUsername];
+          if (targetGroupIds.length > 0) {
+            const { rows: authorRows } = await pool.query(
+              `SELECT username FROM app_users WHERE groups ?| $1::text[]`,
+              [targetGroupIds]
+            );
+            authorizedAuthors.push(...authorRows.map(u => u.username));
+          }
+          authorizedAuthors = Array.from(new Set(authorizedAuthors.filter(Boolean)));
+
           params.push(ctx.tenantId || "default");
           const tenantSlot = `$${params.length}`;
-          if (userMatches.length > 0) {
-            const userSlots = userMatches.map(u => {
-              params.push(u);
-              return `$${params.length}`;
-            }).join(", ");
-            whereParts.push(`(tenant_id = ${tenantSlot} OR is_global = true OR tenant_id = 'default') AND (actor = ANY(ARRAY[${userSlots}]::text[]) OR actor = 'chat' OR actor IS NULL)`);
-          } else {
-            whereParts.push(`(tenant_id = ${tenantSlot} OR is_global = true OR tenant_id = 'default')`);
-          }
+          params.push(authorizedAuthors);
+          const authorSlot = `$${params.length}`;
+
+          whereParts.push(`(tenant_id = ${tenantSlot} OR is_global = true OR tenant_id = 'default') AND (lower(actor) = ANY(ARRAY(SELECT lower(x) FROM unnest(${authorSlot}::text[]) x)) OR actor = 'chat' OR actor IS NULL)`);
         }
       }
 
@@ -183,17 +305,10 @@ export function mountMetaForgeRoutes(app, deps) {
     if (!rows.length) return res.status(404).json({ ok: false, error: "plan not found" });
     const p = rows[0];
 
-    // Multi-tenant & Zero-Desk isolation check
-    if (!ctx.isSuperAdmin && p.tenant_id && p.tenant_id !== ctx.tenantId && !p.is_global) {
-      return res.status(403).json({ ok: false, error: "Access denied: cannot apply plan outside your organization." });
-    }
-
     const operatorUser = ctx?.username || ctx?.user?.name || req.session?.username || req.actor || "system";
-    if (!ctx.isSuperAdmin && !ctx.isTenantAdmin && p.actor) {
-      const isCreator = String(p.actor).toLowerCase() === String(operatorUser).toLowerCase();
-      if (!isCreator) {
-        return res.status(403).json({ ok: false, error: "Access denied: this MetaForge proposal belongs to another operator's desk." });
-      }
+    const authCheck = await assertPlanActionAccess(pool, ctx, p, operatorUser, "apply");
+    if (authCheck !== true) {
+      return res.status(authCheck.status).json({ ok: false, error: authCheck.error });
     }
 
     if (p.status === "applied") {
@@ -231,16 +346,10 @@ export function mountMetaForgeRoutes(app, deps) {
     );
     if (!rows.length) return res.status(404).json({ ok: false, error: "plan not found" });
     const p = rows[0];
-    if (!ctx.isSuperAdmin && p.tenant_id && p.tenant_id !== ctx.tenantId && !p.is_global) {
-      return res.status(403).json({ ok: false, error: "Access denied: cannot reject plan outside your organization." });
-    }
-
     const operatorUser = ctx?.username || ctx?.user?.name || req.session?.username || req.actor || "system";
-    if (!ctx.isSuperAdmin && !ctx.isTenantAdmin && p.actor) {
-      const isCreator = String(p.actor).toLowerCase() === String(operatorUser).toLowerCase();
-      if (!isCreator) {
-        return res.status(403).json({ ok: false, error: "Access denied: this MetaForge proposal belongs to another operator's desk." });
-      }
+    const authCheck = await assertPlanActionAccess(pool, ctx, p, operatorUser, "reject");
+    if (authCheck !== true) {
+      return res.status(authCheck.status).json({ ok: false, error: authCheck.error });
     }
 
     const reason = String(req.body?.reason || "").slice(0, 500);
@@ -260,17 +369,10 @@ export function mountMetaForgeRoutes(app, deps) {
     if (!rows.length) return res.status(404).json({ ok: false, error: "plan not found" });
     const p = rows[0];
 
-    // Multi-tenant & Zero-Desk isolation check
-    if (!ctx.isSuperAdmin && p.tenant_id && p.tenant_id !== ctx.tenantId && !p.is_global) {
-      return res.status(403).json({ ok: false, error: "Access denied: cannot rollback plan outside your organization." });
-    }
-
     const operatorUser = ctx?.username || ctx?.user?.name || req.session?.username || req.actor || "system";
-    if (!ctx.isSuperAdmin && !ctx.isTenantAdmin && p.actor) {
-      const isCreator = String(p.actor).toLowerCase() === String(operatorUser).toLowerCase();
-      if (!isCreator) {
-        return res.status(403).json({ ok: false, error: "Access denied: this MetaForge plan belongs to another operator's desk." });
-      }
+    const authCheck = await assertPlanActionAccess(pool, ctx, p, operatorUser, "rollback");
+    if (authCheck !== true) {
+      return res.status(authCheck.status).json({ ok: false, error: authCheck.error });
     }
 
     try {
@@ -294,17 +396,10 @@ export function mountMetaForgeRoutes(app, deps) {
     if (!rows.length) return res.status(404).json({ ok: false, error: "plan not found" });
     const p = rows[0];
 
-    // Multi-tenant & Zero-Desk isolation check
-    if (!ctx.isSuperAdmin && p.tenant_id && p.tenant_id !== ctx.tenantId && !p.is_global) {
-      return res.status(403).json({ ok: false, error: "Access denied: cannot reapply plan outside your organization." });
-    }
-
     const operatorUser = ctx?.username || ctx?.user?.name || req.session?.username || req.actor || "system";
-    if (!ctx.isSuperAdmin && !ctx.isTenantAdmin && p.actor) {
-      const isCreator = String(p.actor).toLowerCase() === String(operatorUser).toLowerCase();
-      if (!isCreator) {
-        return res.status(403).json({ ok: false, error: "Access denied: this MetaForge plan belongs to another operator's desk." });
-      }
+    const authCheck = await assertPlanActionAccess(pool, ctx, p, operatorUser, "reapply");
+    if (authCheck !== true) {
+      return res.status(authCheck.status).json({ ok: false, error: authCheck.error });
     }
 
     try {
@@ -334,17 +429,10 @@ export function mountMetaForgeRoutes(app, deps) {
     if (!rows.length) return res.status(404).json({ ok: false, error: "plan not found" });
     const p = rows[0];
 
-    // Multi-tenant & Zero-Desk isolation check
-    if (!ctx.isSuperAdmin && p.tenant_id && p.tenant_id !== ctx.tenantId && !p.is_global) {
-      return res.status(403).json({ ok: false, error: "Access denied: cannot undo plan outside your organization." });
-    }
-
     const operatorUser = ctx?.username || ctx?.user?.name || req.session?.username || req.actor || "system";
-    if (!ctx.isSuperAdmin && !ctx.isTenantAdmin && p.actor) {
-      const isCreator = String(p.actor).toLowerCase() === String(operatorUser).toLowerCase();
-      if (!isCreator) {
-        return res.status(403).json({ ok: false, error: "Access denied: this MetaForge plan belongs to another operator's desk." });
-      }
+    const authCheck = await assertPlanActionAccess(pool, ctx, p, operatorUser, "undo");
+    if (authCheck !== true) {
+      return res.status(authCheck.status).json({ ok: false, error: authCheck.error });
     }
 
     try {

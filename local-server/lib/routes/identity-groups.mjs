@@ -47,6 +47,8 @@ export async function mountIdentityGroupsRoutes(app, deps) {
           members,
           tone: g.tone || "sapphire",
           approvers: Array.isArray(g.approvers) ? g.approvers : [],
+          selfApproval: g.self_approval !== false,
+          self_approval: g.self_approval !== false,
           directoryGroups: Array.isArray(g.directory_groups) ? g.directory_groups : [],
           approverDirectoryGroups: Array.isArray(g.approver_directory_groups) ? g.approver_directory_groups : [],
           system: isSystemGroup(g),
@@ -68,12 +70,13 @@ export async function mountIdentityGroupsRoutes(app, deps) {
 
     try {
       await pool.query(
-        `INSERT INTO app_groups (id, name, description, role, provider, template_id, tone, tenant_id, approvers, directory_groups, approver_directory_groups)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::jsonb, $11::jsonb)`,
+        `INSERT INTO app_groups (id, name, description, role, provider, template_id, tone, tenant_id, approvers, self_approval, directory_groups, approver_directory_groups)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11::jsonb, $12::jsonb)`,
         [
           id, g.name || "New Group", g.description || "", g.defaultRole || "Viewer", 
           g.provider || "Local", g.defaultTemplate || null, g.tone || "sapphire", tenantId,
-          JSON.stringify(g.approvers || []), JSON.stringify(g.directoryGroups || []), JSON.stringify(g.approverDirectoryGroups || [])
+          JSON.stringify(g.approvers || []), g.selfApproval !== undefined ? g.selfApproval : (g.self_approval !== false),
+          JSON.stringify(g.directoryGroups || []), JSON.stringify(g.approverDirectoryGroups || [])
         ]
       );
       res.status(201).json({ ok: true, id });
@@ -116,6 +119,11 @@ export async function mountIdentityGroupsRoutes(app, deps) {
       updates.push(`members=$${i++}::jsonb`); values.push(JSON.stringify(Array.isArray(g.members) ? g.members : []));
     }
     if (g.approvers !== undefined) { updates.push(`approvers=$${i++}::jsonb`); values.push(JSON.stringify(g.approvers)); }
+    if (g.selfApproval !== undefined || g.self_approval !== undefined) {
+      const sVal = g.selfApproval !== undefined ? g.selfApproval : g.self_approval;
+      updates.push(`self_approval=$${i++}`);
+      values.push(Boolean(sVal));
+    }
     if (g.directoryGroups !== undefined) { updates.push(`directory_groups=$${i++}::jsonb`); values.push(JSON.stringify(g.directoryGroups)); }
     if (g.approverDirectoryGroups !== undefined) { updates.push(`approver_directory_groups=$${i++}::jsonb`); values.push(JSON.stringify(g.approverDirectoryGroups)); }
 

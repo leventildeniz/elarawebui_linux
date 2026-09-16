@@ -18,6 +18,8 @@ import {
   Plus,
   RefreshCw,
   Save,
+  ShieldCheck,
+  ShieldX,
   Sliders,
   Timer,
   Trash2,
@@ -36,7 +38,7 @@ import { Tag, JewelButton, StatusDot } from "@/components/sovereign/primitives";
 import { ObsidianSelect } from "@/components/sovereign/obsidian-select";
 import { SCOPE_LABELS, TAB_SCOPES, roleActions, useRoles, useAccess } from "@/lib/rbac-store";
 import { readOwnerCtx } from "@/lib/ownership";
-import { useIdentity, isSystemGroup, currentAccount, type Account } from "@/lib/group-store";
+import { useIdentity, isSystemGroup, currentAccount, type Account, type Group } from "@/lib/group-store";
 import type { JewelTone } from "@/lib/rbac-store";
 import {
   DIRECTORY_KINDS,
@@ -2055,6 +2057,7 @@ function GroupsTab() {
     updateGroup,
     removeGroup,
     toggleMember,
+    toggleSelfApproval,
     toggleApprover,
     toggleApproverGroup,
   } =
@@ -2295,35 +2298,62 @@ function GroupsTab() {
                   Approve verb in RBAC.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() =>
-                  notify.update({
-                    groups: {
-                      ...notify.prefs.groups,
-                      [active.name]: !notify.prefs.groups?.[active.name],
-                    },
-                  })
-                }
-                title="Email this group's approvers when one of its members raises a request. Template lives in Settings › Mail & Time."
-                className={`flex h-9 shrink-0 items-center gap-2 rounded-lg border px-3 font-mono text-[11px] transition-colors ${
-                  notify.prefs.groups?.[active.name]
-                    ? "border-emerald/45 bg-emerald/[0.12] text-emerald"
-                    : "border-white/[0.09] bg-raised/40 text-muted-foreground/70 hover:text-foreground"
-                }`}
-                style={
-                  notify.prefs.groups?.[active.name]
-                    ? { boxShadow: "0 0 16px -6px var(--emerald)" }
-                    : undefined
-                }
-              >
-                {notify.prefs.groups?.[active.name] ? (
-                  <Mail className="h-[13px] w-[13px]" strokeWidth={1.7} />
-                ) : (
-                  <MailX className="h-[13px] w-[13px]" strokeWidth={1.7} />
-                )}
-                {notify.prefs.groups?.[active.name] ? "email notice · on" : "email notice · off"}
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => toggleSelfApproval(active.id)}
+                  title="When enabled, members of this group can self-approve their own private desk MetaForge plans and proposals without four-eyes escalation."
+                  className={`flex h-9 shrink-0 items-center gap-2 rounded-lg border px-3 font-mono text-[11px] transition-colors ${
+                    active.selfApproval !== false && active.self_approval !== false
+                      ? "border-sapphire/45 bg-sapphire/[0.12] text-sapphire"
+                      : "border-white/[0.09] bg-raised/40 text-muted-foreground/70 hover:text-foreground"
+                  }`}
+                  style={
+                    active.selfApproval !== false && active.self_approval !== false
+                      ? { boxShadow: "0 0 16px -6px var(--sapphire)" }
+                      : undefined
+                  }
+                >
+                  {active.selfApproval !== false && active.self_approval !== false ? (
+                    <ShieldCheck className="h-[13px] w-[13px]" strokeWidth={1.7} />
+                  ) : (
+                    <ShieldX className="h-[13px] w-[13px]" strokeWidth={1.7} />
+                  )}
+                  {active.selfApproval !== false && active.self_approval !== false
+                    ? "self-approval · on"
+                    : "self-approval · off"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    notify.update({
+                      groups: {
+                        ...notify.prefs.groups,
+                        [active.name]: !notify.prefs.groups?.[active.name],
+                      },
+                    })
+                  }
+                  title="Email this group's approvers when one of its members raises a request. Template lives in Settings › Mail & Time."
+                  className={`flex h-9 shrink-0 items-center gap-2 rounded-lg border px-3 font-mono text-[11px] transition-colors ${
+                    notify.prefs.groups?.[active.name]
+                      ? "border-emerald/45 bg-emerald/[0.12] text-emerald"
+                      : "border-white/[0.09] bg-raised/40 text-muted-foreground/70 hover:text-foreground"
+                  }`}
+                  style={
+                    notify.prefs.groups?.[active.name]
+                      ? { boxShadow: "0 0 16px -6px var(--emerald)" }
+                      : undefined
+                  }
+                >
+                  {notify.prefs.groups?.[active.name] ? (
+                    <Mail className="h-[13px] w-[13px]" strokeWidth={1.7} />
+                  ) : (
+                    <MailX className="h-[13px] w-[13px]" strokeWidth={1.7} />
+                  )}
+                  {notify.prefs.groups?.[active.name] ? "email notice · on" : "email notice · off"}
+                </button>
+              </div>
             </div>
 
             <div className="mt-4 grid gap-3 lg:grid-cols-2">
@@ -2369,6 +2399,7 @@ function GroupsTab() {
                 provider={active.provider}
                 mapped={active.directoryGroups ?? []}
                 selected={active.approverDirectoryGroups ?? []}
+                studioGroups={groups.filter((g) => g.id !== active.id)}
                 onToggle={(dn) => toggleApproverGroup(active.id, dn)}
               />
             </div>
@@ -2453,11 +2484,13 @@ function ApproverDirectoryCard({
   provider,
   mapped,
   selected,
+  studioGroups,
   onToggle,
 }: {
   provider: string;
   mapped: string[];
   selected: string[];
+  studioGroups?: Group[];
   onToggle: (dn: string) => void;
 }) {
   const kind = useProviderKind(provider);
@@ -2482,10 +2515,29 @@ function ApproverDirectoryCard({
     };
   }, [kind, browsable]);
 
-  const resolve = (dn: string) =>
-    catalog.find((g) => g.dn === dn) ?? directoryGroupByDn(dn);
+  const resolve = (dn: string) => {
+    const sg = studioGroups?.find((x) => x.id === dn || x.name === dn);
+    if (sg) {
+      return {
+        dn: sg.id,
+        name: `${sg.name} (Local)`,
+        members: sg.members?.length || 0,
+        ou: "Studio Group",
+        mail: `${sg.members?.length || 0} local members`,
+      };
+    }
+    return catalog.find((g) => g.dn === dn) ?? directoryGroupByDn(dn);
+  };
 
-  const options = [
+  const studioOptions = (studioGroups ?? [])
+    .filter((sg) => !selected.includes(sg.id) && !selected.includes(sg.name))
+    .map((sg) => ({
+      value: sg.id,
+      label: `[Studio] ${sg.name}`,
+      hint: `${sg.members?.length || 0} members · ${sg.defaultRole || "Member"}`,
+    }));
+
+  const directoryOptions = [
     ...mapped.filter((dn) => !catalog.some((g) => g.dn === dn)).map((dn) => ({ dn })),
     ...catalog.map((g) => ({ dn: g.dn })),
   ]
@@ -2495,17 +2547,20 @@ function ApproverDirectoryCard({
       const g = resolve(o.dn);
       return {
         value: o.dn,
-        label: g?.name ?? o.dn,
+        label: `[Directory] ${g?.name ?? o.dn}`,
         ...(mapped.includes(o.dn) ? { hint: "mapped" } : g?.mail ? { hint: g.mail } : {}),
       };
     });
 
+  const options = [...studioOptions, ...directoryOptions];
+  const canDelegate = browsable || studioOptions.length > 0 || ((studioGroups?.length ?? 0) > 0);
+
   return (
     <DelegationCard
-      title={`Approver directory groups · ${selected.length}`}
+      title={`Approver groups · ${selected.length}`}
       hint={
-        browsable
-          ? "Everyone carrying the claim may approve — notice goes to the group mailbox."
+        canDelegate
+          ? "Everyone in a delegated studio group or carrying the directory claim may approve."
           : "This identity source does not expose a browsable group tree."
       }
       {...(loading
@@ -2518,7 +2573,7 @@ function ApproverDirectoryCard({
           }
         : {})}
     >
-      {browsable ? (
+      {canDelegate ? (
         <Pick
           tone="sapphire"
           value=""
@@ -2533,13 +2588,13 @@ function ApproverDirectoryCard({
         />
       ) : (
         <p className="font-mono text-[11.5px] text-muted-foreground/45">
-          Pick an LDAP / on-prem MS AD or Entra source to delegate directory groups.
+          No other studio or directory groups available to delegate.
         </p>
       )}
       <div className="mt-3 flex flex-wrap gap-2">
-        {selected.length === 0 && browsable && (
+        {selected.length === 0 && canDelegate && (
           <span className="font-mono text-[11.5px] text-muted-foreground/45">
-            No directory group delegated yet.
+            No approver group delegated yet.
           </span>
         )}
         {selected.map((dn) => {

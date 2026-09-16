@@ -159,7 +159,12 @@ export function KnowledgeSpacesTab() {
               title="Readers · may query"
               hint="Retrieval only returns chunks from spaces where the principal is a reader."
               space={active}
-              groups={groups.map((g) => ({ id: g.id, name: g.name }))}
+              groups={groups.map((g) => ({
+                id: g.id,
+                name: `[Studio] ${g.name}`,
+                rawName: g.name,
+                hint: `${g.members?.length || 0} members · ${g.defaultRole || "Role"}`,
+              }))}
               accounts={accounts.map((a) => ({ id: a.id, name: `${a.username} · ${a.name}` }))}
               groupField="readerGroups"
               userField="readerUsers"
@@ -171,7 +176,12 @@ export function KnowledgeSpacesTab() {
               title="Contributors · may upload"
               hint="Contributors can ingest and remove sources inside this space only."
               space={active}
-              groups={groups.map((g) => ({ id: g.id, name: g.name }))}
+              groups={groups.map((g) => ({
+                id: g.id,
+                name: `[Studio] ${g.name}`,
+                rawName: g.name,
+                hint: `${g.members?.length || 0} members · ${g.defaultRole || "Role"}`,
+              }))}
               accounts={accounts.map((a) => ({ id: a.id, name: `${a.username} · ${a.name}` }))}
               groupField="contributorGroups"
               userField="contributorUsers"
@@ -289,7 +299,7 @@ function MemberBlock({
   title: string;
   hint: string;
   space: KnowledgeSpace;
-  groups: { id: string; name: string }[];
+  groups: { id: string; name: string; rawName?: string; hint?: string }[];
   accounts: { id: string; name: string }[];
   groupField: "readerGroups" | "contributorGroups";
   userField: "readerUsers" | "contributorUsers";
@@ -338,18 +348,20 @@ function MemberBlock({
               .map((id) => {
                 const g = groups.find((x) => x.id === id);
                 if (!g) return null;
+                const cleanName = g.rawName || g.name.replace(/^\[Studio\]\s*/, "");
+                const chipLabel = `${cleanName} (Local)`;
                 return (
                   <span
                     key={id}
                     className="inline-flex items-center gap-2 rounded-md border border-sapphire/45 bg-sapphire/[0.08] px-2.5 py-1 font-mono text-[11.5px] text-sapphire"
                   >
-                    {g.name}
+                    {chipLabel}
                     <button
                       type="button"
                       onClick={() => toggle(space.id, groupField, id)}
-                      aria-label={`Remove ${g.name}`}
+                      aria-label={`Remove ${cleanName}`}
                       className="text-sapphire/60 transition-colors hover:text-ruby"
-                      title={`Remove ${g.name}`}
+                      title={`Remove ${cleanName}`}
                     >
                       <X className="h-3 w-3" />
                     </button>
@@ -418,7 +430,7 @@ function SearchPicker({
   onPick,
 }: {
   placeholder: string;
-  options: { id: string; name: string }[];
+  options: { id: string; name: string; hint?: string }[];
   onPick: (id: string) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -472,9 +484,12 @@ function SearchPicker({
                     onPick(o.id);
                     setOpen(false);
                   }}
-                  className="block w-full px-3 py-1.5 text-left font-mono text-[12px] text-muted-foreground/85 transition-colors hover:bg-raised/60 hover:text-foreground"
+                  className="flex w-full items-center justify-between px-3 py-1.5 text-left font-mono text-[12px] text-muted-foreground/85 transition-colors hover:bg-raised/60 hover:text-foreground"
                 >
-                  {o.name}
+                  <span>{o.name}</span>
+                  {o.hint && (
+                    <span className="text-[10.5px] text-muted-foreground/45">{o.hint}</span>
+                  )}
                 </button>
               ))}
             </div>

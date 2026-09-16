@@ -48,15 +48,15 @@ export function ApproverBanner({
             : `no approve verb — this ${gate} is read-only for you`}
         </p>
         <p className="font-mono text-[11px] leading-relaxed text-muted-foreground/65" suppressHydrationWarning>
-          approvers · roles: {roleNames.length ? roleNames.join(", ") : "none"}
-          {groupNames.length ? ` · groups: ${groupNames.join(", ")}` : ""}
-          {auth.approverAccounts.length
-            ? ` · principals: ${
+          delegated authority ·{" "}
+          {auth.approverAccounts.length > 0
+            ? `approvers: ${
                 auth.approverAccounts.length <= 4
                   ? auth.approverAccounts.map((a) => a.username).join(", ")
                   : `${auth.approverAccounts.slice(0, 3).map((a) => a.username).join(", ")} +${auth.approverAccounts.length - 3} others`
-              }`
-            : ""}
+              } & administrators`
+            : "department peer reviewers & administrators"}
+          {groupNames.length > 0 ? ` · scope: ${groupNames.join(", ")}` : ""}
         </p>
       </div>
 

@@ -43,7 +43,7 @@ export type ApprovalAuthority = {
    * scope, sovereign roles clear everything, unrouted tickets fall to the
    * shared pool of `approve` verb holders.
    */
-  canDecide: (req: { assignedTo?: string[] }) => boolean;
+  canDecide: (req: { assignedTo?: string[]; requester?: string; risk?: string; requesterGroup?: string }) => boolean;
   /** Records a blocked attempt in the RBAC audit spine. */
   denied: (target: string, detail: string) => void;
 };
@@ -136,23 +136,63 @@ export function useApprovalAuthority(): ApprovalAuthority {
       const aTenant = (a as any).tenant_id || (a as any).tenantId || "default";
       if (aTenant !== tenantId && aTenant !== "default") return false;
       const isAdmin = a.role.toLowerCase() === "admin" || a.role.toLowerCase() === "sovereign";
+      // Only include admins OR designated approvers for groups the active user belongs to
+      const isMyGroupApprover = Array.from(myGroupIds).some((gid) => {
+        const grp = groups.find((g) => g.id === gid);
+        return grp?.approvers?.includes(a.id);
+      });
       const isMember = approverGroupMemberIds.has(a.id) || a.id === account?.id;
-      return isAdmin || isMember;
+      return isAdmin || isMyGroupApprover || isMember;
     }),
-    [accounts, approverNames, isSuperUser, tenantId, approverGroupMemberIds, account],
+    [accounts, approverNames, isSuperUser, tenantId, myGroupIds, groups, approverGroupMemberIds, account],
   );
 
   const handle = account?.username ?? "operator";
 
   const canDecide = useCallback(
-    (req: { assignedTo?: string[] }) => {
+    (req: { assignedTo?: string[]; requester?: string; risk?: string; requesterGroup?: string }) => {
       if (!canApprove) return false;
-      if (!enforced || sovereign) return true;
+      if (!enforced || sovereign || isSuperUser) return true;
+
+      const isTenantAdmin = role?.name?.toLowerCase() === "admin" || account?.role?.toLowerCase() === "admin";
+      if (isTenantAdmin) {
+        // TenantAdmin can clear any ticket in their tenant, but cannot self-approve high/critical risk
+        const isSelf = req.requester ? req.requester.toLowerCase() === handle.toLowerCase() : false;
+        if (isSelf && (req.risk === "high" || req.risk === "critical")) return false;
+        return true;
+      }
+
+      const isRequester = req.requester ? req.requester.toLowerCase() === handle.toLowerCase() : false;
+      if (isRequester) {
+        // High / Critical risk requires mandatory Four-Eyes approval
+        if (req.risk === "high" || req.risk === "critical") return false;
+        // Low / Medium risk: check requester's group self-approval policy
+        const myGroup = groups.find((g) => myGroupIds.has(g.id));
+        const allowSelf = myGroup ? myGroup.selfApproval !== false && myGroup.self_approval !== false : false;
+        return allowSelf;
+      }
+
+      // Caller is NOT requester:
       const routed = req.assignedTo ?? [];
-      if (!routed.length) return true; // shared pool
-      return routed.some((u) => u.toLowerCase() === handle.toLowerCase());
+      if (routed.length > 0) {
+        return routed.some((u) => u.toLowerCase() === handle.toLowerCase());
+      }
+
+      // If no specific approver declared, peer review inside same group:
+      if (req.requesterGroup) {
+        const matchingGroup = groups.find(
+          (g) => g.name.toLowerCase() === req.requesterGroup?.toLowerCase() || g.id === req.requesterGroup
+        );
+        if (matchingGroup) {
+          const isMember = myGroupIds.has(matchingGroup.id);
+          const isApprover = (matchingGroup.approvers || []).includes(account?.id || "");
+          return isMember || isApprover;
+        }
+      }
+
+      return false;
     },
-    [canApprove, enforced, sovereign, handle],
+    [canApprove, enforced, sovereign, isSuperUser, role, account, handle, groups, myGroupIds],
   );
 
   const denied = useCallback(

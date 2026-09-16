@@ -1,4 +1,5 @@
-import { Globe, Lock, Users, Boxes } from "lucide-react";
+import { useState } from "react";
+import { Globe, Lock, Users, Boxes, ChevronDown, Search, Plus, X } from "lucide-react";
 import { useIdentity } from "@/lib/group-store";
 import {
   VISIBILITY_HINTS,
@@ -59,17 +60,26 @@ export function OwnerChip({
 export function ShareControl({
   record,
   disabled,
+  searchable = true,
   onChange,
 }: {
   record: Owned;
   disabled?: boolean;
+  searchable?: boolean;
   onChange: (patch: Pick<Owned, "visibility" | "sharedWith">) => void;
 }) {
   const { groups } = useIdentity();
   const band = visibilityOf(record);
   const shared = record.sharedWith ?? [];
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const bands: Visibility[] = ["private", "shared", "workspace"];
+
+  const availableGroups = groups.filter((g) => !shared.includes(g.id));
+  const filteredGroups = availableGroups.filter((g) =>
+    g.name.toLowerCase().includes(searchQuery.trim().toLowerCase())
+  );
 
   return (
     <div className="space-y-3">
@@ -109,38 +119,147 @@ export function ShareControl({
       </div>
 
       {band === "shared" && (
-        <div className="flex flex-wrap gap-1.5">
-          {groups.map((g) => {
-            const on = shared.includes(g.id);
-            return (
+        searchable ? (
+          <div className="space-y-2.5">
+            {/* Searchable Group Dropdown Trigger */}
+            <div className="relative">
               <button
-                key={g.id}
                 type="button"
                 disabled={disabled}
-                onClick={() =>
-                  onChange({
-                    visibility: "shared",
-                    sharedWith: on ? shared.filter((x) => x !== g.id) : [...shared, g.id],
-                  })
-                }
+                onClick={() => {
+                  setPickerOpen((v) => !v);
+                  setSearchQuery("");
+                }}
                 className={cn(
-                  "rounded-md border px-2 py-1 font-mono text-[10px] tracking-[0.1em] transition",
-                  on
-                    ? "border-[color-mix(in_oklab,var(--emerald)_46%,transparent)] bg-[color-mix(in_oklab,var(--emerald)_12%,transparent)] text-foreground"
-                    : "border-white/8 text-muted-foreground hover:text-foreground",
+                  "flex w-full items-center justify-between rounded-lg border border-white/10 bg-raised/35 px-3 py-2 font-mono text-[11px] text-muted-foreground transition hover:border-white/20 hover:text-foreground",
                   disabled && "cursor-not-allowed opacity-40",
                 )}
               >
-                {g.name}
+                <span className="flex items-center gap-1.5">
+                  <Plus size={12} className="text-sapphire" />
+                  <span>+ Add group to share…</span>
+                </span>
+                <ChevronDown
+                  size={13}
+                  className={cn("text-muted-foreground/60 transition-transform", pickerOpen && "rotate-180")}
+                />
               </button>
-            );
-          })}
-          {groups.length === 0 && (
-            <span className="font-mono text-[10px] text-muted-foreground">
-              no groups in the directory
-            </span>
-          )}
-        </div>
+
+              {pickerOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setPickerOpen(false)} />
+                  <div className="obsidian-slab absolute left-0 right-0 top-[calc(100%+6px)] z-50 overflow-hidden rounded-[10px] border border-border/80 bg-panel/95 shadow-xl backdrop-blur-xl">
+                    <div className="flex items-center gap-2 border-b border-border/60 px-3 py-2">
+                      <Search className="size-3.5 shrink-0 text-muted-foreground/50" />
+                      <input
+                        autoFocus
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Search groups…"
+                        className="w-full bg-transparent font-mono text-[11.5px] text-foreground outline-none placeholder:text-muted-foreground/40"
+                      />
+                    </div>
+                    <div className="max-h-48 overflow-y-auto py-1">
+                      {filteredGroups.length === 0 && (
+                        <p className="px-3 py-2.5 font-mono text-[11px] text-muted-foreground/45">
+                          {availableGroups.length === 0 ? "All studio groups are already added" : "No matching groups"}
+                        </p>
+                      )}
+                      {filteredGroups.map((g) => (
+                        <button
+                          key={g.id}
+                          type="button"
+                          onClick={() => {
+                            onChange({
+                              visibility: "shared",
+                              sharedWith: [...shared, g.id],
+                            });
+                            setPickerOpen(false);
+                          }}
+                          className="flex w-full items-center justify-between px-3 py-1.5 text-left font-mono text-[11.5px] text-muted-foreground transition-colors hover:bg-raised/60 hover:text-foreground"
+                        >
+                          <span className="font-medium text-foreground/90">[Studio] {g.name}</span>
+                          <span className="text-[10.5px] text-muted-foreground/50">
+                            {g.members?.length || 0} members · {g.defaultRole || "Role"}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Selected Group Badges / Chips */}
+            <div className="flex flex-wrap gap-1.5">
+              {shared.map((gid) => {
+                const g = groups.find((x) => x.id === gid);
+                const name = g ? `${g.name} (Local)` : gid;
+                return (
+                  <span
+                    key={gid}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-[color-mix(in_oklab,var(--emerald)_46%,transparent)] bg-[color-mix(in_oklab,var(--emerald)_12%,transparent)] px-2.5 py-1 font-mono text-[11px] text-foreground"
+                  >
+                    <span>{name}</span>
+                    {!disabled && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onChange({
+                            visibility: "shared",
+                            sharedWith: shared.filter((x) => x !== gid),
+                          })
+                        }
+                        className="text-muted-foreground transition-colors hover:text-ruby"
+                        title={`Remove ${name}`}
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
+                  </span>
+                );
+              })}
+              {shared.length === 0 && (
+                <p className="font-mono text-[11px] text-muted-foreground/45">
+                  No groups selected — search and add groups above to widen access.
+                </p>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            {groups.map((g) => {
+              const on = shared.includes(g.id);
+              return (
+                <button
+                  key={g.id}
+                  type="button"
+                  disabled={disabled}
+                  onClick={() =>
+                    onChange({
+                      visibility: "shared",
+                      sharedWith: on ? shared.filter((x) => x !== g.id) : [...shared, g.id],
+                    })
+                  }
+                  className={cn(
+                    "rounded-md border px-2 py-1 font-mono text-[10px] tracking-[0.1em] transition",
+                    on
+                      ? "border-[color-mix(in_oklab,var(--emerald)_46%,transparent)] bg-[color-mix(in_oklab,var(--emerald)_12%,transparent)] text-foreground"
+                      : "border-white/8 text-muted-foreground hover:text-foreground",
+                    disabled && "cursor-not-allowed opacity-40",
+                  )}
+                >
+                  {g.name}
+                </button>
+              );
+            })}
+            {groups.length === 0 && (
+              <span className="font-mono text-[10px] text-muted-foreground">
+                no groups in the directory
+              </span>
+            )}
+          </div>
+        )
       )}
 
       <p className="font-mono text-[10px] leading-relaxed text-muted-foreground">
@@ -198,7 +317,7 @@ export function SharePopover({
       </PopoverTrigger>
       <PopoverContent
         align={align}
-        className="w-[300px] rounded-[14px] border-border bg-panel/95 p-4 backdrop-blur-xl"
+        className="w-[340px] rounded-[14px] border-border bg-panel/95 p-4 backdrop-blur-xl"
       >
         <div className="mono-label mb-3">Visibility</div>
         {disabled && reason ? (
