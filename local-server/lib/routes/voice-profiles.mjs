@@ -1,6 +1,8 @@
 // Voice profiles (TR/EN/DE) — per-language TTS identity.
 // Extracted from server.mjs.
 
+import { requireSession } from "../session-gate.mjs";
+
 
 
 function rowToVoiceProfile(r) {
@@ -21,14 +23,14 @@ function rowToVoiceProfile(r) {
 	export function mountVoiceProfilesRoutes(app, deps) {
   const { pool, createPrefixedId } = deps;
 
-  app.get("/api/voice-profiles", async (_req, res) => {
+  app.get("/api/voice-profiles", requireSession(), async (_req, res) => {
     try {
       const { rows } = await pool.query("SELECT * FROM voice_profiles ORDER BY lang, label");
       res.json(rows.map(rowToVoiceProfile));
     } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
   });
 
-  app.post("/api/voice-profiles", async (req, res) => {
+  app.post("/api/voice-profiles", requireSession({ roles: ["admin", "sovereign"] }), async (req, res) => {
     const v = req.body ?? {};
     const id = v.id || createPrefixedId("vp_");
     try {
@@ -53,7 +55,7 @@ function rowToVoiceProfile(r) {
     } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
   });
 
-  app.delete("/api/voice-profiles/:id", async (req, res) => {
+  app.delete("/api/voice-profiles/:id", requireSession({ roles: ["admin", "sovereign"] }), async (req, res) => {
     try { await pool.query("DELETE FROM voice_profiles WHERE id=$1", [req.params.id]); res.status(204).end(); }
     catch (e) { res.status(500).json({ error: String(e.message || e) }); }
   });

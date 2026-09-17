@@ -1,6 +1,8 @@
 // Adapter dictionaries — kind/value/label CRUD for connector taxonomy.
 // Extracted from server.mjs.
 
+import { requireSession } from "../session-gate.mjs";
+
 const ADAPTER_DICT_KINDS = new Set(["category", "connection", "runner"]);
 	
 	
@@ -11,7 +13,7 @@ const ADAPTER_DICT_KINDS = new Set(["category", "connection", "runner"]);
 	export function mountAdapterDictionariesRoutes(app, deps) {
   const { pool } = deps;
 
-  app.get("/api/adapter-dictionaries", async (req, res) => {
+  app.get("/api/adapter-dictionaries", requireSession(), async (req, res) => {
     try {
       const kind = String(req.query.kind || "").trim();
       const params = [];
@@ -29,7 +31,7 @@ const ADAPTER_DICT_KINDS = new Set(["category", "connection", "runner"]);
     } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
   });
 
-  app.post("/api/adapter-dictionaries", async (req, res) => {
+  app.post("/api/adapter-dictionaries", requireSession({ roles: ["admin", "sovereign"] }), async (req, res) => {
     try {
       const kind = String(req.body?.kind || "").trim();
       const value = String(req.body?.value || "").trim().toLowerCase().replace(/[^a-z0-9_-]/g, "_");
@@ -45,7 +47,7 @@ const ADAPTER_DICT_KINDS = new Set(["category", "connection", "runner"]);
     } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
   });
 
-  app.patch("/api/adapter-dictionaries/:id", async (req, res) => {
+  app.patch("/api/adapter-dictionaries/:id", requireSession({ roles: ["admin", "sovereign"] }), async (req, res) => {
     try {
       const row = await pool.query("SELECT * FROM adapter_dictionaries WHERE id=$1", [req.params.id]);
       if (!row.rows[0]) return res.status(404).json({ ok: false, error: "not_found" });
@@ -64,7 +66,7 @@ const ADAPTER_DICT_KINDS = new Set(["category", "connection", "runner"]);
     } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
   });
 
-  app.delete("/api/adapter-dictionaries/:id", async (req, res) => {
+  app.delete("/api/adapter-dictionaries/:id", requireSession({ roles: ["admin", "sovereign"] }), async (req, res) => {
     try {
       const row = await pool.query("SELECT id FROM adapter_dictionaries WHERE id=$1", [req.params.id]);
       if (!row.rows[0]) return res.status(404).json({ ok: false, error: "not_found" });

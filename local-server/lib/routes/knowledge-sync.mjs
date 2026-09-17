@@ -8,6 +8,7 @@ export function mountKnowledgeSyncRoutes(app, deps) {
     createSyncOptions, deriveStartedBy, startSyncJob, cancelSyncJob,
     purgeKnowledgeRoot, purgeGraphOrphans,
     invalidateSourcesCache,
+    resolveActorContext,
   } = deps;
 
   // GET support is intentional: operator can open/curl the gate from a browser.
@@ -166,7 +167,33 @@ export function mountKnowledgeSyncRoutes(app, deps) {
   // Body: { id?, root?, path?, sourceId?, dryRun? }
   // Resolves 'dir:<root>' identifiers and purges phantom paths cleanly.
   app.post("/api/knowledge/purge", async (req, res) => {
+    const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
+    const tenantId = req.session?.tenant_id || ctx.tenantId || "default";
+    const userMatches = [req.session?.userId, ctx.userId, req.session?.username, ctx.username, ctx.actor].filter(Boolean);
+
     const { id, root, path: filePath, sourceId, dryRun } = req.body ?? {};
+    const sId = typeof sourceId === "string" ? sourceId : (typeof id === "string" && !id.startsWith("dir:") ? id : null);
+
+    if (root || (typeof id === "string" && id.startsWith("dir:"))) {
+      if (!ctx.isSuperAdmin) {
+        return res.status(403).json({ ok: false, error: "Access denied: only administrators may purge root directories" });
+      }
+    }
+
+    if (sId && !ctx.isSuperAdmin) {
+      const chk = await pool.query(
+        "SELECT id, owner_id, tenant_id FROM knowledge_sources WHERE id=$1",
+        [sId]
+      );
+      if (chk.rows.length > 0) {
+        const row = chk.rows[0];
+        const isOwner = row.owner_id && (userMatches.includes(row.owner_id) || userMatches.map(x => String(x).toLowerCase()).includes(String(row.owner_id).toLowerCase()));
+        const matchesTenant = !row.tenant_id || row.tenant_id === tenantId || row.tenant_id === "default";
+        if (!isOwner || !matchesTenant) {
+          return res.status(403).json({ ok: false, error: "Access denied: you do not own this knowledge source" });
+        }
+      }
+    }
     try {
       const where = []; const params = []; let removedFiles = 0, removedChunks = 0, removedSources = 0;
       let resolvedRoot = root, resolvedPath = filePath;

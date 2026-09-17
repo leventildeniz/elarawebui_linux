@@ -17,6 +17,8 @@ export type RagFolder = {
   /** Jewel tone the user picked for this collection. */
   color?: string;
   ownerId?: string;
+  spaceId?: string | null;
+  isBrand?: boolean;
 };
 
 /** Jewel tones a collection can be painted with. */
@@ -64,31 +66,48 @@ export function useRagFolders() {
     };
   }, []);
 
-  const addFolder = useCallback(async (name: string) => {
-    const payload = {
-      name: name.trim(),
-      autoTags: [name.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "folder"],
-      color: FOLDER_TONES[cachedFolders.length % FOLDER_TONES.length] || "sapphire",
-    };
-    
-    // Optimistic update
-    const tempId = `temp-${Date.now()}`;
-    const next = [...cachedFolders, { ...payload, id: tempId, builtin: false, createdAt: Date.now() }];
-    cachedFolders = next;
-    setFolders(next);
+  const addFolder = useCallback(
+    async (arg: string | { name: string; spaceId?: string | null; isBrand?: boolean }) => {
+      const name = typeof arg === "string" ? arg.trim() : arg.name.trim();
+      const spaceId = typeof arg === "object" ? arg.spaceId : undefined;
+      const isBrand = typeof arg === "object" ? Boolean(arg.isBrand) : false;
+      const payload = {
+        name,
+        spaceId: spaceId || null,
+        isBrand,
+        autoTags: [
+          name
+            .toLowerCase()
+            .trim()
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/^-|-$/g, "") || "folder",
+        ],
+        color: FOLDER_TONES[cachedFolders.length % FOLDER_TONES.length] || "sapphire",
+      };
 
-    try {
-      const res = await fetchApi("/api/rag-folders", {
-        method: "POST",
-        body: JSON.stringify(payload)
-      });
-      syncFoldersBackend();
-      return res.id;
-    } catch (e) {
-      syncFoldersBackend();
-      return tempId;
-    }
-  }, []);
+      // Optimistic update
+      const tempId = `temp-${Date.now()}`;
+      const next = [
+        ...cachedFolders,
+        { ...payload, id: tempId, builtin: false, createdAt: Date.now() },
+      ];
+      cachedFolders = next;
+      setFolders(next);
+
+      try {
+        const res = await fetchApi("/api/rag-folders", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+        syncFoldersBackend();
+        return res.id;
+      } catch (e) {
+        syncFoldersBackend();
+        return tempId;
+      }
+    },
+    [],
+  );
 
   const patchFolder = useCallback(async (id: string, p: Partial<RagFolder>) => {
     const next = cachedFolders.map((f) => (f.id === id ? { ...f, ...p, id } : f));

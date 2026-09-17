@@ -16,6 +16,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { getBrandAliasesPath, migrateBrandAliasesIfNeeded } from "../state-paths.mjs";
+import { requireSession } from "../session-gate.mjs";
 
 let _deps = null;
 function deps() {
@@ -288,19 +289,31 @@ export async function triggerSyncAutoReenrich(brandSet, jobId) {
 
 export function mountBrandAliasesRoutes(appOrObj, depsArg) {
   const app = appOrObj?.app || appOrObj;
-  app.get("/api/rag/brand-aliases", async (_req, res) => {
+  app.get("/api/rag/brand-aliases", requireSession(), async (req, res) => {
     try {
-      const { pool, deriveBrandFromKnowledgeSource } = deps();
+      const { pool, deriveBrandFromKnowledgeSource, resolveActorContext } = deps();
+      const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
+      const tenantId = req.session?.tenant_id || ctx.tenantId || "default";
+      const userMatches = [req.session?.userId, ctx.userId, req.session?.username, ctx.username, ctx.actor].filter(Boolean);
+
       const aliases = await _recoverAliasesFromEnrichedChunks(pool, _readBrandAliases());
       const { rows } = await pool.query(`
         SELECT
-          COALESCE(NULLIF(brand,''), NULLIF(metadata->>'brand',''), '') AS brand,
+          COALESCE(NULLIF(kc.brand,''), NULLIF(kc.metadata->>'brand',''), '') AS brand,
           COUNT(*)::int       AS chunk_count,
-          MAX(COALESCE(metadata->>'enriched_at', created_at::text)) AS last_enriched_at
-          FROM knowledge_chunks
+          MAX(COALESCE(kc.metadata->>'enriched_at', kc.created_at::text)) AS last_enriched_at
+          FROM knowledge_chunks kc
+          LEFT JOIN knowledge_sources ks ON ks.id::text = kc.source_id
+         WHERE (
+           $1::boolean = true
+           OR ks.tenant_id = $2 OR ks.is_global = true OR ks.tenant_id = 'default'
+         ) AND (
+           $1::boolean = true
+           OR ks.owner_id = ANY($3) OR lower(ks.owner_id) = ANY($3) OR ks.is_global = true
+         )
          GROUP BY 1
          ORDER BY chunk_count DESC
-      `);
+      `, [ctx.isSuperAdmin, tenantId, userMatches]);
       const brandMap = new Map();
       for (const r of rows) {
         if (!r.brand || r.brand.startsWith("_") || r.brand === 'unbranded') continue;
@@ -312,14 +325,16 @@ export function mountBrandAliasesRoutes(appOrObj, depsArg) {
       }
 
       const sourceBrands = await pool.query(`
-        SELECT ks.id, ks.name, ks.kind, ks.brand, ks.folder_id, rf.name AS folder_name
+        SELECT ks.id, ks.name, ks.kind, ks.brand, ks.folder_id, rf.name AS folder_name, rf.is_brand
           FROM knowledge_sources ks
           LEFT JOIN rag_folders rf ON rf.id = ks.folder_id
+         WHERE ($1::boolean = true OR (ks.tenant_id = $2 AND (ks.owner_id = ANY($3) OR ks.is_global = true)))
+           AND (rf.is_brand = true OR (ks.brand IS NOT NULL AND ks.brand NOT IN ('', 'auto-detect', 'unbranded')))
          ORDER BY ks.added_at DESC
-      `).catch(() => ({ rows: [] }));
+      `, [ctx.isSuperAdmin, tenantId, userMatches]).catch(() => ({ rows: [] }));
       for (const s of sourceBrands.rows || []) {
         let name = s.brand && s.brand !== 'auto-detect' ? s.brand.toLowerCase() : null;
-        if (!name && s.folder_name && !/^(uploads|test folder)$/i.test(s.folder_name)) {
+        if (!name && s.is_brand && s.folder_name && !/^(uploads|test folder)$/i.test(s.folder_name)) {
           name = s.folder_name.toLowerCase();
         }
         if (!name && typeof deriveBrandFromKnowledgeSource === "function") {
@@ -358,7 +373,14 @@ export function mountBrandAliasesRoutes(appOrObj, depsArg) {
     }
   });
 
-  app.post("/api/rag/brand-aliases", async (req, res) => {
+  app.post("/api/rag/brand-aliases", requireSession(), async (req, res) => {
+    const { resolveActorContext, isAdminCaller } = deps();
+    const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : null;
+    const isAllowed = ctx?.isSuperAdmin || ctx?.isAdmin || ctx?.isTenantAdmin || (typeof isAdminCaller === "function" && await isAdminCaller(req));
+    if (!isAllowed) {
+      return res.status(403).json({ ok: false, error: "Access denied: only administrators may edit brand aliases" });
+    }
+
     const body = req.body || {};
     const brand = String(body.brand || "").trim();
     if (!brand) return res.status(400).json({ ok: false, error: "brand required" });
@@ -408,7 +430,14 @@ export function mountBrandAliasesRoutes(appOrObj, depsArg) {
   });
 
 
-  app.post("/api/rag/brand-aliases/reenrich", (req, res) => {
+  app.post("/api/rag/brand-aliases/reenrich", requireSession(), async (req, res) => {
+    const { resolveActorContext, isAdminCaller } = deps();
+    const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : null;
+    const isAllowed = ctx?.isSuperAdmin || ctx?.isAdmin || ctx?.isTenantAdmin || (typeof isAdminCaller === "function" && await isAdminCaller(req));
+    if (!isAllowed) {
+      return res.status(403).json({ ok: false, error: "Access denied: only administrators may trigger chunk re-enrichment" });
+    }
+
     const body = req.body || {};
     const brand = String(body.brand || "").trim();
     if (!brand) return res.status(400).json({ ok: false, error: "brand required" });

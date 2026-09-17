@@ -2,9 +2,20 @@
 // Extracted from server.mjs (2026-05-30). Pure HTTP handlers; deps injected.
 
 export function mountKnowledgeMaintenanceRoutes(app, deps) {
-  const { pool, purgeGraphOrphans, cleanupKnowledgeGhosts } = deps;
+  const { pool, purgeGraphOrphans, cleanupKnowledgeGhosts, isAdminCaller, resolveActorContext } = deps;
+
+  async function assertAdmin(req, res) {
+    const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : null;
+    const isAllowed = ctx?.isSuperAdmin || ctx?.isAdmin || ctx?.isTenantAdmin || (typeof isAdminCaller === "function" && await isAdminCaller(req));
+    if (!isAllowed) {
+      res.status(403).json({ ok: false, error: "Access denied: administrator privileges required" });
+      return false;
+    }
+    return true;
+  }
 
   app.post("/api/knowledge/url-purge-all", async (req, res) => {
+    if (!await assertAdmin(req, res)) return;
     const dryRun = req.body?.dryRun === true;
     try {
       const cnt = await pool.query(`SELECT COUNT(*)::int AS n FROM knowledge_sources WHERE kind='url'`);
@@ -47,6 +58,7 @@ export function mountKnowledgeMaintenanceRoutes(app, deps) {
   // POST /api/knowledge/checkpoint-url-purge — 2026-05-26 cleanup.
   // type='url' + host filter only. PDF chunks (type='file') unaffected.
   app.post("/api/knowledge/checkpoint-url-purge", async (req, res) => {
+    if (!await assertAdmin(req, res)) return;
     const dryRun = req.body?.dryRun === true;
     try {
       const sel = `FROM knowledge_sources
@@ -79,6 +91,7 @@ export function mountKnowledgeMaintenanceRoutes(app, deps) {
   });
 
   app.post("/api/knowledge/cleanup", async (req, res) => {
+    if (!await assertAdmin(req, res)) return;
     try {
       const deepFileCheck = req.body?.deepFileCheck === true;
       const report = await cleanupKnowledgeGhosts({ staleOnly: req.body?.staleOnly !== false, deepFileCheck });
@@ -89,6 +102,7 @@ export function mountKnowledgeMaintenanceRoutes(app, deps) {
   });
 
   app.post("/api/knowledge/nuke", async (req, res) => {
+    if (!await assertAdmin(req, res)) return;
     try {
       await pool.query("TRUNCATE TABLE knowledge_chunks, knowledge_sources, memory_working, memory_episodic, memory_facts CASCADE");
       res.json({ ok: true, nuked: true });
@@ -99,6 +113,7 @@ export function mountKnowledgeMaintenanceRoutes(app, deps) {
 
   // URL source manuel HEAD probu. Otomatik silme YOK; { delete:true } ile confirmed 404/410 silinir.
   app.post("/api/knowledge/url-probe", async (req, res) => {
+    if (!await assertAdmin(req, res)) return;
     const doDelete = req.body?.delete === true;
     const timeoutMs = Math.max(1000, Math.min(15000, Number(req.body?.timeoutMs) || 5000));
     const retries = Math.max(1, Math.min(5, Number(req.body?.retries) || 3));

@@ -343,15 +343,21 @@ export function mountKnowledgeIngestRoutes(app, deps) {
       if (!extracted.ok) return res.status(415).json({ ok: false, error: extracted.error || "extract failed" });
       
       let brand = req.body?.brand && req.body.brand !== "auto-detect" ? String(req.body.brand).trim().toLowerCase() : null;
-      if (!brand && req.body?.folderId && req.body.folderId !== "uploads") {
-        const folderRow = await pool.query("SELECT name, auto_tags FROM rag_folders WHERE id=$1", [req.body.folderId]).catch(() => ({ rows: [] }));
+      let folderSpaceId = null;
+      if (req.body?.folderId && req.body.folderId !== "uploads") {
+        const folderRow = await pool.query("SELECT name, auto_tags, is_brand, space_id FROM rag_folders WHERE id=$1", [req.body.folderId]).catch(() => ({ rows: [] }));
         if (folderRow.rows.length) {
-          const fName = folderRow.rows[0].name || "";
-          const fTags = Array.isArray(folderRow.rows[0].auto_tags) ? folderRow.rows[0].auto_tags : [];
-          if (fTags.length && fTags[0]) {
-            brand = fTags[0].toLowerCase();
-          } else if (fName) {
-            brand = fName.toLowerCase();
+          const fRow = folderRow.rows[0];
+          folderSpaceId = fRow.space_id || null;
+          // Only inherit folder name as a technology brand IF the folder is explicitly flagged as a brand domain!
+          if (!brand && fRow.is_brand) {
+            const fName = fRow.name || "";
+            const fTags = Array.isArray(fRow.auto_tags) ? fRow.auto_tags : [];
+            if (fTags.length && fTags[0]) {
+              brand = fTags[0].toLowerCase();
+            } else if (fName) {
+              brand = fName.toLowerCase();
+            }
           }
         }
       }
@@ -372,7 +378,7 @@ export function mountKnowledgeIngestRoutes(app, deps) {
         name: req.file.originalname, type: sourceType,
         content: extracted.content, tag: req.body?.tag !== undefined ? req.body.tag : defaultTag, brand, awaitEmbeddings: false,
         parserUsed: extracted.parser || null, parseQuality: extracted.parseQuality || null, title: extracted.title || null,
-        spaceId: req.body?.spaceId || null, ownerId: req.body?.ownerId || null, ownerName: req.body?.ownerName || null,
+        spaceId: req.body?.spaceId || folderSpaceId || null, ownerId: req.body?.ownerId || null, ownerName: req.body?.ownerName || null,
         sizeMb: req.file.size ? req.file.size / (1024 * 1024) : 0,
         folderId: req.body?.folderId || null,
         userTags: req.body?.tags ? JSON.parse(req.body.tags) : []

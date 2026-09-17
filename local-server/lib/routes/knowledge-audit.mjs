@@ -8,6 +8,8 @@
 //   /api/knowledge/collections    — source list (with chunk fallback)
 //   /api/knowledge/brands         — brand summary with file/chunk counts
 
+import { requireSession } from "../session-gate.mjs";
+
 export function mountKnowledgeAuditRoutes(app, deps) {
   const {
     pool,
@@ -25,7 +27,7 @@ export function mountKnowledgeAuditRoutes(app, deps) {
     resolveJoinExpr,
   } = deps;
 
-  app.get("/api/knowledge/chunk-preview", async (req, res) => {
+  app.get("/api/knowledge/chunk-preview", requireSession(), async (req, res) => {
     try {
       const id = String(req.query.id || "").trim();
       const p  = String(req.query.path || "").trim();
@@ -64,7 +66,7 @@ export function mountKnowledgeAuditRoutes(app, deps) {
   // /api/knowledge/brand-audit — operator diagnostic for brand isolation.
   // Usage: GET /api/knowledge/brand-audit?q=R82 → shows which brand chunks
   // containing the term are filed under (catches mis-tagged Checkpoint docs).
-  app.get("/api/knowledge/brand-audit", async (req, res) => {
+  app.get("/api/knowledge/brand-audit", requireSession(), async (req, res) => {
     try {
       const q = String(req.query.q || "").slice(0, 200).trim();
       if (!q) return res.status(400).json({ ok: false, error: "q required" });
@@ -91,7 +93,7 @@ export function mountKnowledgeAuditRoutes(app, deps) {
     } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
   });
 
-  app.get("/api/knowledge/chunk-report", async (req, res) => {
+  app.get("/api/knowledge/chunk-report", requireSession(), async (req, res) => {
     try {
       await ensureKnowledgeChunksTable();
       await ensureKnowledgeFilesTable();
@@ -145,7 +147,7 @@ export function mountKnowledgeAuditRoutes(app, deps) {
     } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
   });
 
-  app.get("/api/knowledge/collections", async (_req, res) => {
+  app.get("/api/knowledge/collections", requireSession(), async (_req, res) => {
     try {
       const probe = await pool.query(
         `SELECT table_name, column_name FROM information_schema.columns
@@ -209,7 +211,7 @@ export function mountKnowledgeAuditRoutes(app, deps) {
   });
 
   // Brand-level knowledge summary. DB-driven (no static list).
-  app.get("/api/knowledge/brands", async (_req, res) => {
+  app.get("/api/knowledge/brands", requireSession(), async (_req, res) => {
     try {
       const probe = await pool.query(
         `SELECT column_name FROM information_schema.columns

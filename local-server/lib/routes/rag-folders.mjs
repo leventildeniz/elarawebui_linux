@@ -38,7 +38,9 @@ export async function mountRagFoldersRoutes(app, deps) {
         color: r.color,
         createdAt: new Date(r.created_at).getTime(),
         ownerId: r.owner_id,
-        tenant_id: r.tenant_id || "default"
+        tenant_id: r.tenant_id || "default",
+        spaceId: r.space_id || null,
+        isBrand: Boolean(r.is_brand),
       })));
     } catch (e) {
       res.status(500).json({ ok: false, error: String(e.message || e) });
@@ -46,19 +48,21 @@ export async function mountRagFoldersRoutes(app, deps) {
   });
 
   app.post("/api/rag-folders", requireSession(), async (req, res) => {
-    const { name, autoTags, color } = req.body;
+    const { name, autoTags, color, spaceId, space_id, isBrand, is_brand } = req.body;
     const id = createPrefixedId("fld.");
     const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
     const tenantId = req.session?.tenant_id || ctx.tenantId || "default";
     const ownerId = req.session?.userId || ctx.userId || ctx.actor || null;
+    const finalSpaceId = spaceId || space_id || null;
+    const finalIsBrand = Boolean(isBrand ?? is_brand ?? false);
 
     try {
       await pool.query(
-        `INSERT INTO rag_folders (id, name, auto_tags, builtin, color, owner_id, tenant_id)
-         VALUES ($1, $2, $3::jsonb, false, $4, $5, $6)`,
-        [id, name, JSON.stringify(autoTags || []), color || "sapphire", ownerId, tenantId]
+        `INSERT INTO rag_folders (id, name, auto_tags, builtin, color, owner_id, tenant_id, space_id, is_brand)
+         VALUES ($1, $2, $3::jsonb, false, $4, $5, $6, $7, $8)`,
+        [id, name, JSON.stringify(autoTags || []), color || "sapphire", ownerId, tenantId, finalSpaceId, finalIsBrand]
       );
-      res.json({ ok: true, id });
+      res.json({ ok: true, id, isBrand: finalIsBrand, spaceId: finalSpaceId });
     } catch (e) {
       res.status(500).json({ ok: false, error: String(e.message || e) });
     }
@@ -77,13 +81,16 @@ export async function mountRagFoldersRoutes(app, deps) {
       if (!chk.rows.length) return res.status(403).json({ ok: false, error: "Access denied to collection" });
     }
 
-    const { name, color } = req.body;
+    const { name, color, spaceId, space_id, isBrand, is_brand, autoTags } = req.body;
     const updates = [];
     const values = [];
     let i = 1;
 
     if (name !== undefined) { updates.push(`name=$${i++}`); values.push(name); }
     if (color !== undefined) { updates.push(`color=$${i++}`); values.push(color); }
+    if (spaceId !== undefined || space_id !== undefined) { updates.push(`space_id=$${i++}`); values.push(spaceId || space_id || null); }
+    if (isBrand !== undefined || is_brand !== undefined) { updates.push(`is_brand=$${i++}`); values.push(Boolean(isBrand ?? is_brand)); }
+    if (autoTags !== undefined) { updates.push(`auto_tags=$${i++}::jsonb`); values.push(JSON.stringify(autoTags)); }
 
     if (updates.length > 0) {
       values.push(req.params.id);

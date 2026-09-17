@@ -1925,4 +1925,74 @@ ELARA Sovereign Studio genelinde **Zero-Trust Çoklu Kiracı (Multi-Tenancy) ve 
 
    ---
 
+   ### 🛡️ IN EXECUTION — 360° RAG ACCESS SPACE ISOLATION, BRAND DOMAIN HARMONIZATION (OPTION C) & SYSTEM-WIDE ROUTE HARDENING
+
+   **Tarih:** 2026-09-17  
+   **Durum:** İcrada / Yol Haritası Mühürlendi (Adım Adım Doğrulama)
+
+   #### 🎯 1. Mimari Prensipler & Kararlar
+   1. **RBAC Esnekliğinin Korunması (Prensip Kararı):**
+      - `app_roles` tablosundaki rollerden veya izinlerden (`knowledge-aliases` vb.) yetki kırpılmaz. SuperAdmin ve TenantAdmin'in özel roller oluşturabilme esnekliği muhafaza edilir.
+      - Güvenlik ve veri sızıntısı koruması rol kısıtlamasıyla değil; **API, Oturum (`requireSession`), Kiracı (Tenant) ve Access Space sorgu izolasyonu** katmanında zorunlu kılınır.
+   2. **RAG Access Space & Departman İzolasyonu:**
+      - Access Space'ler sadece Admin tarafından yönetilir (`Governance ➔ Access Spaces`). Departman bazlı (örn: *Technical*, *Marketing*, *Shared*) okuyucu (`readers`), yükleyici (`contributors`) ve arama ajanı (`Technical_Librarian`) sınırlarını belirler.
+      - Bir departmandaki mühendislerin yüklediği dökümanlar o Space'e mühürlenir; aynı Space'teki çalışma arkadaşları ajana sorduklarında bu dökümanları sorgulayabilirken, yetkisi olmayan departmanlar bu dökümanlara asla erişemez.
+   3. **C Şıkkı: Klasör Açma & Marka (Brand Domain) Ayrımı:**
+      - `RAG Documents` ekranındaki yeni koleksiyon modalına **Opsiyonel Marka Kutucuğu** eklenir:
+        - Klasör Adı (*Fortigate*, *Cisco* veya şahsi *deneme*, *saha-notları*)
+        - Kullanıcının yetkili olduğu Access Space otomatik bağlanır (`space_id`).
+        - `[ ] Bu klasör bir Teknoloji / Marka Kütüphanesidir (Brand Domain)` seçeneği:
+          - İşaretlenirse: Klasör küresel bir teknoloji markası olarak tescillenir, içine atılan dosyalar bu markayı alır ve `Brand Aliases` listesine dahil olur.
+          - İşaretlenmezse: Klasör şahsi/departman çalışma klasörü olarak kalır (`unbranded`), **asla Brand Aliases sözlüğüne sızmaz**.
+
+   #### 🔍 2. 69 Rota Taraması ve Tespit Edilen Açıklar
+   - **Grup 1 (RAG Telemetri & İkincil Rotalar):**
+     - `knowledge-state.mjs` (`GET /api/knowledge/state`): Oturum kontrolü yok, `rag_folders` tablosunu filtresiz okuyarak tüm şahsi klasörleri marka olarak sızdırıyordu.
+     - `brand-aliases.mjs` (`GET/POST /api/rag/brand-aliases`): Oturumsuz ve filtresiz tüm chunk/marka listesi dönüyordu.
+     - `knowledge-maintenance.mjs` (`POST /api/knowledge/nuke`): Kritik güvenlik açığı — yetkisiz tüm RAG veritabanını TRUNCATE edebiliyordu.
+     - `knowledge-sync.mjs` (`POST /api/knowledge/purge`): Oturumsuz kaynak silme riski.
+     - `knowledge-audit.mjs` (`/collections`, `/brands`): Oturumsuz küresel envanter dökümü.
+     - `knowledge-ingest.mjs`: Dosya yüklenirken marka girilmemişse körlemesine `brand = folder.name` damgalaması.
+   - **Grup 2 (Altyapı & Sistem Yönetimi):**
+     - `infra.mjs` (`/api/infra/*`), `fleet-services.mjs` (`/api/system/services/:id/control`), `mail-time.mjs` rotalarında açık admin koruma eksikliği.
+   - **Grup 3 (İkincil Varlıklar):**
+     - `api-keys.mjs` (`/api/developer/keys`), `cve.mjs` rotalarında kiracı/masa filtre eksikliği.
+
+   #### 📋 3. İcra Takvimi & Tamamlanan İşlemler
+   - [x] **Adım 1: RAG Güvenlik ve İzolasyon Mührü (%100 Tamamlandı & Doğrulandı):**
+     * Veritabanı: `rag_folders` tablosuna `is_brand BOOLEAN NOT NULL DEFAULT false` kolonu eklendi. Kurumsal teknoloji kütüphaneleri `Fortigate` ve `Checkpoint` `is_brand = true` ve `is_global = true` olarak işaretlendi; `deneme` ve `deneme2` klasörleri `false` tutuldu.
+     * `knowledge_sources` ve `knowledge_chunks` içindeki hatalı `brand = 'deneme2'` damgası temizlendi.
+     * `knowledge-state.mjs` (`GET /api/knowledge/state`): Desk ve tenant izolasyonuna alındı. Yalnızca `is_brand = true` olan klasörler ve geçerli teknoloji markaları filtrelenerek listelendi; şahsi `deneme` ve `deneme2` klasörleri küresel marka sözlüğünden tamamen temizlendi.
+     * `brand-aliases.mjs` (`GET/POST /api/rag/brand-aliases`, `reenrich`): `requireSession()` takıldı, tenant/desk filtresi uygulandı; `POST` ve `reenrich` yetkisiz çağrılara kapatılarak Admin/Knowledge Ops yetki kilidine bağlandı (403 Forbidden).
+     * `knowledge-maintenance.mjs`: `POST /api/knowledge/nuke` rotasına `assertAdmin` takıldı. Yetkisiz veri tabanı sıfırlama açığı kapatıldı. `/url-purge-all`, `/cleanup` ve `/url-probe` rotaları admin korumasına alındı.
+     * `knowledge-sync.mjs`: `POST /api/knowledge/purge` rotasına mülkiyet ve admin kontrolü eklendi; kullanıcıların başkasının dökümanını silmesi engellendi.
+     * `knowledge-ingest.mjs`: Yüklenen dosyalarda marka belirtilmemişse yalnızca klasör `is_brand = true` ise marka ataması yapılması sağlandı. Ayrıca dosya yüklemesi doğrudan klasörün bağlı olduğu `space_id`'yi miras alacak şekilde güçlendirildi.
+   - [x] **Adım 2: C Şıkkı Koleksiyon Modalı & Space/Brand Entegrasyonu (%100 Tamamlandı & Doğrulandı):**
+     * `src/lib/rag-folder-store.ts`: `RagFolder` tipine `spaceId` ve `isBrand` alanları eklendi; `addFolder` hem nesne hem string parametresini destekleyecek şekilde güncellendi.
+     * `src/routes/rag-documents.tsx`: Yeni koleksiyon modalına **Opsiyonel "Brand Library" (C Şıkkı)** kutucuğu ve kullanıcının yetkili olduğu hedef Access Space göstergesi eklendi.
+     * Kenar çubuğu koleksiyon listesinde `isBrand = true` olan kütüphanelerin yanına `[brand]` rozeti konuldu; koleksiyon ayar menüsünden (`menuFor`) sonradan marka durumunu değiştirme (toggle) yeteneği eklendi.
+   - [x] **Adım 3: Altyapı ve Sistem Yönetim Rotalarının Kilitlenmesi (%100 Tamamlandı & Doğrulandı):**
+     * `api-keys.mjs`: Tüm API key listeleme, oluşturma ve silme rotaları `requireSession()` ile güvenceye alındı; tier oluşturma ve silme işlemleri admin yetkisine bağlandı.
+     * `template-assignments.mjs`: `GET /api/template-assignments` oturuma, `PUT /api/template-assignments` admin yetkisine bağlandı.
+     * `voice-profiles.mjs`: Profil ekleme ve silme admin yetkisine, okuma oturuma bağlandı.
+     * `adapter-dictionaries.mjs`: Sözlük CRUD rotaları oturum ve admin denetimine alındı.
+     * `knowledge-audit.mjs`: Tüm teşhis rotaları (`/chunk-preview`, `/brand-audit`, `/collections`, `/brands`) `requireSession()` ile mühürlendi.
+
+   #### 📊 4. Canlı Penetrasyon ve İzolasyon Doğrulama Sonuçları
+   - `RAG Documents` Klasör İzolasyonu: `Fortigate` ve `Checkpoint` klasörlerinin `is_global` bayrağı `false` yapıldı ve Admin masasına (`00000000-0000-0000-0000-000000000000`) kilitlendi. `deneme2` kullanıcısının ekranında Admin'in klasörlerinin görünmesi sızıntısı **tamamen giderildi**; `deneme2` artık yalnızca `Uploads` ve `deneme2` klasörlerini görüyor.
+   - `deneme2` oturumu (`s_7va0omlcmu5dibxq`) ile `GET /api/rag-folders` $\rightarrow$ Yalnızca `Uploads` ve `deneme2` döndü (Admin'in Fortigate/Checkpoint klasörleri sızmıyor).
+   - `deneme` oturumu ile `GET /api/rag-folders` $\rightarrow$ Yalnızca `Uploads` ve `deneme` döndü.
+   - `admin` oturumu ile `GET /api/rag-folders` $\rightarrow$ Yalnızca `Uploads`, `Fortigate` ve `Checkpoint` döndü.
+   - `deneme2` oturumu ile `GET /api/rag/brand-aliases` sorgulandı $\rightarrow$ `brands: []` döndü (diğer masaların verisi sızmıyor).
+   - `admin` oturumu ile `GET /api/rag/brand-aliases` sorgulandı $\rightarrow$ `fortigate` ve `checkpoint` eksiksiz listelendi.
+   - `deneme2` oturumu ile `POST /api/knowledge/nuke` çağrıldı $\rightarrow$ **`HTTP 403 Forbidden`** (`Access denied: administrator privileges required`).
+   - `deneme2` oturumu ile `POST /api/rag/brand-aliases` çağrıldı $\rightarrow$ **`HTTP 403 Forbidden`** (`Access denied: only administrators may edit brand aliases`).
+   - `deneme2` oturumu ile `admin`'in `Fortigate` klasörü silinmeye çalışıldı $\rightarrow$ **`HTTP 403 Forbidden`** (`Access denied or built-in collection`).
+   - `deneme2` oturumu ile `deneme`'nin klasörü silinmeye çalışıldı $\rightarrow$ **`HTTP 403 Forbidden`** (`Access denied or built-in collection`).
+   - `POST /api/rag-folders` ile `isBrand: false` yeni çalışma klasörü açıldı $\rightarrow$ Brand Aliases listesine düşmediği ve sorunsuz silindiği (204 No Content) kanıtlandı.
+   - `ALL 69 ROUTE FILES PASSED SYNTAX CHECK!` (`node --check` 0 hata).
+   - `npx tsc --noEmit` 0 hata. Tüm systemd servisleri aktif, yeşil ve sağlıklı.
+
+   ---
+
    **Sistem Durumu:** `node --check` 0 hata, `npx tsc --noEmit` 0 hata; tüm systemd servisleri (`elara-middleware`, `elara-vite`, `elara-worker`) aktif, sağlıklı ve operasyonel.

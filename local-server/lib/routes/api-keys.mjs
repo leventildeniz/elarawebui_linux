@@ -20,7 +20,7 @@ export function mountApiKeysRoutes(app, deps) {
   // =========================================================================
   // 1. GET /api/developer/keys — List all API Keys for tenant with decrypted keys
   // =========================================================================
-  app.get("/api/developer/keys", async (req, res) => {
+  app.get("/api/developer/keys", requireSession(), async (req, res) => {
     try {
       const { tenantId, user, role } = resolveTenantAndUser(req);
       
@@ -86,7 +86,7 @@ export function mountApiKeysRoutes(app, deps) {
   // =========================================================================
   // 2. POST /api/developer/keys — Generate a new cryptographically secure API Key
   // =========================================================================
-  app.post("/api/developer/keys", async (req, res) => {
+  app.post("/api/developer/keys", requireSession(), async (req, res) => {
     try {
       const { tenantId, user, role } = resolveTenantAndUser(req);
       const {
@@ -166,7 +166,7 @@ export function mountApiKeysRoutes(app, deps) {
   // =========================================================================
   // 3. PATCH /api/developer/keys/:id — Update Key metadata or status
   // =========================================================================
-  app.patch("/api/developer/keys/:id", async (req, res) => {
+  app.patch("/api/developer/keys/:id", requireSession(), async (req, res) => {
     try {
       const { id } = req.params;
       const { tenantId, role } = resolveTenantAndUser(req);
@@ -212,7 +212,7 @@ export function mountApiKeysRoutes(app, deps) {
   // =========================================================================
   // 4. DELETE /api/developer/keys/:id — Revoke / Delete API Key
   // =========================================================================
-  app.delete("/api/developer/keys/:id", async (req, res) => {
+  app.delete("/api/developer/keys/:id", requireSession(), async (req, res) => {
     try {
       const { id } = req.params;
       const { tenantId, role } = resolveTenantAndUser(req);
@@ -239,7 +239,7 @@ export function mountApiKeysRoutes(app, deps) {
   // =========================================================================
   // 5. GET /api/developer/tiers — List available rate limiting tiers
   // =========================================================================
-  app.get("/api/developer/tiers", async (_req, res) => {
+  app.get("/api/developer/tiers", requireSession(), async (_req, res) => {
     try {
       const { rows } = await pool.query("SELECT * FROM tenant_rate_limits ORDER BY rpm_limit ASC");
       return res.json({ ok: true, tiers: rows });
@@ -250,7 +250,7 @@ export function mountApiKeysRoutes(app, deps) {
   });
 
   // POST /api/developer/tiers — Create or update a Rate Limit Tier
-  app.post("/api/developer/tiers", async (req, res) => {
+  app.post("/api/developer/tiers", requireSession({ roles: ["admin", "sovereign"] }), async (req, res) => {
     try {
       const {
         tier,
@@ -289,7 +289,7 @@ export function mountApiKeysRoutes(app, deps) {
   });
 
   // PATCH /api/developer/tiers/:tier — Update existing Tier limits
-  app.patch("/api/developer/tiers/:tier", async (req, res) => {
+  app.patch("/api/developer/tiers/:tier", requireSession({ roles: ["admin", "sovereign"] }), async (req, res) => {
     try {
       const { tier } = req.params;
       const { name, rpm_limit, tpm_limit, monthly_token_quota, max_concurrency } = req.body || {};
@@ -322,7 +322,7 @@ export function mountApiKeysRoutes(app, deps) {
   });
 
   // DELETE /api/developer/tiers/:tier — Delete a Tier (reassigning active keys to tier1)
-  app.delete("/api/developer/tiers/:tier", async (req, res) => {
+  app.delete("/api/developer/tiers/:tier", requireSession({ roles: ["admin", "sovereign"] }), async (req, res) => {
     try {
       const { tier } = req.params;
       if (tier === "tier1") {
@@ -347,7 +347,7 @@ export function mountApiKeysRoutes(app, deps) {
   // =========================================================================
   // 6. GET /api/developer/usage — Developer Hub Token & Quota Metrics
   // =========================================================================
-  app.get("/api/developer/usage", async (req, res) => {
+  app.get("/api/developer/usage", requireSession(), async (req, res) => {
     try {
       const { tenantId, role } = resolveTenantAndUser(req);
       

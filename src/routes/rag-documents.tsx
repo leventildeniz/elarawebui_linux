@@ -65,6 +65,7 @@ function RagDocumentsPage() {
   const [activeId, setActiveId] = useState(UPLOADS_FOLDER.id);
   const [creating, setCreating] = useState(false);
   const [draft, setDraft] = useState("");
+  const [isBrandDraft, setIsBrandDraft] = useState(false);
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [query, setQuery] = useState("");
@@ -91,7 +92,7 @@ function RagDocumentsPage() {
 
   const dropFolder = async (folder: RagFolder) => {
     const docs = mine.filter((s) => (s.folder || UPLOADS_FOLDER.id) === folder.id);
-            const ok = await confirmAction({
+    const ok = await confirmAction({
       title: `Delete "${folder.name}"?`,
       body: `Deleting this collection permanently removes all ${docs.length} document${
         docs.length === 1 ? "" : "s"
@@ -109,9 +110,14 @@ function RagDocumentsPage() {
   const create = async () => {
     const name = draft.trim();
     if (!name) return;
-    const id = await addFolder(name);
+    const id = await addFolder({
+      name,
+      spaceId: target?.id || null,
+      isBrand: isBrandDraft,
+    });
     if (id) setActiveId(id);
     setDraft("");
+    setIsBrandDraft(false);
     setCreating(false);
   };
 
@@ -166,13 +172,37 @@ function RagDocumentsPage() {
                     onChange={(e) => setDraft(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") create();
-                      if (e.key === "Escape") setCreating(false);
+                      if (e.key === "Escape") {
+                        setCreating(false);
+                        setIsBrandDraft(false);
+                      }
                     }}
                     placeholder="collection name…"
                     className="w-full rounded-md border border-white/[0.08] bg-canvas/60 px-2.5 py-1.5 font-mono text-[12px] text-foreground outline-none placeholder:text-muted-foreground/45 focus:border-sapphire/55"
                   />
-                  <div className="mt-2 flex justify-end gap-2">
-                    <JewelButton size="sm" variant="ghost" onClick={() => setCreating(false)}>
+                  <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground/70">
+                    <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-foreground">
+                      <input
+                        type="checkbox"
+                        checked={isBrandDraft}
+                        onChange={(e) => setIsBrandDraft(e.target.checked)}
+                        className="rounded border-white/20 bg-canvas text-sapphire focus:ring-0 h-3.5 w-3.5"
+                      />
+                      <span>Brand Library</span>
+                    </label>
+                    <span className="font-mono text-[10px] text-muted-foreground/50">
+                      {target?.name || "Shared"}
+                    </span>
+                  </div>
+                  <div className="mt-2.5 flex justify-end gap-2">
+                    <JewelButton
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setCreating(false);
+                        setIsBrandDraft(false);
+                      }}
+                    >
                       Cancel
                     </JewelButton>
                     <JewelButton size="sm" onClick={create}>
@@ -235,6 +265,7 @@ function RagDocumentsPage() {
                     >
                       {f.name}
                     </span>
+                    {f.isBrand && <Tag label="brand" />}
                   </button>
                   <span className="shrink-0 font-mono text-[11px] text-muted-foreground/50">
                     {countFor(f.id)}
@@ -293,6 +324,25 @@ function RagDocumentsPage() {
                               </button>
                             ))}
                           </div>
+                          {!f.builtin && (
+                            <div className="mt-2.5 border-t border-white/[0.06] pt-2">
+                              <button
+                                type="button"
+                                onClick={() => patchFolder(f.id, { isBrand: !f.isBrand })}
+                                className="flex w-full items-center justify-between rounded px-1.5 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-white/[0.04] hover:text-foreground"
+                              >
+                                <span>Brand Library</span>
+                                <span
+                                  className={cn(
+                                    "font-mono text-[10px] font-semibold",
+                                    f.isBrand ? "text-amethyst" : "text-muted-foreground/45",
+                                  )}
+                                >
+                                  {f.isBrand ? "ACTIVE" : "OFF"}
+                                </span>
+                              </button>
+                            </div>
+                          )}
                           {f.builtin ? (
                             <p className="mt-2.5 border-t border-white/[0.06] px-1 pt-2.5 font-mono text-[11px] leading-relaxed text-muted-foreground/50">
                               default collection · cannot be deleted
@@ -300,7 +350,11 @@ function RagDocumentsPage() {
                           ) : (
                             <button
                               type="button"
-                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); void dropFolder(f); }}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                void dropFolder(f);
+                              }}
                               className="mt-2.5 flex w-full items-center gap-2 rounded-md border-t border-white/[0.06] px-1 pt-2.5 text-left font-mono text-[11.5px] tracking-[0.06em] text-ruby transition-colors hover:text-ruby/80"
                             >
                               <Trash2 size={13} />
@@ -473,7 +527,7 @@ function DocRow({
       confirmLabel: "Delete document",
       tone: "ruby",
     });
-            if (ok) onRemove();
+    if (ok) onRemove();
   };
 
   return (
@@ -527,7 +581,11 @@ function DocRow({
 
       <button
         type="button"
-        onClick={(e) => { e.preventDefault(); e.stopPropagation(); drop().catch(console.error); }}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          drop().catch(console.error);
+        }}
         aria-label={`Remove ${source.name}`}
         className="justify-self-end rounded-md p-1.5 text-muted-foreground/40 opacity-0 transition-all hover:bg-ruby/10 hover:text-ruby group-hover:opacity-100"
         title={`Remove ${source.name}`}
@@ -556,8 +614,7 @@ function StatusCell({ source }: { source: KnowledgeSource }) {
   const [hover, setHover] = useState(false);
   const [anchor, setAnchor] = useState<{ top: number; left: number } | null>(null);
   const ref = useRef<HTMLDivElement>(null);
-  const fmt = (t?: number) =>
-    t ? fmtDateTime(t) : "—";
+  const fmt = (t?: number) => (t ? fmtDateTime(t) : "—");
 
   return (
     <div
@@ -763,7 +820,11 @@ function TagManager({
                 </div>
                 <button
                   type="button"
-                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); void drop(t); }}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    void drop(t);
+                  }}
                   aria-label={`Remove tag ${t}`}
                   className="shrink-0 rounded-md p-1.5 text-muted-foreground/40 opacity-0 transition-all hover:bg-ruby/10 hover:text-ruby group-hover/tag:opacity-100"
                   title={`Remove tag ${t}`}
@@ -876,13 +937,16 @@ function IngestPanel({
     setRunning(true);
 
     for (const f of accepted) {
-      setFiles((prev) => prev.map((x) => (x.id === f.id ? { ...x, phase: "uploading", progress: 20 } : x)));
+      setFiles((prev) =>
+        prev.map((x) => (x.id === f.id ? { ...x, phase: "uploading", progress: 20 } : x)),
+      );
 
-      const derivedBrand = (folder.autoTags && folder.autoTags.length > 0 && folder.autoTags[0])
-        ? folder.autoTags[0].toLowerCase()
-        : (folder.name && !/^(uploads|test folder)$/i.test(folder.name))
-          ? folder.name.toLowerCase()
-          : "";
+      const derivedBrand =
+        folder.autoTags && folder.autoTags.length > 0 && folder.autoTags[0]
+          ? folder.autoTags[0].toLowerCase()
+          : folder.name && !/^(uploads|test folder)$/i.test(folder.name)
+            ? folder.name.toLowerCase()
+            : "";
 
       try {
         const id = await k.addSource({
@@ -903,10 +967,14 @@ function IngestPanel({
         const actualChunks = realSrc?.chunks || Math.max(8, Math.round(f.sizeMb * 140) || 24);
 
         setFiles((prev) =>
-          prev.map((x) => (x.id === f.id ? { ...x, phase: "indexed", progress: 100, chunks: actualChunks } : x))
+          prev.map((x) =>
+            x.id === f.id ? { ...x, phase: "indexed", progress: 100, chunks: actualChunks } : x,
+          ),
         );
       } catch (err) {
-        setFiles((prev) => prev.map((x) => (x.id === f.id ? { ...x, refusal: "Upload failed" } : x)));
+        setFiles((prev) =>
+          prev.map((x) => (x.id === f.id ? { ...x, refusal: "Upload failed" } : x)),
+        );
       }
     }
     setRunning(false);

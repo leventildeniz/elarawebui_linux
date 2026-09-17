@@ -4,10 +4,16 @@
 import { getOnnxStatus } from "../onnx-pipeline.mjs";
 
 export async function mountKnowledgeConfigRoutes(app, deps) {
-  const { pool, isAdminCaller } = deps;
+  const { pool, isAdminCaller, resolveActorContext } = deps;
 
   app.get("/api/knowledge/state", async (req, res) => {
     try {
+      const ctx = typeof resolveActorContext === "function" 
+        ? await resolveActorContext(req) 
+        : { isSuperAdmin: true, tenantId: "default" };
+      const tenantId = req.session?.tenant_id || ctx.tenantId || "default";
+      const userMatches = [req.session?.userId, ctx.userId, req.session?.username, ctx.username, ctx.actor].filter(Boolean);
+
       // Fetch singleton config
       let cfgRes = await pool.query("SELECT * FROM knowledge_config WHERE id='singleton'");
       if (!cfgRes.rows.length) {
@@ -16,23 +22,52 @@ export async function mountKnowledgeConfigRoutes(app, deps) {
       }
       const c = cfgRes.rows[0];
 
-      // Fetch sources
-      const srcRes = await pool.query("SELECT * FROM knowledge_sources ORDER BY added_at DESC");
+      // Fetch sources with desk & tenant isolation
+      let srcQuery = "SELECT * FROM knowledge_sources";
+      const srcParams = [];
+      if (!ctx.isSuperAdmin) {
+        srcQuery += " WHERE (tenant_id = $1 OR is_global = true OR tenant_id = 'default') AND (owner_id = ANY($2) OR lower(owner_id) = ANY($2) OR is_global = true)";
+        srcParams.push(tenantId, userMatches);
+      }
+      srcQuery += " ORDER BY added_at DESC";
+      const srcRes = await pool.query(srcQuery, srcParams);
 
-      // Dynamic brand aggregation from active collections, sources, and knowledge_brands
-      const [brandDbRes, brandStatsRes] = await Promise.all([
-        pool.query("SELECT * FROM knowledge_brands ORDER BY id ASC").catch(() => ({ rows: [] })),
-        pool.query(`
+      // Dynamic brand aggregation: Only include explicit brand collections (is_brand=true) or tagged sources.
+      // Strict Desk & Tenant Isolation prevents personal/desk folders from leaking into the brand registry.
+      const brandStatsQuery = ctx.isSuperAdmin
+        ? `
           SELECT
-            LOWER(COALESCE(NULLIF(rf.name,''), NULLIF(ks.brand,''), 'unbranded')) AS brand,
+            LOWER(COALESCE(NULLIF(CASE WHEN rf.is_brand = true THEN rf.name ELSE NULL END, ''), NULLIF(ks.brand, ''), 'unbranded')) AS brand,
             COUNT(kc.id)::int AS chunk_count,
             MAX(COALESCE(kc.metadata->>'enriched_at', ks.indexed_at::text, ks.added_at::text)) AS last_enriched
           FROM rag_folders rf
           FULL OUTER JOIN knowledge_sources ks ON ks.folder_id = rf.id
           LEFT JOIN knowledge_chunks kc ON kc.source_id = ks.id::text
           WHERE COALESCE(rf.id, '') IS DISTINCT FROM 'uploads'
+            AND (rf.is_brand = true OR (ks.brand IS NOT NULL AND ks.brand NOT IN ('', 'unbranded', 'auto-detect')))
           GROUP BY 1
-        `).catch(() => ({ rows: [] }))
+        `
+        : `
+          SELECT
+            LOWER(COALESCE(NULLIF(CASE WHEN rf.is_brand = true THEN rf.name ELSE NULL END, ''), NULLIF(ks.brand, ''), 'unbranded')) AS brand,
+            COUNT(kc.id)::int AS chunk_count,
+            MAX(COALESCE(kc.metadata->>'enriched_at', ks.indexed_at::text, ks.added_at::text)) AS last_enriched
+          FROM rag_folders rf
+          FULL OUTER JOIN knowledge_sources ks ON ks.folder_id = rf.id
+          LEFT JOIN knowledge_chunks kc ON kc.source_id = ks.id::text
+          WHERE COALESCE(rf.id, '') IS DISTINCT FROM 'uploads'
+            AND (rf.is_brand = true OR (ks.brand IS NOT NULL AND ks.brand NOT IN ('', 'unbranded', 'auto-detect')))
+            AND (
+              (rf.tenant_id = $1 OR rf.is_global = true OR rf.tenant_id = 'default')
+              AND (rf.is_global = true OR rf.owner_id = ANY($2) OR lower(rf.owner_id) = ANY($2))
+            )
+          GROUP BY 1
+        `;
+      const brandStatsParams = ctx.isSuperAdmin ? [] : [tenantId, userMatches];
+
+      const [brandDbRes, brandStatsRes] = await Promise.all([
+        pool.query("SELECT * FROM knowledge_brands ORDER BY id ASC").catch(() => ({ rows: [] })),
+        pool.query(brandStatsQuery, brandStatsParams).catch(() => ({ rows: [] }))
       ]);
 
       const savedBrandMap = new Map();
@@ -55,16 +90,18 @@ export async function mountKnowledgeConfigRoutes(app, deps) {
         });
       }
 
-      for (const b of brandDbRes.rows) {
-        const lower = b.label.toLowerCase();
-        if (!brandMap.has(lower)) {
-          brandMap.set(lower, {
-            id: b.id,
-            brand: lower,
-            aliases: b.aliases || '',
-            chunks: Number(b.chunks || 0),
-            enrichedDaysAgo: 0
-          });
+      if (ctx.isSuperAdmin) {
+        for (const b of brandDbRes.rows) {
+          const lower = b.label.toLowerCase();
+          if (!brandMap.has(lower)) {
+            brandMap.set(lower, {
+              id: b.id,
+              brand: lower,
+              aliases: b.aliases || '',
+              chunks: Number(b.chunks || 0),
+              enrichedDaysAgo: 0
+            });
+          }
         }
       }
 

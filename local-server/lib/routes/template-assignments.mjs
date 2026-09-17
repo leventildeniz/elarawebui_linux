@@ -1,16 +1,16 @@
 // Template assignments — username→template_id mapping with mirrored app_users.template_id.
 // Extracted from server.mjs.
 	
+import { requireSession } from "../session-gate.mjs";
 	
-	
-	export async function initTemplateAssignments({ pool, migrateReady, providerPolicyCacheClear }) {
+export async function initTemplateAssignments({ pool, migrateReady, providerPolicyCacheClear }) {
 	  console.log("[boot] initTemplateAssignments... ✅");
 	}
 	
 	export function mountTemplateAssignmentsRoutes(app, deps) {
   const { pool, migrateReady, providerPolicyCacheClear } = deps;
 
-  app.get("/api/template-assignments", async (_req, res) => {
+  app.get("/api/template-assignments", requireSession(), async (_req, res) => {
     try {
       await migrateReady;
       const r = await pool.query("SELECT id, username, template_id FROM app_template_assignments ORDER BY username");
@@ -18,7 +18,7 @@
     } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
   });
 
-  app.put("/api/template-assignments", async (req, res) => {
+  app.put("/api/template-assignments", requireSession({ roles: ["admin", "sovereign"] }), async (req, res) => {
     try {
       await migrateReady;
       const list = Array.isArray(req.body) ? req.body : [];
