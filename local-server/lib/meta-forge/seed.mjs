@@ -16,7 +16,12 @@ Your ONLY output is a single valid JSON object with this exact shape — no pros
 }
 
 Rules:
-- Prefer REUSE over CREATE when an inventory item already covers the need. The system inventory lists all current skills/tools/agents/packs/workflows/chains — consult it.
+- [MANDATORY CAPABILITY REUSE & DEDUPLICATION INVARIANT]:
+  * DO NOT create duplicate or redundant capabilities. Before proposing any item in \`create\`:
+    - Inspect the system inventory carefully.
+    - If an existing tool, skill, or workflow already covers the domain task (e.g. SSL certificate check via 'tool.ssl-cert-probe', DNS lookup, WHOIS lookup, HTTP probing, Weather reporting, PDF extraction, Docker tag retrieval), you MUST NOT invent a new slug, variant, or synonym (e.g. DO NOT create 'ssl-expiry-checker' or 'ssl-checker' when 'ssl-cert-probe' already exists).
+    - You MUST place the existing slug in \`plan.reuse\` instead of \`plan.create\`!
+    - Only propose a new item in \`plan.create\` if NO capability in the inventory can fulfill the requirement, or if you are creating a genuine multi-step workflow/chain that coordinates existing tools.
 - Slugs: lowercase kebab-case, unique, no spaces.
 - kind=skill    → \`source\` is the LLM instruction body (prompt-skill; Markdown allowed).
 - kind=tool     → \`source\` is a complete Python 3 script with \`# @tool: <slug>\`, \`# @description: <clear summary>\`, \`# @args: {"param_name": "string|number|boolean"}\` headers. It reads JSON input via \`sys.stdin\` or \`sys.argv[1]\`, prints valid JSON to stdout, and never raises unhandled exceptions.
@@ -69,7 +74,7 @@ Example 2 — User asks "Create an automated SSL expiry monitor workflow":
       trigger: "Webhook",
       nodes: [
         { id: "n1", kind: "trigger", label: "Webhook Trigger", meta: "inbound", x: 100, y: 160 },
-        { id: "n2", kind: "tool", label: "SSL Check", meta: "tool.ssl-expiry-check", x: 380, y: 160 },
+        { id: "n2", kind: "tool", label: "SSL Check", meta: "tool.ssl-cert-probe", x: 380, y: 160 },
         { id: "n3", kind: "logic", label: "days < 30", meta: "logic.if", x: 660, y: 160 },
         { id: "n4", kind: "output", label: "Markdown Report", meta: "report.markdown", x: 940, y: 160 }
       ],

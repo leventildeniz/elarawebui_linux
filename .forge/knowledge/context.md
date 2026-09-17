@@ -2109,6 +2109,13 @@ ELARA Sovereign Studio genelinde **Zero-Trust Çoklu Kiracı (Multi-Tenancy) ve 
       - Sayfa yenilendiğinde (`F5`) `useApprovals()` ve `useQueueSwitch()` kancalarının aynı anda mount olması sonucu eski `if (isFetching) return;` boolean kilidinin ikinci kancayı boş döndürmesi ve şalterin görsel olarak `OFF` durumuna düşmesi sorunu kökten çözüldü.
       - `syncBackend()` fonksiyonu paylaşılan tekil `activeSyncPromise` mimarisine (Promise Deduplication) taşındı; eşzamanlı kancaların aynı canlı ağ vaadini beklemesi ve `cachedConfig` verisinin (`queue_armed`, `allow_self_approve`) senkron kalması sağlandı.
 
+   6. **MetaForge Tool Deduplication Mandate, SSL Purge & Temporal Anchoring (`seed.mjs`, `directives.mjs`, `tool-dispatcher.mjs`, `ssl-cert-probe.py`):**
+      - `local-server/lib/meta-forge/seed.mjs` içerisine İngilizce `[MANDATORY CAPABILITY REUSE & DEDUPLICATION INVARIANT]` kuralı eklendi: MetaForge'un sistemde var olan bir yeteneğin (SSL, DNS, WHOIS, HTTP, Weather, PDF, Docker vb.) yeni türevlerini veya kopyalarını üretmesi yasaklandı; mevcut aracın zorunlu olarak `plan.reuse` listesine alınması direktifle mühürlendi.
+      - 5 adet mükerrer SSL aracı (`ssl-checker.py`, `ssl-expiry-check.py`, `ssl-expiry-extractor.py`, `tool_ssl-cert-fetcher.py`, `tool_ssl-expiry-checker.py`) hem `tools/` diskinden hem de `action_library` ve `tools` PostgreSQL tablolarından tamamen temizlendi.
+      - `tools/ssl-cert-probe.py` kanonik SSL aracı olarak mühürlendi; domain sanitizasyonu, DigiCert organizasyon/sağlayıcı ayrıştırması, `timezone.utc` zaman damgası ve NetSec risk sınıflandırması (`<=14` critical, `<=30` warning, `>30` healthy) ile güçlendirildi.
+      - `local-server/lib/orchestrator/directives.mjs` içine İngilizce `[TEMPORAL ANCHORING & CURRENT SYSTEM DATE]` direktifi eklendi; yerel LLM'lerin canlı sistem saatini bilerek tutarsızlık uydurması kökten engellendi.
+      - `local-server/lib/orchestrator/tool-dispatcher.mjs` içerisindeki `sys_get_directory` sorgusu gelen `intent` parametresine göre araçları önceliklendiren akıllı sıralama mantığıyla donatıldı.
+
    ---
 
    **Sistem Durumu:** `node --check` 0 hata, `npx tsc --noEmit` 0 hata; tüm systemd servisleri (`elara-middleware`, `elara-vite`, `elara-worker`) aktif, sağlıklı ve operasyonel.

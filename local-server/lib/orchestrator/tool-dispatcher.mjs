@@ -35,6 +35,12 @@ export async function dispatchToolCall({
 
   // 1. DIRECTORY DISCOVERY
   if (realToolId === "sys_get_directory") {
+    let intentWord = "";
+    try {
+      const parsedArgs = typeof toolCall.function.arguments === "string" ? JSON.parse(toolCall.function.arguments) : toolCall.function.arguments || {};
+      intentWord = String(parsedArgs.intent || "").trim().toLowerCase();
+    } catch {}
+
     const { clause: agtClause, params: agtParams } = buildVisibility(actorCtx, 1, "owner_id");
     const { clause: actClause, params: actParams } = buildVisibility(actorCtx, 1, "owner_user_id");
     const { clause: skillClause, params: skillParams } = buildVisibility(actorCtx, 1, "owner_id");
@@ -103,6 +109,23 @@ export async function dispatchToolCall({
         name: "Live Web Search",
         desc: "Performs a live internet search using DuckDuckGo to get up-to-date information, news, dates, and facts.",
         params: ["query"],
+      });
+    }
+
+    if (intentWord) {
+      standardTools.sort((a, b) => {
+        const aMatch = (a.id + " " + a.name + " " + a.desc).toLowerCase().includes(intentWord);
+        const bMatch = (b.id + " " + b.name + " " + b.desc).toLowerCase().includes(intentWord);
+        if (aMatch && !bMatch) return -1;
+        if (!aMatch && bMatch) return 1;
+        return 0;
+      });
+      skillsList.sort((a, b) => {
+        const aMatch = (a.id + " " + a.name + " " + a.desc).toLowerCase().includes(intentWord);
+        const bMatch = (b.id + " " + b.name + " " + b.desc).toLowerCase().includes(intentWord);
+        if (aMatch && !bMatch) return -1;
+        if (!aMatch && bMatch) return 1;
+        return 0;
       });
     }
 
