@@ -2137,6 +2137,9 @@ ELARA Sovereign Studio genelinde **Zero-Trust Çoklu Kiracı (Multi-Tenancy) ve 
    10. **Anti-Excuse & Anti-Simulation Mandate (`directives.mjs`):**
        - `local-server/lib/orchestrator/directives.mjs` içerisindeki `[HONESTY & ANTI-HALLUCINATION MANDATE]` bloğuna iki katı İngilizce kural eklendi: Modelin bir araç hatası veya engeliyle karşılaştığında "draft durumunda kalmış", "yayınlanması lazım", "indeksleme gecikmesi var" gibi hayali teknik mazeretler üretmesi yasaklandı; sistem çıktısındaki gerçek hatayı şeffafça raporlaması ve açıkça istenmedikçe arkadan dolanıp simülasyon uydurmaması emredildi.
 
+   11. **Zero-Simulation & Absolute Execution Mandate (`directives.mjs`):**
+       - `local-server/lib/orchestrator/directives.mjs` içerisine en üst düzeyde tavizsiz İngilizce `[ZERO-SIMULATION & ABSOLUTE EXECUTION MANDATE]` anayasası eklendi: Modelin "run", "trigger", "test", "check", "probe" gibi icra taleplerinde rol yapması, sanki çalışmış gibi davranması ("acting as if") veya aracı fiziksel olarak çalıştırmadan kafasından sentetik gecikme/durum kodları uydurması kökten yasaklandı; fiziksel olarak `sys_execute_tool` çağırması zorunlu kılındı.
+
    ---
 
    **Sistem Durumu:** `node --check` 0 hata, `npx tsc --noEmit` 0 hata; tüm systemd servisleri (`elara-middleware`, `elara-vite`, `elara-worker`) aktif, sağlıklı ve operasyonel.
