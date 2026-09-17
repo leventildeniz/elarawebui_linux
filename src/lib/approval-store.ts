@@ -60,7 +60,7 @@ export function emitSwitch() {
 
 let cachedRequests: ApprovalRequest[] = [];
 let cachedConfig = { queue_armed: false, allow_self_approve: false };
-let isFetching = false;
+let activeSyncPromise: Promise<void> | null = null;
 
 type RawApprovalRow = {
   id: string;
@@ -83,53 +83,55 @@ type RawApprovalRow = {
   decided_by?: string;
 };
 
-async function syncBackend() {
-  if (isFetching) return;
-  isFetching = true;
-  try {
-    const data = await fetchApi("/api/approvals");
-    if (data?.ok) {
-      cachedRequests = (data.requests || []).map((r: RawApprovalRow) => ({
-        id: r.id,
-        title: r.title,
-        requester: r.requester,
-        requesterGroup: r.requester_group,
-        agent: r.agent || "studio.console",
-        tool: r.tool,
-        target: r.target,
-        policy: r.policy,
-        risk: r.risk as Risk,
-        args: r.args,
-        origin: (r.origin || "seed") as ApprovalOrigin,
-        status: r.status as ApprovalStatus,
-        note: r.note || "",
-        createdAt: new Date(r.created_at).getTime(),
-        ttl: Math.round(Number(r.ttl_ms || 7200000) / 60000),
-        assignedTo: r.assigned_to || [],
-        decidedAt: r.decided_at ? new Date(r.decided_at).getTime() : undefined,
-        decidedBy: r.decided_by,
-      }));
+async function syncBackend(): Promise<void> {
+  if (activeSyncPromise) return activeSyncPromise;
+  activeSyncPromise = (async () => {
+    try {
+      const data = await fetchApi("/api/approvals");
+      if (data?.ok) {
+        cachedRequests = (data.requests || []).map((r: RawApprovalRow) => ({
+          id: r.id,
+          title: r.title,
+          requester: r.requester,
+          requesterGroup: r.requester_group,
+          agent: r.agent || "studio.console",
+          tool: r.tool,
+          target: r.target,
+          policy: r.policy,
+          risk: r.risk as Risk,
+          args: r.args,
+          origin: (r.origin || "seed") as ApprovalOrigin,
+          status: r.status as ApprovalStatus,
+          note: r.note || "",
+          createdAt: new Date(r.created_at).getTime(),
+          ttl: Math.round(Number(r.ttl_ms || 7200000) / 60000),
+          assignedTo: r.assigned_to || [],
+          decidedAt: r.decided_at ? new Date(r.decided_at).getTime() : undefined,
+          decidedBy: r.decided_by,
+        }));
 
-      // Lazy TTL expiry for pending items
-      const now = Date.now();
-      cachedRequests = cachedRequests.map((req) => {
-        if (req.status === "pending") {
-          const left = req.ttl - Math.round((now - req.createdAt) / 60000);
-          if (left <= 0) return { ...req, status: "expired" };
-        }
-        return req;
-      });
+        // Lazy TTL expiry for pending items
+        const now = Date.now();
+        cachedRequests = cachedRequests.map((req) => {
+          if (req.status === "pending") {
+            const left = req.ttl - Math.round((now - req.createdAt) / 60000);
+            if (left <= 0) return { ...req, status: "expired" };
+          }
+          return req;
+        });
 
-      cachedConfig = {
-        queue_armed: !!data.config?.queue_armed,
-        allow_self_approve: !!data.config?.allow_self_approve,
-      };
+        cachedConfig = {
+          queue_armed: !!data.config?.queue_armed,
+          allow_self_approve: !!data.config?.allow_self_approve,
+        };
+      }
+    } catch (e) {
+      console.error("Failed to sync approvals", e);
+    } finally {
+      activeSyncPromise = null;
     }
-  } catch (e) {
-    console.error("Failed to sync approvals", e);
-  } finally {
-    isFetching = false;
-  }
+  })();
+  return activeSyncPromise;
 }
 
 export function readApprovals(): ApprovalRequest[] {
@@ -267,16 +269,22 @@ export function usePendingApprovals() {
 }
 
 export function useApprovals() {
-  const [items, setItems] = useState<ApprovalRequest[]>([]);
+  const [items, setItems] = useState<ApprovalRequest[]>(cachedRequests);
 
   useEffect(() => {
+    let unmounted = false;
     const sync = async () => {
       await syncBackend();
-      setItems(cachedRequests);
+      if (!unmounted) {
+        setItems(cachedRequests);
+      }
     };
     sync();
     window.addEventListener(EVT, sync);
-    return () => window.removeEventListener(EVT, sync);
+    return () => {
+      unmounted = true;
+      window.removeEventListener(EVT, sync);
+    };
   }, []);
 
   const decide = useCallback(
@@ -316,20 +324,26 @@ export function ttlLabel(r: ApprovalRequest) {
 }
 
 export function useQueueSwitch() {
-  const [enabled, setEnabled] = useState(false);
-  const [selfApproval, setSelf] = useState(false);
+  const [enabled, setEnabled] = useState(cachedConfig.queue_armed);
+  const [selfApproval, setSelf] = useState(cachedConfig.allow_self_approve);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    let unmounted = false;
     const sync = async () => {
       await syncBackend();
-      setEnabled(cachedConfig.queue_armed);
-      setSelf(cachedConfig.allow_self_approve);
-      setReady(true);
+      if (!unmounted) {
+        setEnabled(cachedConfig.queue_armed);
+        setSelf(cachedConfig.allow_self_approve);
+        setReady(true);
+      }
     };
     sync();
     window.addEventListener(EVT, sync);
-    return () => window.removeEventListener(EVT, sync);
+    return () => {
+      unmounted = true;
+      window.removeEventListener(EVT, sync);
+    };
   }, []);
 
   return {

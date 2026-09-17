@@ -2105,6 +2105,10 @@ ELARA Sovereign Studio genelinde **Zero-Trust Çoklu Kiracı (Multi-Tenancy) ve 
       - `targets-crud.mjs` API katmanında hem `GET` hem de `POST/PUT` uçlarına `s_` ile başlayan geçersiz oturum kimliklerini engelleyen ve aktif kullanıcı adına (`admin` / operatör adı) normalize eden sanitization kalkanı eklendi.
       - `targets.tsx` ön yüzünde etiket ve düzenleme modalı oturum anahtarlarını filtreleyecek şekilde mühürlendi; arayüzde temiz `owner · admin` gösterimi sağlandı.
 
+   5. **Approval Store Hook Race Condition & State Retention Onarımı (`approval-store.ts`):**
+      - Sayfa yenilendiğinde (`F5`) `useApprovals()` ve `useQueueSwitch()` kancalarının aynı anda mount olması sonucu eski `if (isFetching) return;` boolean kilidinin ikinci kancayı boş döndürmesi ve şalterin görsel olarak `OFF` durumuna düşmesi sorunu kökten çözüldü.
+      - `syncBackend()` fonksiyonu paylaşılan tekil `activeSyncPromise` mimarisine (Promise Deduplication) taşındı; eşzamanlı kancaların aynı canlı ağ vaadini beklemesi ve `cachedConfig` verisinin (`queue_armed`, `allow_self_approve`) senkron kalması sağlandı.
+
    ---
 
    **Sistem Durumu:** `node --check` 0 hata, `npx tsc --noEmit` 0 hata; tüm systemd servisleri (`elara-middleware`, `elara-vite`, `elara-worker`) aktif, sağlıklı ve operasyonel.
