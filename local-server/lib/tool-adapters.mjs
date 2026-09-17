@@ -198,25 +198,25 @@ async function loadTool(toolId) {
     };
   }
 
-  // 3. Action Library (with or without 'tool.' prefix)
-  const bareToolId = toolId.replace(/^tool\./i, '');
+  // 3. Action Library (with or without 'tool.' / 'act.' / 'tl.' prefix)
+  const bareToolId = toolId.replace(/^(tool|act|tl)[\._]/i, "");
   const { rows } = await _pool.query(
     `SELECT id, name, adapter, risk_level, requires_approval, runtime, params, system_prompt
        FROM action_library 
-      WHERE (id=$1 OR id=$2) AND COALESCE((runtime->>'orphan')::boolean, false) = false`,
-    [toolId, `tool.${bareToolId}`]
+      WHERE (id = ANY($1) OR name = $2) AND COALESCE((runtime->>'orphan')::boolean, false) = false`,
+    [[toolId, `tool.${bareToolId}`, `act.${bareToolId}`, `tl.${bareToolId}`, bareToolId], toolId]
   );
   let row = rows[0];
   if (!row) {
-    // Fallback: tools tablosundan sorgula
+    // Fallback: query tools table
     try {
       const { rows: tRows } = await _pool.query(
         `SELECT id, label as name, source as adapter, risk as risk_level, requires_approval, params, system_prompt
-           FROM tools WHERE id=$1 OR id=$2 OR name=$3`,
-        [toolId, `tool.${bareToolId}`, bareToolId]
+           FROM tools WHERE id = ANY($1) OR label = $2`,
+        [[toolId, `tool.${bareToolId}`, `act.${bareToolId}`, `tl.${bareToolId}`, bareToolId], toolId]
       );
       row = tRows[0];
-    } catch { /* tools tablosu opsiyonel */ }
+    } catch { /* tools table optional */ }
   }
   if (!row) {
     // Fallback 2: check disk tools directly
@@ -267,10 +267,13 @@ async function loadTool(toolId) {
 
 async function isAgentAllowed(agentId, toolId) {
   if (!agentId) return true; // ad-hoc operator call — unconstrained by agent ACL
+  const bareId = toolId.replace(/^(tool|act|tl|sk|skill)[\._]/i, "");
   const { rowCount } = await _pool.query(
     `SELECT 1 FROM agent_capabilities
-      WHERE agent_id=$1 AND kind='tool' AND ref_id=$2`,
-    [agentId, toolId]
+      WHERE agent_id=$1 AND (
+        ref_id = ANY($2)
+      )`,
+    [agentId, [toolId, `tool.${bareId}`, `act.${bareId}`, `tl.${bareId}`, `sk.${bareId}`, `skill.${bareId}`, bareId]]
   );
   return rowCount > 0;
 }
@@ -553,8 +556,9 @@ export async function invokeTool({
   if (!_pool) throw new Error("tool-adapters not initialized");
   const tool = await loadTool(toolId);
   if (!tool) throw new ToolPolicyError("not_found", `tool ${toolId} not found`);
+  const canonicalId = tool.id || toolId;
   let adapter = (tool.adapter || "").toLowerCase();
-  if (tool.runtime?.script || tool.runtime?.handler === "python" || (toolId && toolId.startsWith("tool."))) {
+  if (tool.runtime?.script || tool.runtime?.handler === "python" || (canonicalId && canonicalId.startsWith("tool."))) {
     adapter = "python";
   } else if (!adapter && tool.runtime?.handler) {
     adapter = tool.runtime.handler.toLowerCase();
@@ -565,8 +569,8 @@ export async function invokeTool({
   if (!RUNNERS[adapter]) throw new ToolPolicyError("adapter", `unknown adapter "${adapter}"`);
 
   // Agent whitelist enforcement — agent must possess registered capability binding
-  if (agentId && !(await isAgentAllowed(agentId, toolId))) {
-    throw new ToolPolicyError("acl", `agent ${agentId} not allowed for tool ${toolId}`);
+  if (agentId && !(await isAgentAllowed(agentId, canonicalId))) {
+    throw new ToolPolicyError("acl", `agent ${agentId} not allowed for tool ${canonicalId}`);
   }
 
   // Target-level approval gate & Risk Priority Hierarchy:
@@ -601,7 +605,7 @@ export async function invokeTool({
     || targetRequiresApproval;
 
   await recordInvocation({
-    id: invocationId, toolId, adapter, agentId, username, sessionId, runId,
+    id: invocationId, toolId: canonicalId, adapter, agentId, username, sessionId, runId,
     status: needsApproval ? "pending" : "running",
     params: targetId ? { ...params, __target_id: targetId } : params,
     riskLevel: effectiveRisk,

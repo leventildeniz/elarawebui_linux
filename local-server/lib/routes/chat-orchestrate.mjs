@@ -739,10 +739,12 @@ export async function mountChatOrchestrateRoutes(app, deps) {
 
             const { clause: actVisClause, params: actVisParams } = buildVisibility(actorCtx, 2, "owner_user_id");
             const toolRes = await pool.query(
-              `SELECT id, name, description, params FROM action_library 
-                WHERE (id = ANY($1) OR name = ANY($1)) 
-                  AND (${actVisClause})
-                  AND COALESCE((runtime->>'orphan')::boolean, false) = false`,
+              `SELECT a.id, a.name, COALESCE(NULLIF(a.description, ''), t.description, a.name, 'No description') AS description, a.params 
+                 FROM action_library a
+                 LEFT JOIN tools t ON t.id = a.id
+                WHERE (a.id = ANY($1) OR a.name = ANY($1)) 
+                  AND (${actVisClause.replace(/\bowner_user_id\b/g, "a.owner_user_id").replace(/\btenant_id\b/g, "a.tenant_id").replace(/\bis_global\b/g, "a.is_global")})
+                  AND COALESCE((a.runtime->>'orphan')::boolean, false) = false`,
               [allPossibleIds, ...actVisParams]
             );
             for (const t of toolRes.rows) {
@@ -767,8 +769,18 @@ export async function mountChatOrchestrateRoutes(app, deps) {
                 }
               }
 
-              const safeName = `tool_${t.id.replace(/[^a-zA-Z0-9_]/g, "_")}`;
+              const rawClean = t.id.replace(/[^a-zA-Z0-9_]/g, "_");
+              const safeName = rawClean.startsWith("tool_") ? rawClean : `tool_${rawClean}`;
+              const bareName = t.id.replace(/^(tool|act|tl)[\._]/i, "").replace(/[^a-zA-Z0-9_]/g, "_");
+
               toolMap[safeName] = t.id;
+              toolMap[t.id] = t.id;
+              toolMap[rawClean] = t.id;
+              if (bareName) {
+                toolMap[bareName] = t.id;
+                toolMap[`tool_${bareName}`] = t.id;
+                toolMap[`tool_tool_${bareName}`] = t.id;
+              }
 
               openAiTools.push({
                 type: "function",
@@ -817,8 +829,19 @@ export async function mountChatOrchestrateRoutes(app, deps) {
                 }
               }
 
-              const safeName = `skill_${s.id.replace(/[^a-zA-Z0-9_]/g, "_")}`;
+              const rawSkillClean = s.id.replace(/[^a-zA-Z0-9_]/g, "_");
+              const safeName = rawSkillClean.startsWith("skill_") ? rawSkillClean : `skill_${rawSkillClean}`;
+              const bareSkill = s.id.replace(/^(skill|sk)[\._]/i, "").replace(/[^a-zA-Z0-9_]/g, "_");
+
               toolMap[safeName] = s.id;
+              toolMap[s.id] = s.id;
+              toolMap[rawSkillClean] = s.id;
+              if (bareSkill) {
+                toolMap[bareSkill] = s.id;
+                toolMap[`skill_${bareSkill}`] = s.id;
+                toolMap[`sk_${bareSkill}`] = s.id;
+                toolMap[`skill_skill_${bareSkill}`] = s.id;
+              }
 
               openAiTools.push({
                 type: "function",
@@ -844,8 +867,11 @@ export async function mountChatOrchestrateRoutes(app, deps) {
             for (const t of tools) {
               const mcpId = `mcp.${server.slug}.${t.name}`;
               if (shouldInject || (requestedMcp && requestedMcp.includes(mcpId))) {
-                const safeName = `tool_${mcpId.replace(/[^a-zA-Z0-9_]/g, "_")}`;
+                const rawMcpClean = mcpId.replace(/[^a-zA-Z0-9_]/g, "_");
+                const safeName = rawMcpClean.startsWith("tool_") ? rawMcpClean : `tool_${rawMcpClean}`;
                 toolMap[safeName] = mcpId;
+                toolMap[mcpId] = mcpId;
+                toolMap[rawMcpClean] = mcpId;
                 openAiTools.push({
                   type: "function",
                   function: {
@@ -1166,7 +1192,8 @@ export async function mountChatOrchestrateRoutes(app, deps) {
           for (const tc of finalToolCalls) {
             const funcName = tc.function.name;
             const funcArgs = tc.function.arguments;
-            const realToolId = toolMap[funcName] || funcName;
+            const normalizedFuncName = funcName.replace(/^tool_tool_/, "tool_").replace(/^skill_skill_/, "skill_");
+            const realToolId = toolMap[funcName] || toolMap[normalizedFuncName] || toolMap[funcName.replace(/^(tool_|skill_)/, "")] || funcName;
 
             send({ type: "tool_status", name: realToolId, status: "running" });
             send({ phase: "tool_running", tool: realToolId });
@@ -1203,7 +1230,7 @@ export async function mountChatOrchestrateRoutes(app, deps) {
               toolResultStr = resOut.toolResultStr;
               toolStatus = resOut.toolStatus;
 
-              if (!toolResultStr && toolMap[funcName]) {
+              if (!toolResultStr && (toolMap[funcName] || toolMap[normalizedFuncName] || realToolId)) {
                 const invokeRes = await invokeTool({
                   toolId: realToolId,
                   params: parsedArgs,
@@ -1218,10 +1245,25 @@ export async function mountChatOrchestrateRoutes(app, deps) {
                 toolResultStr = JSON.stringify(outputRes);
               }
             } catch (err) {
-              console.error(`[Orchestrate] Tool execution error (${funcName}) - Real ID (${realToolId}):`, err.stack || err.message);
-              toolResultStr = JSON.stringify({ error: err.message });
-              toolStatus = "failed";
-              toolDetail = err.message;
+              if (err.name === "ApprovalRequired" || err.invocationId) {
+                send({
+                  type: "approval_required",
+                  phase: "approval_required",
+                  invocation_id: err.invocationId,
+                  invocationId: err.invocationId,
+                  tool: realToolId,
+                  toolName: realToolId,
+                  reason: err.message || "Approval required",
+                });
+                toolStatus = "pending";
+                toolDetail = err.message;
+                toolResultStr = JSON.stringify({ status: "approval_pending", invocationId: err.invocationId, reason: err.message });
+              } else {
+                console.error(`[Orchestrate] Tool execution error (${funcName}) - Real ID (${realToolId}):`, err.stack || err.message);
+                toolResultStr = JSON.stringify({ error: err.message });
+                toolStatus = "failed";
+                toolDetail = err.message;
+              }
             }
 
             const durationMs = Date.now() - tStart;
