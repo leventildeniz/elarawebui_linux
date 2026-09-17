@@ -23,6 +23,7 @@ import { spawnPg, isPortOpen, killPortOwnerAndWait, waitForPidExit } from './lib
 import { initPgVersion } from './lib/pg-version.mjs';
 import { brandSync, safeSlug, initBrandRegistry } from './lib/brand.mjs';
 import { initAgentsSchema } from './lib/schema-agents.mjs';
+import { backfillCapabilityVectors } from './lib/capability-vector.mjs';
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 const execAsync = promisify(exec);
@@ -504,6 +505,14 @@ async function startServer() {
 
     app.listen(config.port, '0.0.0.0', () => {
       console.log(`🚀 Middleware running on port ${config.port}`);
+      // Asynchronous background capability vector check (embeds any un-indexed capabilities)
+      backfillCapabilityVectors(pool, { force: false }).then((res) => {
+        if (res.total > 0) {
+          console.log(`[capability-vector] Indexed ${res.total} missing capabilities in ${res.ms}ms`);
+        }
+      }).catch((err) => {
+        console.warn('[capability-vector] Boot index notice:', err.message);
+      });
     });
   } catch (error) {
     console.error('❌ FATAL ERROR:', error);
