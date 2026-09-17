@@ -2076,4 +2076,30 @@ ELARA Sovereign Studio genelinde **Zero-Trust Çoklu Kiracı (Multi-Tenancy) ve 
 
    ---
 
+   ### 🛡️ COMPLETED — 2-TIER HIERARCHICAL APPROVAL QUEUE GOVERNANCE (MULTI-TENANT QUEUE & HOST SEPARATION)
+
+   **Tarih:** 2026-09-17  
+   **Durum:** %100 Tamamlandı, Canlıda Doğrulandı & Mühürlendi (Zero Leaks, 2-Tier Paritesi)
+
+   #### 🎯 1. Hayata Geçirilen Mimari Bileşenler & Çözümler
+   1. **Veritabanı Şeması Çoklu Kiracı Dönüşümü (`approval_config`):**
+      - `approval_config` tablosundaki tekil `CHECK (id = 'singleton')` kısıtı esnetildi.
+      - `tenant_id text NOT NULL DEFAULT 'default'` kolonu ve `UNIQUE(tenant_id)` indeksi eklendi.
+      - Platform genel ayarı `tenant_id = 'default'` olarak korunurken, her kiracı şirketin bağımsız `queue_armed` ve `allow_self_approve` ayarlarını tutabilmesi sağlandı.
+   2. **Arka Uç 2 Kademeli Yetki & İzolasyon Katmanı (`local-server/lib/routes/approvals.mjs`):**
+      - `GET /api/approvals`: Kullanıcının oturum açtığı kiracının (`tenant_id`) konfigürasyonunu döner; kiracıya özel ayar yoksa `default` şablonundan otomatik miras alır.
+      - `PATCH /api/approvals/config`: `isSuperAdmin || isTenantAdmin` yetkisine bağlandı. TenantAdmin yalnızca kendi kiracısını güncelleyebilir; başka şirketlere veya genel platform ayarlarına müdahalesi HTTP 403 ile engellenir. Standart operatörlere HTTP 403 döner.
+      - `POST /api/self-healing/scan` ve `/simulate`: Sunucunun işletim sistemindeki Python dosyalarını doğrudan etkilediği için kesin olarak **yalnızca SuperAdmin** (`ctx.isSuperAdmin`) yetkisinde tutuldu.
+   3. **Ön Yüz İzolasyonu & Yönetişim Ayrımı (`src/routes/approvals.tsx`):**
+      - `QueueMasterSwitch` çubuğu hem `SuperAdmin` hem de `TenantAdmin` (`ownerCtx.isSuperAdmin || ownerCtx.isTenantAdmin`) için görünür kılındı.
+      - Standart operatörlerde (`deneme`, `deneme2`) çubuk tamamen gizli kalır.
+      - Çubuk içindeki sunucu düzeyindeki **`Sim Anomaly`** ve **`Watchdog Scan`** butonları yalnızca `SuperAdmin` (`isSuperAdmin = true`) ise çizdirilir; `TenantAdmin` yalnızca kendi şirketinin `QUEUE ARMED / DISABLED` ve `self-approval on / off` şalterlerini yönetir.
+   4. **Canlı Doğrulama:**
+      - `deneme2` (Engineer) oturumu ile `PATCH /api/approvals/config` denendi $\rightarrow$ `HTTP 403 Forbidden` (`SuperAdmin or TenantAdmin required`).
+      - `deneme2` oturumu ile `POST /api/self-healing/scan` denendi $\rightarrow$ `HTTP 403 Forbidden` (`Platform Sovereign (SuperAdmin) required`).
+      - `admin` (SuperAdmin) oturumu ile `PATCH /api/approvals/config` ve `POST /api/self-healing/scan` 200 OK ile başarıyla icra edildi.
+      - `npx tsc --noEmit` 0 hata; `node --check` 0 hata; `elara-middleware.service` aktif ve sağlıklı.
+
+   ---
+
    **Sistem Durumu:** `node --check` 0 hata, `npx tsc --noEmit` 0 hata; tüm systemd servisleri (`elara-middleware`, `elara-vite`, `elara-worker`) aktif, sağlıklı ve operasyonel.

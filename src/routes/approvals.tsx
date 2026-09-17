@@ -175,7 +175,13 @@ function ApprovalsPage() {
         {description}
       </p>
 
-      {ownerCtx.isSuperAdmin && <QueueMasterSwitch queue={queue} onTriggerScan={emitSwitch} />}
+      {Boolean(ownerCtx.isSuperAdmin || ownerCtx.isTenantAdmin) && (
+        <QueueMasterSwitch
+          queue={queue}
+          onTriggerScan={emitSwitch}
+          isSuperAdmin={Boolean(ownerCtx.isSuperAdmin)}
+        />
+      )}
 
       <ApproverBanner auth={auth} gate="queue" notify="approval" />
 
@@ -295,7 +301,15 @@ function ApprovalsPage() {
   );
 }
 
-function QueueMasterSwitch({ queue, onTriggerScan }: { queue: ReturnType<typeof useQueueSwitch>; onTriggerScan?: () => void }) {
+function QueueMasterSwitch({
+  queue,
+  onTriggerScan,
+  isSuperAdmin = false,
+}: {
+  queue: ReturnType<typeof useQueueSwitch>;
+  onTriggerScan?: () => void;
+  isSuperAdmin?: boolean | undefined;
+}) {
   const { enabled, selfApproval, ready, setEnabled, setSelfApproval } = queue;
   const [scanning, setScanning] = useState(false);
 
@@ -365,24 +379,28 @@ function QueueMasterSwitch({ queue, onTriggerScan }: { queue: ReturnType<typeof 
         </p>
       </div>
       <div className="ml-auto flex items-center gap-2.5">
-        <button
-          type="button"
-          disabled={scanning}
-          onClick={handleSimulate}
-          className="rounded-lg border border-topaz/30 bg-topaz/[0.06] px-2.5 py-1.5 font-mono text-[10.5px] uppercase tracking-[0.14em] text-topaz transition-colors hover:bg-topaz/12"
-          title="Simulate a tool latency & error spike to test the Self-Healing engine"
-        >
-          <Activity size={12} className="inline mr-1 -mt-0.5" /> Sim Anomaly
-        </button>
-        <button
-          type="button"
-          disabled={scanning}
-          onClick={handleScan}
-          className="rounded-lg border border-sapphire/35 bg-sapphire/[0.08] px-2.5 py-1.5 font-mono text-[10.5px] uppercase tracking-[0.14em] text-sapphire transition-colors hover:bg-sapphire/15"
-          title="Trigger on-demand tool health watchdog scan"
-        >
-          <Zap size={12} className={cn("inline mr-1 -mt-0.5", scanning && "animate-spin")} /> {scanning ? "Scanning…" : "Watchdog Scan"}
-        </button>
+        {isSuperAdmin && (
+          <>
+            <button
+              type="button"
+              disabled={scanning}
+              onClick={handleSimulate}
+              className="rounded-lg border border-topaz/30 bg-topaz/[0.06] px-2.5 py-1.5 font-mono text-[10.5px] uppercase tracking-[0.14em] text-topaz transition-colors hover:bg-topaz/12"
+              title="Simulate a tool latency & error spike to test the Self-Healing engine"
+            >
+              <Activity size={12} className="inline mr-1 -mt-0.5" /> Sim Anomaly
+            </button>
+            <button
+              type="button"
+              disabled={scanning}
+              onClick={handleScan}
+              className="rounded-lg border border-sapphire/35 bg-sapphire/[0.08] px-2.5 py-1.5 font-mono text-[10.5px] uppercase tracking-[0.14em] text-sapphire transition-colors hover:bg-sapphire/15"
+              title="Trigger on-demand tool health watchdog scan"
+            >
+              <Zap size={12} className={cn("inline mr-1 -mt-0.5", scanning && "animate-spin")} /> {scanning ? "Scanning…" : "Watchdog Scan"}
+            </button>
+          </>
+        )}
         <button
           type="button"
           disabled={!ready}

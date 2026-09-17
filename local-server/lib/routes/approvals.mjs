@@ -153,16 +153,34 @@ export async function mountApprovalRoutes(app, deps) {
           : [tenantId, callerUsername];
       }
 
-      const [reqRes, configRes] = await Promise.all([
-        pool.query(reqQuery, queryParams),
-        pool.query("SELECT * FROM approval_config WHERE id='singleton'")
-      ]);
+      const reqRes = await pool.query(reqQuery, queryParams);
 
+      // Resolve approval_config for caller's tenant, falling back to 'default'
+      let configRes = await pool.query(
+        "SELECT * FROM approval_config WHERE tenant_id = $1",
+        [tenantId]
+      );
       let config = configRes.rows[0];
       if (!config) {
-        await pool.query("INSERT INTO approval_config (id) VALUES ('singleton') ON CONFLICT DO NOTHING");
-        const r2 = await pool.query("SELECT * FROM approval_config WHERE id='singleton'");
-        config = r2.rows[0] || {};
+        const defRes = await pool.query("SELECT * FROM approval_config WHERE tenant_id = 'default'");
+        const defConfig = defRes.rows[0];
+        if (defConfig && tenantId !== "default") {
+          const newId = `cfg_${tenantId}`;
+          const insRes = await pool.query(
+            `INSERT INTO approval_config (id, tenant_id, queue_armed, allow_self_approve, default_ttl_ms, delegation)
+             VALUES ($1, $2, $3, $4, $5, $6)
+             ON CONFLICT (tenant_id) DO UPDATE SET updated_at = now()
+             RETURNING *`,
+            [newId, tenantId, defConfig.queue_armed ?? false, defConfig.allow_self_approve ?? false, defConfig.default_ttl_ms || 3600000, JSON.stringify(defConfig.delegation || [])]
+          );
+          config = insRes.rows[0];
+        } else if (!defConfig) {
+          await pool.query("INSERT INTO approval_config (id, tenant_id) VALUES ('singleton', 'default') ON CONFLICT DO NOTHING");
+          const r2 = await pool.query("SELECT * FROM approval_config WHERE tenant_id = 'default'");
+          config = r2.rows[0] || {};
+        } else {
+          config = defConfig;
+        }
       }
 
       // Map 'denied' to 'rejected' for UI
@@ -354,25 +372,39 @@ export async function mountApprovalRoutes(app, deps) {
   app.patch("/api/approvals/config", admin, async (req, res) => {
     try {
       const ctx = typeof deps.resolveActorContext === "function" ? await deps.resolveActorContext(req) : null;
-      const isAllowed = ctx?.isSuperAdmin || (typeof deps.isAdminCaller === "function" && await deps.isAdminCaller(req));
+      const isAllowed = ctx?.isSuperAdmin || ctx?.isTenantAdmin || (typeof deps.isAdminCaller === "function" && await deps.isAdminCaller(req));
       if (!isAllowed) {
-        return res.status(403).json({ ok: false, error: "Access denied: Platform Sovereign (SuperAdmin) required to modify global queue configuration." });
+        return res.status(403).json({ ok: false, error: "Access denied: SuperAdmin or TenantAdmin required to modify queue configuration." });
+      }
+
+      const callerTenant = ctx?.tenantId || req.session?.tenant_id || "default";
+      const targetTenant = ctx?.isSuperAdmin
+        ? (req.body?.tenant_id || callerTenant)
+        : callerTenant;
+
+      if (!ctx?.isSuperAdmin && req.body?.tenant_id && req.body.tenant_id !== callerTenant) {
+        return res.status(403).json({ ok: false, error: "Access denied: TenantAdmin may only modify queue configuration for their own tenant." });
       }
 
       const { queue_armed, allow_self_approve } = req.body;
-      const cur = await pool.query("SELECT * FROM approval_config WHERE id='singleton'");
+      const cur = await pool.query("SELECT * FROM approval_config WHERE tenant_id = $1", [targetTenant]);
       const cfg = cur.rows[0] || {};
       
-      const nextArmed = queue_armed !== undefined ? queue_armed : cfg.queue_armed;
-      const nextSelf = allow_self_approve !== undefined ? allow_self_approve : cfg.allow_self_approve;
+      const nextArmed = queue_armed !== undefined ? Boolean(queue_armed) : (cfg.queue_armed ?? false);
+      const nextSelf = allow_self_approve !== undefined ? Boolean(allow_self_approve) : (cfg.allow_self_approve ?? false);
+      const targetId = cfg.id || (targetTenant === "default" ? "singleton" : `cfg_${targetTenant}`);
 
       const { rows } = await pool.query(
-        `UPDATE approval_config 
-         SET queue_armed=$1, allow_self_approve=$2, updated_at=now()
-         WHERE id='singleton' RETURNING *`,
-        [nextArmed, nextSelf]
+        `INSERT INTO approval_config (id, tenant_id, queue_armed, allow_self_approve, updated_at)
+         VALUES ($1, $2, $3, $4, now())
+         ON CONFLICT (tenant_id) DO UPDATE
+         SET queue_armed = EXCLUDED.queue_armed,
+             allow_self_approve = EXCLUDED.allow_self_approve,
+             updated_at = now()
+         RETURNING *`,
+        [targetId, targetTenant, nextArmed, nextSelf]
       );
-      emitApprovalLog("warn", "config", `queue armed=${nextArmed} self-approval=${nextSelf}`, { armed: nextArmed, selfApproval: nextSelf });
+      emitApprovalLog("warn", "config", `tenant=${targetTenant} queue armed=${nextArmed} self-approval=${nextSelf}`, { tenantId: targetTenant, armed: nextArmed, selfApproval: nextSelf });
       res.json({ ok: true, config: rows[0] });
     } catch (e) { res.status(400).json({ ok: false, error: e.message }); }
   });
