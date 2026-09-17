@@ -2,38 +2,12 @@
 // Sovereign Semantic Capability Vector Mapping & Search Engine for ELARA Studio
 // Supports all 8 capability kinds: tool, skill, workflow, chain, agent, mcp, webhook, pack.
 // Powered by Native In-Process ONNX Runtime (384-dim BAAI/bge-small-en-v1.5) & PostgreSQL pgvector.
+// 100% Pure mathematical cosine similarity without hardcoded dictionaries or ad-hoc regexes.
 
 import { embed } from "./embed-provider.mjs";
 
 /**
- * Bilingual domain keywords mapping to bridge Turkish & English natural queries.
- */
-const BILINGUAL_SYNONYMS = {
-  weather: ["hava", "durumu", "sıcaklık", "yağmur", "forecast", "climate"],
-  ssl: ["sertifika", "certificate", "tls", "https", "validity", "probe"],
-  cert: ["sertifika", "certificate", "expiry", "geçerlilik"],
-  dns: ["alan adı", "domain", "nameserver", "lookup"],
-  whois: ["whois", "asn", "ip", "location", "geo"],
-  docker: ["konteyner", "container", "image", "daemon"],
-  github: ["repo", "git", "commit", "branch", "pr", "repository"],
-  date: ["tarih", "saat", "zaman", "clock", "timezone", "time"],
-  netsec: ["port", "ağ", "network", "scan", "güvenlik"],
-  phishing: ["oltalama", "ioc", "triage", "threat"],
-};
-
-function getSynonymEnrichment(text) {
-  const lower = String(text || "").toLowerCase();
-  const matched = [];
-  for (const [key, syns] of Object.entries(BILINGUAL_SYNONYMS)) {
-    if (lower.includes(key) || syns.some((s) => lower.includes(s))) {
-      matched.push(key, ...syns);
-    }
-  }
-  return matched.length ? ` Keywords: ${[...new Set(matched)].join(", ")}` : "";
-}
-
-/**
- * Normalizes and builds a rich semantic representation for each capability kind.
+ * Normalizes and builds an agnostic semantic representation for each capability kind.
  * @param {string} kind - One of the 8 kinds
  * @param {object} row - Database row object
  * @returns {string} Text to be embedded
@@ -41,7 +15,7 @@ function getSynonymEnrichment(text) {
 export function buildCapabilityText(kind, row) {
   if (!row || typeof row !== "object") return "";
 
-  const slugTokens = String(row.slug || row.id || "").replace(/[^a-zA-Z0-9]/g, " ");
+  const slug = String(row.slug || row.id || "").trim();
 
   switch (kind) {
     case "tool": {
@@ -55,14 +29,12 @@ export function buildCapabilityText(kind, row) {
             : [];
         paramNames = list.filter(Boolean).join(", ");
       } catch {}
-      const base = `Tool: ${row.name || row.id} (${slugTokens}). Category: ${row.category || "General"}. Description: ${row.description || ""}. Parameters: ${paramNames}`;
-      return (base + getSynonymEnrichment(base)).trim();
+      return `Tool: ${row.name || slug} (${slug}). Category: ${row.category || "General"}. Description: ${row.description || ""}. Parameters: ${paramNames}`.trim();
     }
 
     case "skill": {
       const instructionsSnippet = (row.instructions || "").slice(0, 300);
-      const base = `Skill: ${row.name || row.id} (${slugTokens}). Description: ${row.description || ""}. Playbook: ${instructionsSnippet}`;
-      return (base + getSynonymEnrichment(base)).trim();
+      return `Skill: ${row.name || slug} (${slug}). Description: ${row.description || ""}. Instructions: ${instructionsSnippet}`.trim();
     }
 
     case "workflow": {
@@ -73,8 +45,7 @@ export function buildCapabilityText(kind, row) {
           nodeLabels = nodes.map((n) => n.label || n.name || n.meta).filter(Boolean).join(" -> ");
         }
       } catch {}
-      const base = `Workflow DAG: ${row.name || row.id} (${slugTokens}). Trigger: ${row.trigger || "Manual"}. Pipeline Nodes: ${nodeLabels}`;
-      return (base + getSynonymEnrichment(base)).trim();
+      return `Workflow DAG: ${row.name || slug} (${slug}). Trigger: ${row.trigger || "Manual"}. Pipeline Nodes: ${nodeLabels}`.trim();
     }
 
     case "chain": {
@@ -85,13 +56,11 @@ export function buildCapabilityText(kind, row) {
           stageLabels = nodes.map((n) => n.label || n.name || n.meta).filter(Boolean).join(" -> ");
         }
       } catch {}
-      const base = `Orchestration Chain: ${row.name || row.id} (${slugTokens}). Trigger: ${row.trigger || "Manual"}. Macro Stages: ${stageLabels}`;
-      return (base + getSynonymEnrichment(base)).trim();
+      return `Orchestration Chain: ${row.name || slug} (${slug}). Trigger: ${row.trigger || "Manual"}. Macro Stages: ${stageLabels}`.trim();
     }
 
     case "agent": {
-      const base = `Agent: ${row.name || row.id} (${slugTokens}). Role: ${row.role || "Operator"}. Squad: ${row.squad || "General"}. Description: ${row.description || ""}`;
-      return (base + getSynonymEnrichment(base)).trim();
+      return `Agent: ${row.name || slug} (${slug}). Role: ${row.role || "Operator"}. Squad: ${row.squad || "General"}. Description: ${row.description || ""}`.trim();
     }
 
     case "mcp": {
@@ -100,13 +69,11 @@ export function buildCapabilityText(kind, row) {
         const tools = Array.isArray(row.tools_cache) ? row.tools_cache : typeof row.tools_cache === "string" ? JSON.parse(row.tools_cache) : [];
         toolSummaries = tools.map((t) => `${t.name}: ${t.description || ""}`).slice(0, 8).join("; ");
       } catch {}
-      const base = `MCP Integration Server: ${row.name || row.slug} (${slugTokens}). Transport: ${row.transport || "http"}. Exposed Tools: ${toolSummaries}`;
-      return (base + getSynonymEnrichment(base)).trim();
+      return `MCP Integration Server: ${row.name || slug} (${slug}). Transport: ${row.transport || "http"}. Exposed Tools: ${toolSummaries}`.trim();
     }
 
     case "webhook": {
-      const base = `Inbound Webhook: ${row.name || row.slug} (${slugTokens}). Category: ${row.category || "webhook"}. Description: ${row.description || ""}`;
-      return (base + getSynonymEnrichment(base)).trim();
+      return `Inbound Webhook: ${row.name || slug} (${slug}). Category: ${row.category || "webhook"}. Description: ${row.description || ""}`.trim();
     }
 
     case "pack": {
@@ -115,12 +82,11 @@ export function buildCapabilityText(kind, row) {
         const bk = Array.isArray(row.brand_keywords) ? row.brand_keywords : typeof row.brand_keywords === "string" ? JSON.parse(row.brand_keywords) : [];
         brandKw = bk.join(", ");
       } catch {}
-      const base = `Capability Pack: ${row.name || row.id} (${slugTokens}). Sector: ${row.sector || "general"}. Description: ${row.description || ""}. Keywords: ${brandKw}`;
-      return (base + getSynonymEnrichment(base)).trim();
+      return `Capability Pack: ${row.name || slug} (${slug}). Sector: ${row.sector || "general"}. Description: ${row.description || ""}. Keywords: ${brandKw}`.trim();
     }
 
     default:
-      return `${row.name || row.id || ""}: ${row.description || ""}`.trim();
+      return `${row.name || slug}: ${row.description || ""}`.trim();
   }
 }
 
@@ -271,7 +237,7 @@ export async function updateSingleCapabilityVector(pool, kind, id) {
 }
 
 /**
- * Searches across all 8 capability tables using cosine similarity.
+ * Searches across all 8 capability tables using pure cosine similarity.
  * @param {object} pool
  * @param {object} params
  * @param {string} params.intent - Operator or agent query string
@@ -289,9 +255,7 @@ export async function searchCapabilityVectors(pool, {
   const q = String(intent || "").trim();
   if (!q) return [];
 
-  // Bilingual semantic query expansion
-  const enrichedQuery = `${q}${getSynonymEnrichment(q)}`;
-  const embs = await embed([enrichedQuery]);
+  const embs = await embed([q]);
   if (!embs?.[0]) return [];
 
   const queryVec = vectorToSql(embs[0]);
@@ -418,31 +382,8 @@ export async function searchCapabilityVectors(pool, {
   const results = await Promise.all(searches);
   const flat = results.flatMap((r) => r.rows || []);
 
-  // Hybrid Ranking: Combine Cosine Similarity + Exact Lexical Boost
-  const qTokens = q.toLowerCase().split(/\s+/).filter((w) => w.length > 2);
-  for (const r of flat) {
-    const rawScore = Number(r.score) || 0;
-    let lexicalBonus = 0;
-    const hay = `${r.id} ${r.slug} ${r.name} ${r.description || ""}`.toLowerCase();
-    for (const t of qTokens) {
-      if (hay.includes(t)) {
-        lexicalBonus += 0.08;
-      }
-    }
-    // Also check synonym matches
-    for (const [key, syns] of Object.entries(BILINGUAL_SYNONYMS)) {
-      const qHasKey = q.toLowerCase().includes(key) || syns.some((s) => q.toLowerCase().includes(s));
-      const rHasKey = hay.includes(key) || syns.some((s) => hay.includes(s));
-      if (qHasKey && rHasKey) {
-        lexicalBonus += 0.10;
-        break;
-      }
-    }
-    r.effectiveScore = Math.min(0.99, rawScore + lexicalBonus);
-  }
-
-  // Sort overall results by effective score descending
-  flat.sort((a, b) => b.effectiveScore - a.effectiveScore);
+  // Sort purely by cosine similarity descending
+  flat.sort((a, b) => Number(b.score) - Number(a.score));
 
   return flat.slice(0, limit).map((r) => ({
     kind: r.kind,
@@ -450,6 +391,6 @@ export async function searchCapabilityVectors(pool, {
     slug: r.slug,
     name: r.name,
     description: (r.description || "").slice(0, 120),
-    score: Math.round(r.effectiveScore * 100) / 100,
+    score: Math.round(Number(r.score) * 100) / 100,
   }));
 }
