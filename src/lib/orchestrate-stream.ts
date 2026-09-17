@@ -36,7 +36,7 @@ export const hasCapabilities = (c: Capabilities) => c.tools.length > 0 || c.skil
 
 /* ------------------------------------------------------------------ events */
 
-export type ToolStatus = "pending" | "running" | "completed" | "failed" | "denied";
+export type ToolStatus = "pending" | "running" | "completed" | "failed" | "denied" | "cancelled";
 
 export type OrchestrateEvent =
   /** LLM decided to run tools — capabilities are being prepared. */

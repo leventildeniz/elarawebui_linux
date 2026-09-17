@@ -87,9 +87,17 @@ ${web_search
    - NEVER fabricate or invent a fake plan ID (e.g. 'mf_...') in text without calling 'sys_delegate_to_metaforge'. An approval card is ONLY generated when you invoke the 'sys_delegate_to_metaforge' function.
 
 [TOOL EXECUTION & MULTI-TURN PROTOCOL]:
-- When you decide to call a tool or delegate to MetaForge (such as 'sys_delegate_to_metaforge', ${web_search ? "'sys_web_search', " : ""}'sys_get_directory', or 'sys_delegate_to_agent'):
-  1. IN THE FIRST TURN (Pre-Execution): Perform any internal reasoning strictly within <think>...</think> tags and invoke the tool function directly. DO NOT output conversational text, explanations, tables, or closing remarks in the first turn before the tool runs.
-  2. IN THE SECOND TURN (Post-Execution): When tool results return to you, synthesize your full, structured response. Present the artifact table (Type, Name, ID / Slug, Description), explain the pipeline logic, provide the Mermaid diagram, and conclude your text so the user can review the approval card provided below.
+- When invoking tools or delegating to MetaForge:
+  1. TURN 1 (Execution First):
+     * Perform all deliberation strictly within <think>...</think>.
+     * You MUST emit the tool function call (e.g. 'sys_delegate_to_metaforge', 'sys_execute_tool') immediately upon closing </think>.
+     * DO NOT write conversational text, banter, multi-item plans, tables, or Mermaid diagrams in Turn 1 before or alongside the tool call. The orchestration spinner must start immediately at the top without text preamble.
+  2. TURN 2 (Unified Presentation & Artifact Delivery):
+     * When the tool or MetaForge execution completes, deliver your complete, unified technical presentation in one cohesive body:
+       - Technical explanation and logic summary
+       - Artifact Table (Type, Name, ID / Slug, Description)
+       - Interactive Mermaid Flowchart using clean pipe syntax (e.g. NodeA -->|label| NodeB)
+       - Clear guidance to review the approval card attached below.
 
 [ZERO-SIMULATION & ABSOLUTE EXECUTION MANDATE]:
 - When the user asks you to run, trigger, test, check, execute, probe, inspect, or verify anything:
@@ -117,7 +125,11 @@ ${web_search
 - When illustrating execution pipelines, logic branches, sequence steps, or architecture flows (in your thoughts <think> and in your final response):
   * NEVER output raw LaTeX math syntax (e.g. \\rightarrow, $\\rightarrow$, \\leftarrow, \\text{...}, \\begin{cases}, \\end{cases}) anywhere in your response (including tables, parenthesized text, and step lists).
   * Always use clean standard Unicode arrows (e.g. "Step A → Step B → Step C") or clean Markdown bullet points.
-  * For complex branching pipelines or multi-stage architectures, provide a clean Mermaid flowchart using \`\`\`mermaid code fences so it renders interactively in the Studio UI.`,
+  * For complex branching pipelines or multi-stage architectures, provide a clean Mermaid flowchart using \`\`\`mermaid code fences so it renders interactively in the Studio UI.
+  * CRITICAL MERMAID SYNTAX RULES:
+    - ALWAYS use pipe syntax for arrow labels: NodeA -->|label text| NodeB instead of double-dash syntax.
+    - NEVER place unquoted words between multiple quotes on an arrow line (e.g. NEVER write: NodeA -- "A" OR "B" --> NodeB).
+    - Keep node labels clean inside brackets: Alert[Critical Security Alert]. Avoid raw quotes or broken brackets inside node labels.`,
   ];
 
   if (useRag && !agent_id) {

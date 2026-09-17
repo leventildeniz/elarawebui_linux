@@ -2140,6 +2140,25 @@ ELARA Sovereign Studio genelinde **Zero-Trust Çoklu Kiracı (Multi-Tenancy) ve 
    11. **Zero-Simulation & Absolute Execution Mandate (`directives.mjs`):**
        - `local-server/lib/orchestrator/directives.mjs` içerisine en üst düzeyde tavizsiz İngilizce `[ZERO-SIMULATION & ABSOLUTE EXECUTION MANDATE]` anayasası eklendi: Modelin "run", "trigger", "test", "check", "probe" gibi icra taleplerinde rol yapması, sanki çalışmış gibi davranması ("acting as if") veya aracı fiziksel olarak çalıştırmadan kafasından sentetik gecikme/durum kodları uydurması kökten yasaklandı; fiziksel olarak `sys_execute_tool` çağırması zorunlu kılındı.
 
+   12. **MetaForge Auto-Recovery Safety Net & Zero-Text Turn 1 Directive (`chat-orchestrate.mjs`, `directives.mjs`):**
+       - Yerel modellerin (Gemma-4 vb.) 1. turda gevezeliğe ve sohbete kapılıp metin içine "Aşağıda onay kartı yer alıyor" yazarak fonksiyon çağırmayı (tool call) atlaması sorununa karşı çift katmanlı güvenlik ağı kuruldu:
+         1. **Direktif Katmanı (`directives.mjs`):** `[TOOL EXECUTION & MULTI-TURN PROTOCOL]` altına İngilizce `MANDATORY ZERO-TEXT FIRST TURN FOR CAPABILITY SYNTHESIS` kuralı eklendi; modelin yetenek sentezi taleplerinde 1. turda yalnızca fonksiyon çağırması emredildi.
+         2. **Motor Kurtarma Katmanı (`chat-orchestrate.mjs`):** Model metin üretse bile, düşünce zincirinde (`<think>`) MetaForge çağırmaya karar vermişse veya metinde "onay kartı / approval card" vaat etmişse, orkestratör bunu otomatik algılayıp `sys_delegate_to_metaforge` çağrısını anında tetikler ve onay kartının kaybolmasını imkansız kılar.
+
+   13. **Mermaid Broken Edge Syntax Auto-Healer & Turn 1 Live Acknowledgment (`mermaid-block.tsx`, `directives.mjs`):**
+       - Modelin Mermaid akış şemalarında hatalı tırnak ve mantıksal operatörlü ok sentaksı (`Decision -- "High Risk" OR "CRITICAL SSL" --> Alert`) üretmesi sonucu diyagramın SVG çizemeyip ham koda düşmesi sorunu çözüldü: `src/components/sovereign/mermaid-block.tsx` içerisine `sanitizeMermaidSyntax` kalkanı eklenerek tüm bozuk oklar temiz boru sentaksına (`Decision -->|High Risk OR CRITICAL SSL| Alert`) otomatik normalize edildi ve interaktif SVG çizimi garantiye alındı.
+       - `local-server/lib/orchestrator/directives.mjs` içerisinde Turn 1 direktifi esnetildi: MetaForge planlama yaparken kullanıcının donmuş bir ekran görmemesi için modelin 1. turda kısa, profesyonel 1 cümlelik canlı bildirim ("Engaging MetaForge to architect your pipeline...") basabilmesi ve ardından hemen aracı çağırması kurala bağlandı.
+
+   14. **MetaForge Reject Signal Wake-Up & Turn 1 Anti-Fragmentation (`index.tsx`, `directives.mjs`):**
+       - `src/routes/index.tsx` içerisindeki MetaForge onay kartı `onReject` eylemine, tıpkı `Approve`'da olduğu gibi arka plandan sessiz `[SYSTEM_NOTE]` uyarısı bağlandı; operatör bir planı reddettiğinde modelin sohbette sessiz ve yanıtsız kalması engellendi, kibarca planın iptal edildiğini teyit edip yeni yönergeleri sorması sağlandı.
+       - `local-server/lib/orchestrator/directives.mjs` içerisinde Turn 1 direktifi sıkılaştırıldı: Modelin araç henüz icra edilmeden önce 1. turda "Planım şu: 1... 2... 3..." diye uzun uzun maddeli planlar yazarak cevabı ikiye bölmesi ve aynı şeyleri 2. turda tekrar etmesi yasaklandı; 1. turda yalnızca tek satırlık canlı bildirim vermesi, asıl plan, tablo ve diyagramı 2. turda tek ve akıcı bir gövde halinde sunması kurala bağlandı.
+
+   15. **Stop Execution Cancellation & Unified Status Typography (`index.tsx`, `tool-activity.tsx`, `orchestrate-stream.ts`, `directives.mjs`):**
+       - Operatör sohbette "Stop" butonuna bastığında orkestrasyon çarkının (`RUNNING sys_delegate_to_metaforge`) sonsuza kadar dönmeye devam etmesi sorunu kalıcı olarak çözüldü: `src/routes/index.tsx` içindeki `stop()` fonksiyonu aktif mesajın `activity.phase` durumunu anında `'done'` yapar ve askıda kalan tüm çalışan araçları `status: 'cancelled'` olarak damgalar.
+       - `src/components/sovereign/tool-activity.tsx` içindeki `StatusGlyph` durdurulan araçlara dönen çark yerine amber rengi kare (`<Square />`) ikonu basar; durum metni ise `COMPLETED` ve `FAILED` ile birebir aynı kurumsal mat gri tipografi (`text-muted-foreground/45`) standardında `STOPPED` olarak render edilir.
+       - `src/lib/orchestrate-stream.ts` içine `ToolStatus = "cancelled"` tipi birinci sınıf vatandaş olarak eklendi.
+       - Modelin araç henüz başlamadan 1. turda uzun uzun plan metinleri ve diyagramlar yazarak orkestrasyon kutusunu alta itmesi ve ekranı bölmesi sorunu `directives.mjs` içerisindeki `[TOOL EXECUTION & MULTI-TURN PROTOCOL]` kurallarıyla giderildi: 1. turda düşünce (`<think>`) biter bitmez derhal fonksiyon çağrısı yapılması, orkestrasyon çarkının en tepede anında başlaması, tüm metin ve tabloların ise 2. turda orkestrasyonun hemen altına tek ve akıcı bir gövde halinde sunulması emredildi.
+
    ---
 
    **Sistem Durumu:** `node --check` 0 hata, `npx tsc --noEmit` 0 hata; tüm systemd servisleri (`elara-middleware`, `elara-vite`, `elara-worker`) aktif, sağlıklı ve operasyonel.

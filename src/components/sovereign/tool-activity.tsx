@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "motion/react";
-import { Check, ChevronDown, Cpu, Loader2, ShieldAlert, X } from "lucide-react";
+import { Check, ChevronDown, Cpu, Loader2, ShieldAlert, X, Square } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import type { ToolActivity, ToolRun } from "@/lib/orchestrate-stream";
@@ -16,7 +16,7 @@ const toneText: Record<string, string> = {
   amethyst: "text-amethyst",
 };
 
-function StatusGlyph({ run }: { run: ToolRun }) {
+function StatusGlyph({ run, live = true }: { run: ToolRun; live?: boolean }) {
   if (run.status === "completed")
     return (
       <motion.span
@@ -34,8 +34,22 @@ function StatusGlyph({ run }: { run: ToolRun }) {
         <X className="h-[10px] w-[10px] text-ruby" strokeWidth={2.4} />
       </span>
     );
-  if (run.status === "running")
-    return <Loader2 className="h-[13px] w-[13px] animate-spin text-sapphire" strokeWidth={2} />;
+  if ((run.status as string) === "cancelled" || (run.status as string) === "stopped")
+    return (
+      <span className="flex h-[15px] w-[15px] items-center justify-center rounded-full bg-amber-500/15">
+        <Square className="h-[7px] w-[7px] fill-amber-500 text-amber-500" />
+      </span>
+    );
+  if (run.status === "running") {
+    if (live) {
+      return <Loader2 className="h-[13px] w-[13px] animate-spin text-sapphire" strokeWidth={2} />;
+    }
+    return (
+      <span className="flex h-[15px] w-[15px] items-center justify-center rounded-full bg-amber-500/15">
+        <Square className="h-[7px] w-[7px] fill-amber-500 text-amber-500" />
+      </span>
+    );
+  }
   return <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40" />;
 }
 
@@ -117,7 +131,7 @@ export function ToolActivityBlock({ activity }: { activity: ToolActivity }) {
                   transition={{ duration: 0.18, delay: i * 0.05, ease: "easeOut" }}
                   className="flex items-center gap-2.5 py-[3px]"
                 >
-                  <StatusGlyph run={run} />
+                  <StatusGlyph run={run} live={live} />
                   <span
                     className={cn(
                       "font-mono text-[12.5px]",
@@ -127,9 +141,9 @@ export function ToolActivityBlock({ activity }: { activity: ToolActivity }) {
                     {run.name}
                   </span>
                   <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground/45">
-                    {run.status}
+                    {!live && (run.status === "running" || run.status === "pending") ? "stopped" : run.status}
                   </span>
-                  {typeof run.ms === "number" && run.status !== "running" && (
+                  {typeof run.ms === "number" && (live ? run.status !== "running" : true) && (
                     <span className="ml-auto font-mono text-[11px] text-muted-foreground/45">
                       {(run.ms / 1000).toFixed(1)}s
                     </span>

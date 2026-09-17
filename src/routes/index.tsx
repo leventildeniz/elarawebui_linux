@@ -772,6 +772,27 @@ function SovereignChat() {
        abortCtrl.current.abort();
        abortCtrl.current = null;
     }
+
+    // Terminate any active tool animation immediately
+    const copy = [...messages];
+    const last = copy[copy.length - 1];
+    if (last && last.role === "agent") {
+      const cleanedActivity = last.activity ? {
+        ...last.activity,
+        phase: "done" as const,
+        runs: (last.activity.runs || []).map((r) =>
+          r.status === "running" || r.status === "pending"
+            ? { ...r, status: "cancelled" as const, ms: r.startedAt ? Date.now() - r.startedAt : 0 }
+            : r
+        ),
+      } : undefined;
+      copy[copy.length - 1] = {
+        ...last,
+        streaming: false,
+        ...(cleanedActivity ? { activity: cleanedActivity } : {}),
+      };
+      setMessages(copy);
+    }
   };
 
   const send = (text: string, mentions: Mention[] = []) => {
@@ -1386,6 +1407,14 @@ function SovereignChat() {
                                 return { ...msg, streaming: false };
                               });
                               setMessages(updatedMessages);
+
+                              // Wake up the model silently to acknowledge rejection and ask for adjustments
+                              const rejectMsg = `[SYSTEM_NOTE] The MetaForge plan (${m.forge_plan.id}) has been REJECTED by the user. No files, tools, or workflows were applied; the draft has been safely archived. Politely acknowledge that the proposal was discarded, and ask the user how they would like to adjust the architecture, rules, or requirements, or if they prefer to pursue a different task.`;
+                              const baseForOrch: Msg[] = [
+                                ...updatedMessages,
+                                { role: "user", text: rejectMsg, hidden: true }
+                              ];
+                              runOrchestration(baseForOrch, undefined, rejectMsg, { tools: [], skills: [], mcp: [] }, undefined, webSearch);
                             } catch(e: any) {
                               toast.error(`Error: ${e.message}`);
                             }

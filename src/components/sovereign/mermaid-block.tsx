@@ -72,6 +72,19 @@ function downloadFile(name: string, content: string, mime: string) {
   URL.revokeObjectURL(url);
 }
 
+function sanitizeMermaidSyntax(code: string): string {
+  let s = code.trim();
+  // Sanitize broken edge labels like: Decision -- "High Risk" OR "CRITICAL SSL" --> Alert
+  // to clean pipe labels: Decision -->|High Risk OR CRITICAL SSL| Alert
+  s = s.replace(
+    /--\s*"?([^"\n\r-]+?)"?\s*(OR|AND|\/|\|)\s*"?([^"\n\r-]+?)"?\s*-->/gi,
+    (_m, g1, g2, g3) => `-->|${String(g1).trim()} ${g2} ${String(g3).trim()}|`,
+  );
+  s = s.replace(/--\s*"([^"\n\r]+)"\s*-->/g, "-->|$1|");
+  s = s.replace(/--\s+([a-zA-Z0-9_ /():]+?)\s+-->/g, "-->|$1|");
+  return s;
+}
+
 export function MermaidBlock({ code, isComplete = true }: { code: string; isComplete?: boolean | undefined }) {
   const rawId = useId();
   const id = `mm_${rawId.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
@@ -97,9 +110,10 @@ export function MermaidBlock({ code, isComplete = true }: { code: string; isComp
       .then(async (mermaid) => {
         if (!active) return;
         try {
-          // Render SVG
+          // Render SVG with auto-sanitized syntax
+          const sanitized = sanitizeMermaidSyntax(cleanCode);
           const renderId = `${id}_${Date.now()}`;
-          const { svg: renderedSvg } = await mermaid.render(renderId, cleanCode);
+          const { svg: renderedSvg } = await mermaid.render(renderId, sanitized);
           if (active) {
             setSvg(renderedSvg);
             setRenderError(null);
