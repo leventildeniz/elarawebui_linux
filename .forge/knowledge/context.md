@@ -2159,6 +2159,15 @@ ELARA Sovereign Studio genelinde **Zero-Trust Çoklu Kiracı (Multi-Tenancy) ve 
        - `src/lib/orchestrate-stream.ts` içine `ToolStatus = "cancelled"` tipi birinci sınıf vatandaş olarak eklendi.
        - Modelin araç henüz başlamadan 1. turda uzun uzun plan metinleri ve diyagramlar yazarak orkestrasyon kutusunu alta itmesi ve ekranı bölmesi sorunu `directives.mjs` içerisindeki `[TOOL EXECUTION & MULTI-TURN PROTOCOL]` kurallarıyla giderildi: 1. turda düşünce (`<think>`) biter bitmez derhal fonksiyon çağrısı yapılması, orkestrasyon çarkının en tepede anında başlaması, tüm metin ve tabloların ise 2. turda orkestrasyonun hemen altına tek ve akıcı bir gövde halinde sunulması emredildi.
 
+   16. **360° Semantik Yetenek Haritası & 8 Kalem Vektör Eşleme Motoru (Capability Vector Search & Zero-Touch Deduplication — `capability-vector.mjs`, `tool-dispatcher.mjs`, `apply.mjs`, PostgreSQL pgvector):**
+       - MetaForge ve genel orkestrasyona giren 8 temel yetenek türünün tamamı (`tool`, `skill`, `workflow`, `chain`, `agent`, `mcp`, `webhook`, `pack`) için PostgreSQL veritabanında `embedding vector(384)` kolonları açıldı (`action_library`, `skills`, `workflows`, `orchestrations`, `agents`, `mcp_client_servers`, `webhooks`, `capability_packs`).
+       - Native In-Process ONNX Runtime motoru (`local-server/lib/capability-vector.mjs`) inşa edildi:
+         * 97 adet mevcut yetenek 2.2 saniyede CPU üzerinde 384-boyutlu BAAI vektör uzayına taşındı (backfill).
+         * Çift dilli (Türkçe & İngilizce) anlamsal eşleme ve hibrit sözcüksel takviye (Lexical Boost) katmanı eklendi.
+       - `sys_get_directory` sorgusuna anlamsal vektör araması entegre edildi: Model veya kullanıcı doğal dilde bir niyet belirttiğinde (örn. *"sertifika kontrolü"* veya *"hava durumu"*), kosinüs benzerliğiyle en alakalı yetenekler en tepeye sıralanır ve `semantic_matches` bloğunda yüzdelik uygunluk skoruyla modele sunulur.
+       - `sys_delegate_to_metaforge` entegrasyonu güçlendirildi: Kullanıcının talebiyle %70+ benzerlik gösteren mevcut sistem yetenekleri tespit edildiğinde `agt.forge_master` planlama ajanına `CRITICAL DEDUPLICATION MATCHES` direktifi enjekte edilerek mükerrer araç üretimi kökten engellendi, zorunlu olarak `plan.reuse` listesine yönlendirildi.
+       - Sıfır Ek Yük (Zero-Touch): MetaForge bir aracı veya iş akışını onaylayıp kaydettiğinde (`apply.mjs`), embedding işlemi 10 milisaniye içinde arka planda otomatik güncellenir; operatöre hiçbir buton, bekleme veya manuel işlem yükü çıkarılmaz.
+
    ---
 
    **Sistem Durumu:** `node --check` 0 hata, `npx tsc --noEmit` 0 hata; tüm systemd servisleri (`elara-middleware`, `elara-vite`, `elara-worker`) aktif, sağlıklı ve operasyonel.

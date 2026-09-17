@@ -18,6 +18,7 @@ import { lintPython } from "./guard.mjs";
 import { refreshCapabilitiesAfterForgeApply } from "./refresh.mjs";
 import { runToolSmoke } from "./smoke.mjs";
 import { createServer, probeServer, recordProbe } from "../mcp/client.mjs";
+import { updateSingleCapabilityVector } from "../capability-vector.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, "..", "..", "..");
@@ -174,6 +175,7 @@ async function applySkillCreate(pool, planId, item, meta) {
     [planId, cleanSlug, r.rows[0].id],
   );
   await stampCapabilityMeta(pool, { slug: cleanSlug, kind: "skill", ...meta });
+  updateSingleCapabilityVector(pool, "skill", cleanSlug).catch(() => {});
   return { kind: "skill", slug: cleanSlug, id: r.rows[0].id, ...meta };
 }
 
@@ -257,6 +259,7 @@ async function applyWorkflowCreate(pool, planId, item, meta) {
     [planId, cleanSlug, r.rows[0].id],
   );
   await stampCapabilityMeta(pool, { slug: cleanSlug, kind: "workflow", ...meta });
+  updateSingleCapabilityVector(pool, "workflow", r.rows[0].id).catch(() => {});
   return { kind: "workflow", slug: cleanSlug, id: r.rows[0].id, ...meta };
 }
 
@@ -335,6 +338,7 @@ async function applyChainCreate(pool, planId, item, meta) {
     [planId, cleanSlug, r.rows[0].id],
   );
   await stampCapabilityMeta(pool, { slug: cleanSlug, kind: "chain", ...meta });
+  updateSingleCapabilityVector(pool, "chain", r.rows[0].id).catch(() => {});
   return { kind: "chain", slug: cleanSlug, id: r.rows[0].id, ...meta };
 }
 
@@ -373,6 +377,7 @@ async function applyWebhookCreate(pool, planId, item, meta) {
     [planId, cleanSlug, r.rows[0].id],
   );
   await stampCapabilityMeta(pool, { slug: cleanSlug, kind: "webhook", ...meta });
+  updateSingleCapabilityVector(pool, "webhook", cleanSlug).catch(() => {});
   return { kind: "webhook", slug: cleanSlug, id: r.rows[0].id, ...meta };
 }
 
@@ -397,7 +402,8 @@ async function applyPackCreate(pool, planId, item, meta) {
      VALUES ($1, 'pack', $2, $3) ON CONFLICT DO NOTHING`,
     [planId, slug, r.rows[0].id],
   );
-  await stampCapabilityMeta(pool, { slug, kind: "pack", ...meta });
+  await stampCapabilityMeta(pool, { slug: cleanSlug, kind: "pack", ...meta });
+  updateSingleCapabilityVector(pool, "pack", slug).catch(() => {});
   return { kind: "pack", slug, id: r.rows[0].id, ...meta };
 }
 
@@ -511,6 +517,7 @@ async function applyToolCreate(pool, planId, item, meta) {
     [planId, slug, rel],
   );
   await stampCapabilityMeta(pool, { slug, kind: "tool", ...effectiveMeta });
+  updateSingleCapabilityVector(pool, "tool", toolId).catch(() => {});
   return { kind: "tool", slug, disk_path: rel, smoke, autoLive: canAutoLive, ...effectiveMeta };
 }
 
@@ -553,6 +560,7 @@ async function applyAgentCreate(pool, planId, item, meta) {
   );
   // Agents always pending_review (hybrid gate — never auto-live).
   await stampCapabilityMeta(pool, { slug, kind: "agent", ...meta });
+  updateSingleCapabilityVector(pool, "agent", agentId).catch(() => {});
   return { kind: "agent", slug, disk_path: rel, autoLive: false, ...meta };
 }
 
@@ -617,6 +625,7 @@ async function applyMcpCreate(pool, planId, item, meta) {
     [planId, srv.slug, url, srv.id],
   );
 
+  updateSingleCapabilityVector(pool, "mcp", srv.slug).catch(() => {});
   return { kind: "mcp", slug: srv.slug, id: srv.id, disk_path: url, autoLive: true, deduped: existing.rows.length > 0, ...meta };
 }
 

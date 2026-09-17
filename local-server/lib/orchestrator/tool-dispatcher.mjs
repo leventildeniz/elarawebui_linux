@@ -7,6 +7,7 @@ import { buildInventory, extractForgeJson, validateForgePlan } from "../meta-for
 import { ensureMetaForgeAgent } from "../meta-forge/seed.mjs";
 import { resolveCredential } from "../vault.mjs";
 import { streamFromProvider } from "./stream-bridge.mjs";
+import { searchCapabilityVectors } from "../capability-vector.mjs";
 
 export async function dispatchToolCall({
   toolCall,
@@ -114,24 +115,49 @@ export async function dispatchToolCall({
       });
     }
 
+    let semanticMatches = [];
     if (intentWord) {
-      standardTools.sort((a, b) => {
-        const aMatch = (a.id + " " + a.name + " " + a.desc).toLowerCase().includes(intentWord);
-        const bMatch = (b.id + " " + b.name + " " + b.desc).toLowerCase().includes(intentWord);
-        if (aMatch && !bMatch) return -1;
-        if (!aMatch && bMatch) return 1;
-        return 0;
-      });
-      skillsList.sort((a, b) => {
-        const aMatch = (a.id + " " + a.name + " " + a.desc).toLowerCase().includes(intentWord);
-        const bMatch = (b.id + " " + b.name + " " + b.desc).toLowerCase().includes(intentWord);
-        if (aMatch && !bMatch) return -1;
-        if (!aMatch && bMatch) return 1;
-        return 0;
-      });
+      try {
+        semanticMatches = await searchCapabilityVectors(pool, { intent: intentWord, limit: 10, minScore: 0.58 });
+      } catch (e) {
+        console.warn("[tool-dispatcher] Vector search notice:", e.message);
+      }
+
+      if (semanticMatches.length > 0) {
+        const scoreMap = new Map(semanticMatches.map((m) => [m.id || m.slug, m.score]));
+        const getScore = (item) => scoreMap.get(item.id) || scoreMap.get(item.slug) || 0;
+
+        standardTools.sort((a, b) => getScore(b) - getScore(a));
+        skillsList.sort((a, b) => getScore(b) - getScore(a));
+      } else {
+        standardTools.sort((a, b) => {
+          const aMatch = (a.id + " " + a.name + " " + a.desc).toLowerCase().includes(intentWord);
+          const bMatch = (b.id + " " + b.name + " " + b.desc).toLowerCase().includes(intentWord);
+          if (aMatch && !bMatch) return -1;
+          if (!aMatch && bMatch) return 1;
+          return 0;
+        });
+        skillsList.sort((a, b) => {
+          const aMatch = (a.id + " " + a.name + " " + a.desc).toLowerCase().includes(intentWord);
+          const bMatch = (b.id + " " + b.name + " " + b.desc).toLowerCase().includes(intentWord);
+          if (aMatch && !bMatch) return -1;
+          if (!aMatch && bMatch) return 1;
+          return 0;
+        });
+      }
     }
 
     toolResultStr = JSON.stringify({
+      ...(semanticMatches.length > 0
+        ? {
+            semantic_matches: semanticMatches.map((m) => ({
+              kind: m.kind,
+              id: m.id || m.slug,
+              name: m.name,
+              relevance: `${Math.round(m.score * 100)}%`,
+            })),
+          }
+        : {}),
       agents: agtRes.rows.map((a) => ({ id: a.id, name: a.name, squad: a.squad, desc: (a.description || "").slice(0, 120) })),
       tools: [...standardTools, ...skillsList, ...mcpTools],
       mcp_servers: mcpServers,
@@ -432,11 +458,24 @@ export async function dispatchToolCall({
         (forgeAgentRes.rows[0].system_prompt || "You are MetaForge. Output valid JSON.") +
         "\n\nCRITICAL INSTRUCTION: Output ONLY a valid JSON object. Do NOT include ANY text, markdown, or code fences before or after the JSON. Start your response with { and end with }.";
 
+      let dedupGuidance = "";
+      try {
+        const topMatches = await searchCapabilityVectors(pool, { intent: intentText, limit: 4, minScore: 0.70 });
+        if (topMatches.length > 0) {
+          dedupGuidance =
+            `\n\nCRITICAL DEDUPLICATION MATCHES (Existing system capabilities matching goal):\n` +
+            topMatches.map((m) => `- ${m.kind}: '${m.slug}' (${m.name}) [relevance: ${Math.round(m.score * 100)}%]`).join("\n") +
+            `\nYou MUST place these existing slugs in 'plan.reuse' instead of inventing duplicate tools or variations in 'plan.create'!\n`;
+        }
+      } catch (err) {
+        console.warn("[MetaForge] Vector dedup search error:", err.message);
+      }
+
       const forgeMessages = [
         { role: "system", content: forgeSysPrompt },
         {
           role: "user",
-          content: `System Inventory:\n${JSON.stringify(inventory, null, 2)}\n\nGoal:\n${intentText}\n\nOutput a valid JSON containing a 'plan' object with 'create' and/or 'reuse' arrays. DO NOT USE MARKDOWN BLOCKS.`,
+          content: `System Inventory:\n${JSON.stringify(inventory, null, 2)}\n\nGoal:\n${intentText}${dedupGuidance}\n\nOutput a valid JSON containing a 'plan' object with 'create' and/or 'reuse' arrays. DO NOT USE MARKDOWN BLOCKS.`,
         },
       ];
 
