@@ -3,8 +3,11 @@ import { isUuid } from "../utils.mjs";
 export function mountTargetsRoutes(app, deps) {
   const { pool, requireSession, resolveActorContext, assertCanEdit, buildVisibility } = deps;
 
-  app.post("/api/targets/reset", requireSession({ roles: ["admin", "engineer"] }), async (req, res) => {
+  app.post("/api/targets/reset", requireSession({ roles: ["admin", "sovereign", "tenant-admin"] }), async (req, res) => {
     const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : { isSuperAdmin: true, tenantId: "default" };
+    if (!ctx.isSuperAdmin && !ctx.isTenantAdmin) {
+      return res.status(403).json({ ok: false, error: "Access denied. Only SuperAdmin or TenantAdmin can reset targets." });
+    }
     const client = await pool.connect();
     try {
       await client.query("BEGIN");

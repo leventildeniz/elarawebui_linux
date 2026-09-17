@@ -74,4 +74,18 @@ const ADAPTER_DICT_KINDS = new Set(["category", "connection", "runner"]);
       res.json({ ok: true });
     } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
   });
+
+  app.post("/api/adapter-dictionaries/reset", requireSession({ roles: ["admin", "sovereign", "tenant-admin"] }), async (req, res) => {
+    try {
+      const ctx = typeof deps.resolveActorContext === "function" ? await deps.resolveActorContext(req) : { isSuperAdmin: true };
+      if (!ctx.isSuperAdmin && !ctx.isTenantAdmin) {
+        return res.status(403).json({ ok: false, error: "Access denied. Only SuperAdmin or TenantAdmin can reset dictionaries." });
+      }
+      await pool.query("DELETE FROM adapter_dictionaries WHERE builtin = false");
+      const r = await pool.query(
+        "SELECT id, kind, value, label, builtin, created_at FROM adapter_dictionaries ORDER BY kind, builtin DESC, value"
+      );
+      res.json({ ok: true, items: r.rows });
+    } catch (e) { res.status(500).json({ ok: false, error: String(e.message || e) }); }
+  });
 }

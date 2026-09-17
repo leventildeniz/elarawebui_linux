@@ -757,21 +757,23 @@ function TargetsPage() {
       crumb="Targets"
       action={
         <div className="flex flex-wrap items-center gap-2">
-          <MiniButton
-            tone="platinum"
-            title="Discard all local changes and restore the factory target registry"
-            onClick={async () => {
-              const ok = await confirmAction({
-                title: "Restore defaults?",
-                body: "Every change you made in this target registry is discarded and the factory records come back.",
-                confirmLabel: "Restore",
-                tone: "topaz",
-              });
-              if (ok) resetAll();
-            }}
-          >
-            <RotateCcw size={12} strokeWidth={2} /> Restore defaults
-          </MiniButton>
+          {Boolean(ownerCtx.isSuperAdmin || ownerCtx.isTenantAdmin) && (
+            <MiniButton
+              tone="platinum"
+              title="Discard all local changes and restore the factory target registry"
+              onClick={async () => {
+                const ok = await confirmAction({
+                  title: "Restore defaults?",
+                  body: "Every change you made in this target registry is discarded and the factory records come back.",
+                  confirmLabel: "Restore",
+                  tone: "topaz",
+                });
+                if (ok) resetAll();
+              }}
+            >
+              <RotateCcw size={12} strokeWidth={2} /> Restore defaults
+            </MiniButton>
+          )}
           <MiniButton tone="amethyst" onClick={() => setEditingGroup(emptyGroup())}>
             <FolderPlus size={12} strokeWidth={2} /> New group
           </MiniButton>

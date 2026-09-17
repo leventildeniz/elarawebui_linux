@@ -1204,6 +1204,7 @@ function AdaptersPage() {
   const [query, setQuery] = useState("");
   const [cat, setCat] = useState("all");
   const [editing, setEditing] = useState<Adapter | null>(null);
+  const canRestoreDefaults = Boolean(ownerCtx.isSuperAdmin || ownerCtx.isTenantAdmin);
 
   const visible = useMemo(
     () =>
@@ -1232,21 +1233,23 @@ function AdaptersPage() {
       action={
         effectiveTab === "webhooks" ? (
           <div className="flex items-center gap-2">
-            <MiniButton
-              tone="platinum"
-              title="Discard all local changes and restore the factory adapter registry"
-              onClick={async () => {
-                const ok = await confirmAction({
-                  title: "Restore defaults?",
-                  body: "Every change you made in this adapter registry is discarded and the factory records come back.",
-                  confirmLabel: "Restore",
-                  tone: "topaz",
-                });
-                if (ok) resetAll();
-              }}
-            >
-              <RotateCcw size={12} strokeWidth={2} /> Restore defaults
-            </MiniButton>
+            {canRestoreDefaults && (
+              <MiniButton
+                tone="platinum"
+                title="Discard all local changes and restore the factory adapter registry"
+                onClick={async () => {
+                  const ok = await confirmAction({
+                    title: "Restore defaults?",
+                    body: "Every change you made in this adapter registry is discarded and the factory records come back.",
+                    confirmLabel: "Restore",
+                    tone: "topaz",
+                  });
+                  if (ok) resetAll();
+                }}
+              >
+                <RotateCcw size={12} strokeWidth={2} /> Restore defaults
+              </MiniButton>
+            )}
             <MiniButton tone="emerald" onClick={() => {
               window.dispatchEvent(new CustomEvent("sovereign:new-webhook"));
             }}>
@@ -1255,21 +1258,23 @@ function AdaptersPage() {
           </div>
         ) : (
           <div className="flex items-center gap-2">
-            <MiniButton
-              tone="platinum"
-              title="Discard all local changes and restore the factory adapter registry"
-              onClick={async () => {
-                const ok = await confirmAction({
-                  title: "Restore defaults?",
-                  body: "Every change you made in this adapter registry is discarded and the factory records come back.",
-                  confirmLabel: "Restore",
-                  tone: "topaz",
-                });
-                if (ok) resetAll();
-              }}
-            >
-              <RotateCcw size={12} strokeWidth={2} /> Restore defaults
-            </MiniButton>
+            {canRestoreDefaults && (
+              <MiniButton
+                tone="platinum"
+                title="Discard all local changes and restore the factory adapter registry"
+                onClick={async () => {
+                  const ok = await confirmAction({
+                    title: "Restore defaults?",
+                    body: "Every change you made in this adapter registry is discarded and the factory records come back.",
+                    confirmLabel: "Restore",
+                    tone: "topaz",
+                  });
+                  if (ok) resetAll();
+                }}
+              >
+                <RotateCcw size={12} strokeWidth={2} /> Restore defaults
+              </MiniButton>
+            )}
             <MiniButton tone="emerald" onClick={() => setEditing(emptyAdapter())}>
               <Plus size={12} strokeWidth={2} /> New adapter
             </MiniButton>

@@ -2052,4 +2052,28 @@ ELARA Sovereign Studio genelinde **Zero-Trust Çoklu Kiracı (Multi-Tenancy) ve 
 
    ---
 
+   ### 🛡️ COMPLETED — REACT TOOL ALIAS RESOLUTION, BADGE TYPOGRAPHY & REGISTRY RESTORE LOCKDOWN
+
+   **Tarih:** 2026-09-17  
+   **Durum:** %100 Tamamlandı, Canlıda Doğrulandı & Mühürlendi
+
+   #### 🎯 1. Hayata Geçirilen İyileştirmeler & Çözümler
+   1. **ReAct Tool Çağırma & Prefix Deduplication Onarımı (`chat-orchestrate.mjs` & `tool-adapters.mjs`):**
+      - `tool.` ile başlayan araç kimliklerinde (örn. `tool.weather`), orkestratörün `tool_` ön eki ekleyerek `tool_tool_weather` üretmesi ve modelin `tool_weather` döndürdüğünde eşleşemeyip 0.0s sessiz boş dönmesi sorunu kalıcı olarak çözüldü.
+      - `chat-orchestrate.mjs` içine akıllı deduplication (`rawClean.startsWith("tool_") ? rawClean : "tool_" + rawClean`) ve `toolMap` içine tüm permütasyonların (`tool_weather`, `tool.weather`, `weather`, `tool_tool_weather`) kaydedilmesi sağlandı.
+      - `tool-adapters.mjs` içine `tool.`, `act.`, `tl.`, `tool_` ön eklerini toleranslı çözen `loadTool` eşleştiricisi ve kanonik kimlik ACL kontrolü eklendi.
+      - Canlı testle doğrulandı: `tool_weather` ve `weather` çağrıları `tools/weather.py` üzerinden başarıyla canlı hava durumu verisi (`23°C, Sunny`) döndürdü.
+   2. **Kart Rozet Tipografi Standartlaştırması (`tools.tsx`, `skills.tsx`, `mcp.tsx`):**
+      - `Tools`, `Skills` ve `MCP` kartlarındaki risk rozetleri küçük harfe dönüştürüldü: `low risk`, `medium risk`, `high risk`, `critical risk` (öncesinde `LOW RISK`).
+      - Onay rozeti küçük harfe dönüştürüldü: `approval req` (öncesinde `APPROVAL REQ`).
+      - Sistem rozeti küçük harfe dönüştürüldü: `sys` (öncesinde `SYS`).
+      - Diğer rozetlerle (`action`, `builtin`, `4 params`, `no sandbox`) %100 görsel parite sağlandı.
+   3. **Registry "Restore Defaults" Yetki Kilidi (`adapters.tsx`, `targets.tsx`, `targets-crud.mjs`, `adapter-dictionaries.mjs`):**
+      - Standart operatörlerin (`deneme2`) fabrika sıfırlaması görmesi ve tetiklemesi engellendi.
+      - Ön yüz (`adapters.tsx` & `targets.tsx`): "Restore defaults" butonu yalnızca `canRestoreDefaults = Boolean(ownerCtx.isSuperAdmin || ownerCtx.isTenantAdmin)` için görünür kılındı.
+      - Arka yüz (`targets-crud.mjs`): `POST /api/targets/reset` rotası `isSuperAdmin || isTenantAdmin` ile korundu. SuperAdmin küme genelini, TenantAdmin kendi şirketini sıfırlar; standart operatöre 403 Forbidden verilir.
+      - Arka yüz (`adapter-dictionaries.mjs`): `POST /api/adapter-dictionaries/reset` uç noktası `isSuperAdmin || isTenantAdmin` ile mühürlendi; `builtin = true` fabrika kayıtları korunarak özel sözlük kayıtları sıfırlanır.
+
+   ---
+
    **Sistem Durumu:** `node --check` 0 hata, `npx tsc --noEmit` 0 hata; tüm systemd servisleri (`elara-middleware`, `elara-vite`, `elara-worker`) aktif, sağlıklı ve operasyonel.
