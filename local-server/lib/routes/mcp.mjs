@@ -310,7 +310,7 @@ export function mountMcpRoutes(app, deps) {
       const { rows } = await pool.query(
         `SELECT id, name, slug, url, transport, auth_type, auth_config, enabled, auto_inject,
             tools_cache, last_probe_at, last_status, last_error, created_at, updated_at,
-            owner_id, owner_name, visibility, shared_with
+            owner_id, owner_name, visibility, shared_with, risk, requires_approval
          FROM mcp_client_servers WHERE ${vis.clause} ORDER BY created_at ASC`,
          vis.params
       );

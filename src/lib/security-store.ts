@@ -72,6 +72,8 @@ export type IsolationProfile = Owned & {
   netAllowlist: string;
   /** forge tool ids this sandbox is applied to */
   tools: string[];
+  /** bound target endpoints & groups */
+  targets?: string[];
   /** applied to every tool that has no explicit profile binding */
   fallback: boolean;
   createdAt: number;
@@ -83,6 +85,7 @@ export function normaliseIsolation(p: IsolationProfile): IsolationProfile {
     ...p,
     netAllowlist: p.netAllowlist ?? "",
     tools: Array.isArray(p.tools) ? p.tools : [],
+    targets: Array.isArray(p.targets) ? p.targets : [],
     fallback: Boolean(p.fallback),
   };
 }
@@ -336,6 +339,7 @@ export function useCollection<T extends { id: string; createdAt: number }>(
         allowedPaths: row.allowed_paths,
         deniedSyscalls: row.denied_syscalls,
         netAllowlist: row.net_allowlist,
+        targets: Array.isArray(row.targets) ? row.targets : [],
         ownerId: row.owner_id || "",
         ownerName: row.owner_name || "",
         visibility: row.visibility || (row.fallback ? "workspace" : "private"),

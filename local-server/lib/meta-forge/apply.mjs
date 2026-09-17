@@ -154,16 +154,19 @@ async function applySkillCreate(pool, planId, item, meta) {
   const description = String(item.description || "").slice(0, 500);
   if (!instructions.trim()) throw new Error(`skill ${cleanSlug}: body/instructions required`);
   const { ownerId, ownerName } = await resolveDbOwner(pool, meta.forgedBy);
+  const skillRisk = item.risk || "low";
+  const requiresApproval = Boolean(item.requires_approval || item.requiresApproval);
   const r = await pool.query(
-    `INSERT INTO skills (id, name, description, instructions, type, system, owner_id, owner_name, visibility)
-     VALUES ($1, $2, $3, $4, 'native', false, $5, $6, 'private')
+    `INSERT INTO skills (id, name, description, instructions, type, system, owner_id, owner_name, visibility, risk, requires_approval)
+     VALUES ($1, $2, $3, $4, 'native', false, $5, $6, 'private', $7, $8)
      ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name,
        description=EXCLUDED.description, instructions=EXCLUDED.instructions,
        owner_id=COALESCE(skills.owner_id, EXCLUDED.owner_id),
        owner_name=COALESCE(skills.owner_name, EXCLUDED.owner_name),
-       visibility=COALESCE(skills.visibility, 'private')
+       visibility=COALESCE(skills.visibility, 'private'),
+       risk=EXCLUDED.risk, requires_approval=EXCLUDED.requires_approval
      RETURNING id`,
-    [skillId, name, description, instructions, ownerId, ownerName],
+    [skillId, name, description, instructions, ownerId, ownerName, skillRisk, requiresApproval],
   );
   await pool.query(
     `INSERT INTO forge_artifacts (plan_id, kind, slug, db_row_id)
@@ -596,6 +599,8 @@ async function applyMcpCreate(pool, planId, item, meta) {
       shared_with: [],
       tenant_id: tenantId,
       is_global: false,
+      risk: item.risk || "low",
+      requires_approval: Boolean(item.requires_approval || item.requiresApproval),
     });
   }
 

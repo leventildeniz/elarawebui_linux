@@ -1997,4 +1997,59 @@ ELARA Sovereign Studio genelinde **Zero-Trust Çoklu Kiracı (Multi-Tenancy) ve 
 
    ---
 
+   ### 🛡️ IN EXECUTION — TARGET-BASED ZERO-TRUST ISOLATION, RISK CRITICALITY HIERARCHY & METAFORGE HARMONIZATION
+
+   **Tarih:** 2026-09-17  
+   **Durum:** İcrada / Mimari Plan Mühürlendi
+
+   #### 🎯 1. Mimari Prensipler & Kararlar
+   1. **Isolation ile Approval Queue (Risk) Görev Ayrımı:**
+      - **Isolation (Sandbox):** İşletim sistemi ve ağ seviyesinde fiziksel sınır çizer (`allowed_paths`, `denied_syscalls`, `net_allowlist`). İzinsiz egress anında DROP edilir; burada onay sorulmaz.
+      - **Approval Queue (Risk & Kritiklik):** İzinli işlemlerin canlıya geçmeden önce insan denetimine (Four-Eyes) sunulmasıdır.
+      - **Kritiklik Seviyesi (Risk):** `Isolation` profiline DEĞİL; **Tools, Skills, MCP Servers ve Targets** varlıklarına eklenir. `Capability Pack` ise yalnızca bir paketleme zarfı olduğundan risk taşımamalı, içindeki varlıklardan miras almalıdır.
+   2. **Target-Aware Zero-Trust Egress & SSRF Çatışmasının Çözümü:**
+      - Körlemesine tüm özel IP'leri (`10.0.0.0/8`, `192.168.0.0/16`) bloklayan SSRF kuralı ile kurumsal altyapı yönetimi arasındaki çatışma giderilir.
+      - Rastgele özel IP taramaları ve bulut metadata servisleri (`169.254.169.254`) bloklanmaya devam eder; **ANCAK** sistemde kayıtlı ve izinli bir **`Target`** (örn. `192.168.1.1` Fortigate) ise bu hedef SSRF filtresinden muaf tutularak onaylı egress sayılır.
+      - `isolation_profiles` tablosuna `targets jsonb DEFAULT '[]'` eklenerek sandbox ağ çıkışı elle IP yazmak yerine doğrudan envanterdeki Target'lara bağlanır.
+   3. **Efektif Risk Formülü & Four-Eyes Entegrasyonu:**
+      $$\text{Efektif Risk} = \text{MAX}(\text{Araç/Skill/MCP Riski},\ \text{Hedef Target Riski})$$
+      - Düşük riskli bir araç (`show_interfaces`), kritik bir hedefe (`HQ-Core-Firewall`, `Target Risk: CRITICAL`) uygulandığında, işlem otomatik olarak `CRITICAL` risk bandını miras alır ve `Approval Queue`'ya park eder.
+   4. **MetaForge Otonom Sentez Uyumu:**
+      - MetaForge bir Tool, Skill veya Workflow ürettiğinde:
+        - Eylemin amacına göre risk seviyesini otomatik tahmin edip mühürler (`risk: low | medium | high | critical`).
+        - Yalnızca yazarın masasına/kiracısına ait Target'ları bağlar.
+        - Kod sentezi ilgili kiracının sandbox profili sınırlarına göre denetlenir.
+
+   #### 📋 2. İcra Adımları & Tamamlanan İşlemler
+   - [x] **Adım 1: Veritabanı Şeması (%100 Tamamlandı):**
+     * `skills` tablosuna `risk risk_band NOT NULL DEFAULT 'low'` ve `requires_approval BOOLEAN NOT NULL DEFAULT false` eklendi.
+     * `mcp_client_servers` tablosuna `risk risk_band NOT NULL DEFAULT 'low'` ve `requires_approval BOOLEAN NOT NULL DEFAULT false` eklendi.
+     * `isolation_profiles` tablosuna `targets jsonb NOT NULL DEFAULT '[]'::jsonb` kolonu eklendi.
+   - [x] **Adım 2: İcra Motoru & Dinamik Risk Çözümlemesi (%100 Tamamlandı):**
+     * `local-server/lib/tool-adapters.mjs`: `loadTool` fonksiyonu Skill ve MCP istemcileri için veritabanından dinamik `risk` ve `requires_approval` okuyacak şekilde güncellendi.
+     * `invokeTool`: `Effective Risk = MAX(Action Risk, Target Risk)` hiyerarşisi mühürlendi. Hedef veya eylem High/Critical ise işlem doğrudan `Approval Queue`'ya park eder.
+     * `resolveProfileTargetHosts`: Sandbox profiline bağlı Target ve Target Group'ların IP ve host adreslerini dinamik çözümleyerek ağ egress allowlist'ine ekleyen yardımcı motor yazıldı.
+   - [x] **Adım 3: SSRF Muafiyeti & Hedef İstisnası (%100 Tamamlandı):**
+     * `local-server/lib/auth-utils.mjs`: `isSafePublicHost(host, { pool, tenantId })` fonksiyonu güncellendi. Şirket içi özel IP aralıkları (`10.0.0.0/8`, `192.168.0.0/16`) eğer envanterde kayıtlı bir **`Target`** ise SSRF engeline takılmadan güvenli kabul edildi; rastgele intranet taramaları ve bulut metadata engeli korundu.
+     * `local-server/lib/mcp/client.mjs`: MCP istemci çağrıları bu Target muafiyeti ile korundu.
+   - [x] **Adım 4: MetaForge Otonom Sentez Uyumu (%100 Tamamlandı):**
+     * `local-server/lib/meta-forge/apply.mjs`: `applySkillCreate` ve `applyMcpCreate` fonksiyonları üretilen varlıklara `risk` ve `requires_approval` damgalayacak şekilde güncellendi.
+   - [x] **Adım 5: Ön Yüz Entegrasyonu & Görsel Mühür (%100 Tamamlandı):**
+     * `src/routes/policy.tsx`: Tool, Skill ve MCP Isolation modallarına **"allowed target endpoints & groups"** seçicisi eklendi; profillerin kart görünümünde bağlı Target'lar listelendi.
+     * `src/lib/security-store.ts`: `IsolationProfile` tipine ve normalizasyon motoruna `targets` alanı eklendi.
+
+   #### 📊 3. Sistem Doğrulama Sonuçları
+   - `PUT /api/security/isolation/miso.01` ile `targets: ["tgt-4496"]` kaydedildi $\rightarrow$ Veritabanında ve GET yanıtında başarıyla doğrulandı.
+   - `GET /api/skills` ve `GET /api/mcp/client/servers` rotalarının `risk` ve `requires_approval` alanlarını doğru döndürdüğü teyit edildi.
+   - `UI Standardizasyonu (%100 Adapters Paritesi & MultiPicker Düzeltmesi)`:
+     * `Tools` (`ConfigDialog`), `Skills` (`SkillEditor`) ve `MCP` (`ClientDialog`) modallarının tamamında 2. ekran görüntüsündeki Adapters standardı birebir uygulandı (`ChevronDown` ok ikonlu obsidian `Select` ile `low`, `medium`, `high`, `critical` risk seçici, `requires approval` için `tone="ruby"` Toggle anahtarı, `enabled` Toggle anahtarı; ham tarayıcı checkbox ve select'leri tamamen çöpe atıldı).
+     * `Policy & Security ➔ Isolation` modallarındaki `MultiPicker` bileşeninin içindeki hardcoded `"add tool…"` ve `"no bindings..."` yazıları dinamik hale getirildi. Artık Target eklerken buton üzerinde **`add target or group…`**, boş durumda ise **`no targets selected — egress to local targets blocked`** yazıyor.
+     * `Tools`, `Skills` ve `MCP` kartlarına Kritiklik/Risk (`LOW`, `MEDIUM`, `HIGH`, `CRITICAL RISK`) ve `APPROVAL REQ` rozetleri canlı eklendi.
+     * `Policy & Security ➔ Isolation` ekranında (Tool, Skill ve MCP) Targets seçici kutusu koşulsuz olarak (`network` modundan bağımsız) her zaman görünür kılındı; kart üzerinde `target allowlist` satırı daima açık gösterildi.
+   - `ALL 69 ROUTE FILES PASSED SYNTAX CHECK!` (`node --check` 0 hata).
+   - `npx tsc --noEmit` $\rightarrow$ 0 hata.
+   - Tüm systemd servisleri (`elara-middleware`, `elara-vite`, `elara-worker`) aktif, sağlıklı ve operasyonel.
+
+   ---
+
    **Sistem Durumu:** `node --check` 0 hata, `npx tsc --noEmit` 0 hata; tüm systemd servisleri (`elara-middleware`, `elara-vite`, `elara-worker`) aktif, sağlıklı ve operasyonel.

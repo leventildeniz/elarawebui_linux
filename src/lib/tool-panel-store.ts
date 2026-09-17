@@ -16,6 +16,8 @@ export type ToolConfig = {
   systemPrompt: string;
   adapters: string[];
   targets: string[];
+  risk?: "low" | "medium" | "high" | "critical";
+  requiresApproval?: boolean;
 };
 
 export type ToolPanelState = {
@@ -35,6 +37,8 @@ export const emptyToolConfig: ToolConfig = {
   systemPrompt: "",
   adapters: [],
   targets: [],
+  risk: "low",
+  requiresApproval: false,
 };
 
 const emptyState: ToolPanelState = { orphans: [], dismissed: [], configs: {} };

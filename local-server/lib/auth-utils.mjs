@@ -48,14 +48,47 @@ export function isPrivateOrRestrictedIp(ip) {
 }
 
 /**
- * Validates that a destination hostname does not resolve to private, loopback, or cloud metadata.
+ * Validates that a destination hostname does not resolve to private, loopback, or cloud metadata,
+ * UNLESS explicitly approved as a registered Target in the caller's organization.
  */
-export async function isSafePublicHost(host) {
+export async function isSafePublicHost(host, { pool = null, tenantId = "default" } = {}) {
   if ((process.env.ELARA_NETSEC_ALLOW_PRIVATE || "").trim() === "1") return true;
+  const cleanHost = String(host || "").trim().toLowerCase();
+  if (!cleanHost) return false;
+
+  // Zero-Trust: If this host or IP is an approved Target in this tenant, allow egress.
+  if (pool) {
+    try {
+      const tCheck = await pool.query(
+        `SELECT 1 FROM targets 
+         WHERE (lower(host) = $1 OR ip = $1) 
+           AND (tenant_id = $2 OR is_global = true OR tenant_id = 'default') 
+         LIMIT 1`,
+        [cleanHost, tenantId]
+      );
+      if (tCheck.rows.length > 0) return true;
+    } catch {}
+  }
+
   try {
-    const records = await dns.lookup(host, { all: true });
+    const records = await dns.lookup(cleanHost, { all: true });
     for (const rec of records) {
-      if (isPrivateOrRestrictedIp(rec.address)) return false;
+      if (isPrivateOrRestrictedIp(rec.address)) {
+        // If the resolved IP is an approved Target in inventory, permit access
+        if (pool) {
+          try {
+            const ipCheck = await pool.query(
+              `SELECT 1 FROM targets 
+               WHERE ip = $1 
+                 AND (tenant_id = $2 OR is_global = true OR tenant_id = 'default') 
+               LIMIT 1`,
+              [rec.address, tenantId]
+            );
+            if (ipCheck.rows.length > 0) return true;
+          } catch {}
+        }
+        return false;
+      }
     }
     return true;
   } catch {

@@ -63,10 +63,14 @@ const input =
   "w-full rounded-lg border border-white/[0.07] bg-raised/40 px-3 py-2 text-[13.5px] text-foreground outline-none transition-colors focus:border-sapphire/50";
 const area = cn(input, "font-mono text-[12px] leading-relaxed");
 
-const riskTone: Record<SkillRisk, "emerald" | "sapphire" | "topaz" | "ruby"> = {
+const riskTone: Record<string, "emerald" | "sapphire" | "topaz" | "ruby"> = {
+  low: "emerald",
   read: "emerald",
+  medium: "sapphire",
   write: "sapphire",
+  high: "topaz",
   exec: "topaz",
+  critical: "ruby",
   destructive: "ruby",
 };
 
@@ -88,7 +92,17 @@ function Field({
   );
 }
 
-function Toggle({ on, onToggle, label }: { on: boolean; onToggle: () => void; label?: string }) {
+function Toggle({
+  on,
+  onToggle,
+  label,
+  tone = "emerald",
+}: {
+  on: boolean;
+  onToggle: () => void;
+  label?: string;
+  tone?: string;
+}) {
   return (
     <button
       type="button"
@@ -99,26 +113,70 @@ function Toggle({ on, onToggle, label }: { on: boolean; onToggle: () => void; la
       title={label ?? "toggle"}
     >
       <span
-        className={cn(
-          "relative h-5 w-9 rounded-full border transition-colors duration-150",
-          on ? "border-emerald/50 bg-emerald/25" : "border-white/10 bg-white/[0.05]",
-        )}
+        className="relative h-5 w-9 shrink-0 rounded-full border transition-colors duration-150"
+        style={{
+          borderColor: on
+            ? `color-mix(in oklab, var(--${tone}) 55%, transparent)`
+            : "rgba(255,255,255,0.1)",
+          background: on
+            ? `color-mix(in oklab, var(--${tone}) 22%, transparent)`
+            : "rgba(255,255,255,0.06)",
+        }}
       >
-        <motion.span
-          layout
-          transition={{ duration: 0.16, ease: "easeInOut" }}
+        <span
           className={cn(
-            "absolute top-[2px] h-[15px] w-[15px] rounded-full",
-            on ? "left-[18px] bg-emerald" : "left-[2px] bg-white/45",
+            "absolute top-[2px] h-[15px] w-[15px] rounded-full transition-all duration-150 ease-in-out",
+            on ? "left-[18px]" : "left-[2px] bg-white/45",
           )}
+          style={
+            on
+              ? { background: `var(--${tone})`, boxShadow: `0 0 12px -2px var(--${tone})` }
+              : undefined
+          }
         />
       </span>
-      <span
-        className={cn("font-mono text-[11px]", on ? "text-emerald" : "text-muted-foreground/60")}
-      >
-        {on ? "ON" : "OFF"}
-      </span>
+      {label && (
+        <span className="font-mono text-[12px] text-muted-foreground/80">{label}</span>
+      )}
     </button>
+  );
+}
+
+function Select({
+  label: lbl,
+  value,
+  options,
+  onChange,
+  disabled = false,
+}: {
+  label: string;
+  value: string;
+  options: string[];
+  onChange: (val: string) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div>
+      <div className="mono-label mb-1.5">{lbl}</div>
+      <div className="relative">
+        <select
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className={cn(input, "appearance-none pr-8 bg-canvas font-mono")}
+          disabled={disabled}
+        >
+          {options.map((o) => (
+            <option key={o} value={o} className="bg-panel">
+              {o}
+            </option>
+          ))}
+        </select>
+        <ChevronDown
+          size={13}
+          className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/60"
+        />
+      </div>
+    </div>
   );
 }
 
@@ -286,6 +344,10 @@ function SkillCard({
       </p>
 
       <div className="mt-3 flex flex-wrap gap-1.5">
+        <Tag tone={riskTone[skill.risk || "low"] || "emerald"}>
+          {(skill.risk || "low").toUpperCase()} RISK
+        </Tag>
+        {skill.requiresApproval && <Tag tone="ruby">APPROVAL REQ</Tag>}
         <Tag tone="emerald">{skill.stats.calls} runs</Tag>
         <Tag tone={sandbox ? "emerald" : "ruby"}>
           {sandbox ? `sandbox · ${sandbox.name}` : "no sandbox"}
@@ -598,9 +660,33 @@ function SkillEditor({
                 </div>
               )}
 
-              <div className="mt-4 flex items-center gap-3">
-                <Toggle on={draft.enabled} onToggle={() => onChange({ enabled: !draft.enabled })} />
-                <span className="mono-label">Skill enabled</span>
+              <div className="flex flex-wrap items-end gap-6 border-t border-white/[0.06] pt-4">
+                <div className="w-[180px]">
+                  <Select
+                    label="risk"
+                    value={draft.risk || "low"}
+                    options={["low", "medium", "high", "critical"]}
+                    onChange={(risk) => onChange({ risk: risk as any })}
+                    disabled={!writable}
+                  />
+                </div>
+                <div className="flex items-center gap-2.5 pb-2">
+                  <Toggle
+                    tone="ruby"
+                    on={Boolean(draft.requiresApproval)}
+                    onToggle={() => writable && onChange({ requiresApproval: !draft.requiresApproval })}
+                  />
+                  <span className="font-mono text-[12.5px] text-muted-foreground/80">
+                    requires approval
+                  </span>
+                </div>
+                <div className="flex items-center gap-2.5 pb-2">
+                  <Toggle
+                    on={Boolean(draft.enabled)}
+                    onToggle={() => writable && onChange({ enabled: !draft.enabled })}
+                  />
+                  <span className="font-mono text-[12.5px] text-muted-foreground/80">enabled</span>
+                </div>
               </div>
             </>
           )}

@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
 import {
+  ChevronDown,
   ExternalLink,
   Plus,
   RotateCcw,
@@ -50,6 +51,13 @@ const kindTone: Record<string, JewelName> = {
   output: "topaz",
 };
 
+const toolRiskTone: Record<string, "emerald" | "sapphire" | "topaz" | "ruby"> = {
+  low: "emerald",
+  medium: "sapphire",
+  high: "topaz",
+  critical: "ruby",
+};
+
 function MiniButton({
   children,
   onClick,
@@ -93,6 +101,8 @@ function ToolCard({
   const Icon = getIcon(item.icon);
   const tone = jewelPalette[item.jewel];
   const ownerCtx = useOwnerCtx();
+  const itemRisk = String((item as any).risk || (item as any).risk_level || "low").toLowerCase();
+  const requiresApproval = Boolean((item as any).requires_approval || (item as any).requiresApproval);
   
   return (
     <motion.div
@@ -156,6 +166,8 @@ function ToolCard({
       <div className="mt-3 flex flex-wrap gap-1.5">
         {item.system && <Tag>SYS</Tag>}
         <Tag tone={kindTone[item.kind] ?? "sapphire"}>{item.kind}</Tag>
+        <Tag tone={toolRiskTone[itemRisk] || "emerald"}>{itemRisk.toUpperCase()} RISK</Tag>
+        {requiresApproval && <Tag tone="ruby">APPROVAL REQ</Tag>}
         <Tag tone="amethyst">{item.handler}</Tag>
         {item.scriptPath && <Tag tone="sapphire">{item.scriptPath}</Tag>}
         <Tag tone="topaz">
@@ -300,6 +312,83 @@ function Picker({
   );
 }
 
+function Toggle({
+  on,
+  onClick,
+  tone = "emerald",
+}: {
+  on: boolean;
+  onClick: () => void;
+  tone?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={on}
+      className="relative h-5 w-9 shrink-0 rounded-full border transition-colors duration-150"
+      style={{
+        borderColor: on
+          ? `color-mix(in oklab, var(--${tone}) 55%, transparent)`
+          : "rgba(255,255,255,0.1)",
+        background: on
+          ? `color-mix(in oklab, var(--${tone}) 22%, transparent)`
+          : "rgba(255,255,255,0.06)",
+      }}
+    >
+      <span
+        className={cn(
+          "absolute top-[2px] h-[15px] w-[15px] rounded-full transition-all duration-150 ease-in-out",
+          on ? "left-[18px]" : "left-[2px] bg-white/45",
+        )}
+        style={
+          on
+            ? { background: `var(--${tone})`, boxShadow: `0 0 12px -2px var(--${tone})` }
+            : undefined
+        }
+      />
+    </button>
+  );
+}
+
+function Select({
+  label: lbl,
+  value,
+  options,
+  onChange,
+  disabled = false,
+}: {
+  label: string;
+  value: string;
+  options: string[];
+  onChange: (val: string) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div>
+      <div className="mono-label mb-1.5">{lbl}</div>
+      <div className="relative">
+        <select
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className={cn(field, mono, "appearance-none pr-8 bg-canvas")}
+          disabled={disabled}
+        >
+          {options.map((o) => (
+            <option key={o} value={o} className="bg-panel">
+              {o}
+            </option>
+          ))}
+        </select>
+        <ChevronDown
+          size={13}
+          className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/60"
+        />
+      </div>
+    </div>
+  );
+}
+
 function ConfigDialog({
   tool,
   config,
@@ -417,6 +506,35 @@ function ConfigDialog({
             onChange={(targets) => set({ targets })}
             hint="No targets bound."
           />
+
+          <div className="flex flex-wrap items-end gap-6 border-t border-white/[0.06] pt-4">
+            <div className="w-[180px]">
+              <Select
+                label="risk"
+                value={draft.risk || (tool as any).risk || (tool as any).risk_level || "low"}
+                options={["low", "medium", "high", "critical"]}
+                onChange={(risk) => set({ risk: risk as any })}
+                disabled={!writable}
+              />
+            </div>
+            <div className="flex items-center gap-2.5 pb-2">
+              <Toggle
+                tone="ruby"
+                on={Boolean(draft.requiresApproval ?? (tool as any).requires_approval ?? (tool as any).requiresApproval)}
+                onClick={() => writable && set({ requiresApproval: !(draft.requiresApproval ?? (tool as any).requires_approval ?? (tool as any).requiresApproval) })}
+              />
+              <span className="font-mono text-[12.5px] text-muted-foreground/80">
+                requires approval
+              </span>
+            </div>
+            <div className="flex items-center gap-2.5 pb-2">
+              <Toggle
+                on={Boolean(draft.enabled)}
+                onClick={() => writable && set({ enabled: !draft.enabled })}
+              />
+              <span className="font-mono text-[12.5px] text-muted-foreground/80">enabled</span>
+            </div>
+          </div>
         </div>
 
         <div className="mt-6 flex items-center justify-end gap-2">

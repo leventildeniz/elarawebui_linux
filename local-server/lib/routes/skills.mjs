@@ -143,7 +143,7 @@ export function mountSkillRoutes(app, deps) {
       const { rows } = await pool.query(
         `SELECT id, name, description, instructions, squad, icon, type, params,
                 script_path, runtime_id, workflow_id, mcp_client_id, enabled, system, jewel,
-                owner_id, owner_name, visibility, shared_with, created_at
+                owner_id, owner_name, visibility, shared_with, created_at, risk, requires_approval
          FROM skills
          WHERE ${vis.clause}
          ORDER BY system DESC, name`,
@@ -229,13 +229,15 @@ export function mountSkillRoutes(app, deps) {
 
       const tenantId = b.tenant_id || b.tenantId || (ctx.isSuperAdmin ? (b.tenant_id || "default") : ctx.tenantId);
       const isGlobal = ctx.isSuperAdmin ? (b.is_global || false) : false;
+      const risk = b.risk || "low";
+      const requiresApproval = Boolean(b.requires_approval ?? b.requiresApproval ?? false);
 
       await pool.query(
         `INSERT INTO skills(
            id, name, description, instructions, squad, icon, type, params,
            script_path, runtime_id, workflow_id, mcp_client_id, enabled, system, jewel, owner_id, owner_name,
-           visibility, shared_with, tenant_id, is_global
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+           visibility, shared_with, tenant_id, is_global, risk, requires_approval
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
          ON CONFLICT (id) DO UPDATE SET
            name=EXCLUDED.name, description=EXCLUDED.description, instructions=EXCLUDED.instructions,
            squad=EXCLUDED.squad, icon=EXCLUDED.icon, type=EXCLUDED.type, params=EXCLUDED.params,
@@ -245,7 +247,8 @@ export function mountSkillRoutes(app, deps) {
            owner_id=COALESCE(skills.owner_id, EXCLUDED.owner_id),
            owner_name=COALESCE(skills.owner_name, EXCLUDED.owner_name),
            visibility=EXCLUDED.visibility, shared_with=EXCLUDED.shared_with,
-           tenant_id=COALESCE(skills.tenant_id, EXCLUDED.tenant_id)`,
+           tenant_id=COALESCE(skills.tenant_id, EXCLUDED.tenant_id),
+           risk=EXCLUDED.risk, requires_approval=EXCLUDED.requires_approval`,
         [
           id,
           name,
@@ -267,7 +270,9 @@ export function mountSkillRoutes(app, deps) {
           b.visibility || "workspace",
           JSON.stringify(b.sharedWith || []),
           tenantId,
-          isGlobal
+          isGlobal,
+          risk,
+          requiresApproval
         ]
       );
       

@@ -45,6 +45,53 @@ export class ToolPolicyError extends Error {
   }
 }
 
+export async function resolveProfileTargetHosts(pool, profile, tenantId = "default") {
+  if (!pool || !profile) return [];
+  const rawTargets = Array.isArray(profile.targets) ? profile.targets : [];
+  if (!rawTargets.length) return [];
+
+  const targetIds = [];
+  const groupIds = [];
+  for (const t of rawTargets) {
+    const s = String(t || "").trim();
+    if (s.startsWith("grp:") || s.startsWith("group:")) {
+      groupIds.push(s.replace(/^(grp:|group:)/, ""));
+    } else {
+      targetIds.push(s);
+    }
+  }
+
+  const hosts = new Set();
+  if (targetIds.length > 0) {
+    const tRes = await pool.query(
+      `SELECT ip, host FROM targets 
+       WHERE (id = ANY($1) OR name = ANY($1)) 
+         AND (tenant_id = $2 OR is_global = true OR tenant_id = 'default')`,
+      [targetIds, tenantId]
+    ).catch(() => ({ rows: [] }));
+    for (const r of tRes.rows) {
+      if (r.ip && r.ip !== "-") hosts.add(r.ip.trim().toLowerCase());
+      if (r.host && r.host !== "-") hosts.add(r.host.trim().toLowerCase());
+    }
+  }
+
+  if (groupIds.length > 0) {
+    const gRes = await pool.query(
+      `SELECT t.ip, t.host FROM targets t
+       JOIN target_groups g ON g.id = t.group_id OR g.name = t.group_id
+       WHERE (g.id = ANY($1) OR g.name = ANY($1)) 
+         AND (t.tenant_id = $2 OR t.is_global = true OR t.tenant_id = 'default')`,
+      [groupIds, tenantId]
+    ).catch(() => ({ rows: [] }));
+    for (const r of gRes.rows) {
+      if (r.ip && r.ip !== "-") hosts.add(r.ip.trim().toLowerCase());
+      if (r.host && r.host !== "-") hosts.add(r.host.trim().toLowerCase());
+    }
+  }
+
+  return Array.from(hosts);
+}
+
 /**
  * Resolves the effective Isolation Sandbox Profile from the Policy & Security plane,
  * strictly honoring Multi-Tenant & Zero-Desk ownership boundaries.
@@ -97,7 +144,7 @@ async function loadTool(toolId) {
     const toolName = parts.slice(1).join(".");
     
     const { rows } = await _pool.query(
-      `SELECT id FROM mcp_client_servers WHERE slug=$1 AND enabled=true`,
+      `SELECT id, risk, requires_approval FROM mcp_client_servers WHERE slug=$1 AND enabled=true`,
       [serverSlug]
     );
     if (!rows.length) return null;
@@ -106,8 +153,8 @@ async function loadTool(toolId) {
       id: toolId,
       name: toolName,
       adapter: "mcp",
-      risk_level: "low",
-      requires_approval: false,
+      risk_level: rows[0].risk || "low",
+      requires_approval: Boolean(rows[0].requires_approval),
       runtime: { server: serverSlug, name: toolName },
       system_prompt: ""
     };
@@ -116,7 +163,7 @@ async function loadTool(toolId) {
   // 2. Skills (with or without 'sk.' / 'skill.' prefix)
   const bareSkillId = toolId.replace(/^(sk\.|skill\.)/i, '');
   const { rows: skillRows } = await _pool.query(
-    `SELECT id, name, type, script_path, instructions, workflow_id, mcp_client_id 
+    `SELECT id, name, type, script_path, instructions, workflow_id, mcp_client_id, risk, requires_approval 
        FROM skills 
       WHERE enabled=true AND (id=$1 OR id=$2 OR id=$3 OR id=$4)`,
     [toolId, `sk.${bareSkillId}`, `skill.${bareSkillId}`, bareSkillId]
@@ -144,8 +191,8 @@ async function loadTool(toolId) {
       id: row.id,
       name: row.name,
       adapter,
-      risk_level: "low",
-      requires_approval: false,
+      risk_level: row.risk || "low",
+      requires_approval: Boolean(row.requires_approval),
       runtime,
       system_prompt: row.instructions || ""
     };
@@ -295,11 +342,14 @@ const RUNNERS = {
       }
       if (profile.network === "allowlist") {
         const allowedEntries = String(profile.net_allowlist || "").split(/\r?\n|,/).map(s => s.trim().toLowerCase()).filter(Boolean);
+        const targetHosts = await resolveProfileTargetHosts(_pool, profile, tool.tenant_id || "default");
+        const allAllowed = new Set([...allowedEntries, ...targetHosts]);
+
         const parsedUrl = new URL(url);
         const host = parsedUrl.hostname.toLowerCase();
-        const isAllowed = allowedEntries.some(entry => host === entry || host.endsWith("." + entry) || entry === url);
+        const isAllowed = allAllowed.has(host) || Array.from(allAllowed).some(entry => host.endsWith("." + entry) || entry === url);
         if (!isAllowed) {
-          throw new ToolPolicyError("network_denied", `HTTP destination ${host} is not in isolation profile "${profile.name}" network allowlist.`);
+          throw new ToolPolicyError("network_denied", `HTTP destination ${host} is not in isolation profile "${profile.name}" network allowlist or bound targets.`);
         }
       }
     }
@@ -384,13 +434,17 @@ const RUNNERS = {
     if (!path.isAbsolute(script)) {
       script = path.resolve(PROJECT_ROOT, script);
     }
+    const targetHosts = profile ? await resolveProfileTargetHosts(_pool, profile, tool.tenant_id || "default") : [];
+    const combinedAllowlist = profile
+      ? [...String(profile.net_allowlist || "").split(/\r?\n|,/).map(s => s.trim()).filter(Boolean), ...targetHosts].join("\n")
+      : "";
     const timeoutMs = Number(tool.runtime?.timeout_ms || 60_000);
     const toolSysPrompt = String(tool.system_prompt || "").trim();
     const env = {
       ...(toolSysPrompt ? { ELARA_TOOL_SYSTEM_PROMPT: toolSysPrompt } : {}),
       ...(profile ? {
         ELARA_SANDBOX_NETWORK: profile.network || "denied",
-        ELARA_SANDBOX_NET_ALLOWLIST: profile.net_allowlist || "",
+        ELARA_SANDBOX_NET_ALLOWLIST: combinedAllowlist,
         ELARA_SANDBOX_PROFILE_ID: profile.id || "",
         ELARA_SANDBOX_PROFILE_NAME: profile.name || "",
       } : {})
@@ -515,33 +569,42 @@ export async function invokeTool({
     throw new ToolPolicyError("acl", `agent ${agentId} not allowed for tool ${toolId}`);
   }
 
-  // Target-level approval gate. A target marked requires_approval=true
-  // (or whose risk_level is high/critical) forces the same approval flow as tools.
+  // Target-level approval gate & Risk Priority Hierarchy:
+  // Effective Risk = MAX(Action Risk, Target Risk)
+  const RISK_RANKS = { low: 1, medium: 2, high: 3, critical: 4 };
+  const toolRisk = (tool.risk_level || "low").toLowerCase();
+  const toolRank = RISK_RANKS[toolRisk] || 1;
+
   let targetRequiresApproval = false;
   let targetRiskLevel = null;
+  let targetRank = 0;
+
   if (targetId) {
     try {
       const tr = await _pool.query(
         `SELECT requires_approval, risk_level FROM targets WHERE id=$1`, [targetId]);
       if (tr.rows[0]) {
-        targetRiskLevel = tr.rows[0].risk_level || null;
+        targetRiskLevel = (tr.rows[0].risk_level || "low").toLowerCase();
+        targetRank = RISK_RANKS[targetRiskLevel] || 1;
         targetRequiresApproval = !!tr.rows[0].requires_approval
           || targetRiskLevel === "high" || targetRiskLevel === "critical";
       }
     } catch { /* table may not exist in old envs */ }
   }
 
+  const effectiveRank = Math.max(toolRank, targetRank);
+  const effectiveRisk = Object.keys(RISK_RANKS).find(k => RISK_RANKS[k] === effectiveRank) || "low";
+
   const invocationId = randomUUID();
-  const riskLevel = tool.risk_level || "low";
   const needsApproval = tool.requires_approval
-    || riskLevel === "high" || riskLevel === "critical"
+    || effectiveRank >= 3 // High or Critical
     || targetRequiresApproval;
 
   await recordInvocation({
     id: invocationId, toolId, adapter, agentId, username, sessionId, runId,
     status: needsApproval ? "pending" : "running",
     params: targetId ? { ...params, __target_id: targetId } : params,
-    riskLevel,
+    riskLevel: effectiveRisk,
   });
 
   if (needsApproval) {
@@ -552,8 +615,8 @@ export async function invokeTool({
     );
     await updateInvocation(invocationId, { approval_id: approvalId });
     const reason = targetRequiresApproval
-      ? `target ${targetId} requires approval (risk=${targetRiskLevel || "n/a"})`
-      : `tool ${toolId} requires approval (risk=${riskLevel})`;
+      ? `target ${targetId} requires approval (effective risk=${effectiveRisk})`
+      : `action ${toolId} requires approval (effective risk=${effectiveRisk})`;
     throw new ApprovalRequired(invocationId, reason);
   }
 

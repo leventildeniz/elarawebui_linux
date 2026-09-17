@@ -255,20 +255,21 @@ export function mountSecurityPoliciesRoutes(app, deps) {
   app.post("/api/security/isolation", adminOnly, async (req, res) => {
     try {
       const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : null;
-      const { id, name, enabled, allowedPaths, deniedSyscalls, network, netAllowlist, tools, fallback, kind } = req.body;
+      const { id, name, enabled, allowedPaths, deniedSyscalls, network, netAllowlist, tools, fallback, kind, targets } = req.body;
       const tenantId = req.body?.tenant_id || ctx?.tenantId || req.session?.tenant_id || "default";
       const isGlobal = ctx?.isSuperAdmin ? (req.body?.is_global || false) : false;
       const ownerId = req.body?.owner_id || req.body?.ownerId || ctx?.userId || ctx?.actor || null;
       const visibility = req.body?.visibility || "private";
       const sharedWith = Array.isArray(req.body?.sharedWith || req.body?.shared_with) ? JSON.stringify(req.body?.sharedWith || req.body?.shared_with) : "[]";
+      const targetList = Array.isArray(targets) ? JSON.stringify(targets) : "[]";
 
       const out = await pool.query(
-        `INSERT INTO isolation_profiles (id, name, enabled, allowed_paths, denied_syscalls, network, net_allowlist, tools, fallback, kind, tenant_id, is_global, owner_id, visibility, shared_with)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15::jsonb) RETURNING *`,
+        `INSERT INTO isolation_profiles (id, name, enabled, allowed_paths, denied_syscalls, network, net_allowlist, tools, fallback, kind, tenant_id, is_global, owner_id, visibility, shared_with, targets)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15::jsonb, $16::jsonb) RETURNING *`,
         [
           id, name, !!enabled, allowedPaths || '', deniedSyscalls || '', network || 'denied', 
           netAllowlist || '', JSON.stringify(tools || []), !!fallback, kind || 'tool',
-          tenantId, isGlobal, ownerId, visibility, sharedWith
+          tenantId, isGlobal, ownerId, visibility, sharedWith, targetList
         ]
       );
       res.json({ ok: true, item: out.rows[0] });
@@ -280,19 +281,20 @@ export function mountSecurityPoliciesRoutes(app, deps) {
   app.put("/api/security/isolation/:id", adminOnly, async (req, res) => {
     try {
       const ctx = typeof resolveActorContext === "function" ? await resolveActorContext(req) : null;
-      const { name, enabled, allowedPaths, deniedSyscalls, network, netAllowlist, tools, fallback, kind, visibility, sharedWith } = req.body;
+      const { name, enabled, allowedPaths, deniedSyscalls, network, netAllowlist, tools, fallback, kind, visibility, sharedWith, targets } = req.body;
       const check = await pool.query("SELECT * FROM isolation_profiles WHERE id=$1", [req.params.id]);
       if (check.rowCount === 0) {
         const tenantId = ctx?.tenantId || req.session?.tenant_id || "default";
         const isGlobal = ctx?.isSuperAdmin ? (req.body?.is_global || false) : false;
         const ownerId = ctx?.userId || ctx?.actor || null;
+        const targetList = Array.isArray(targets) ? JSON.stringify(targets) : "[]";
         const ins = await pool.query(
-          `INSERT INTO isolation_profiles (id, name, enabled, allowed_paths, denied_syscalls, network, net_allowlist, tools, fallback, kind, tenant_id, is_global, owner_id, visibility, shared_with)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15::jsonb) RETURNING *`,
+          `INSERT INTO isolation_profiles (id, name, enabled, allowed_paths, denied_syscalls, network, net_allowlist, tools, fallback, kind, tenant_id, is_global, owner_id, visibility, shared_with, targets)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15::jsonb, $16::jsonb) RETURNING *`,
           [
             req.params.id, name, enabled !== undefined ? Boolean(enabled) : true, allowedPaths || '', deniedSyscalls || '', network || 'denied',
             netAllowlist || '', JSON.stringify(tools || []), fallback !== undefined ? Boolean(fallback) : false, kind || 'tool',
-            tenantId, isGlobal, ownerId, visibility || 'private', JSON.stringify(sharedWith || [])
+            tenantId, isGlobal, ownerId, visibility || 'private', JSON.stringify(sharedWith || []), targetList
           ]
         );
         return res.json({ ok: true, item: ins.rows[0] });
@@ -322,7 +324,8 @@ export function mountSecurityPoliciesRoutes(app, deps) {
            fallback = COALESCE($9::boolean, fallback), 
            kind = COALESCE($10, kind),
            visibility = COALESCE($11, visibility),
-           shared_with = COALESCE($12::jsonb, shared_with)
+           shared_with = COALESCE($12::jsonb, shared_with),
+           targets = COALESCE($13::jsonb, targets)
          WHERE id=$1 RETURNING *`,
         [
           req.params.id, 
@@ -336,7 +339,8 @@ export function mountSecurityPoliciesRoutes(app, deps) {
           fallback !== undefined ? Boolean(fallback) : null, 
           kind,
           visibility || null,
-          sharedWith ? JSON.stringify(sharedWith) : null
+          sharedWith ? JSON.stringify(sharedWith) : null,
+          targets ? JSON.stringify(targets) : null
         ]
       );
       res.json({ ok: true, item: out.rows[0] });

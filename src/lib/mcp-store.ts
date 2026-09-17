@@ -65,6 +65,8 @@ export type McpClientServer = {
   status: "ready" | "idle" | "error";
   tools: number;
   createdAt: number;
+  risk?: "low" | "medium" | "high" | "critical";
+  requiresApproval?: boolean;
 } & Owned;
 
 export type McpAuditEntry = {
@@ -146,6 +148,8 @@ export function useMcp() {
         status: s.last_status === "up" || s.last_status === "ready" || s.last_status === "connected" ? "ready" : (s.last_status === "error" || s.last_status === "down" ? "error" : "idle"),
         tools: Array.isArray(s.tools_cache) ? s.tools_cache.length : 0,
         createdAt: new Date(s.created_at).getTime(),
+        risk: s.risk || "low",
+        requiresApproval: Boolean(s.requires_approval || s.requiresApproval),
         ownerId: s.owner_id || s.ownerId || s.created_by || "", // Owned
         ownerName: s.owner_name || s.ownerName || s.created_by || "",
         visibility: s.visibility || "workspace",
@@ -322,7 +326,9 @@ export function useMcp() {
         visibility: draft.visibility || "workspace",
         shared_with: draft.sharedWith || [],
         ownerId: draft.ownerId,
-        ownerName: draft.ownerName
+        ownerName: draft.ownerName,
+        risk: draft.risk || "low",
+        requires_approval: Boolean(draft.requiresApproval),
       };
 
       if (exists) {

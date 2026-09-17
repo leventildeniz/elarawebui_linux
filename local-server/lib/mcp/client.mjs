@@ -20,6 +20,8 @@ function slugify(name) {
 
 import { isSafePublicHost } from "../auth-utils.mjs";
 
+let _dbPool = null;
+
 function jsonRpc(method, params, id = null) {
   return { jsonrpc: "2.0", id: id ?? Math.floor(Math.random() * 1e9), method, params };
 }
@@ -43,7 +45,7 @@ async function mcpFetch(server, rpcReq) {
   const timer = setTimeout(() => ctl.abort(), REQ_TIMEOUT_MS);
   try {
     const parsedUrl = new URL(server.url);
-    if (!(await isSafePublicHost(parsedUrl.hostname))) {
+    if (!(await isSafePublicHost(parsedUrl.hostname, { pool: _dbPool, tenantId: server.tenant_id || "default" }))) {
       return {
         ok: false,
         status: 403,
@@ -232,20 +234,24 @@ export async function callRemoteTool(server, toolName, args) {
 // -------- DB helpers ---------------------------------------------------------
 
 export async function listServers(pool) {
+  _dbPool = pool;
   const { rows } = await pool.query(
     `SELECT id, name, slug, url, transport, auth_type, auth_config, enabled, auto_inject,
-            tools_cache, last_probe_at, last_status, last_error, created_at, updated_at
+            tools_cache, last_probe_at, last_status, last_error, created_at, updated_at,
+            risk, requires_approval
        FROM mcp_client_servers ORDER BY created_at ASC`,
   );
   return rows;
 }
 
 export async function getServer(pool, id) {
+  _dbPool = pool;
   const { rows } = await pool.query(`SELECT * FROM mcp_client_servers WHERE id=$1`, [id]);
   return rows[0] || null;
 }
 
 export async function getServerBySlug(pool, slug) {
+  _dbPool = pool;
   const { rows } = await pool.query(`SELECT * FROM mcp_client_servers WHERE slug=$1`, [slug]);
   return rows[0] || null;
 }
@@ -261,7 +267,8 @@ async function uniqueSlug(pool, base) {
   }
 }
 
-export async function createServer(pool, { name, url, transport = "http", auth_type = "none", auth_config = {}, auto_inject = false, owner_id = null, owner_name = null, visibility = 'private', shared_with = [], tenant_id = 'default', is_global = false }) {
+export async function createServer(pool, { name, url, transport = "http", auth_type = "none", auth_config = {}, auto_inject = false, owner_id = null, owner_name = null, visibility = 'private', shared_with = [], tenant_id = 'default', is_global = false, risk = 'low', requires_approval = false }) {
+  _dbPool = pool;
   if (!name) throw new Error("name required");
   if (transport !== "stdio" && (!url || !/^https?:\/\//i.test(url))) throw new Error("valid http(s) url required");
   if (transport === "stdio" && !url) throw new Error("command required for stdio transport");
@@ -269,14 +276,15 @@ export async function createServer(pool, { name, url, transport = "http", auth_t
   if (!["none", "bearer", "oauth"].includes(auth_type)) throw new Error(`invalid auth_type: ${auth_type}`);
   const slug = await uniqueSlug(pool, slugify(name));
   const { rows } = await pool.query(
-    `INSERT INTO mcp_client_servers (name, slug, url, transport, auth_type, auth_config, auto_inject, owner_id, owner_name, visibility, shared_with, tenant_id, is_global)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13) RETURNING *`,
-    [name, slug, url, transport, auth_type, auth_config, !!auto_inject, owner_id, owner_name, visibility, JSON.stringify(shared_with), tenant_id, is_global],
+    `INSERT INTO mcp_client_servers (name, slug, url, transport, auth_type, auth_config, auto_inject, owner_id, owner_name, visibility, shared_with, tenant_id, is_global, risk, requires_approval)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,$14,$15) RETURNING *`,
+    [name, slug, url, transport, auth_type, auth_config, !!auto_inject, owner_id, owner_name, visibility, JSON.stringify(shared_with), tenant_id, is_global, risk || 'low', Boolean(requires_approval)],
   );
   return rows[0];
 }
 
 export async function updateServer(pool, id, patch = {}) {
+  _dbPool = pool;
   const cur = await getServer(pool, id);
   if (!cur) throw new Error("server not found");
   const merged = {
@@ -289,14 +297,16 @@ export async function updateServer(pool, id, patch = {}) {
     auto_inject: patch.auto_inject ?? cur.auto_inject,
     visibility: patch.visibility ?? cur.visibility ?? 'private',
     shared_with: patch.sharedWith ?? patch.shared_with ?? cur.shared_with ?? [],
+    risk: patch.risk ?? cur.risk ?? 'low',
+    requires_approval: patch.requires_approval ?? patch.requiresApproval ?? cur.requires_approval ?? false,
   };
   if (!["http", "sse", "stdio"].includes(merged.transport)) throw new Error(`invalid transport`);
   if (!["none", "bearer", "oauth"].includes(merged.auth_type)) throw new Error(`invalid auth_type`);
   const { rows } = await pool.query(
     `UPDATE mcp_client_servers SET name=$1, url=$2, transport=$3, auth_type=$4, auth_config=$5,
-       enabled=$6, auto_inject=$7, visibility=$8, shared_with=$9::jsonb, updated_at=now() WHERE id=$10 RETURNING *`,
+       enabled=$6, auto_inject=$7, visibility=$8, shared_with=$9::jsonb, risk=$10, requires_approval=$11, updated_at=now() WHERE id=$12 RETURNING *`,
     [merged.name, merged.url, merged.transport, merged.auth_type, merged.auth_config,
-     merged.enabled, merged.auto_inject, merged.visibility, JSON.stringify(merged.shared_with), id],
+     merged.enabled, merged.auto_inject, merged.visibility, JSON.stringify(merged.shared_with), merged.risk, Boolean(merged.requires_approval), id],
   );
   return rows[0];
 }

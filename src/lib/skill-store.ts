@@ -41,6 +41,8 @@ export type StudioSkill = Owned & {
   system: boolean;
   jewel: JewelName;
   stats: { calls: number; success: number; latencyMs: number };
+  risk?: "low" | "medium" | "high" | "critical";
+  requiresApproval?: boolean;
 };
 
 export const riskLevels: SkillRisk[] = ["read", "write", "exec", "destructive"];
@@ -309,6 +311,8 @@ export function useSkills() {
           enabled: !!s.enabled,
           system: !!s.system,
           jewel: s.jewel || "sapphire",
+          risk: s.risk || "low",
+          requiresApproval: Boolean(s.requires_approval || s.requiresApproval),
           ownerId: s.owner_id || undefined,
           visibility: s.visibility || "workspace",
           createdAt: new Date(s.updated_at || s.created_at || Date.now()).getTime(),
@@ -391,6 +395,8 @@ export function useSkills() {
           runtime_id: newSkill.runtimeId,
           workflow_id: newSkill.workflowId,
           mcp_client_id: newSkill.mcpClientId,
+          risk: newSkill.risk || "low",
+          requires_approval: Boolean(newSkill.requiresApproval),
         })
       });
       setSkills((prev) => [...prev, newSkill]);
@@ -409,6 +415,7 @@ export function useSkills() {
       if ('runtimeId' in patched) (patched as any).runtime_id = patched.runtimeId;
       if ('workflowId' in patched) (patched as any).workflow_id = patched.workflowId;
       if ('mcpClientId' in patched) (patched as any).mcp_client_id = patched.mcpClientId;
+      if ('requiresApproval' in patched) (patched as any).requires_approval = Boolean((patched as any).requiresApproval);
 
       await fetchApi(`/api/skills`, {
         method: "POST",

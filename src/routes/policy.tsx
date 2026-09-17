@@ -40,6 +40,7 @@ import {
   type SignedWorkflow,
 } from "@/lib/security-store";
 import { useAccess, type TabScope } from "@/lib/rbac-store";
+import { useTargets } from "@/lib/target-store";
 import {
   actionLabel,
   actionTone,
@@ -123,10 +124,10 @@ type FieldSpec = {
   /** optional pretty labels for select options, keyed by option value */
   optionLabels?: Record<string, string>;
   placeholder?: string;
+  emptyLabel?: string;
   mono?: boolean;
   full?: boolean;
   hint?: string;
-  /** render this field only when the current draft matches */
   when?: (values: Record<string, unknown>) => boolean;
 };
 
@@ -554,19 +555,31 @@ const buildGuardFields = (secrets: Array<{ id: string; name: string; kind?: stri
 const buildIsolationFields = (
   subjects: { id: string; name: string }[],
   subjectLabel = "tools",
+  targetOptions: { id: string; label: string }[] = [],
 ): FieldSpec[] => [
   { key: "name", label: "profile name", type: "text", placeholder: "Default tool sandbox", full: true },
   { key: "network", label: "network", type: "select", options: ["denied", "allowlist", "granted"] },
   { key: "enabled", label: "active", type: "toggle" },
   {
+    key: "targets",
+    label: "allowed target endpoints & groups (SSRF bypass allowlist)",
+    type: "multi",
+    options: targetOptions.map((t) => t.id),
+    optionLabels: Object.fromEntries(targetOptions.map((t) => [t.id, t.label])),
+    full: true,
+    placeholder: "add target or group…",
+    emptyLabel: "no targets selected — egress to local targets blocked",
+    hint: "Selected Targets & Groups are automatically whitelisted for sandbox network egress, resolving internal/private RFC-1918 IPs.",
+  },
+  {
     key: "netAllowlist",
-    label: "network allowlist (host / cidr — one per line)",
+    label: "custom network allowlist (host / cidr — one per line)",
     type: "textarea",
     placeholder: "api.corp.local\n10.20.0.0/16\nhttps://registry.npmjs.org",
     mono: true,
     full: true,
     when: (v) => String(v["network"] ?? "") === "allowlist",
-    hint: "Egress is denied by default; only these destinations are dialable from inside the sandbox.",
+    hint: "Additional external destinations allowed when not managed as an inventory Target.",
   },
   {
     key: "tools",
@@ -575,6 +588,8 @@ const buildIsolationFields = (
     options: subjects.map((t) => t.id),
     optionLabels: Object.fromEntries(subjects.map((t) => [t.id, t.name])),
     full: true,
+    placeholder: `add ${subjectLabel.replace(/s$/, "")}…`,
+    emptyLabel: `no bindings — this profile applies only via fallback`,
     hint: `Explicit bindings win. ${subjectLabel} with no binding fall back to the profile marked below.`,
   },
   {
@@ -828,14 +843,29 @@ function PolicyView() {
     "miso",
   );
 
-  const isolationFields = buildIsolationFields(forgeItems.map((t) => ({ id: t.id, name: t.name })));
+  const { targets: allTargets, groups: allTargetGroups } = useTargets();
+  const targetOptions = useMemo(() => {
+    const direct = (allTargets || []).map((t) => ({
+      id: t.id,
+      label: `${t.name}${t.ip || t.host ? ` (${t.ip || t.host})` : ""}`,
+    }));
+    const grps = (allTargetGroups || []).map((g) => ({
+      id: `grp:${g.id}`,
+      label: `Group: ${g.name} (${g.kind || "group"})`,
+    }));
+    return [...direct, ...grps];
+  }, [allTargets, allTargetGroups]);
+
+  const isolationFields = buildIsolationFields(forgeItems.map((t) => ({ id: t.id, name: t.name })), "tools", targetOptions);
   const skillIsolationFields = buildIsolationFields(
     skills.map((sk) => ({ id: sk.id, name: sk.name })),
     "skills",
+    targetOptions,
   );
   const mcpIsolationFields = buildIsolationFields(
     mcp.clients.map((c) => ({ id: c.id, name: c.name })),
     "MCP clients",
+    targetOptions,
   );
   const toolName = (id: string) => forgeItems.find((t) => t.id === id)?.name ?? id;
   const skillName = (id: string) => {
@@ -941,6 +971,7 @@ function PolicyView() {
               network: "denied",
               netAllowlist: "",
               tools: [],
+              targets: [],
               fallback: false,
             }}
             items={visibleIsolation}
@@ -969,14 +1000,31 @@ function PolicyView() {
                   "allowed paths",
                   (p.allowedPaths || "").split("\n").filter(Boolean).join(" · ") || "—",
                 ],
+                ["allowed paths", (p.allowedPaths || "").split("\n").filter(Boolean).join(" · ") || "—"],
                 ["denied syscalls", p.deniedSyscalls || "—"],
               ];
-              if (p.network === "allowlist")
+              const targetLabels =
+                Array.isArray(p.targets) && p.targets.length > 0
+                  ? p.targets
+                      .map((tid) => {
+                        if (tid.startsWith("grp:")) {
+                          const g = allTargetGroups?.find((x) => x.id === tid.slice(4));
+                          return g ? `Group: ${g.name}` : tid;
+                        }
+                        const t = allTargets?.find((x) => x.id === tid);
+                        return t ? t.name : tid;
+                      })
+                      .join(" · ")
+                  : "— none (targets blocked)";
+              rows.push(["target allowlist", targetLabels]);
+
+              if (p.network === "allowlist") {
                 rows.push([
                   "net allowlist",
                   p.netAllowlist.split("\n").filter(Boolean).join(" · ") ||
-                    "— empty (all egress blocked)",
+                    (Array.isArray(p.targets) && p.targets.length > 0 ? "— (targets only)" : "— empty (all egress blocked)"),
                 ]);
+              }
               return rows;
             }}
           />
@@ -997,6 +1045,7 @@ function PolicyView() {
               network: "denied",
               netAllowlist: "",
               tools: [],
+              targets: [],
               fallback: false,
             }}
             items={visibleSkillIsolation}
@@ -1025,14 +1074,31 @@ function PolicyView() {
                   "allowed paths",
                   (p.allowedPaths || "").split("\n").filter(Boolean).join(" · ") || "—",
                 ],
+                ["allowed paths", (p.allowedPaths || "").split("\n").filter(Boolean).join(" · ") || "—"],
                 ["denied syscalls", p.deniedSyscalls || "—"],
               ];
-              if (p.network === "allowlist")
+              const targetLabels =
+                Array.isArray(p.targets) && p.targets.length > 0
+                  ? p.targets
+                      .map((tid) => {
+                        if (tid.startsWith("grp:")) {
+                          const g = allTargetGroups?.find((x) => x.id === tid.slice(4));
+                          return g ? `Group: ${g.name}` : tid;
+                        }
+                        const t = allTargets?.find((x) => x.id === tid);
+                        return t ? t.name : tid;
+                      })
+                      .join(" · ")
+                  : "— none (targets blocked)";
+              rows.push(["target allowlist", targetLabels]);
+
+              if (p.network === "allowlist") {
                 rows.push([
                   "net allowlist",
                   p.netAllowlist.split("\n").filter(Boolean).join(" · ") ||
-                    "— empty (all egress blocked)",
+                    (Array.isArray(p.targets) && p.targets.length > 0 ? "— (targets only)" : "— empty (all egress blocked)"),
                 ]);
+              }
               return rows;
             }}
           />
@@ -1053,6 +1119,7 @@ function PolicyView() {
               network: "allowlist",
               netAllowlist: "",
               tools: [],
+              targets: [],
               fallback: false,
             }}
             items={visibleMcpIsolation}
@@ -1081,14 +1148,31 @@ function PolicyView() {
                   "allowed paths",
                   (p.allowedPaths || "").split("\n").filter(Boolean).join(" · ") || "—",
                 ],
+                ["allowed paths", (p.allowedPaths || "").split("\n").filter(Boolean).join(" · ") || "—"],
                 ["denied syscalls", p.deniedSyscalls || "—"],
               ];
-              if (p.network === "allowlist")
+              const targetLabels =
+                Array.isArray(p.targets) && p.targets.length > 0
+                  ? p.targets
+                      .map((tid) => {
+                        if (tid.startsWith("grp:")) {
+                          const g = allTargetGroups?.find((x) => x.id === tid.slice(4));
+                          return g ? `Group: ${g.name}` : tid;
+                        }
+                        const t = allTargets?.find((x) => x.id === tid);
+                        return t ? t.name : tid;
+                      })
+                      .join(" · ")
+                  : "— none (targets blocked)";
+              rows.push(["target allowlist", targetLabels]);
+
+              if (p.network === "allowlist") {
                 rows.push([
                   "net allowlist",
                   p.netAllowlist.split("\n").filter(Boolean).join(" · ") ||
-                    "— empty (all egress blocked)",
+                    (Array.isArray(p.targets) && p.targets.length > 0 ? "— (targets only)" : "— empty (all egress blocked)"),
                 ]);
+              }
               return rows;
             }}
           />
@@ -1906,11 +1990,15 @@ function MultiPicker({
   labels,
   value,
   onChange,
+  placeholder = "add…",
+  emptyLabel = "none selected",
 }: {
   options: string[];
   labels: Record<string, string>;
   value: string[];
   onChange: (next: string[]) => void;
+  placeholder?: string;
+  emptyLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -1924,7 +2012,7 @@ function MultiPicker({
       <div className="flex flex-wrap gap-1.5 rounded-lg border border-border bg-raised/30 p-2.5">
         {value.length === 0 && (
           <span className="px-1 font-mono text-[11.5px] text-muted-foreground/60">
-            no bindings — this profile applies only via fallback
+            {emptyLabel}
           </span>
         )}
         {value.map((o) => (
@@ -1952,7 +2040,7 @@ function MultiPicker({
           onClick={() => setOpen((v) => !v)}
           className="flex h-9 w-full items-center justify-between rounded-lg border border-border bg-raised/40 px-3 font-mono text-[12px] text-muted-foreground/80 transition-colors hover:border-sapphire/40 hover:text-foreground"
         >
-          <span>add tool…</span>
+          <span>{placeholder}</span>
           <span className="text-[11px] opacity-60">{available.length}</span>
         </button>
 
@@ -2125,7 +2213,9 @@ function EntityDialog({
                         options={f.options ?? []}
                         labels={f.optionLabels ?? {}}
                         value={Array.isArray(values[f.key]) ? (values[f.key] as string[]) : []}
-                        onChange={(next) => set(f.key, next)}
+                        onChange={(arr) => set(f.key, arr)}
+                        placeholder={f.placeholder || `add ${f.label}…`}
+                        emptyLabel={f.emptyLabel || "none selected"}
                       />
                     ) : f.type === "toggle" ? (
                       <button
