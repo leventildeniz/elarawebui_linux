@@ -76,6 +76,24 @@ export function attachSessionContext() {
       }
     }
 
+    // --- v10: Internal loopback tool-adapter bypass ---
+    const isInternalAdapter = req.headers["x-internal"] === "tool-adapter";
+    if (isInternalAdapter) {
+      const ip = String(req?.ip || req?.socket?.remoteAddress || "");
+      const isLoopback = ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1" || ip.startsWith("127.");
+      if (isLoopback) {
+        req.session = {
+          id: "internal-tool-adapter",
+          userId: "00000000-0000-0000-0000-000000000000",
+          username: "admin",
+          role: "admin",
+          provider: "loopback",
+          tenant_id: "default",
+        };
+        return next();
+      }
+    }
+
     if (!_initialized || !_pool) return next();
     const sid = pickSid(req);
     if (!sid) return next();

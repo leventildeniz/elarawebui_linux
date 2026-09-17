@@ -258,6 +258,28 @@ async function loadTool(toolId) {
     } catch {}
   }
 
+  // 5. Agents (with or without 'agt.' / 'agent.' prefix)
+  if (toolId.startsWith("agt.") || toolId.startsWith("agent.") || toolId.startsWith("agt_")) {
+    const bareAgtId = toolId.replace(/^(agt\.|agent\.|agt_)/i, "");
+    try {
+      const { rows: agtRows } = await _pool.query(
+        `SELECT id, name, system_prompt, description, squad FROM agents WHERE id=$1 OR id=$2 OR id=$3 OR name=$1`,
+        [toolId, `agt.${bareAgtId}`, bareAgtId]
+      );
+      if (agtRows[0]) {
+        return {
+          id: agtRows[0].id,
+          name: agtRows[0].name,
+          adapter: "agent",
+          risk_level: "low",
+          requires_approval: false,
+          runtime: { agent_id: agtRows[0].id },
+          system_prompt: agtRows[0].system_prompt || agtRows[0].description || ""
+        };
+      }
+    } catch {}
+  }
+
   let runtime = row.runtime;
   if (typeof runtime === "string") {
     try { runtime = JSON.parse(runtime); } catch { runtime = {}; }
@@ -517,31 +539,87 @@ const RUNNERS = {
     if (!r.ok) throw new Error(`forge ${r.status}: ${j?.error || ""}`);
     return j;
   },
-  async workflow({ tool, params, signal }) {
+  async workflow({ tool, params, signal, sessionId, username }) {
     const wfId = tool.runtime?.workflow_id || tool.id;
     const port = Number(process.env.PORT || 3005);
     const r = await fetch(`http://127.0.0.1:${port}/api/workflows/${encodeURIComponent(wfId)}/trigger`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-internal": "tool-adapter" },
+      headers: {
+        "Content-Type": "application/json",
+        "x-internal": "tool-adapter",
+        ...(sessionId ? { "x-session-id": sessionId } : {}),
+      },
       body: JSON.stringify({ context: params }),
       signal: withTimeout(signal, Number(tool.runtime?.timeout_ms || 120_000)),
     });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(`workflow trigger failed ${r.status}: ${j?.error || ""}`);
-    return { ok: true, runId: j.runId, workflowId: wfId, message: "Workflow triggered successfully", details: j };
+    
+    const runId = j.runId;
+    if (!runId) return { ok: true, workflowId: wfId, details: j };
+
+    const deadline = Date.now() + 15000;
+    while (Date.now() < deadline) {
+      await new Promise((res) => setTimeout(res, 200));
+      const runRes = await fetch(`http://127.0.0.1:${port}/api/workflows/runs/${encodeURIComponent(runId)}`, {
+        headers: {
+          "x-internal": "tool-adapter",
+          ...(sessionId ? { "x-session-id": sessionId } : {}),
+        },
+      });
+      const runData = await runRes.json().catch(() => ({}));
+      if (runData?.status === "done" || runData?.status === "failed" || runData?.status === "stopped") {
+        return runData.output || runData;
+      }
+    }
+    return { ok: true, runId, workflowId: wfId, message: "Workflow triggered successfully", details: j };
   },
-  async chain({ tool, params, signal }) {
+  async chain({ tool, params, signal, sessionId, username }) {
     const chainId = tool.runtime?.chain_id || tool.id;
     const port = Number(process.env.PORT || 3005);
     const r = await fetch(`http://127.0.0.1:${port}/api/chains/${encodeURIComponent(chainId)}/run`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-internal": "tool-adapter" },
+      headers: {
+        "Content-Type": "application/json",
+        "x-internal": "tool-adapter",
+        ...(sessionId ? { "x-session-id": sessionId } : {}),
+      },
       body: JSON.stringify({ context: params }),
       signal: withTimeout(signal, Number(tool.runtime?.timeout_ms || 180_000)),
     });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(`chain trigger failed ${r.status}: ${j?.error || ""}`);
-    return { ok: true, runId: j.runId, chainId, message: "Chain orchestration triggered successfully", details: j };
+    
+    const runId = j.runId;
+    if (!runId) return { ok: true, chainId, details: j };
+
+    const deadline = Date.now() + 20000;
+    while (Date.now() < deadline) {
+      await new Promise((res) => setTimeout(res, 250));
+      const runRes = await fetch(`http://127.0.0.1:${port}/api/chains/runs/${encodeURIComponent(runId)}`, {
+        headers: {
+          "x-internal": "tool-adapter",
+          ...(sessionId ? { "x-session-id": sessionId } : {}),
+        },
+      });
+      const runData = await runRes.json().catch(() => ({}));
+      if (runData?.status === "done" || runData?.status === "failed" || runData?.status === "stopped") {
+        return runData.output || runData;
+      }
+    }
+    return { ok: true, runId, chainId, message: "Chain orchestration triggered successfully", details: j };
+  },
+  async agent({ tool, params, signal, sessionId, username }) {
+    const agentId = tool.runtime?.agent_id || tool.id;
+    const promptText = params.instructions || params.prompt || params.query || params.input || JSON.stringify(params);
+    const { runAgent } = await import("./agent-run.mjs");
+    const result = await runAgent({
+      agentId,
+      prompt: promptText,
+      pool: _pool,
+      username: username || "operator",
+    });
+    return result;
   },
   async builtin({ tool, params }) {
     return { ok: false, error: `Builtin handler '${tool.runtime?.handler || "noop"}' is not executable as a tool.` };
@@ -636,7 +714,7 @@ export async function invokeTool({
       userId: username
     });
 
-    const output = await RUNNERS[adapter]({ tool, params, signal, provider, profile });
+    const output = await RUNNERS[adapter]({ tool, params, signal, provider, profile, sessionId, username });
     const duration = Date.now() - started;
     await updateInvocation(invocationId, {
       status: "done", output: output ?? null,

@@ -141,7 +141,7 @@ export function extractForgeJson(text) {
  * Uses direct pool queries (no HTTP hop) since we're already in-process.
  */
 export async function buildInventory(pool) {
-  const [agents, tools, skills, packs, mcpExposed, mcpClients, workflows, chains] = await Promise.all([
+  const [agents, tools, skills, packs, mcpExposed, mcpClients, workflows, chains, webhooks] = await Promise.all([
     pool.query(`SELECT id AS slug, name, COALESCE(description,'') AS description
                 FROM agents WHERE id != 'agt.forge_master' ORDER BY id`).catch(() => ({ rows: [] })),
     pool.query(`SELECT id AS slug, name, COALESCE(description,'') AS description, category
@@ -156,6 +156,7 @@ export async function buildInventory(pool) {
       .catch(() => ({ rows: [] })),
     pool.query(`SELECT id AS slug, name FROM workflows ORDER BY id`).catch(() => ({ rows: [] })),
     pool.query(`SELECT id AS slug, name FROM orchestrations ORDER BY id`).catch(() => ({ rows: [] })),
+    pool.query(`SELECT id AS slug, name, COALESCE(description,'') AS description FROM webhooks WHERE enabled=true ORDER BY id`).catch(() => ({ rows: [] })),
   ]);
 
   const mcpTools = [];
@@ -180,6 +181,7 @@ export async function buildInventory(pool) {
     mcp_exposed: mcpExposed.rows,
     workflows: workflows.rows.map(w => ({ slug: w.slug, name: w.name })),
     chains: chains.rows.map(c => ({ slug: c.slug, name: c.name })),
+    webhooks: webhooks.rows.map(wh => ({ slug: wh.slug, name: wh.name, desc: (wh.description || "").slice(0, 100) })),
     counts: {
       agents: agents.rows.length,
       tools: tools.rows.length,
@@ -188,6 +190,7 @@ export async function buildInventory(pool) {
       mcp_tools: mcpTools.length,
       workflows: workflows.rows.length,
       chains: chains.rows.length,
+      webhooks: webhooks.rows.length,
     },
   };
 }

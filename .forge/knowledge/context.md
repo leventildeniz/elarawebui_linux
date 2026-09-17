@@ -2116,6 +2116,18 @@ ELARA Sovereign Studio genelinde **Zero-Trust Çoklu Kiracı (Multi-Tenancy) ve 
       - `local-server/lib/orchestrator/directives.mjs` içine İngilizce `[TEMPORAL ANCHORING & CURRENT SYSTEM DATE]` direktifi eklendi; yerel LLM'lerin canlı sistem saatini bilerek tutarsızlık uydurması kökten engellendi.
       - `local-server/lib/orchestrator/tool-dispatcher.mjs` içerisindeki `sys_get_directory` sorgusu gelen `intent` parametresine göre araçları önceliklendiren akıllı sıralama mantığıyla donatıldı.
 
+   7. **Universal Capability Execution Bridge (Workflows, Chains, Agents & MCP via `sys_execute_tool`):**
+      - `local-server/lib/orchestrator/tool-dispatcher.mjs` içerisindeki `sys_execute_tool` yetki kapısı; yalnızca `skills` ve `action_library` ile sınırlı kalmaktan çıkarılıp `workflows` (DAG), `orchestrations` (Chains), `agents` (Squad Agents) ve `mcp` sunucularını kapsayacak şekilde evrenselleştirildi.
+      - `local-server/lib/tool-adapters.mjs` içine `RUNNERS.agent` entegre edildi; `RUNNERS.workflow` ve `RUNNERS.chain` çalıştırıcılarına canlı icra tamamlama yoklaması (Polling Await) eklendi. Böylece LLM bir iş akışını veya zinciri tetiklediğinde sadece boş bir `runId` değil; 200ms içinde icra edilen gerçek `markdown_report` ve metrik çıktılarını anında elde eder.
+      - `local-server/lib/session-gate.mjs` içerisine yerel ağ (`127.0.0.1` loopback) üzerinden gelen `x-internal: tool-adapter` yetki kapısı takıldı; dahili araç icralarının 401 hatasına düşmesi engellendi.
+      - `local-server/lib/routes/workflows.mjs` içindeki `resolveNodeParams` fonksiyonuna `url` $\leftrightarrow$ `domain` otomatik parametre eşlemesi eklendi; Webhook'tan gelen `{ url: "..." }` girdilerinin SSL probe düğümüne hatasız beslenmesi sağlandı.
+
+   8. **MetaForge 8-Capability Kinds End-to-End Parity Audit & Registry Synchronization:**
+      - MetaForge'un 8 temel varlık türünün tamamı (`tool`, `skill`, `workflow`, `chain`, `agent`, `mcp`, `webhook`, `pack`) planlama, sentezleme, icra, envanter ve geri alma aşamalarında uçtan uca doğrulandı.
+      - `local-server/lib/meta-forge/planner.mjs` içindeki `buildInventory` fonksiyonuna eksik olan `webhooks` sorgusu ve envanter sayacı eklendi.
+      - `local-server/lib/orchestrator/tool-dispatcher.mjs` içindeki `sys_get_directory` sorgusuna eksik olan `capability_packs` (`packs`) dahil edildi.
+      - `local-server/lib/orchestrator/directives.mjs` TIER 3 bölümü MetaForge'un sentezleyebildiği 8 yetenek türünü (`tool`, `skill`, `workflow`, `chain`, `agent`, `mcp`, `webhook`, `pack`) İngilizce olarak açıkça listeleyecek şekilde zenginleştirildi.
+
    ---
 
    **Sistem Durumu:** `node --check` 0 hata, `npx tsc --noEmit` 0 hata; tüm systemd servisleri (`elara-middleware`, `elara-vite`, `elara-worker`) aktif, sağlıklı ve operasyonel.

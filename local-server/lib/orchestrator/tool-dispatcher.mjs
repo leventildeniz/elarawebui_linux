@@ -48,8 +48,9 @@ export async function dispatchToolCall({
     const { clause: orcClause, params: orcParams } = buildVisibility(actorCtx, 1, "owner_id");
     const { clause: whClause, params: whParams } = buildVisibility(actorCtx, 1, "owner_id");
     const { clause: mcpClause, params: mcpParams } = buildVisibility(actorCtx, 1, "owner_id");
+    const { clause: packClause, params: packParams } = buildVisibility(actorCtx, 1, "owner_id");
 
-    const [agtRes, actRes, skillRes, wfRes, orcRes, whRes, mcpRes] = await Promise.all([
+    const [agtRes, actRes, skillRes, wfRes, orcRes, whRes, mcpRes, packRes] = await Promise.all([
       pool.query(`SELECT id, name, squad, description FROM agents WHERE ${agtClause}`, agtParams),
       pool.query(`SELECT id, name, category, description, params FROM action_library WHERE (${actClause}) AND is_system = false AND COALESCE((runtime->>'orphan')::boolean, false) = false`, actParams),
       pool.query(`SELECT id, name, description, params FROM skills WHERE enabled = true AND (${skillClause})`, skillParams),
@@ -57,6 +58,7 @@ export async function dispatchToolCall({
       pool.query(`SELECT id, name, trigger, status FROM orchestrations WHERE ${orcClause} ORDER BY created_at DESC`, orcParams),
       pool.query(`SELECT id, name, slug, description, category, connection, enabled FROM webhooks WHERE enabled = true AND (${whClause}) ORDER BY created_at DESC`, whParams).catch(() => ({ rows: [] })),
       pool.query(`SELECT slug, name, transport, url, enabled, last_status, last_error, tools_cache FROM mcp_client_servers WHERE (${mcpClause}) ORDER BY name ASC`, mcpParams).catch(() => ({ rows: [] })),
+      pool.query(`SELECT id, name, description, tools, skills, brand_keywords FROM capability_packs WHERE (${packClause}) ORDER BY name ASC`, packParams).catch(() => ({ rows: [] })),
     ]);
 
     const standardTools = actRes.rows.map((t) => {
@@ -136,7 +138,8 @@ export async function dispatchToolCall({
       workflows: wfRes.rows.map((w) => ({ id: w.id, name: w.name, trigger: w.trigger, status: w.status })),
       orchestrations: orcRes.rows.map((o) => ({ id: o.id, name: o.name, trigger: o.trigger, status: o.status })),
       webhooks: whRes.rows.map((w) => ({ id: w.id, name: w.name, slug: w.slug, description: (w.description || "").slice(0, 120) })),
-      message: "Directory loaded. Contains available agents, tools, skills, active and configured MCP servers with status and errors, workflows, orchestrations, and webhooks.",
+      packs: packRes.rows.map((p) => ({ id: p.id, name: p.name, desc: (p.description || "").slice(0, 120), tools: p.tools, skills: p.skills })),
+      message: "Directory loaded. Contains available agents, tools, skills, capability packs, active and configured MCP servers, workflows, orchestrations, and webhooks.",
     });
   }
 
@@ -281,13 +284,14 @@ export async function dispatchToolCall({
     let canonicalId = targetToolId;
     let isAllowed = false;
 
-    const normalizedId = targetToolId.replace(/^(skill_|tool_|sk_|skill\.|tool\.|sk\.)+/gi, "").replace(/_/g, "-");
-    const dotId = targetToolId.replace(/^(skill_|tool_|sk_)+/gi, "").replace(/_/g, ".");
+    const normalizedId = targetToolId.replace(/^(skill_|tool_|sk_|skill\.|tool\.|sk\.|wf_|wf\.|workflow\.|orc_|orc\.|chain\.|agt\.|agent\.)+/gi, "").replace(/_/g, "-");
+    const dotId = targetToolId.replace(/^(skill_|tool_|sk_|wf_|orc_|agt_)+/gi, "").replace(/_/g, ".");
 
-    let isMcp = targetToolId.startsWith("mcp.") || dotId.startsWith("mcp.");
+    let cleanMcpId = targetToolId.replace(/^tool_mcp_/i, "mcp.").replace(/^mcp_/i, "mcp.");
+    let isMcp = cleanMcpId.startsWith("mcp.") || dotId.startsWith("mcp.");
     let serverSlug = "";
     if (isMcp) {
-      const cleanMcp = (targetToolId.startsWith("mcp.") ? targetToolId : dotId).slice(4);
+      const cleanMcp = (cleanMcpId.startsWith("mcp.") ? cleanMcpId : dotId).slice(4);
       serverSlug = cleanMcp.split(".")[0];
       canonicalId = `mcp.${cleanMcp}`;
     } else if (targetToolId.includes(".") || dotId.includes(".")) {
@@ -331,12 +335,48 @@ export async function dispatchToolCall({
         if (toolRow.rows.length > 0) {
           isAllowed = true;
           canonicalId = toolRow.rows[0].id;
+        } else {
+          // Check Workflows
+          const possibleWfIds = [targetToolId, `wf_${normalizedId}`, `wf.${normalizedId}`, `workflow.${normalizedId}`, normalizedId];
+          const { clause: wfClause, params: wfParams } = buildVisibility(actorCtx, 2, "owner_id");
+          const wfRow = await pool.query(
+            `SELECT id FROM workflows WHERE (id = ANY($1) OR name = ANY($1)) AND (${wfClause})`,
+            [possibleWfIds, ...wfParams]
+          );
+          if (wfRow.rows.length > 0) {
+            isAllowed = true;
+            canonicalId = wfRow.rows[0].id;
+          } else {
+            // Check Orchestrations / Chains
+            const possibleOrcIds = [targetToolId, `orc_${normalizedId}`, `chain.${normalizedId}`, `orc.${normalizedId}`, normalizedId];
+            const { clause: orcClause, params: orcParams } = buildVisibility(actorCtx, 2, "owner_id");
+            const orcRow = await pool.query(
+              `SELECT id FROM orchestrations WHERE (id = ANY($1) OR name = ANY($1)) AND (${orcClause})`,
+              [possibleOrcIds, ...orcParams]
+            );
+            if (orcRow.rows.length > 0) {
+              isAllowed = true;
+              canonicalId = orcRow.rows[0].id;
+            } else {
+              // Check Agents
+              const possibleAgtIds = [targetToolId, `agt.${normalizedId}`, `agent.${normalizedId}`, normalizedId];
+              const { clause: agtClause, params: agtParams } = buildVisibility(actorCtx, 2, "owner_id");
+              const agtRow = await pool.query(
+                `SELECT id FROM agents WHERE (id = ANY($1) OR name = ANY($1)) AND (${agtClause})`,
+                [possibleAgtIds, ...agtParams]
+              );
+              if (agtRow.rows.length > 0) {
+                isAllowed = true;
+                canonicalId = agtRow.rows[0].id;
+              }
+            }
+          }
         }
       }
     }
 
     if (!isAllowed) {
-      toolResultStr = JSON.stringify({ error: `Tool/MCP/Skill '${targetToolId}' not found, missing from disk (orphan), or permission denied.` });
+      toolResultStr = JSON.stringify({ error: `Tool/MCP/Skill/Workflow '${targetToolId}' not found, missing from disk (orphan), or permission denied.` });
       toolStatus = "failed";
     } else {
       const invokeRes = await invokeTool({

@@ -67,9 +67,14 @@ function resolveNodeParams(node, ctx = {}) {
   }
 
   // Auto-fill context fallback properties for common tools
-  if (resolved.domain == null && ctx.domain) resolved.domain = ctx.domain;
-  if (resolved.target == null && (ctx.target || ctx.domain || ctx.ip || ctx.host)) {
-    resolved.target = ctx.target || ctx.domain || ctx.ip || ctx.host;
+  if (resolved.domain == null && (ctx.domain || ctx.url || ctx.host || ctx.target)) {
+    resolved.domain = ctx.domain || ctx.url || ctx.host || ctx.target;
+  }
+  if (resolved.url == null && (ctx.url || ctx.domain || ctx.host || ctx.target)) {
+    resolved.url = ctx.url || ctx.domain || ctx.host || ctx.target;
+  }
+  if (resolved.target == null && (ctx.target || ctx.domain || ctx.ip || ctx.host || ctx.url)) {
+    resolved.target = ctx.target || ctx.domain || ctx.ip || ctx.host || ctx.url;
   }
   if (resolved.probe_results == null && (ctx.domain || ctx.expiry_date || ctx.days_remaining)) {
     resolved.probe_results = { ...ctx };

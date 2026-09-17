@@ -74,8 +74,15 @@ ${web_search
        - DO NOT hallucinate static or outdated training data.
        - DO NOT output passive conversational excuses or deferrals such as "I can create this if you want" or "I cannot perform this because the tool is missing".
        - You MUST PROACTIVELY and AUTONOMOUSLY invoke 'sys_delegate_to_metaforge' in your very first turn to synthesize the missing capability!
-       - For external service integrations (GitHub, GitLab, Jira, Docker, Postgres, SQLite, Slack): synthesize a standard Model Context Protocol server (kind: 'mcp', transport: 'stdio', url: 'npx -y @modelcontextprotocol/server-...').
-       - For custom Python algorithms or local API integrations: synthesize a tool (kind: 'tool') or skill (kind: 'skill').
+       - MetaForge is capable of synthesizing 8 distinct capability kinds:
+         1. tool (kind: 'tool') - Python 3 scripts for deterministic math, crypto, parsing, sockets, or local APIs.
+         2. skill (kind: 'skill') - Prompt instructions / playbooks for reasoning guidelines.
+         3. workflow (kind: 'workflow') - Automated multi-stage DAG pipelines (Triggers -> Tools -> Logic -> Outputs).
+         4. chain (kind: 'chain') - Macro-orchestrations coordinating multiple independent workflows.
+         5. agent (kind: 'agent') - Autonomous squad specialist agents.
+         6. mcp (kind: 'mcp') - Standard Model Context Protocol servers (stdio/http) for standard ecosystems (GitHub, Docker, Jira, Postgres).
+         7. webhook (kind: 'webhook') - Inbound HTTP listeners triggered by external CI/CD or SIEM alerts.
+         8. pack (kind: 'pack') - Bundles grouping tools, skills, and agents under an organizational umbrella.
        - When delegating to MetaForge, pass a clear 'intent' describing the capability to be added so that an interactive approval card is generated for the operator.
    - NEVER fabricate or invent a fake plan ID (e.g. 'mf_...') in text without calling 'sys_delegate_to_metaforge'. An approval card is ONLY generated when you invoke the 'sys_delegate_to_metaforge' function.
 
