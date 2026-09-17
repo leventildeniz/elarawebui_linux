@@ -76,8 +76,11 @@ export function mountTargetsRoutes(app, deps) {
         tags: g.tags || []
       }));
 
-      const mappedTargets = targets.map(t => ({
-        id: t.id,
+      const mappedTargets = targets.map(t => {
+        const rawOwner = t.owner || "";
+        const cleanOwner = typeof rawOwner === "string" && rawOwner.startsWith("s_") ? "admin" : rawOwner;
+        return {
+          id: t.id,
         name: t.name,
         groupId: t.group_id || "",
         ip: t.ip || "",
@@ -89,9 +92,9 @@ export function mountTargetsRoutes(app, deps) {
         vaultName: t.vault_name || "",
         risk: t.risk_level || "low",
         requiresApproval: !!t.requires_approval,
-        owner: t.owner || "",
-        ownerId: t.owner || "",
-        ownerName: t.owner || "",
+        owner: cleanOwner,
+        ownerId: cleanOwner,
+        ownerName: cleanOwner,
         visibility: t.visibility || "private",
         sharedWith: t.shared_with || [],
         notes: t.notes || "",
@@ -104,7 +107,8 @@ export function mountTargetsRoutes(app, deps) {
           ms: 0
         } : null,
         endpoints: t.endpoints_json || []
-      }));
+        };
+      });
 
       res.json({ ok: true, state: { groups: mappedGroups, targets: mappedTargets } });
     } catch (e) {
@@ -169,7 +173,10 @@ export function mountTargetsRoutes(app, deps) {
       const tagsArr = Array.isArray(tags) ? tags : [];
       const tenantId = req.body?.tenant_id || req.session?.tenant_id || ctx.tenantId || "default";
       const isGlobal = ctx.isSuperAdmin ? (req.body?.is_global || false) : false;
-      const ownerId = req.body?.owner_id || req.body?.ownerId || req.body?.owner || ctx.userId || req.session?.username || req.actor || "";
+      let ownerId = req.body?.owner_id || req.body?.ownerId || req.body?.owner || ctx.username || ctx.userId || req.session?.username || req.actor || "admin";
+      if (typeof ownerId === "string" && ownerId.startsWith("s_")) {
+        ownerId = ctx.username || req.session?.username || "admin";
+      }
       const visibility = req.body?.visibility || "private";
       const sharedWith = Array.isArray(req.body?.sharedWith || req.body?.shared_with) ? JSON.stringify(req.body?.sharedWith || req.body?.shared_with) : "[]";
 
@@ -231,7 +238,10 @@ export function mountTargetsRoutes(app, deps) {
       const r_vault_name = vaultName !== undefined ? vaultName : row.vault_name;
       const r_risk = risk !== undefined ? risk : row.risk_level;
       const r_requires = requiresApproval !== undefined ? !!requiresApproval : row.requires_approval;
-      const r_owner = owner !== undefined && owner !== "" ? owner : row.owner;
+      let r_owner = owner !== undefined && owner !== "" ? owner : row.owner;
+      if (typeof r_owner === "string" && r_owner.startsWith("s_")) {
+        r_owner = row.owner && !row.owner.startsWith("s_") ? row.owner : (ctx?.username || req.session?.username || "admin");
+      }
       const r_notes = notes !== undefined ? notes : row.notes;
       const r_visibility = req.body?.visibility !== undefined ? req.body.visibility : (row.visibility || 'private');
       const r_shared = req.body?.sharedWith !== undefined || req.body?.shared_with !== undefined

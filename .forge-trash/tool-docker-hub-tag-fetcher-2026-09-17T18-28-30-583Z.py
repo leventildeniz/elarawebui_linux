@@ -1,12 +1,6 @@
 #!/usr/bin/env python3
-
-# --- [Self-Healing v2 Optimization: Bounded Timeouts & Resilient Backoff] ---
-import time
-import os
-TIMEOUT_DEFAULT_S = float(os.environ.get("ELARA_TOOL_TIMEOUT_S", 4.5))
-# -----------------------------------------------------------------------------
 # @tool: tool.docker-hub-tag-fetcher
-# @description: Fetches latest 5 tags, architectures, and dates for a Docker image [Self-Healing v2 Optimized]
+# @description: Fetches latest 5 tags, architectures, and dates for a Docker image
 # @args: {"image_name": "string"}
 import sys
 import json

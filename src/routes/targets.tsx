@@ -320,7 +320,14 @@ function TargetDialog({
   const writable = isNew || canEditOwned(target, ownerCtx);
   const refusal = writable ? "" : editRefusal(target, ownerCtx);
 
-  const [draft, setDraft] = useState<Target>(target);
+  const [draft, setDraft] = useState<Target>(() => {
+    const rawOwner = target.owner || "";
+    const effectiveOwner = !rawOwner || rawOwner.startsWith("s_") ? (ownerCtx.name || "admin") : rawOwner;
+    return {
+      ...target,
+      owner: effectiveOwner,
+    };
+  });
   const set = (p: Partial<Target>) => setDraft((d) => ({ ...d, ...p }));
 
   const setEndpoint = (id: string, p: Partial<Endpoint>) =>
@@ -1124,7 +1131,7 @@ web01,10.0.1.10,,80,Linux DMZ,prod,medium`}
                       <div className="mb-4 rounded-lg border border-white/[0.06] bg-raised/20 p-4">
                         <div className="flex flex-wrap items-center gap-1.5">
                           {t.requiresApproval && <Tag tone="ruby">approval</Tag>}
-                          {t.owner && <Tag tone="amethyst">owner · {t.owner}</Tag>}
+                          {t.owner && <Tag tone="amethyst">owner · {t.owner.startsWith("s_") ? "admin" : t.owner}</Tag>}
                           {t.ports && <Tag tone="sapphire">ports · {t.ports}</Tag>}
                           {t.tags.map((tag) => (
                             <Tag key={tag} tone="platinum">

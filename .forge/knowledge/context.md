@@ -2100,6 +2100,11 @@ ELARA Sovereign Studio genelinde **Zero-Trust Çoklu Kiracı (Multi-Tenancy) ve 
       - `admin` (SuperAdmin) oturumu ile `PATCH /api/approvals/config` ve `POST /api/self-healing/scan` 200 OK ile başarıyla icra edildi.
       - `npx tsc --noEmit` 0 hata; `node --check` 0 hata; `elara-middleware.service` aktif ve sağlıklı.
 
+   4. **Target Owner Session ID Temizliği & Normalizasyonu (`targets-crud.mjs` & `targets.tsx`):**
+      - Projenin ilk geliştirme evresinde (2026-09-01) oluşturulmuş olan `tgt-4496` (`deneme_target`) kaydındaki eski session ID (`s_o1qdcpdfmthxso81`) veritabanında `owner = 'admin'` olarak temizlendi.
+      - `targets-crud.mjs` API katmanında hem `GET` hem de `POST/PUT` uçlarına `s_` ile başlayan geçersiz oturum kimliklerini engelleyen ve aktif kullanıcı adına (`admin` / operatör adı) normalize eden sanitization kalkanı eklendi.
+      - `targets.tsx` ön yüzünde etiket ve düzenleme modalı oturum anahtarlarını filtreleyecek şekilde mühürlendi; arayüzde temiz `owner · admin` gösterimi sağlandı.
+
    ---
 
    **Sistem Durumu:** `node --check` 0 hata, `npx tsc --noEmit` 0 hata; tüm systemd servisleri (`elara-middleware`, `elara-vite`, `elara-worker`) aktif, sağlıklı ve operasyonel.
