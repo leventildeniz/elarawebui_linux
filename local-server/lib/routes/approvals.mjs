@@ -354,9 +354,9 @@ export async function mountApprovalRoutes(app, deps) {
   app.patch("/api/approvals/config", admin, async (req, res) => {
     try {
       const ctx = typeof deps.resolveActorContext === "function" ? await deps.resolveActorContext(req) : null;
-      const isAllowed = ctx?.isSuperAdmin || ctx?.isTenantAdmin || (typeof deps.isAdminCaller === "function" && await deps.isAdminCaller(req));
+      const isAllowed = ctx?.isSuperAdmin || (typeof deps.isAdminCaller === "function" && await deps.isAdminCaller(req));
       if (!isAllowed) {
-        return res.status(403).json({ ok: false, error: "Administrative privileges required to modify approval queue configuration." });
+        return res.status(403).json({ ok: false, error: "Access denied: Platform Sovereign (SuperAdmin) required to modify global queue configuration." });
       }
 
       const { queue_armed, allow_self_approve } = req.body;

@@ -1991,6 +1991,8 @@ ELARA Sovereign Studio genelinde **Zero-Trust Çoklu Kiracı (Multi-Tenancy) ve 
    - `deneme2` oturumu ile `deneme`'nin klasörü silinmeye çalışıldı $\rightarrow$ **`HTTP 403 Forbidden`** (`Access denied or built-in collection`).
    - `POST /api/rag-folders` ile `isBrand: false` yeni çalışma klasörü açıldı $\rightarrow$ Brand Aliases listesine düşmediği ve sorunsuz silindiği (204 No Content) kanıtlandı.
    - `ALL 69 ROUTE FILES PASSED SYNTAX CHECK!` (`node --check` 0 hata).
+   - `Approval Queue & Self-Healing Koruması`: `src/routes/approvals.tsx` içerisindeki `QueueMasterSwitch` (QUEUE ARMED, Disable, SIM ANOMALY, WATCHDOG SCAN) barı yalnızca SuperAdmin (`ownerCtx.isSuperAdmin`) için görünür kılındı.
+   - `PATCH /api/approvals/config`, `POST /api/self-healing/scan` ve `POST /api/self-healing/simulate` rotalarına `assertSuperAdmin` takıldı; Tenant Admin ve normal kullanıcıların sunucu genelinde kuyruk kapatması veya simülasyon tetiklemesi engellendi (403 Forbidden).
    - `npx tsc --noEmit` 0 hata. Tüm systemd servisleri aktif, yeşil ve sağlıklı.
 
    ---

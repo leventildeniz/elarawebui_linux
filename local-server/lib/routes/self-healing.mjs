@@ -66,6 +66,11 @@ export async function mountSelfHealingRoutes(app, deps) {
 
   // --- TRIGGER ON-DEMAND HEALTH SCAN ---
   app.post("/api/self-healing/scan", admin, async (req, res) => {
+    const ctx = typeof deps.resolveActorContext === "function" ? await deps.resolveActorContext(req) : null;
+    const isAllowed = ctx?.isSuperAdmin || (typeof deps.isAdminCaller === "function" && await deps.isAdminCaller(req));
+    if (!isAllowed) {
+      return res.status(403).json({ ok: false, error: "Access denied: Platform Sovereign (SuperAdmin) required." });
+    }
     try {
       const report = await scanToolHealth({ pool, broadcastAudit, enqueueWrite });
       res.json({ ok: true, report });
@@ -76,6 +81,11 @@ export async function mountSelfHealingRoutes(app, deps) {
 
   // --- SIMULATE TOOL ANOMALY (TEST / DEMO) ---
   app.post("/api/self-healing/simulate", admin, async (req, res) => {
+    const ctx = typeof deps.resolveActorContext === "function" ? await deps.resolveActorContext(req) : null;
+    const isAllowed = ctx?.isSuperAdmin || (typeof deps.isAdminCaller === "function" && await deps.isAdminCaller(req));
+    if (!isAllowed) {
+      return res.status(403).json({ ok: false, error: "Access denied: Platform Sovereign (SuperAdmin) required." });
+    }
     try {
       const { toolId = "tool.whois_geo", errorCount = 4, totalRuns = 5, avgDurationMs = 5200, autoScan = true } = req.body || {};
       const sim = await simulateToolAnomaly(pool, { toolId, errorCount, totalRuns, avgDurationMs });

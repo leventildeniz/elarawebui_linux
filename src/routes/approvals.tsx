@@ -20,6 +20,7 @@ import {
 } from "@/lib/approval-store";
 import { useApprovalAuthority } from "@/lib/approver-gate";
 import { ApproverBanner } from "@/components/sovereign/approver-banner";
+import { readOwnerCtx } from "@/lib/ownership";
 import { cn } from "@/lib/utils";
 
 const description =
@@ -159,10 +160,7 @@ function ApprovalsPage() {
   };
 
   const pending = items.filter((r) => r.status === "pending");
-  const isAdminUser =
-    auth.sovereign ||
-    auth.role?.name?.toLowerCase() === "admin" ||
-    (auth.account?.role ? /^admin(istrator)?s?$/i.test(auth.account.role.trim()) : false);
+  const ownerCtx = readOwnerCtx();
 
   return (
     <Surface
@@ -177,7 +175,7 @@ function ApprovalsPage() {
         {description}
       </p>
 
-      {isAdminUser && <QueueMasterSwitch queue={queue} onTriggerScan={emitSwitch} />}
+      {ownerCtx.isSuperAdmin && <QueueMasterSwitch queue={queue} onTriggerScan={emitSwitch} />}
 
       <ApproverBanner auth={auth} gate="queue" notify="approval" />
 
