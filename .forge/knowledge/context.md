@@ -2128,6 +2128,15 @@ ELARA Sovereign Studio genelinde **Zero-Trust Çoklu Kiracı (Multi-Tenancy) ve 
       - `local-server/lib/orchestrator/tool-dispatcher.mjs` içindeki `sys_get_directory` sorgusuna eksik olan `capability_packs` (`packs`) dahil edildi.
       - `local-server/lib/orchestrator/directives.mjs` TIER 3 bölümü MetaForge'un sentezleyebildiği 8 yetenek türünü (`tool`, `skill`, `workflow`, `chain`, `agent`, `mcp`, `webhook`, `pack`) İngilizce olarak açıkça listeleyecek şekilde zenginleştirildi.
 
+   9. **`loadTool` Erken Null Döndürme Krizinin Çözümü (`tool-adapters.mjs`):**
+      - `sys_execute_tool` üzerinden iş akışları (`wf_...`), zincirler (`orc_...`) veya ajanlar (`agt_...`) çağrıldığında ortaya çıkan `tool not found` hatasının kök sebebi tespit edildi: `local-server/lib/tool-adapters.mjs` içindeki `loadTool()` fonksiyonunda, `action_library` boş döndüğünde (satır 236) erken `return null;` çalıştığı için altındaki Workflows, Chains ve Agents bloklarına asla ulaşılamıyordu.
+      - `loadTool()` akışı yeniden sıralandı; Workflows, Chains ve Agents kontrolleri disk fallback'inin önüne alındı ve erken null kaldırıldı.
+      - Canlı testle doğrulandı: `invokeTool("wf_ssl-expiry-monitor", { url: "d-teknoloji.com.tr" })` 234ms içinde başarıyla çalışarak canlı SSL sertifika tablosunu ve `status: critical` Markdown raporunu üretti.
+      - Kullanıcının `/flows` sayfasına gidip taslağı kaydetmesine veya yayınlamasına gerek olmadığı, hatanın modelin uydurduğu "draft kısıtlaması" değil bu kod sırası olduğu tescillendi.
+
+   10. **Anti-Excuse & Anti-Simulation Mandate (`directives.mjs`):**
+       - `local-server/lib/orchestrator/directives.mjs` içerisindeki `[HONESTY & ANTI-HALLUCINATION MANDATE]` bloğuna iki katı İngilizce kural eklendi: Modelin bir araç hatası veya engeliyle karşılaştığında "draft durumunda kalmış", "yayınlanması lazım", "indeksleme gecikmesi var" gibi hayali teknik mazeretler üretmesi yasaklandı; sistem çıktısındaki gerçek hatayı şeffafça raporlaması ve açıkça istenmedikçe arkadan dolanıp simülasyon uydurmaması emredildi.
+
    ---
 
    **Sistem Durumu:** `node --check` 0 hata, `npx tsc --noEmit` 0 hata; tüm systemd servisleri (`elara-middleware`, `elara-vite`, `elara-worker`) aktif, sağlıklı ve operasyonel.

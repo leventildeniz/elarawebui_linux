@@ -198,7 +198,67 @@ async function loadTool(toolId) {
     };
   }
 
-  // 3. Action Library (with or without 'tool.' / 'act.' / 'tl.' prefix)
+  // 3. Workflows (with 'wf_', 'wf.', 'workflow.' prefix or bare slug)
+  const cleanWfId = toolId.replace(/^(workflow\.|wf\.|wf_)/i, "");
+  try {
+    const { rows: wfRows } = await _pool.query(
+      `SELECT id, name, nodes, edges, trigger FROM workflows WHERE id=$1 OR id=$2 OR id=$3 OR name=$1 OR name=$2`,
+      [toolId, `wf_${cleanWfId}`, cleanWfId]
+    );
+    if (wfRows[0]) {
+      return {
+        id: wfRows[0].id,
+        name: wfRows[0].name,
+        adapter: "workflow",
+        risk_level: "low",
+        requires_approval: false,
+        runtime: { workflow_id: wfRows[0].id, nodes: wfRows[0].nodes, edges: wfRows[0].edges },
+        system_prompt: ""
+      };
+    }
+  } catch {}
+
+  // 4. Orchestrations / Chains (with 'orc_', 'orc.', 'chain.' prefix or bare slug)
+  const cleanOrcId = toolId.replace(/^(orchestration\.|chain\.|orc\.|orc_)/i, "");
+  try {
+    const { rows: orcRows } = await _pool.query(
+      `SELECT id, name, nodes, edges, trigger FROM orchestrations WHERE id=$1 OR id=$2 OR id=$3 OR name=$1 OR name=$2`,
+      [toolId, `orc_${cleanOrcId}`, cleanOrcId]
+    );
+    if (orcRows[0]) {
+      return {
+        id: orcRows[0].id,
+        name: orcRows[0].name,
+        adapter: "chain",
+        risk_level: "low",
+        requires_approval: false,
+        runtime: { chain_id: orcRows[0].id, nodes: orcRows[0].nodes, edges: orcRows[0].edges },
+        system_prompt: ""
+      };
+    }
+  } catch {}
+
+  // 5. Agents (with 'agt.', 'agent.', 'agt_' prefix or bare slug)
+  const cleanAgtId = toolId.replace(/^(agent\.|agt\.|agt_)/i, "");
+  try {
+    const { rows: agtRows } = await _pool.query(
+      `SELECT id, name, system_prompt, description, squad FROM agents WHERE id=$1 OR id=$2 OR id=$3 OR name=$1 OR name=$2`,
+      [toolId, `agt.${cleanAgtId}`, cleanAgtId]
+    );
+    if (agtRows[0]) {
+      return {
+        id: agtRows[0].id,
+        name: agtRows[0].name,
+        adapter: "agent",
+        risk_level: "low",
+        requires_approval: false,
+        runtime: { agent_id: agtRows[0].id },
+        system_prompt: agtRows[0].system_prompt || agtRows[0].description || ""
+      };
+    }
+  } catch {}
+
+  // 6. Action Library (with or without 'tool.' / 'act.' / 'tl.' prefix)
   const bareToolId = toolId.replace(/^(tool|act|tl)[\._]/i, "");
   const { rows } = await _pool.query(
     `SELECT id, name, adapter, risk_level, requires_approval, runtime, params, system_prompt
@@ -234,50 +294,6 @@ async function loadTool(toolId) {
       };
     }
     return null;
-  }
-
-  // 4. Workflows & Orchestrations (with or without 'wf_' / 'workflow.' / 'orc_' prefix)
-  if (toolId.startsWith("wf_") || toolId.startsWith("wf.") || toolId.startsWith("workflow.") || toolId.startsWith("orc_")) {
-    const cleanWfId = toolId.replace(/^(workflow\.|wf\.)/i, '');
-    try {
-      const { rows: wfRows } = await _pool.query(
-        `SELECT id, name, nodes, edges, trigger FROM workflows WHERE id=$1 OR id=$2 OR name=$1 OR name=$2`,
-        [toolId, cleanWfId]
-      );
-      if (wfRows[0]) {
-        return {
-          id: wfRows[0].id,
-          name: wfRows[0].name,
-          adapter: "workflow",
-          risk_level: "low",
-          requires_approval: false,
-          runtime: { workflow_id: wfRows[0].id, nodes: wfRows[0].nodes, edges: wfRows[0].edges },
-          system_prompt: ""
-        };
-      }
-    } catch {}
-  }
-
-  // 5. Agents (with or without 'agt.' / 'agent.' prefix)
-  if (toolId.startsWith("agt.") || toolId.startsWith("agent.") || toolId.startsWith("agt_")) {
-    const bareAgtId = toolId.replace(/^(agt\.|agent\.|agt_)/i, "");
-    try {
-      const { rows: agtRows } = await _pool.query(
-        `SELECT id, name, system_prompt, description, squad FROM agents WHERE id=$1 OR id=$2 OR id=$3 OR name=$1`,
-        [toolId, `agt.${bareAgtId}`, bareAgtId]
-      );
-      if (agtRows[0]) {
-        return {
-          id: agtRows[0].id,
-          name: agtRows[0].name,
-          adapter: "agent",
-          risk_level: "low",
-          requires_approval: false,
-          runtime: { agent_id: agtRows[0].id },
-          system_prompt: agtRows[0].system_prompt || agtRows[0].description || ""
-        };
-      }
-    } catch {}
   }
 
   let runtime = row.runtime;
