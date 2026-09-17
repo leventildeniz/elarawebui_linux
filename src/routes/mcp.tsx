@@ -689,9 +689,9 @@ function ClientTab() {
 
               <div className="mt-4 flex flex-wrap items-center gap-2">
                 <Tag tone={mcpRiskTone[c.risk || "low"] || "emerald"}>
-                  {(c.risk || "low").toUpperCase()} RISK
+                  {(c.risk || "low").toLowerCase()} risk
                 </Tag>
-                {c.requiresApproval && <Tag tone="ruby">APPROVAL REQ</Tag>}
+                {c.requiresApproval && <Tag tone="ruby">approval req</Tag>}
                 <Tag tone={c.autoInject ? "sapphire" : "platinum"}>
                   {c.autoInject ? "auto-inject" : "manual"}
                 </Tag>

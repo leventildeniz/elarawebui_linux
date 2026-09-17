@@ -345,9 +345,9 @@ function SkillCard({
 
       <div className="mt-3 flex flex-wrap gap-1.5">
         <Tag tone={riskTone[skill.risk || "low"] || "emerald"}>
-          {(skill.risk || "low").toUpperCase()} RISK
+          {(skill.risk || "low").toLowerCase()} risk
         </Tag>
-        {skill.requiresApproval && <Tag tone="ruby">APPROVAL REQ</Tag>}
+        {skill.requiresApproval && <Tag tone="ruby">approval req</Tag>}
         <Tag tone="emerald">{skill.stats.calls} runs</Tag>
         <Tag tone={sandbox ? "emerald" : "ruby"}>
           {sandbox ? `sandbox · ${sandbox.name}` : "no sandbox"}

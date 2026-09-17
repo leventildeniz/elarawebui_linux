@@ -164,10 +164,10 @@ function ToolCard({
       </div>
 
       <div className="mt-3 flex flex-wrap gap-1.5">
-        {item.system && <Tag>SYS</Tag>}
+        {item.system && <Tag>sys</Tag>}
         <Tag tone={kindTone[item.kind] ?? "sapphire"}>{item.kind}</Tag>
-        <Tag tone={toolRiskTone[itemRisk] || "emerald"}>{itemRisk.toUpperCase()} RISK</Tag>
-        {requiresApproval && <Tag tone="ruby">APPROVAL REQ</Tag>}
+        <Tag tone={toolRiskTone[itemRisk] || "emerald"}>{itemRisk} risk</Tag>
+        {requiresApproval && <Tag tone="ruby">approval req</Tag>}
         <Tag tone="amethyst">{item.handler}</Tag>
         {item.scriptPath && <Tag tone="sapphire">{item.scriptPath}</Tag>}
         <Tag tone="topaz">
