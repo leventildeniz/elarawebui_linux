@@ -2168,6 +2168,10 @@ ELARA Sovereign Studio genelinde **Zero-Trust Çoklu Kiracı (Multi-Tenancy) ve 
        - `sys_delegate_to_metaforge` entegrasyonu güçlendirildi: Kullanıcının talebiyle %70+ benzerlik gösteren mevcut sistem yetenekleri tespit edildiğinde `agt.forge_master` planlama ajanına `CRITICAL DEDUPLICATION MATCHES` direktifi enjekte edilerek mükerrer araç üretimi kökten engellendi, zorunlu olarak `plan.reuse` listesine yönlendirildi.
        - Sıfır Ek Yük (Zero-Touch): MetaForge bir aracı veya iş akışını onaylayıp kaydettiğinde (`apply.mjs`), embedding işlemi 10 milisaniye içinde arka planda otomatik güncellenir; operatöre hiçbir buton, bekleme veya manuel işlem yükü çıkarılmaz.
 
+   17. **Zen Modu Scroll Konumu & Dip Çapa Restorasyonu (`src/routes/index.tsx`):**
+       - Operatör normal sohbetten Zen moduna geçtiğinde veya Zen modundan çıktığında (Esc veya ikon) ekranın en tepeye (`scrollTop: 0`) sıfırlanması sorunu kalıcı olarak çözüldü.
+       - `lastScrollTopRef` ve `wasAtBottomRef` izleme katmanı entegre edildi: Operatör sohbetin sonundaysa (`wasAtBottom` veya `stick`), Zen modu geçişinde `scrollRef.current.scrollHeight` ve `endRef` anında devreye girerek operatörü sohbetin tam kaldığı yere (en alta) odaklar; operatör geçmiş mesajları incelerken Zen moduna geçtiğinde ise okuduğu piksel mesafesini birebir korur.
+
    ---
 
    **Sistem Durumu:** `node --check` 0 hata, `npx tsc --noEmit` 0 hata; tüm systemd servisleri (`elara-middleware`, `elara-vite`, `elara-worker`) aktif, sağlıklı ve operasyonel.

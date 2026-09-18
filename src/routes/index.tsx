@@ -227,13 +227,51 @@ function SovereignChat() {
     };
   }, []);
 
+  const lastScrollTopRef = useRef<number>(0);
+  const wasAtBottomRef = useRef<boolean>(true);
+
+  const toggleZen = (targetVal?: boolean) => {
+    const el = scrollRef.current;
+    if (el) {
+      lastScrollTopRef.current = el.scrollTop;
+      wasAtBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 160;
+    }
+    setZen((v) => (typeof targetVal === "boolean" ? targetVal : !v));
+  };
+
   useEffect(() => {
     if (!zen) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setZen(false);
+      if (e.key === "Escape") toggleZen(false);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
+  }, [zen]);
+
+  useEffect(() => {
+    const restoreScroll = () => {
+      const el = scrollRef.current;
+      if (!el) return;
+      if (wasAtBottomRef.current || stick.current) {
+        el.scrollTop = el.scrollHeight;
+        endRef.current?.scrollIntoView({ behavior: "instant", block: "end" });
+      } else if (lastScrollTopRef.current > 0) {
+        el.scrollTop = lastScrollTopRef.current;
+      }
+    };
+
+    restoreScroll();
+    const rafId = requestAnimationFrame(restoreScroll);
+    const t1 = setTimeout(restoreScroll, 50);
+    const t2 = setTimeout(restoreScroll, 150);
+    const t3 = setTimeout(restoreScroll, 300);
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+    };
   }, [zen]);
 
   useEffect(() => {
@@ -250,7 +288,12 @@ function SovereignChat() {
   };
   /** Growing content must never break the follow — only user intent does. */
   const onScroll = () => {
-    if (atBottom()) stick.current = true;
+    const el = scrollRef.current;
+    if (el) {
+      lastScrollTopRef.current = el.scrollTop;
+      wasAtBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 160;
+      if (wasAtBottomRef.current) stick.current = true;
+    }
   };
   const onWheel = (e: React.WheelEvent) => {
     if (e.deltaY < 0) stick.current = false;
@@ -1030,7 +1073,7 @@ function SovereignChat() {
       onStop={stop}
       contextTokens={contextTokens}
       zen={zen}
-      onZenToggle={() => setZen((v) => !v)}
+      onZenToggle={() => toggleZen()}
       pinnedContext={active?.context ?? ""}
       onPinContext={() => setCtxOpen((v) => !v)}
       webSearch={webSearch}
