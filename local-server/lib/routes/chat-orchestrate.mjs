@@ -1181,12 +1181,10 @@ export async function mountChatOrchestrateRoutes(app, deps) {
           }
         }
 
-        // Auto-Recovery: If Turn 1 emitted no tool calls, but the model decided in <think> to call MetaForge or promised an approval card
+        // Auto-Recovery: If Turn 1 emitted no tool calls, but the model's visible output explicitly promised an approval card
         if (finalToolCalls.length === 0 && iteration === 1) {
-          const thinkText = assembledThinking || "";
           const outText = (assembled || "").toLowerCase();
-          const wantsMetaForge = thinkText.includes("sys_delegate_to_metaforge") ||
-            (outText.includes("onay kartı") || outText.includes("approval card") || outText.includes("metaforge'u devreye"));
+          const wantsMetaForge = (outText.includes("onay kartı") || outText.includes("approval card") || outText.includes("metaforge'u devreye"));
           
           if (wantsMetaForge && toolMap["sys_delegate_to_metaforge"]) {
             const userMsg = [...messages].reverse().find((m) => m.role === "user")?.content || "";

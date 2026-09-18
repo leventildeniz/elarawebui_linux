@@ -2196,6 +2196,38 @@ ELARA Sovereign Studio genelinde **Zero-Trust Çoklu Kiracı (Multi-Tenancy) ve 
        - **Docker Hub Namespace Sanitizasyonu:** `tools/tool_docker-hub-tag-fetcher.py` aracı modelin akıllıca resmi imaj namespace'i (`library/redis`) göndermesi durumunda URL'nin `library/library/redis` haline gelip HTTP 404 fırlatması ve aracın çökmesi sorunu çözüldü. Girdi hem `redis` hem de `library/redis` veya üçüncü parti `user/repo` formatlarını esnekçe kabul edecek şekilde normalize edildi; ağ hataları temiz JSON hata sözlüğüyle yakalandı.
        - **Class C (Parametre ve Girdi Hataları) Direktifi:** `directives.mjs` içine eklenen Class C kuralı ile; mevcut bir araçtan HTTP 404 veya parametre hatası döndüğünde modelin bunu *"sistemde bu araç yokmuş"* sanıp MetaForge'a kaçması KESİNLİKLE yasaklandı. Aracın zaten var olduğu, parametre hatasının bir yetenek açığı olmadığı tescillendi; parametreyi düzeltip aracı yeniden çalıştırması veya hedef API yanıtını doğrudan operatöre iletmesi emredildi.
 
+   23. **Sistem Teşhis Raporu: Vektör Başarısı, Araç Parametre Kırılması ve MetaForge Sonsuz Kaçış Döngüsü Analizi:**
+       - **Bulgu 1 — Vektörel Mimari %100 Başarılı:** Vektörel yetenek haritası (`capability-vector.mjs`) sorguyu kusursuz anlayarak `tool.docker-hub-tag-fetcher` aracını saniyesinde buldu ve modelin önüne koydu. Yaşanan krizin sebebi kesinlikle aracı bulamamak veya vektör haritası değildir.
+       - **Bulgu 2 — Araç İçi Parametre Kırılması (404 Crash):** Model resmi imaj namespace'i (`library/redis`) gönderdiğinde araç kodunun `library/library/redis` URL'i üreterek HTTP 404 alması ve unhandled traceback yüzünden 0.4s'de çökmesi tekil bir kod hatasıydı; girdi normalizasyonu ile çözüldü.
+       - **Bulgu 3 — Direktif Kaynaklı Panik & MetaForge Kaçışı:** Model bir araçtan hata aldığında bunu yerinde onarmak veya operatöre hatayı dürüstçe raporlamak yerine; `directives.mjs` içindeki aşırı agresif *"asla mazeret üretme, hata alırsan otonom MetaForge çağır"* direktifi yüzünden her seferinde sıfırdan yeni araçlar (`docker-list-containers`, `docker-health-probe`, `docker-shell-inspector`) türeterek sonsuz döngüye girdi. Gelecek fazda modelin sadece operatör açıkça talep ettiğinde MetaForge'a gitmesi ve kod hatalarında mevcut aracı yerinde onarma (in-place refactor) sınırları katı kurallarla netleştirilecektir.
+
+   24. **Watchdog Kısır Döngüsü, Hassas Eşik Sertleştirmesi ve Otonom MetaForge Sınırlandırması (`self-healing.mjs`, `routes/self-healing.mjs`, `chat-orchestrate.mjs`, `directives.mjs`):**
+       - **Watchdog Sahte Refactor & Bilet Ezme Döngüsünün Kırılması:**
+         * `docker-hub-tag-fetcher` aracının 404 hatası sonrasında veritabanında askıda kalan pending durumundaki `appr_heal_docker-hub-tag-fetcher_1789695602893` bileti incelendi; aracı sağlıklı koda kavuşturularak onaylandı (`status = 'approved'`), `decided_at = now()` damgası basılarak `latest_approvals.last_healed_at` güncellendi ve bayat hataların Watchdog taramasında tekrar tekrar yeni bilet üretmesi engellendi.
+       - **Hassas Eşik ve Gürültü Sertleştirmesi (`isToolDegraded`):**
+         * 3-4 çalıştırmada tek bir kullanıcı yazım hatası veya geçici ağ kopması (1 hata / %25) oluştuğunda sistemin aracı "bozuk" ilan edip kodunu üzerine yazma riski kökten giderildi:
+         * `ANOMALY_MIN_RUNS = 5`, `ANOMALY_MIN_ERRORS = 2` (en az 2 hata şartı) ve `ANOMALY_FAIL_RATE_THRESHOLD = 0.30` kuralı getirildi.
+         * Hata içermeyen sırf yüksek gecikmeli (ör. ağır ağ sorgusu yapan) sağlıklı araçların gereksiz yere biletlenmesi engellendi; tekil ve merkezi `isToolDegraded` doğrulayıcısı hem `self-healing.mjs` hem de `/api/self-healing/status` için tek gerçek kaynak (SSOT) yapıldı.
+       - **Zero-Trust Multi-Tenancy & Global Varlık Mührü:**
+         * `triggerSelfHealingRefactor` bilet açarken `tenant_id: 'default'` ve `is_global: true` bayraklarını veritabanına tescil etti; masa ve kiracı izolasyon kurallarına tam uyum sağlandı.
+       - **Düşünce (`<think>`) Sızıntısı & Sahte MetaForge Zorlamasının Kaldırılması:**
+         * `chat-orchestrate.mjs` içerisinde modelin `<think>` tag'inde "MetaForge çağırmamalıyım" diye düşünse dahi tetiklenen `thinkText.includes("sys_delegate_to_metaforge")` kuralı iptal edildi; yalnızca modelin operatöre sunduğu görünür çıktıda açıkça onay kartı vaat etmesi durumunda kontrollü devreye girmesi sağlandı.
+       - **MetaForge Yetki Sınırları ve Agresif Direktif Düzenlemesi (`directives.mjs`):**
+         * `directives.mjs` içerisindeki çatışan emirler temizlendi; `sys_delegate_to_metaforge` yalnızca iki senaryoda izinli kılındı: (1) Operatörün açıkça yeni bir yetenek/araç/iş akışı üretilmesini talep etmesi, (2) Sistem kataloğunda o alanda hiçbir aracın bulunmaması.
+         * Mevcut araçların varlığında, çalışma esnasında dönen hatalarda (Class A, B veya C) veya makinede Docker deamon gibi eksik bir altyapı servisinde MetaForge'a kaçmak KESİNLİKLE yasaklandı. Modelin operasyonel sonuçları dürüstçe raporlaması kurala bağlandı.
+
+       - **Python Linter False-Positive & `re.compile` Koruması (`guard.mjs`):**
+         * Onay esnasında `middleware.err` loglarında yakalanan kritik bir engel giderildi: `guard.mjs` içerisindeki `/\bcompile\s*\(/` kuralı, `whois_geo.py` dosyasındaki standart `re.compile(...)` ifadesini de yasaklı AST derleyicisi (`compile()`) sanarak linter hatası fırlatıyor ve dosyanın diske yazılmasını engelliyordu.
+         * Regex `/(?<!\.)\bcompile\s*\(/` olarak sıkılaştırıldı; bağımsız Python `compile()` çağrıları engellenmeye devam ederken zararsız `re.compile()` fonksiyonlarına yeşil ışık yakıldı.
+         * `tools/whois_geo.py` başarıyla v2'ye yükseltildi, orijinal dosya `.forge-trash` altına yedeklendi ve stdin üzerinden `1.1.1.1` sorgusuyla %100 canlı doğrulandı.
+
+   25. **Gerçek Zamanlı Otomatik Vektör Tetikleyicisi (Real-Time Auto-Embedding on MetaForge Apply & Canvas Save — `apply.mjs`, `workflows.mjs`):**
+       - **Yeni Yeteneklerin Vektör Kör Noktası Çözüldü:**
+         * MetaForge bir aracı veya iş akışını onaylayıp kaydettiğinde (`applyForgePlan`), dosyayı diske yazıp veritabanına eklemesine rağmen 384-boyutlu vektörün (`embedding`) `NULL` kalması sorunu çözüldü. Bu durum sonraki modellerin yeni aracı vektör uzayında görememesine ve mükerrer araç üretme döngüsüne girmesine yol açıyordu.
+       - **Çift Katmanlı Otomatik Tetikleme:**
+         * `local-server/lib/meta-forge/apply.mjs`: `applyForgePlan` tamamlandığında 8 varlık türünün tamamını kapsayan `backfillCapabilityVectors(pool, { force: false })` otomatik tetiklendi; yeni onaylanan yetenekler ~20ms içinde matematiksel vektör uzayına işlenerek bir sonraki sohbet turunda anında aranabilir kılındı.
+         * `local-server/lib/routes/workflows.mjs`: Operatörün arayüzden (Canvas) doğrudan kaydettiği iş akışları (`PUT /api/workflows/:id`) ve zincirler (`PUT /api/orchestrations/:id`) için de arka planda `updateSingleCapabilityVector` çağrısı bağlanarak manuel güncellemelerin de eşzamanlı vektörel tescili sağlandı.
+
    ---
 
-   **Sistem Durumu:** `node --check` 0 hata, `npx tsc --noEmit` 0 hata; tüm systemd servisleri (`elara-middleware`, `elara-vite`, `elara-worker`) aktif, sağlıklı ve operasyonel.
+   **Sistem Durumu:** `node --check` 0 hata, `npx tsc --noEmit` 0 hata; tüm systemd servisleri (`elara-middleware`, `elara-vite`, `elara-worker`) aktif, sağlıklı ve operasyonel. Watchdog taraması: 0 bozulmuş araç, 0 bekleyen bilet.

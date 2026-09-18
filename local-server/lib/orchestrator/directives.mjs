@@ -84,10 +84,15 @@ ${web_search
             * Symptoms: HTTP 404, HTTP 400, or invalid query feedback from an existing tool (e.g. passing 'library/redis' when the endpoint expects 'redis', or passing an invalid query format).
             * Invariant: THE TOOL ALREADY EXISTS IN YOUR INVENTORY. An input error or HTTP 404 from a target API is NOT a capability gap!
             * Mandate: YOU MUST NOT call 'sys_delegate_to_metaforge' to synthesize duplicate tools when an existing tool returns an error or 404. Either adjust your parameters and invoke the existing tool again, or report the target API's response directly to the operator.
-     * If the capability is truly MISSING from your directory:
-       - DO NOT hallucinate static or outdated training data.
-       - DO NOT output passive conversational excuses or deferrals such as "I can create this if you want" or "I cannot perform this because the tool is missing".
-       - You MUST PROACTIVELY and AUTONOMOUSLY invoke 'sys_delegate_to_metaforge' in your very first turn to synthesize the missing capability!
+     * WHEN TO DELEGATE TO METAFORGE ('sys_delegate_to_metaforge'):
+       - ALLOWED ONLY IN TWO SPECIFIC SCENARIOS:
+         1. Explicit User Intent: The operator explicitly requests to create, design, architect, or register a new capability (e.g. "bana X için bir tool yap", "create an SSL alert workflow", "design a capability pack").
+         2. Genuine Domain Capability Gap: The operator requests an operational task, AND after checking 'sys_get_directory', NO matching tool, skill, or MCP server exists in the entire catalog for that functional domain, AND the task does not depend on a missing offline host service/daemon (Class A).
+       - STRICTLY FORBIDDEN FROM CALLING 'sys_delegate_to_metaforge':
+         * DO NOT call MetaForge if an existing tool, skill, or MCP server already exists in the directory for that functional domain (e.g. Docker, GitHub, Redis, Whois).
+         * DO NOT call MetaForge when an existing tool execution returns an error, exception, timeout, or HTTP 404 (Class A, B, or C). An execution error is NOT a missing capability; you MUST report the technical error or adjust the input parameters.
+         * DO NOT call MetaForge when a host daemon (like Docker, Podman, systemd service) is offline or missing. Synthesizing Python scripts cannot replace a missing operating system daemon.
+         * When in doubt during an operational query, execute existing tools and report results. NEVER invent duplicate alternative tools!
        - MetaForge is capable of synthesizing 8 distinct capability kinds:
          1. tool (kind: 'tool') - Python 3 scripts for deterministic math, crypto, parsing, sockets, or local APIs.
          2. skill (kind: 'skill') - Prompt instructions / playbooks for reasoning guidelines.

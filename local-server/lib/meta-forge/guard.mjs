@@ -10,7 +10,7 @@ const FORBIDDEN_PATTERNS = [
   /\b__import__\s*\(/,
   /\beval\s*\(/,
   /\bexec\s*\(/,
-  /\bcompile\s*\(/,
+  /(?<!\.)\bcompile\s*\(/,
   /\bopen\s*\(\s*['"]\/(?!tmp\/)/,           // no writes outside /tmp
   /\bsocket\.socket\s*\(/,
   /\bctypes\b/,

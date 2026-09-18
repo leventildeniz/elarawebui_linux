@@ -4,6 +4,7 @@
 
 import { syncTriggerSchedules } from '../trigger-sync.mjs';
 import { invokeTool, ApprovalRequired } from '../tool-adapters.mjs';
+import { updateSingleCapabilityVector } from '../capability-vector.mjs';
 
 const CHAIN_ID_RE = /^[A-Za-z0-9._-]{1,128}$/;
 
@@ -205,6 +206,7 @@ export function mountWorkflowRoutes(app, deps) {
 
       const ctxActor = req.session?.userId || null;
       await syncTriggerSchedules(pool, 'workflow', id, nodes, ctxActor);
+      updateSingleCapabilityVector(pool, 'workflow', id).catch(() => {});
 
       res.json({ ok: true, id, nodes: nodes.length, edges: edges.length });
     } catch (e) {
@@ -743,6 +745,7 @@ export function mountWorkflowRoutes(app, deps) {
 
       const ctxActor = req.session?.userId || null;
       await syncTriggerSchedules(pool, 'orchestration', id, nodes, ctxActor);
+      updateSingleCapabilityVector(pool, 'chain', id).catch(() => {});
 
       res.json({ ok: true, id });
     } catch (e) {

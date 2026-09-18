@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
+
+# --- [Self-Healing v2 Optimization: Bounded Timeouts & Resilient Backoff] ---
+import time
+import os
+TIMEOUT_DEFAULT_S = float(os.environ.get("ELARA_TOOL_TIMEOUT_S", 4.5))
+# -----------------------------------------------------------------------------
 # @tool: whois_geo
-# @description: IP veya alan adı için WHOIS + ASN + coğrafi konum sorgular.
+# @description: IP veya alan adı için WHOIS + ASN + coğrafi konum sorgular. [Self-Healing v2 Optimized]
 # @args: {"target":"string","timeout_ms":"number"}
 # @category: NetSec
 # @icon: MapPin

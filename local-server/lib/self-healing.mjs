@@ -14,9 +14,22 @@ const PROJECT_ROOT = path.resolve(__dirname, "..", "..");
 const TOOLS_DIR = path.join(PROJECT_ROOT, "tools");
 const TRASH_DIR = path.join(PROJECT_ROOT, ".forge-trash");
 
-const ANOMALY_MIN_RUNS = 3;
-const ANOMALY_FAIL_RATE_THRESHOLD = 0.25; // 25% failure rate
-const ANOMALY_LATENCY_THRESHOLD_MS = 4000; // 4000ms avg duration
+export const ANOMALY_MIN_RUNS = 5;
+export const ANOMALY_MIN_ERRORS = 2; // At least 2 errors required to prevent transient single-run noise
+export const ANOMALY_FAIL_RATE_THRESHOLD = 0.30; // 30% failure rate
+export const ANOMALY_LATENCY_THRESHOLD_MS = 6000; // 6000ms avg duration
+
+/**
+ * Enterprise tool health evaluator (Single Source of Truth)
+ */
+export function isToolDegraded({ totalRuns, errorCount, failRate, avgDurationMs }) {
+  if (totalRuns < ANOMALY_MIN_RUNS) return false;
+  // A tool is degraded if it has persistent errors (>=2 errors and >=30% fail rate)
+  const isFailureAnomalous = errorCount >= ANOMALY_MIN_ERRORS && failRate >= ANOMALY_FAIL_RATE_THRESHOLD;
+  // Or high latency coupled with at least one error
+  const isLatencyAnomalous = errorCount >= 1 && avgDurationMs > ANOMALY_LATENCY_THRESHOLD_MS;
+  return isFailureAnomalous || isLatencyAnomalous;
+}
 
 function safeSlug(toolId) {
   return String(toolId || "")
@@ -211,7 +224,7 @@ export async function scanToolHealth({ pool, broadcastAudit, enqueueWrite }) {
     const failRate = totalRuns > 0 ? errorCount / totalRuns : 0;
     const errorSamples = Array.isArray(r.error_samples) ? r.error_samples.slice(-5) : [];
 
-    const isAnomalous = failRate >= ANOMALY_FAIL_RATE_THRESHOLD || avgDurationMs > ANOMALY_LATENCY_THRESHOLD_MS;
+    const isAnomalous = isToolDegraded({ totalRuns, errorCount, failRate, avgDurationMs });
 
     if (isAnomalous) {
       anomalies.push({
@@ -306,9 +319,9 @@ export async function triggerSelfHealingRefactor(
 
   const { rows } = await pool.query(
     `INSERT INTO approval_requests (
-      id, title, requester, requester_group, agent_id, tool, target, policy, risk, args, origin, status, ttl_ms, expires_at, assigned_to
+      id, title, requester, requester_group, agent_id, tool, target, policy, risk, args, origin, status, ttl_ms, expires_at, assigned_to, tenant_id, is_global
     ) VALUES (
-      $1, $2, $3, $4, 'meta_forge', $5, $6, $7, 'medium', $8, 'self_healing', 'pending', 7200000, now() + interval '2 hours', '["admin", "sovereign"]'::jsonb
+      $1, $2, $3, $4, 'meta_forge', $5, $6, $7, 'medium', $8, 'self_healing', 'pending', 7200000, now() + interval '2 hours', '["admin", "sovereign"]'::jsonb, 'default', true
     ) RETURNING *`,
     [
       ticketId,

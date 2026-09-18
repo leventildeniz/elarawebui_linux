@@ -2,7 +2,7 @@
 // Self-Healing Tool Optimization Watchdog Endpoints
 
 import { requireSession } from "../session-gate.mjs";
-import { scanToolHealth, simulateToolAnomaly } from "../self-healing.mjs";
+import { scanToolHealth, simulateToolAnomaly, isToolDegraded } from "../self-healing.mjs";
 
 export async function mountSelfHealingRoutes(app, deps) {
   const { pool, broadcastAudit, enqueueWrite } = deps;
@@ -42,11 +42,11 @@ export async function mountSelfHealingRoutes(app, deps) {
       ]);
 
       const degraded = invocationsRes.rows.filter((r) => {
-        const total = Number(r.total_runs) || 0;
-        const errs = Number(r.error_count) || 0;
-        const avgMs = Number(r.avg_duration_ms) || 0;
-        const failRate = total > 0 ? errs / total : 0;
-        return total >= 3 && (failRate >= 0.25 || avgMs > 4000);
+        const totalRuns = Number(r.total_runs) || 0;
+        const errorCount = Number(r.error_count) || 0;
+        const avgDurationMs = Number(r.avg_duration_ms) || 0;
+        const failRate = totalRuns > 0 ? errorCount / totalRuns : 0;
+        return isToolDegraded({ totalRuns, errorCount, failRate, avgDurationMs });
       });
 
       res.json({

@@ -18,7 +18,7 @@ import { lintPython } from "./guard.mjs";
 import { refreshCapabilitiesAfterForgeApply } from "./refresh.mjs";
 import { runToolSmoke } from "./smoke.mjs";
 import { createServer, probeServer, recordProbe } from "../mcp/client.mjs";
-import { updateSingleCapabilityVector } from "../capability-vector.mjs";
+import { updateSingleCapabilityVector, backfillCapabilityVectors } from "../capability-vector.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, "..", "..", "..");
@@ -762,6 +762,18 @@ export async function applyForgePlan({ pool, planId, plan, maxItems = DEFAULT_MA
       } catch (e) {
         console.warn("[forge:apply] post-refresh re-stamp failed", res.slug, e?.message || e);
       }
+    }
+
+    // 360° Real-Time Vector Indexing across all 8 capability kinds
+    // Immediately vector-embed any newly forged capabilities so they are visible
+    // in semantic vector search in the very next turn without process restart.
+    try {
+      const vecRes = await backfillCapabilityVectors(pool, { force: false });
+      if (vecRes?.total > 0) {
+        console.log(`[forge:apply] ✅ Real-time vector indexed ${vecRes.total} new capabilities in ${vecRes.ms}ms.`);
+      }
+    } catch (vecErr) {
+      console.warn("[forge:apply] Capability vector indexing notice:", vecErr?.message || vecErr);
     }
   }
 
