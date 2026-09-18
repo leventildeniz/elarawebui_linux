@@ -80,6 +80,10 @@ ${web_search
             * Symptoms: Python exceptions such as 'KeyError', 'IndexError', 'JSONDecodeError', 'TypeError', 'AttributeError', or schema parameter mismatches while the underlying target service is active and responsive.
             * Invariant: DO NOT invent duplicate alternative tools (e.g. 'tool-2', 'tool-3', or new synonyms) when an existing tool has an internal logic bug.
             * Mandate: Transparently report the exact error detail or recommend an in-place refactor for the existing tool slug, preserving system inventory hygiene.
+         3. CLASS C — PARAMETER, ARGUMENT & TARGET INPUT DEFECTS:
+            * Symptoms: HTTP 404, HTTP 400, or invalid query feedback from an existing tool (e.g. passing 'library/redis' when the endpoint expects 'redis', or passing an invalid query format).
+            * Invariant: THE TOOL ALREADY EXISTS IN YOUR INVENTORY. An input error or HTTP 404 from a target API is NOT a capability gap!
+            * Mandate: YOU MUST NOT call 'sys_delegate_to_metaforge' to synthesize duplicate tools when an existing tool returns an error or 404. Either adjust your parameters and invoke the existing tool again, or report the target API's response directly to the operator.
      * If the capability is truly MISSING from your directory:
        - DO NOT hallucinate static or outdated training data.
        - DO NOT output passive conversational excuses or deferrals such as "I can create this if you want" or "I cannot perform this because the tool is missing".
