@@ -2183,6 +2183,10 @@ ELARA Sovereign Studio genelinde **Zero-Trust Çoklu Kiracı (Multi-Tenancy) ve 
        - **Otomatik Alt Araç Çözümleme (MCP & Pack Unwrapping):** Bir MCP sunucusu veya Yetenek Paketi eşleştiğinde, o sunucuya/pakete ait araçlar (`mcp.github.search_repositories`, `mcp.github.get_file_contents`) otomatik olarak süzülüp `tools` listesine dahil edilir. Token şişmesini önlemek için en alakalı 12 araç filtrelenir.
        - **Sıfır-Hata İcra Yetkilendirmesi (`sys_execute_tool`):** Model ister `mcp.github.search_repositories`, ister `github.search_repositories`, ister `github_search_repositories`, ister ön eksiz `ssl-cert-probe` veya `ssl-expiry-monitor-workflow` çağırsın; icra köprüsü bunu 0.0 milisaniyede kanonik veritabanı ID'sine dönüştürür. `sys_execute_tool FAILED` hataları ve modelin gereksiz yere MetaForge'a kaçması kökten engellendi.
 
+   20. **MCP Konteyner Koruma Kalkanı & Şeffaf Sunucu Sağlık Telemetrisi (`tool-dispatcher.mjs`):**
+       - **Konteyner - Araç Ayrım Kalkanı:** Modelin bir MCP sunucusunun (Docker vb.) UUID veya slug kimliğini doğrudan tekil bir araçmış gibi çalıştırmaya kalkması engellendi. Bu durumda sistem modele yanıltıcı bir "orphan tool" hatası dönmek yerine şeffaf ve net bir hata döner: `[MCP_CONTAINER_ERROR] 'Docker Container Monitor' is an MCP server container, not an executable tool. Its status is 'error' (tool_count: 0, error: 'Exited with code 1'). Required host service (Docker daemon) is not running on this host.`
+       - **Dizinde Kesintisiz Sunucu Durumu:** `sys_get_directory` çıktısına `mcp_servers` bloğu canlı sağlık durumu, hata detayları ve araç sayılarıyla birlikte eklendi. Model sunucunun durumunu (örn. Docker'ın makinede kurulu olmadığını) doğrudan anlayarak gereksiz yere MetaForge'a kaçmaz, kullanıcıya host durumunu dürüstçe raporlar.
+
    ---
 
    **Sistem Durumu:** `node --check` 0 hata, `npx tsc --noEmit` 0 hata; tüm systemd servisleri (`elara-middleware`, `elara-vite`, `elara-worker`) aktif, sağlıklı ve operasyonel.

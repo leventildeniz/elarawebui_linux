@@ -184,11 +184,12 @@ export async function dispatchToolCall({
         intent: intentWord,
         semantic_matches: semanticMatches.map((m) => ({
           kind: m.kind,
-          id: m.id || m.slug,
+          id: m.slug || m.id,
           name: m.name,
           relevance: `${Math.round(m.score * 100)}%`,
         })),
         tools: [...filteredTools, ...filteredSkills, ...topMcpTools],
+        mcp_servers: mcpServers.map((s) => ({ slug: s.slug, name: s.name, status: s.status, error: s.error, tool_count: s.tool_count })),
         workflows: filteredWorkflows.map((w) => ({ id: w.id, name: w.name, trigger: w.trigger, status: w.status })),
         orchestrations: filteredOrchestrations.map((o) => ({ id: o.id, name: o.name, trigger: o.trigger, status: o.status })),
         webhooks: filteredWebhooks.map((w) => ({ id: w.id, name: w.name, slug: w.slug })),
@@ -369,10 +370,25 @@ export async function dispatchToolCall({
     let serverSlug = "";
     const { clause: mcpChkClause, params: mcpChkParams } = buildVisibility(actorCtx, 2, "owner_id");
     const mcpServersList = await pool.query(
-      `SELECT slug FROM mcp_client_servers WHERE enabled = true AND (${mcpChkClause})`,
+      `SELECT id, slug, name, last_status, last_error, tools_cache FROM mcp_client_servers WHERE enabled = true AND (${mcpChkClause})`,
       mcpChkParams
     ).catch(() => ({ rows: [] }));
     const activeMcpSlugs = new Set(mcpServersList.rows.map((r) => r.slug));
+
+    // Guard: Prevent calling an MCP server container as if it were an individual tool
+    const serverHit = mcpServersList.rows.find(
+      (s) => s.id === targetToolId || s.slug === targetToolId || s.slug === normalizedId || s.slug === targetToolId.replace(/^mcp[\._]/i, "")
+    );
+    if (serverHit) {
+      const toolCount = Array.isArray(serverHit.tools_cache) ? serverHit.tools_cache.length : 0;
+      const status = serverHit.last_status || "error";
+      const err = serverHit.last_error || "Failed to connect or service not installed";
+      toolResultStr = JSON.stringify({
+        error: `[MCP_CONTAINER_ERROR] '${serverHit.name}' is an MCP server container, not an individual executable tool. Its status is '${status}' (tool_count: ${toolCount}, error: '${err}'). The required host service (e.g. Docker daemon) is not running on this host.`,
+      });
+      toolStatus = "failed";
+      return { toolResultStr, toolStatus, toolDetail: `mcp server ${status}` };
+    }
 
     if (targetToolId.startsWith("mcp.")) {
       const rest = targetToolId.slice(4);
