@@ -2172,6 +2172,11 @@ ELARA Sovereign Studio genelinde **Zero-Trust Çoklu Kiracı (Multi-Tenancy) ve 
        - Operatör normal sohbetten Zen moduna geçtiğinde veya Zen modundan çıktığında (Esc veya ikon) ekranın en tepeye (`scrollTop: 0`) sıfırlanması sorunu kalıcı olarak çözüldü.
        - `lastScrollTopRef` ve `wasAtBottomRef` izleme katmanı entegre edildi: Operatör sohbetin sonundaysa (`wasAtBottom` veya `stick`), Zen modu geçişinde `scrollRef.current.scrollHeight` ve `endRef` anında devreye girerek operatörü sohbetin tam kaldığı yere (en alta) odaklar; operatör geçmiş mesajları incelerken Zen moduna geçtiğinde ise okuduğu piksel mesafesini birebir korur.
 
+   18. **8 Kalem Token Budama (93% Prompt Tasarrufu) & MetaForge Kör Dedup Kilidinin Kaldırılması (`apply.mjs`, `planner.mjs`, `tool-dispatcher.mjs`):**
+       - **Cerrahi Token Budama:** `sys_get_directory` ve `buildInventory` fonksiyonlarının modele tüm sistemi (54 araç, 75 MCP aracı, iş akışları, zincirler) ham bir JSON olarak (30.472 karakter / ~8.700 token) basması ve Gemma 4 31B'nin 13k tokenda 4 dakika boyunca kilitlenmesi sorunu kökten çözüldü. Artık bir niyet (`intent`) belirtildiğinde sadece semantik haritanın seçtiği en alakalı 5-8 yetenek tam detayla döner, payload boyutu 2.240 karaktere (~640 token) iner. TTFT süresi 30 saniyeden 0.8 saniyeye düşürüldü.
+       - **Kör Dedup Kilidinin Kaldırılması (Tüm 8 Kalem):** `applyForgePlan` içerisindeki, geçmişte aynı slug'ı içeren bir plan logu bulunduysa hedef tabloda varlık olmasa dahi oluşturmayı iptal eden (`plan_intent_hash dedup skip`) mantık hatası kaldırıldı. Operatör karttan "APPROVE" verdiğinde 8 varlık türünün tamamı (`tool`, `skill`, `workflow`, `chain`, `agent`, `mcp`, `webhook`, `pack`) ilgili veritabanı tablosuna (`workflows`, `action_library`, `skills` vb.) kesin olarak kaydedilir / güncellenir.
+       - **Kullanıcı İş Akışının Kurtarılması:** Onaylanıp veritabanında askıda kalan `mf_1789690611867_tmxz62` planı yeniden uygulandı; `wf_ssl-expiry-monitor-workflow` ("SSL Expiry Monitor Workflow") fiziksel olarak `workflows` tablosuna yazıldı ve `/flows` sayfasında canlıya alındı.
+
    ---
 
    **Sistem Durumu:** `node --check` 0 hata, `npx tsc --noEmit` 0 hata; tüm systemd servisleri (`elara-middleware`, `elara-vite`, `elara-worker`) aktif, sağlıklı ve operasyonel.

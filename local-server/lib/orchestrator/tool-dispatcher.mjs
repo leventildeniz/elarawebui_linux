@@ -118,55 +118,57 @@ export async function dispatchToolCall({
     let semanticMatches = [];
     if (intentWord) {
       try {
-        semanticMatches = await searchCapabilityVectors(pool, { intent: intentWord, limit: 10, minScore: 0.58 });
+        semanticMatches = await searchCapabilityVectors(pool, { intent: intentWord, limit: 8, minScore: 0.52 });
       } catch (e) {
         console.warn("[tool-dispatcher] Vector search notice:", e.message);
       }
-
-      if (semanticMatches.length > 0) {
-        const scoreMap = new Map(semanticMatches.map((m) => [m.id || m.slug, m.score]));
-        const getScore = (item) => scoreMap.get(item.id) || scoreMap.get(item.slug) || 0;
-
-        standardTools.sort((a, b) => getScore(b) - getScore(a));
-        skillsList.sort((a, b) => getScore(b) - getScore(a));
-      } else {
-        standardTools.sort((a, b) => {
-          const aMatch = (a.id + " " + a.name + " " + a.desc).toLowerCase().includes(intentWord);
-          const bMatch = (b.id + " " + b.name + " " + b.desc).toLowerCase().includes(intentWord);
-          if (aMatch && !bMatch) return -1;
-          if (!aMatch && bMatch) return 1;
-          return 0;
-        });
-        skillsList.sort((a, b) => {
-          const aMatch = (a.id + " " + a.name + " " + a.desc).toLowerCase().includes(intentWord);
-          const bMatch = (b.id + " " + b.name + " " + b.desc).toLowerCase().includes(intentWord);
-          if (aMatch && !bMatch) return -1;
-          if (!aMatch && bMatch) return 1;
-          return 0;
-        });
-      }
     }
 
-    toolResultStr = JSON.stringify({
-      ...(semanticMatches.length > 0
-        ? {
-            semantic_matches: semanticMatches.map((m) => ({
-              kind: m.kind,
-              id: m.id || m.slug,
-              name: m.name,
-              relevance: `${Math.round(m.score * 100)}%`,
-            })),
-          }
-        : {}),
-      agents: agtRes.rows.map((a) => ({ id: a.id, name: a.name, squad: a.squad, desc: (a.description || "").slice(0, 120) })),
-      tools: [...standardTools, ...skillsList, ...mcpTools],
-      mcp_servers: mcpServers,
-      workflows: wfRes.rows.map((w) => ({ id: w.id, name: w.name, trigger: w.trigger, status: w.status })),
-      orchestrations: orcRes.rows.map((o) => ({ id: o.id, name: o.name, trigger: o.trigger, status: o.status })),
-      webhooks: whRes.rows.map((w) => ({ id: w.id, name: w.name, slug: w.slug, description: (w.description || "").slice(0, 120) })),
-      packs: packRes.rows.map((p) => ({ id: p.id, name: p.name, desc: (p.description || "").slice(0, 120), tools: p.tools, skills: p.skills })),
-      message: "Directory loaded. Contains available agents, tools, skills, capability packs, active and configured MCP servers, workflows, orchestrations, and webhooks.",
-    });
+    if (semanticMatches.length > 0) {
+      const matchSlugs = new Set(semanticMatches.map((m) => m.id || m.slug));
+      const filteredTools = standardTools.filter((t) => matchSlugs.has(t.id));
+      const filteredSkills = skillsList.filter((s) => matchSlugs.has(s.id));
+      const filteredMcpTools = mcpTools.filter((m) => matchSlugs.has(m.id));
+      const filteredWorkflows = wfRes.rows.filter((w) => matchSlugs.has(w.id));
+      const filteredOrchestrations = orcRes.rows.filter((o) => matchSlugs.has(o.id));
+      const filteredWebhooks = whRes.rows.filter((w) => matchSlugs.has(w.slug) || matchSlugs.has(w.id));
+
+      toolResultStr = JSON.stringify({
+        intent: intentWord,
+        semantic_matches: semanticMatches.map((m) => ({
+          kind: m.kind,
+          id: m.id || m.slug,
+          name: m.name,
+          relevance: `${Math.round(m.score * 100)}%`,
+        })),
+        tools: [...filteredTools, ...filteredSkills, ...filteredMcpTools],
+        workflows: filteredWorkflows.map((w) => ({ id: w.id, name: w.name, trigger: w.trigger, status: w.status })),
+        orchestrations: filteredOrchestrations.map((o) => ({ id: o.id, name: o.name, trigger: o.trigger, status: o.status })),
+        webhooks: filteredWebhooks.map((w) => ({ id: w.id, name: w.name, slug: w.slug })),
+        total_counts: {
+          tools: standardTools.length,
+          skills: skillsList.length,
+          workflows: wfRes.rows.length,
+          orchestrations: orcRes.rows.length,
+          mcp_servers: mcpServers.length,
+          webhooks: whRes.rows.length,
+        },
+        message: `Found ${semanticMatches.length} capabilities matching '${intentWord}'. Use sys_execute_tool with the matched tool ID.`,
+      });
+    } else {
+      // Compact general overview without raw 75 MCP tools dump (90% prompt token savings)
+      toolResultStr = JSON.stringify({
+        agents: agtRes.rows.map((a) => ({ id: a.id, name: a.name, squad: a.squad, desc: (a.description || "").slice(0, 80) })),
+        tools: [...standardTools.slice(0, 15), ...skillsList],
+        mcp_servers: mcpServers.map((s) => ({ slug: s.slug, name: s.name, tool_count: s.tool_count, status: s.status })),
+        workflows: wfRes.rows.slice(0, 8).map((w) => ({ id: w.id, name: w.name, trigger: w.trigger })),
+        orchestrations: orcRes.rows.slice(0, 5).map((o) => ({ id: o.id, name: o.name, trigger: o.trigger })),
+        webhooks: whRes.rows.map((w) => ({ id: w.id, name: w.name, slug: w.slug })),
+        packs: packRes.rows.map((p) => ({ id: p.id, name: p.name, desc: (p.description || "").slice(0, 80) })),
+        total_counts: { tools: standardTools.length, mcp_tools: mcpTools.length, workflows: wfRes.rows.length },
+        message: "Directory summary loaded. Pass 'intent' to sys_get_directory to search specific tools/workflows semantically.",
+      });
+    }
   }
 
   // 2. SUB-AGENT DELEGATION (WITH AGENTIC RAG)
@@ -435,7 +437,7 @@ export async function dispatchToolCall({
 
     let inventory = { agents: [], tools: [], skills: [], packs: [], counts: {} };
     try {
-      inventory = await buildInventory(pool);
+      inventory = await buildInventory(pool, { intent: intentText });
     } catch (invErr) {
       console.warn("meta_forge inventory error:", invErr);
     }

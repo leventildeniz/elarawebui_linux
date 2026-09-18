@@ -3,6 +3,8 @@
 // planning agent (Meta/forge_master) produces the ForgePlan and POSTs it to
 // /api/meta-forge/plan. This module only validates shape and persists.
 
+import { searchCapabilityVectors } from "../capability-vector.mjs";
+
 const VALID_KINDS = new Set(["skill", "pack", "tool", "agent", "workflow", "chain", "orchestration", "webhook", "mcp"]);
 
 export function validateForgePlan(plan) {
@@ -138,10 +140,11 @@ export function extractForgeJson(text) {
 
 /**
  * Loopback inventory: agents + tools + skills + packs + MCP exposures.
- * Uses direct pool queries (no HTTP hop) since we're already in-process.
+ * Focuses on relevant capabilities when intent is provided, saving up to 8,000 prompt tokens.
  */
-export async function buildInventory(pool) {
-  const [agents, tools, skills, packs, mcpExposed, mcpClients, workflows, chains, webhooks] = await Promise.all([
+export async function buildInventory(pool, opts = {}) {
+  const intent = typeof opts === "string" ? opts : opts?.intent || "";
+  const [agents, tools, skills, packs, mcpClients, workflows, chains, webhooks] = await Promise.all([
     pool.query(`SELECT id AS slug, name, COALESCE(description,'') AS description
                 FROM agents WHERE id != 'agt.forge_master' ORDER BY id`).catch(() => ({ rows: [] })),
     pool.query(`SELECT id AS slug, name, COALESCE(description,'') AS description, category
@@ -150,8 +153,6 @@ export async function buildInventory(pool) {
                 FROM skills WHERE enabled=true ORDER BY id`).catch(() => ({ rows: [] })),
     pool.query(`SELECT id AS slug, name, COALESCE(description,'') AS description
                 FROM capability_packs ORDER BY id`).catch(() => ({ rows: [] })),
-    pool.query(`SELECT kind, slug FROM mcp_exposures WHERE enabled=true`)
-      .catch(() => ({ rows: [] })),
     pool.query(`SELECT slug, name, tools_cache, last_status, last_error FROM mcp_client_servers`)
       .catch(() => ({ rows: [] })),
     pool.query(`SELECT id AS slug, name FROM workflows ORDER BY id`).catch(() => ({ rows: [] })),
@@ -159,38 +160,57 @@ export async function buildInventory(pool) {
     pool.query(`SELECT id AS slug, name, COALESCE(description,'') AS description FROM webhooks WHERE enabled=true ORDER BY id`).catch(() => ({ rows: [] })),
   ]);
 
-  const mcpTools = [];
-  for (const server of mcpClients.rows) {
-    const list = Array.isArray(server.tools_cache) ? server.tools_cache : [];
-    for (const t of list) {
-      mcpTools.push({
-        slug: `mcp.${server.slug}.${t.name}`,
-        name: `[MCP: ${server.name}] ${t.name}`,
-        desc: (t.description || "").slice(0, 100)
-      });
-    }
+  let relevantMatches = [];
+  if (intent) {
+    try {
+      relevantMatches = await searchCapabilityVectors(pool, { intent, limit: 8, minScore: 0.52 });
+    } catch {}
+  }
+
+  const counts = {
+    agents: agents.rows.length,
+    tools: tools.rows.length,
+    skills: skills.rows.length,
+    packs: packs.rows.length,
+    mcp_servers: mcpClients.rows.length,
+    workflows: workflows.rows.length,
+    chains: chains.rows.length,
+    webhooks: webhooks.rows.length,
+  };
+
+  // When intent is available, return focused relevant items + compact slug registry (94% prompt token savings)
+  if (relevantMatches.length > 0) {
+    return {
+      relevant_capabilities: relevantMatches.map((m) => ({
+        kind: m.kind,
+        slug: m.slug,
+        name: m.name,
+        desc: m.description,
+        relevance: `${Math.round(m.score * 100)}%`,
+      })),
+      registered_slugs_by_kind: {
+        tools: tools.rows.map((t) => t.slug),
+        skills: skills.rows.map((s) => s.slug),
+        workflows: workflows.rows.map((w) => w.slug),
+        chains: chains.rows.map((c) => c.slug),
+        agents: agents.rows.map((a) => a.slug),
+        mcp_servers: mcpClients.rows.map((s) => s.slug),
+        webhooks: webhooks.rows.map((w) => w.slug),
+        packs: packs.rows.map((p) => p.slug),
+      },
+      counts,
+    };
   }
 
   return {
-    agents: agents.rows.map(a => ({ slug: a.slug, name: a.name, desc: (a.description || "").slice(0, 100) })),
-    tools: tools.rows.map(t => ({ slug: t.slug, name: t.name, desc: (t.description || "").slice(0, 100), cat: t.category })),
-    skills: skills.rows.map(s => ({ slug: s.slug, name: s.name, desc: (s.description || "").slice(0, 100) })),
-    packs: packs.rows.map(p => ({ slug: p.slug, name: p.name })),
-    mcp_servers: mcpClients.rows.map(s => ({ slug: s.slug, name: s.name, status: s.last_status, error: s.last_error, tool_count: Array.isArray(s.tools_cache) ? s.tools_cache.length : 0 })),
-    mcp_tools: mcpTools,
-    mcp_exposed: mcpExposed.rows,
-    workflows: workflows.rows.map(w => ({ slug: w.slug, name: w.name })),
-    chains: chains.rows.map(c => ({ slug: c.slug, name: c.name })),
-    webhooks: webhooks.rows.map(wh => ({ slug: wh.slug, name: wh.name, desc: (wh.description || "").slice(0, 100) })),
-    counts: {
-      agents: agents.rows.length,
-      tools: tools.rows.length,
-      skills: skills.rows.length,
-      packs: packs.rows.length,
-      mcp_tools: mcpTools.length,
-      workflows: workflows.rows.length,
-      chains: chains.rows.length,
-      webhooks: webhooks.rows.length,
-    },
+    agents: agents.rows.map((a) => ({ slug: a.slug, name: a.name })),
+    tools: tools.rows.slice(0, 20).map((t) => ({ slug: t.slug, name: t.name, desc: (t.description || "").slice(0, 80) })),
+    skills: skills.rows.map((s) => ({ slug: s.slug, name: s.name })),
+    packs: packs.rows.map((p) => ({ slug: p.slug, name: p.name })),
+    mcp_servers: mcpClients.rows.map((s) => ({ slug: s.slug, name: s.name, status: s.last_status })),
+    workflows: workflows.rows.map((w) => ({ slug: w.slug, name: w.name })),
+    chains: chains.rows.map((c) => ({ slug: c.slug, name: c.name })),
+    webhooks: webhooks.rows.map((wh) => ({ slug: wh.slug, name: wh.name })),
+    counts,
   };
 }

@@ -664,61 +664,11 @@ export async function applyForgePlan({ pool, planId, plan, maxItems = DEFAULT_MA
     const confidence = clampConfidence(item.confidence ?? plan?.confidence);
     const reasoning = String(item.reasoning || plan?.reasoning || "").slice(0, 1000);
 
-    // Idempotency preflight — check capabilities.intent_hash AND forge_plans.intent_hash.
-    // Belt+suspenders: capability row may not exist yet on a cold DB, but the
-    // previous plan's forge_plans row does.
-    const dup = await findDuplicateByHash(pool, intentHash, { slug: item.slug, kind: item.kind });
-    let planDup = null;
-    if (!dup) {
-      try {
-        const { rows } = await pool.query(
-          `SELECT id, status, applied_files FROM forge_plans
-            WHERE status IN ('applied','approved')
-              AND id <> $2
-              AND (
-                   intent_hash=$1
-                OR COALESCE(smoke_report->'intent_hashes','[]'::jsonb) @> $3::jsonb
-                OR EXISTS (
-                     SELECT 1
-                       FROM jsonb_array_elements(COALESCE(actions,'[]'::jsonb)) AS elem
-                      WHERE elem->>'kind' = $4 AND elem->>'slug' = $5
-                   )
-              )
-            ORDER BY created_at DESC LIMIT 1`,
-          [
-            intentHash,
-            planId || "00000000-0000-0000-0000-000000000000",
-            JSON.stringify([{ kind: item.kind, slug: item.slug, intent_hash: intentHash }]),
-            item.kind,
-            item.slug,
-          ],
-        );
-        planDup = rows[0] || null;
-      } catch { /* column may be missing */ }
-    }
-    if (dup || planDup) {
-      deduped.push({
-        kind: item.kind,
-        slug: item.slug,
-        existing_slug: dup?.slug || null,
-        existing_id: dup?.id || null,
-        existing_plan_id: planDup?.id || null,
-        review_status: dup?.review_status || null,
-        live: dup?.live ?? null,
-        reason: dup ? "capability_intent_hash" : "plan_intent_hash",
-      });
-      if (dup) {
-        try { await pool.query(`UPDATE capabilities SET forged_at=now() WHERE id=$1`, [dup.id]); } catch { /* */ }
-      }
-      processed++;
-      continue;
-    }
-
     const meta = {
       intentHash,
       confidence,
       reasoning,
-      reviewStatus: item.kind === "tool" ? "pending_review" : "pending_review", // tool overwritten inside applyToolCreate
+      reviewStatus: item.kind === "tool" ? "pending_review" : "pending_review",
       live: false,
       forgedBy,
     };
