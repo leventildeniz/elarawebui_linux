@@ -115,23 +115,70 @@ export async function dispatchToolCall({
       });
     }
 
+    function normalizeCapId(id) {
+      return String(id || "")
+        .toLowerCase()
+        .replace(/^(mcp\.|tool\.|tool_|act\.|act_|sk\.|sk_|skill\.|skill_|wf_|wf\.|workflow\.|workflow_|orc_|orc\.|chain\.|chain_|agt\.|agt_|agent\.|agent_|wh\.|wh_|webhook\.|webhook_|pack\.|pack_)+/gi, "")
+        .replace(/[^a-z0-9]/g, "-")
+        .replace(/^-+|-+$/g, "");
+    }
+
     let semanticMatches = [];
     if (intentWord) {
       try {
-        semanticMatches = await searchCapabilityVectors(pool, { intent: intentWord, limit: 8, minScore: 0.52 });
+        semanticMatches = await searchCapabilityVectors(pool, { intent: intentWord, limit: 8, minScore: 0.50 });
       } catch (e) {
         console.warn("[tool-dispatcher] Vector search notice:", e.message);
       }
     }
 
     if (semanticMatches.length > 0) {
-      const matchSlugs = new Set(semanticMatches.map((m) => m.id || m.slug));
-      const filteredTools = standardTools.filter((t) => matchSlugs.has(t.id));
-      const filteredSkills = skillsList.filter((s) => matchSlugs.has(s.id));
-      const filteredMcpTools = mcpTools.filter((m) => matchSlugs.has(m.id));
-      const filteredWorkflows = wfRes.rows.filter((w) => matchSlugs.has(w.id));
-      const filteredOrchestrations = orcRes.rows.filter((o) => matchSlugs.has(o.id));
-      const filteredWebhooks = whRes.rows.filter((w) => matchSlugs.has(w.slug) || matchSlugs.has(w.id));
+      const matchedNormalized = new Set(semanticMatches.map((m) => normalizeCapId(m.id || m.slug)));
+      const matchedRaw = new Set(semanticMatches.flatMap((m) => [m.id, m.slug].filter(Boolean)));
+      const matchedMcpServerSlugs = new Set(
+        semanticMatches.filter((m) => m.kind === "mcp").map((m) => m.slug || m.id)
+      );
+
+      // Collect member tool/skill IDs from any matched capability pack
+      const matchedPackMemberIds = new Set();
+      for (const p of packRes.rows) {
+        if (matchedRaw.has(p.id) || matchedNormalized.has(normalizeCapId(p.id)) || matchedNormalized.has(normalizeCapId(p.name))) {
+          const pTools = Array.isArray(p.tools) ? p.tools : [];
+          const pSkills = Array.isArray(p.skills) ? p.skills : [];
+          [...pTools, ...pSkills].forEach((id) => matchedPackMemberIds.add(id));
+        }
+      }
+
+      const filteredTools = standardTools.filter(
+        (t) => matchedRaw.has(t.id) || matchedNormalized.has(normalizeCapId(t.id)) || matchedNormalized.has(normalizeCapId(t.name)) || matchedPackMemberIds.has(t.id)
+      );
+      const filteredSkills = skillsList.filter(
+        (s) => matchedRaw.has(s.id) || matchedNormalized.has(normalizeCapId(s.id)) || matchedNormalized.has(normalizeCapId(s.name)) || matchedPackMemberIds.has(s.id)
+      );
+      const filteredMcpTools = mcpTools.filter((m) => {
+        if (matchedRaw.has(m.id) || matchedNormalized.has(normalizeCapId(m.id))) return true;
+        const parts = m.id.split(".");
+        if (parts.length >= 3 && matchedMcpServerSlugs.has(parts[1])) return true;
+        return false;
+      });
+      const filteredWorkflows = wfRes.rows.filter(
+        (w) => matchedRaw.has(w.id) || matchedNormalized.has(normalizeCapId(w.id)) || matchedNormalized.has(normalizeCapId(w.name))
+      );
+      const filteredOrchestrations = orcRes.rows.filter(
+        (o) => matchedRaw.has(o.id) || matchedNormalized.has(normalizeCapId(o.id)) || matchedNormalized.has(normalizeCapId(o.name))
+      );
+      const filteredWebhooks = whRes.rows.filter(
+        (w) => matchedRaw.has(w.id) || matchedRaw.has(w.slug) || matchedNormalized.has(normalizeCapId(w.id)) || matchedNormalized.has(normalizeCapId(w.slug))
+      );
+
+      // Prioritize MCP tools whose name or description matches the query intent (max 12 tools)
+      const qTokens = intentWord.toLowerCase().split(/[^a-z0-9]+/i).filter((t) => t.length > 2);
+      filteredMcpTools.sort((a, b) => {
+        const aScore = qTokens.reduce((acc, t) => acc + (a.id.toLowerCase().includes(t) || (a.desc || "").toLowerCase().includes(t) ? 2 : 0), 0);
+        const bScore = qTokens.reduce((acc, t) => acc + (b.id.toLowerCase().includes(t) || (b.desc || "").toLowerCase().includes(t) ? 2 : 0), 0);
+        return bScore - aScore;
+      });
+      const topMcpTools = filteredMcpTools.slice(0, 12);
 
       toolResultStr = JSON.stringify({
         intent: intentWord,
@@ -141,7 +188,7 @@ export async function dispatchToolCall({
           name: m.name,
           relevance: `${Math.round(m.score * 100)}%`,
         })),
-        tools: [...filteredTools, ...filteredSkills, ...filteredMcpTools],
+        tools: [...filteredTools, ...filteredSkills, ...topMcpTools],
         workflows: filteredWorkflows.map((w) => ({ id: w.id, name: w.name, trigger: w.trigger, status: w.status })),
         orchestrations: filteredOrchestrations.map((o) => ({ id: o.id, name: o.name, trigger: o.trigger, status: o.status })),
         webhooks: filteredWebhooks.map((w) => ({ id: w.id, name: w.name, slug: w.slug })),
@@ -312,49 +359,82 @@ export async function dispatchToolCall({
     let canonicalId = targetToolId;
     let isAllowed = false;
 
-    const normalizedId = targetToolId.replace(/^(skill_|tool_|sk_|skill\.|tool\.|sk\.|wf_|wf\.|workflow\.|orc_|orc\.|chain\.|agt\.|agent\.)+/gi, "").replace(/_/g, "-");
+    const normalizedId = targetToolId
+      .replace(/^(mcp\.|tool\.|tool_|act\.|act_|sk\.|sk_|skill\.|skill_|wf_|wf\.|workflow\.|workflow_|orc_|orc\.|chain\.|chain_|agt\.|agt_|agent\.|agent_)+/gi, "")
+      .replace(/_/g, "-");
     const dotId = targetToolId.replace(/^(skill_|tool_|sk_|wf_|orc_|agt_)+/gi, "").replace(/_/g, ".");
 
-    let cleanMcpId = targetToolId.replace(/^tool_mcp_/i, "mcp.").replace(/^mcp_/i, "mcp.");
-    let isMcp = cleanMcpId.startsWith("mcp.") || dotId.startsWith("mcp.");
+    // Universal MCP Resolver: Handles mcp.server.tool, server.tool, server_tool, mcp_server_tool
+    let isMcp = false;
     let serverSlug = "";
-    if (isMcp) {
-      const cleanMcp = (cleanMcpId.startsWith("mcp.") ? cleanMcpId : dotId).slice(4);
-      serverSlug = cleanMcp.split(".")[0];
-      canonicalId = `mcp.${cleanMcp}`;
-    } else if (targetToolId.includes(".") || dotId.includes(".")) {
-      const firstPart = (targetToolId.includes(".") ? targetToolId : dotId).split(".")[0];
-      const { clause: mcpChkClause, params: mcpChkParams } = buildVisibility(actorCtx, 2, "owner_id");
-      const mcpServerCheck = await pool.query(
-        `SELECT slug FROM mcp_client_servers WHERE slug = $1 AND enabled = true AND (${mcpChkClause})`,
-        [firstPart, ...mcpChkParams]
-      );
-      if (mcpServerCheck.rows.length > 0) {
+    const { clause: mcpChkClause, params: mcpChkParams } = buildVisibility(actorCtx, 2, "owner_id");
+    const mcpServersList = await pool.query(
+      `SELECT slug FROM mcp_client_servers WHERE enabled = true AND (${mcpChkClause})`,
+      mcpChkParams
+    ).catch(() => ({ rows: [] }));
+    const activeMcpSlugs = new Set(mcpServersList.rows.map((r) => r.slug));
+
+    if (targetToolId.startsWith("mcp.")) {
+      const rest = targetToolId.slice(4);
+      const dotIdx = rest.indexOf(".");
+      if (dotIdx > 0) {
+        const s = rest.slice(0, dotIdx);
+        if (activeMcpSlugs.has(s)) {
+          isMcp = true;
+          serverSlug = s;
+          canonicalId = targetToolId;
+        }
+      }
+    } else if (targetToolId.includes(".")) {
+      const dotIdx = targetToolId.indexOf(".");
+      const s = targetToolId.slice(0, dotIdx).replace(/^(tool_|mcp_)/i, "");
+      const t = targetToolId.slice(dotIdx + 1);
+      if (activeMcpSlugs.has(s)) {
         isMcp = true;
-        serverSlug = firstPart;
-        canonicalId = `mcp.${dotId}`;
+        serverSlug = s;
+        canonicalId = `mcp.${s}.${t}`;
+      }
+    } else {
+      // Check server_tool formats (e.g. github_search_repositories)
+      for (const s of activeMcpSlugs) {
+        const p1 = `${s}_`;
+        const p2 = `mcp_${s}_`;
+        const p3 = `tool_mcp_${s}_`;
+        if (targetToolId.startsWith(p1)) {
+          isMcp = true;
+          serverSlug = s;
+          canonicalId = `mcp.${s}.${targetToolId.slice(p1.length)}`;
+          break;
+        }
+        if (targetToolId.startsWith(p2)) {
+          isMcp = true;
+          serverSlug = s;
+          canonicalId = `mcp.${s}.${targetToolId.slice(p2.length)}`;
+          break;
+        }
+        if (targetToolId.startsWith(p3)) {
+          isMcp = true;
+          serverSlug = s;
+          canonicalId = `mcp.${s}.${targetToolId.slice(p3.length)}`;
+          break;
+        }
       }
     }
 
     if (isMcp) {
-      const { clause: mcpExecClause, params: mcpExecParams } = buildVisibility(actorCtx, 2, "owner_id");
-      const mcpRow = await pool.query(
-        `SELECT id FROM mcp_client_servers WHERE slug = $1 AND enabled = true AND (${mcpExecClause})`,
-        [serverSlug, ...mcpExecParams]
-      );
-      if (mcpRow.rows.length > 0) isAllowed = true;
+      isAllowed = true;
     } else {
-      const possibleSkillIds = [targetToolId, `sk.${normalizedId}`, `sk.${targetToolId}`, normalizedId, dotId];
+      const possibleSkillIds = [targetToolId, `sk.${normalizedId}`, `sk.${targetToolId}`, normalizedId, dotId, `skill.${normalizedId}`, `skill_${normalizedId}`];
       const { clause: skillClause, params: skillParams } = buildVisibility(actorCtx, 2, "owner_id");
       const skillRow = await pool.query(
-        `SELECT id FROM skills WHERE id = ANY($1) AND enabled = true AND (${skillClause})`,
+        `SELECT id FROM skills WHERE (id = ANY($1) OR name = ANY($1)) AND enabled = true AND (${skillClause})`,
         [possibleSkillIds, ...skillParams]
       );
       if (skillRow.rows.length > 0) {
         isAllowed = true;
         canonicalId = skillRow.rows[0].id;
       } else {
-        const possibleToolIds = [targetToolId, `tool.${normalizedId}`, `tool.${dotId}`, normalizedId, dotId];
+        const possibleToolIds = [targetToolId, `tool.${normalizedId}`, `act.${normalizedId}`, `tool.${dotId}`, normalizedId, dotId, `tool_${normalizedId}`];
         const { clause: actClause, params: actParams } = buildVisibility(actorCtx, 2, "owner_user_id");
         const toolRow = await pool.query(
           `SELECT id FROM action_library WHERE (id = ANY($1) OR name = ANY($1)) AND (${actClause}) AND is_system = false AND COALESCE((runtime->>'orphan')::boolean, false) = false`,
@@ -364,8 +444,8 @@ export async function dispatchToolCall({
           isAllowed = true;
           canonicalId = toolRow.rows[0].id;
         } else {
-          // Check Workflows
-          const possibleWfIds = [targetToolId, `wf_${normalizedId}`, `wf.${normalizedId}`, `workflow.${normalizedId}`, normalizedId];
+          // Check Workflows (support wf_ prefix, clean slug, and workflow. slug)
+          const possibleWfIds = [targetToolId, `wf_${normalizedId}`, `wf.${normalizedId}`, `workflow.${normalizedId}`, `workflow_${normalizedId}`, normalizedId];
           const { clause: wfClause, params: wfParams } = buildVisibility(actorCtx, 2, "owner_id");
           const wfRow = await pool.query(
             `SELECT id FROM workflows WHERE (id = ANY($1) OR name = ANY($1)) AND (${wfClause})`,
@@ -375,8 +455,8 @@ export async function dispatchToolCall({
             isAllowed = true;
             canonicalId = wfRow.rows[0].id;
           } else {
-            // Check Orchestrations / Chains
-            const possibleOrcIds = [targetToolId, `orc_${normalizedId}`, `chain.${normalizedId}`, `orc.${normalizedId}`, normalizedId];
+            // Check Orchestrations / Chains (support orc_ prefix, chain. prefix, clean slug)
+            const possibleOrcIds = [targetToolId, `orc_${normalizedId}`, `chain.${normalizedId}`, `chain_${normalizedId}`, `orc.${normalizedId}`, normalizedId];
             const { clause: orcClause, params: orcParams } = buildVisibility(actorCtx, 2, "owner_id");
             const orcRow = await pool.query(
               `SELECT id FROM orchestrations WHERE (id = ANY($1) OR name = ANY($1)) AND (${orcClause})`,
@@ -386,8 +466,8 @@ export async function dispatchToolCall({
               isAllowed = true;
               canonicalId = orcRow.rows[0].id;
             } else {
-              // Check Agents
-              const possibleAgtIds = [targetToolId, `agt.${normalizedId}`, `agent.${normalizedId}`, normalizedId];
+              // Check Agents (support agt. prefix, agent. prefix, clean slug)
+              const possibleAgtIds = [targetToolId, `agt.${normalizedId}`, `agt_${normalizedId}`, `agent.${normalizedId}`, `agent_${normalizedId}`, normalizedId];
               const { clause: agtClause, params: agtParams } = buildVisibility(actorCtx, 2, "owner_id");
               const agtRow = await pool.query(
                 `SELECT id FROM agents WHERE (id = ANY($1) OR name = ANY($1)) AND (${agtClause})`,

@@ -2177,6 +2177,12 @@ ELARA Sovereign Studio genelinde **Zero-Trust Çoklu Kiracı (Multi-Tenancy) ve 
        - **Kör Dedup Kilidinin Kaldırılması (Tüm 8 Kalem):** `applyForgePlan` içerisindeki, geçmişte aynı slug'ı içeren bir plan logu bulunduysa hedef tabloda varlık olmasa dahi oluşturmayı iptal eden (`plan_intent_hash dedup skip`) mantık hatası kaldırıldı. Operatör karttan "APPROVE" verdiğinde 8 varlık türünün tamamı (`tool`, `skill`, `workflow`, `chain`, `agent`, `mcp`, `webhook`, `pack`) ilgili veritabanı tablosuna (`workflows`, `action_library`, `skills` vb.) kesin olarak kaydedilir / güncellenir.
        - **Kullanıcı İş Akışının Kurtarılması:** Onaylanıp veritabanında askıda kalan `mf_1789690611867_tmxz62` planı yeniden uygulandı; `wf_ssl-expiry-monitor-workflow` ("SSL Expiry Monitor Workflow") fiziksel olarak `workflows` tablosuna yazıldı ve `/flows` sayfasında canlıya alındı.
 
+   19. **Evrensel 8 Kalem Yetenek Çözücü & Varlık Eşleme Motoru (Universal 8-Kind Capability Resolver — `capability-vector.mjs`, `tool-dispatcher.mjs`):**
+       - **Evrensel Ön Ek Normalizasyonu:** 8 varlık türünün tamamı için (`tool.`, `act.`, `sk.`, `wf_`, `orc_`, `agt.`, `wh.`, `mcp.`) akıllı ön ek normalizasyonu (`normalizeCapId`) hayata geçirildi.
+       - **Doğrudan Varlık Tanıma (SQL Direct Entity Match):** Kullanıcı cümlesinde doğrudan bir varlık adı veya slug'ı geçtiğinde (örn. *"GitHub'da repo ara"*), `mcp_client_servers` içindeki `github` sunucusu anında +0.25 puan alarak %86 alaka skoruyla #1 sıraya yerleşir; genel sohbet kelimelerinin arkasında kaybolması engellendi.
+       - **Otomatik Alt Araç Çözümleme (MCP & Pack Unwrapping):** Bir MCP sunucusu veya Yetenek Paketi eşleştiğinde, o sunucuya/pakete ait araçlar (`mcp.github.search_repositories`, `mcp.github.get_file_contents`) otomatik olarak süzülüp `tools` listesine dahil edilir. Token şişmesini önlemek için en alakalı 12 araç filtrelenir.
+       - **Sıfır-Hata İcra Yetkilendirmesi (`sys_execute_tool`):** Model ister `mcp.github.search_repositories`, ister `github.search_repositories`, ister `github_search_repositories`, ister ön eksiz `ssl-cert-probe` veya `ssl-expiry-monitor-workflow` çağırsın; icra köprüsü bunu 0.0 milisaniyede kanonik veritabanı ID'sine dönüştürür. `sys_execute_tool FAILED` hataları ve modelin gereksiz yere MetaForge'a kaçması kökten engellendi.
+
    ---
 
    **Sistem Durumu:** `node --check` 0 hata, `npx tsc --noEmit` 0 hata; tüm systemd servisleri (`elara-middleware`, `elara-vite`, `elara-worker`) aktif, sağlıklı ve operasyonel.

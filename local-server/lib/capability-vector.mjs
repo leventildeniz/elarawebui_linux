@@ -261,6 +261,8 @@ export async function searchCapabilityVectors(pool, {
   const queryVec = vectorToSql(embs[0]);
   if (!queryVec) return [];
 
+  const qLower = q.toLowerCase();
+
   const allowedKinds = Array.isArray(kinds) && kinds.length > 0
     ? new Set(kinds)
     : new Set(["tool", "skill", "workflow", "chain", "agent", "mcp", "webhook", "pack"]);
@@ -271,12 +273,12 @@ export async function searchCapabilityVectors(pool, {
     searches.push(
       pool.query(
         `SELECT 'tool' AS kind, id, id AS slug, name, description,
-                (1 - (embedding <=> $1::vector)) AS score
+                (1 - (embedding <=> $1::vector)) + (CASE WHEN length(id) >= 3 AND $4 LIKE '%' || lower(replace(id, 'tool.', '')) || '%' THEN 0.25 ELSE 0.0 END) AS score
          FROM action_library
          WHERE embedding IS NOT NULL AND is_system = false
            AND (1 - (embedding <=> $1::vector)) >= $2
          ORDER BY score DESC LIMIT $3`,
-        [queryVec, minScore, limit]
+        [queryVec, minScore, limit, qLower]
       ).catch(() => ({ rows: [] }))
     );
   }
@@ -285,12 +287,12 @@ export async function searchCapabilityVectors(pool, {
     searches.push(
       pool.query(
         `SELECT 'skill' AS kind, id, id AS slug, name, description,
-                (1 - (embedding <=> $1::vector)) AS score
+                (1 - (embedding <=> $1::vector)) + (CASE WHEN length(id) >= 3 AND $4 LIKE '%' || lower(replace(id, 'sk.', '')) || '%' THEN 0.25 ELSE 0.0 END) AS score
          FROM skills
          WHERE embedding IS NOT NULL AND enabled = true
            AND (1 - (embedding <=> $1::vector)) >= $2
          ORDER BY score DESC LIMIT $3`,
-        [queryVec, minScore, limit]
+        [queryVec, minScore, limit, qLower]
       ).catch(() => ({ rows: [] }))
     );
   }
@@ -299,12 +301,12 @@ export async function searchCapabilityVectors(pool, {
     searches.push(
       pool.query(
         `SELECT 'workflow' AS kind, id, id AS slug, name, '' AS description,
-                (1 - (embedding <=> $1::vector)) AS score
+                (1 - (embedding <=> $1::vector)) + (CASE WHEN length(name) >= 3 AND $4 LIKE '%' || lower(name) || '%' THEN 0.25 ELSE 0.0 END) AS score
          FROM workflows
          WHERE embedding IS NOT NULL
            AND (1 - (embedding <=> $1::vector)) >= $2
          ORDER BY score DESC LIMIT $3`,
-        [queryVec, minScore, limit]
+        [queryVec, minScore, limit, qLower]
       ).catch(() => ({ rows: [] }))
     );
   }
@@ -313,12 +315,12 @@ export async function searchCapabilityVectors(pool, {
     searches.push(
       pool.query(
         `SELECT 'chain' AS kind, id, id AS slug, name, '' AS description,
-                (1 - (embedding <=> $1::vector)) AS score
+                (1 - (embedding <=> $1::vector)) + (CASE WHEN length(name) >= 3 AND $4 LIKE '%' || lower(name) || '%' THEN 0.25 ELSE 0.0 END) AS score
          FROM orchestrations
          WHERE embedding IS NOT NULL
            AND (1 - (embedding <=> $1::vector)) >= $2
          ORDER BY score DESC LIMIT $3`,
-        [queryVec, minScore, limit]
+        [queryVec, minScore, limit, qLower]
       ).catch(() => ({ rows: [] }))
     );
   }
@@ -327,12 +329,12 @@ export async function searchCapabilityVectors(pool, {
     searches.push(
       pool.query(
         `SELECT 'agent' AS kind, id, id AS slug, name, description,
-                (1 - (embedding <=> $1::vector)) AS score
+                (1 - (embedding <=> $1::vector)) + (CASE WHEN length(name) >= 3 AND $4 LIKE '%' || lower(name) || '%' THEN 0.25 ELSE 0.0 END) AS score
          FROM agents
          WHERE embedding IS NOT NULL AND enabled = true AND id != 'agt.forge_master'
            AND (1 - (embedding <=> $1::vector)) >= $2
          ORDER BY score DESC LIMIT $3`,
-        [queryVec, minScore, limit]
+        [queryVec, minScore, limit, qLower]
       ).catch(() => ({ rows: [] }))
     );
   }
@@ -341,12 +343,12 @@ export async function searchCapabilityVectors(pool, {
     searches.push(
       pool.query(
         `SELECT 'mcp' AS kind, id::text AS id, slug, name, '' AS description,
-                (1 - (embedding <=> $1::vector)) AS score
+                (1 - (embedding <=> $1::vector)) + (CASE WHEN length(slug) >= 3 AND $4 LIKE '%' || lower(slug) || '%' THEN 0.25 ELSE 0.0 END) AS score
          FROM mcp_client_servers
          WHERE embedding IS NOT NULL AND enabled = true
            AND (1 - (embedding <=> $1::vector)) >= $2
          ORDER BY score DESC LIMIT $3`,
-        [queryVec, minScore, limit]
+        [queryVec, minScore, limit, qLower]
       ).catch(() => ({ rows: [] }))
     );
   }
@@ -355,12 +357,12 @@ export async function searchCapabilityVectors(pool, {
     searches.push(
       pool.query(
         `SELECT 'webhook' AS kind, id, slug, name, description,
-                (1 - (embedding <=> $1::vector)) AS score
+                (1 - (embedding <=> $1::vector)) + (CASE WHEN length(slug) >= 3 AND $4 LIKE '%' || lower(slug) || '%' THEN 0.25 ELSE 0.0 END) AS score
          FROM webhooks
          WHERE embedding IS NOT NULL AND enabled = true
            AND (1 - (embedding <=> $1::vector)) >= $2
          ORDER BY score DESC LIMIT $3`,
-        [queryVec, minScore, limit]
+        [queryVec, minScore, limit, qLower]
       ).catch(() => ({ rows: [] }))
     );
   }
@@ -369,12 +371,12 @@ export async function searchCapabilityVectors(pool, {
     searches.push(
       pool.query(
         `SELECT 'pack' AS kind, id, id AS slug, name, description,
-                (1 - (embedding <=> $1::vector)) AS score
+                (1 - (embedding <=> $1::vector)) + (CASE WHEN length(name) >= 3 AND $4 LIKE '%' || lower(name) || '%' THEN 0.25 ELSE 0.0 END) AS score
          FROM capability_packs
          WHERE embedding IS NOT NULL
            AND (1 - (embedding <=> $1::vector)) >= $2
          ORDER BY score DESC LIMIT $3`,
-        [queryVec, minScore, limit]
+        [queryVec, minScore, limit, qLower]
       ).catch(() => ({ rows: [] }))
     );
   }
